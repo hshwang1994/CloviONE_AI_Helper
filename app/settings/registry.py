@@ -181,15 +181,40 @@ def _smtp(value: Any) -> None:
     timeout = value.get("timeout_seconds", 20)
     if not isinstance(timeout, int) or isinstance(timeout, bool) or not (1 <= timeout <= 300):
         raise ValidationAppError("응답 대기 시간은 1~300초 사이의 정수여야 합니다.")
-    for key in ("host", "from_address", "from_name", "username", "password_ref"):
+    for key in ("host", "from_address", "from_name", "username", "password_ref", "ca_pem"):
         if key in value and not isinstance(value[key], str):
             raise ValidationAppError(f"{key}는 문자열이어야 합니다.")
+    if "tls_verify" in value and not isinstance(value["tls_verify"], bool):
+        raise ValidationAppError("서버 인증서 확인은 켬 또는 끔이어야 합니다.")
+    _smtp_ca(value, security)
     # 켜 놓고 주소가 비어 있으면 큐에 쌓기만 하고 아무것도 못 보낸다 - 저장 시점에 막는다.
     if value.get("enabled"):
         if not str(value.get("host", "")).strip():
             raise ValidationAppError("메일 발송을 켜려면 메일 서버 주소가 필요합니다.")
         if not str(value.get("from_address", "")).strip():
             raise ValidationAppError("메일 발송을 켜려면 보내는 사람 주소가 필요합니다.")
+
+
+def _smtp_ca(value: dict, security: str) -> None:
+    """사설 CA 인증서(PEM). 저장할 때 실제로 읽어 본다 — 못 읽는 원문을 받아 두면 발송할 때마다 보안 연결이
+    실패하고, 그 원인은 설정 화면이 아니라 발송 기록에서야 보인다."""
+    import ssl
+
+    from app.mail.config import CA_PEM_MAX_CHARS, SECURITY_NONE
+
+    pem = str(value.get("ca_pem") or "").strip()
+    if not pem:
+        return
+    if security == SECURITY_NONE:
+        raise ValidationAppError("보안 연결을 쓰지 않으면 CA 인증서는 쓰이지 않습니다. 보안 연결을 고르거나 인증서를 비우세요.")
+    if len(pem) > CA_PEM_MAX_CHARS:
+        raise ValidationAppError("CA 인증서가 너무 깁니다. 인증서 한두 개의 PEM 원문만 붙여 넣으세요.")
+    if "-----BEGIN CERTIFICATE-----" not in pem:
+        raise ValidationAppError("CA 인증서는 -----BEGIN CERTIFICATE----- 로 시작하는 PEM 원문이어야 합니다.")
+    try:
+        ssl.create_default_context(cadata=pem)
+    except (ssl.SSLError, ValueError):
+        raise ValidationAppError("CA 인증서를 읽지 못했습니다. PEM 원문 전체를 그대로 붙여 넣으세요.") from None
 
 
 # LLM 설정(9-5). 빈 값 = '안 정함'(환경변수를 따른다)이라는 규약을 세 검증기가 공유한다.

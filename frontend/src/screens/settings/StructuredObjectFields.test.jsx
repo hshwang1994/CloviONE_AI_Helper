@@ -1,7 +1,14 @@
 import React from "react";
-import { describe, it, expect } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom/vitest";
+
+/* qa-contract-change: 메일 비밀번호가 서버 파일 이름(`password_ref`) 칸에서 비밀 저장 칸(`SecretField`, 계획 2.3 · D-511)으로
+ * 바뀌었다. 「비밀번호를 받는 칸이 없다」 단언을 「비밀번호 칸의 값은 설정 JSON 이 아니라 비밀 저장 API 로만 간다」로 옮기고,
+ * 서버 인증서 확인과 사설 CA 칸의 단언을 더했다. */
+const apiMock = vi.fn();
+vi.mock("../../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
 
 /* H-2 회귀 고정: fmtDuration import 누락으로 '세션 정책' 편집기가 ReferenceError로
  * 크래시했다(ErrorBoundary가 화면 전체를 오류로 덮었다) — StructuredObjectFields.jsx가
@@ -11,16 +18,22 @@ import "@testing-library/jest-dom/vitest";
 import { StructuredObjectFields } from "./StructuredObjectFields.jsx";
 
 function renderField(settingKey, val, extra = {}) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  apiMock.mockImplementation((path) => (String(path) === "/api/admin/secrets"
+    ? Promise.resolve({ items: [{ name: "smtp.password", label: "메일 서버 비밀번호", stored: false }] })
+    : Promise.resolve({ ok: true })));
   return render(
-    <StructuredObjectFields
-      settingKey={settingKey}
-      val={val}
-      onChange={() => {}}
-      canWrite={true}
-      describedBy={undefined}
-      invalid={false}
-      {...extra}
-    />,
+    <QueryClientProvider client={qc}>
+      <StructuredObjectFields
+        settingKey={settingKey}
+        val={val}
+        onChange={() => {}}
+        canWrite={true}
+        describedBy={undefined}
+        invalid={false}
+        {...extra}
+      />
+    </QueryClientProvider>,
   );
 }
 
@@ -73,7 +86,7 @@ describe("StructuredObjectFields — 나머지 STRUCTURED_OBJECT_KEYS 3종 (스�
  * "설정 화면"일 수는 없다. 여기서 고정하는 것은 셋이다.
  *   1) 필드마다 사람이 읽는 이름이 있다.
  *   2) 값의 어휘(`starttls`)가 아니라 이름으로 고른다.
- *   3) **비밀번호 자체를 받는 칸이 없다** — 서버 검증기가 거절하는 것을 화면도 열지 않는다.
+ *   3) **비밀번호는 설정 JSON 에 들어가지 않는다** — 비밀번호 칸은 비밀 저장 API 로만 간다(D-511).
  */
 describe("StructuredObjectFields — smtp (지시 32 · 36)", () => {
   const SMTP = JSON.stringify({
@@ -99,13 +112,35 @@ describe("StructuredObjectFields — smtp (지시 32 · 36)", () => {
     expect(names).toContain("사용 안 함(사내망에서만)");
   });
 
-  it("비밀번호를 직접 입력받는 칸은 없다 — 파일 이름만 받는다", () => {
-    renderField("smtp", SMTP);
-    expect(screen.getByLabelText("비밀번호 파일 이름")).toHaveValue("smtp_password");
-    expect(screen.queryByLabelText("비밀번호")).toBeNull();
-    expect(screen.getByText(/비밀번호 자체는 적지 않습니다/)).toBeInTheDocument();
-    // 값을 넣을 수 있는 password 입력이 하나라도 있으면 평문이 설정 JSON 으로 들어간다.
-    expect(document.querySelector('input[type="password"]')).toBeNull();
+  it("비밀번호 칸의 값은 설정 JSON 이 아니라 비밀 저장 API 로만 간다", async () => {
+    const onChange = vi.fn();
+    renderField("smtp", SMTP, { onChange });
+    const input = await screen.findByLabelText("로그인 비밀번호");
+    expect(input).toHaveAttribute("type", "password");
+    expect(screen.queryByLabelText("비밀번호 파일 이름")).toBeNull();
+    fireEvent.change(input, { target: { value: "s3cret-value" } });
+    // 입력만으로는 설정 값이 바뀌지 않는다 - 평문이 설정 JSON 으로 들어가는 길이 없다.
+    expect(onChange.mock.calls.some(([v]) => String(v).includes("s3cret-value"))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(apiMock.mock.calls.some(([p, o]) =>
+      p === "/api/admin/secrets/smtp.password" && o && o.method === "PUT")).toBe(true));
+    // 옛 설치가 적어 둔 파일 이름은 저장한 비밀번호를 쓰도록 비운다(설정을 저장하면 적용된다).
+    await waitFor(() => expect(onChange.mock.calls.some(([v]) => JSON.parse(v).password_ref === "")).toBe(true));
+  });
+
+  it("서버 인증서 확인은 기본으로 켜져 있고, 끄면 경고가 선다", () => {
+    const onChange = vi.fn();
+    const { rerender } = renderField("smtp", SMTP, { onChange });
+    expect(screen.getByLabelText("서버 인증서 확인")).toHaveValue("true");
+    expect(screen.getByLabelText("사설 CA 인증서(PEM, 선택)")).toBeInTheDocument();
+    const off = JSON.stringify({ ...JSON.parse(SMTP), tls_verify: false });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    rerender(
+      <QueryClientProvider client={qc}>
+        <StructuredObjectFields settingKey="smtp" val={off} onChange={onChange} canWrite={true} invalid={false} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText(/인증서를 확인하지 않으면/)).toBeInTheDocument();
   });
 
   it("잘못된 JSON 에도 크래시하지 않는다", () => {

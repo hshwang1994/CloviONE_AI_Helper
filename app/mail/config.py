@@ -10,7 +10,9 @@
 ## 비밀번호는 여기 없다
 
 DB 설정에는 ``password_ref``(이름)만 둔다. 실제 값은 ``SECRETS_DIR/<ref>`` 파일이다
-(불변 §3). 그래서 이 모듈은 **secret 제공자를 받을 때만** 비밀번호 문제를 말할 수 있고,
+(불변 §3). 이름을 비워 두면 관리 화면이 비밀번호를 저장하는 슬롯(``smtp.password``,
+`app/core/secret_slots.py`)을 쓴다(계획 3.3) — 설치 뒤 서버에 파일을 손으로 둘 필요가 없다. 예전 설치가
+적어 둔 이름은 그대로 이긴다. 그래서 이 모듈은 **secret 제공자를 받을 때만** 비밀번호 문제를 말할 수 있고,
 받지 못하면(예: 잡 큐잉처럼 app.state 가 없는 자리) 그 항목은 검사하지 않는다 - 그 경우
 문제는 발송 시점에 ``mail_deliveries.last_error`` 로 드러난다.
 
@@ -26,6 +28,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Any
+
+from app.core.secret_slots import SLOT_SMTP_PASSWORD
 
 SMTP_SETTING_KEY = "smtp"
 
@@ -46,7 +50,15 @@ DEFAULT_SMTP: dict[str, Any] = {
     "username": "",
     "password_ref": "",
     "timeout_seconds": 20,
+    # 서버 인증서를 확인한다(계획 3.3). 예전에는 `starttls()` · `SMTP_SSL` 에 문맥을 안 줘서 인증서와 호스트
+    # 이름을 전혀 보지 않았다. 사설 CA 를 쓰는 내부 릴레이는 `ca_pem` 에 그 CA 를 붙여 넣는다.
+    "tls_verify": True,
+    "ca_pem": "",
 }
+
+# 관리 화면이 비밀번호를 저장하는 슬롯의 이름. 이름은 슬롯 표 한 곳에만 적는다.
+DEFAULT_PASSWORD_REF = SLOT_SMTP_PASSWORD
+CA_PEM_MAX_CHARS = 20480
 
 
 @dataclass(frozen=True)
@@ -62,13 +74,13 @@ class MailConfig:
     username: str
     password_ref: str
     timeout_seconds: int
+    tls_verify: bool = True
+    ca_pem: str = ""
 
     @property
-    def from_header(self) -> str:
-        """``이름 <주소>`` 형태. 이름이 없으면 주소만."""
-        if self.from_name:
-            return f"{self.from_name} <{self.from_address}>"
-        return self.from_address
+    def effective_password_ref(self) -> str:
+        """로그인에 쓸 비밀의 이름. 적어 둔 이름이 없으면 관리 화면이 쓰는 슬롯이다."""
+        return self.password_ref or DEFAULT_PASSWORD_REF
 
     def public_view(self) -> dict:
         """화면에 그대로 내보내도 되는 모양. 비밀번호는 **이름조차** 값이 아니다."""
@@ -82,6 +94,9 @@ class MailConfig:
             "username": self.username,
             "password_ref": self.password_ref,
             "timeout_seconds": self.timeout_seconds,
+            "tls_verify": self.tls_verify,
+            # 인증서 원문은 비밀이 아니지만 길다(최대 20KB). 상태 화면은 붙어 있는지만 알면 된다.
+            "ca_pem_set": bool(self.ca_pem),
         }
 
 
@@ -111,6 +126,9 @@ def smtp_config(raw: Any) -> MailConfig:
             if str(values["timeout_seconds"]).strip().isdigit()
             else 20
         ),
+        # 모르는 값은 확인하는 쪽으로 떨어진다 - 확인을 끄는 것은 명시적인 선택이어야 한다.
+        tls_verify=values["tls_verify"] is not False,
+        ca_pem=str(values["ca_pem"] or "").strip(),
     )
 
 
@@ -173,15 +191,11 @@ def configuration_problems(config: MailConfig, secret_provider=None) -> list[str
         )
     if not config.from_address:
         problems.append("보내는 사람 주소가 비어 있습니다.")
-    if config.username and not config.password_ref:
-        problems.append(
-            "사용자 이름을 넣었으면 비밀번호도 함께 등록해야 합니다."
-        )
-    if config.password_ref and secret_provider is not None:
+    if config.username and secret_provider is not None:
         from app.core.secret_refs import STATUS_CONFIGURED
 
-        if secret_provider.status(config.password_ref) != STATUS_CONFIGURED:
-            problems.append("메일 서버 비밀번호가 서버에 등록되지 않았습니다.")
+        if secret_provider.status(config.effective_password_ref) != STATUS_CONFIGURED:
+            problems.append("로그인 계정의 비밀번호가 저장되지 않았습니다. 메일 설정에서 비밀번호를 저장하세요.")
     return problems
 
 
@@ -198,7 +212,7 @@ def mail_status(config: MailConfig, secret_provider=None) -> dict:
         "server": config.public_view(),
         "password_secret": (
             None
-            if not config.password_ref or secret_provider is None
-            else secret_provider.status(config.password_ref)
+            if not config.username or secret_provider is None
+            else secret_provider.status(config.effective_password_ref)
         ),
     }

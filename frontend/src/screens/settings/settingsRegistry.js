@@ -38,6 +38,10 @@ export const SETTING_LABELS = {
   llm_model: "AI 모델",
   llm_timeout_seconds: "AI 제한 시간(초)",
   llm_max_concurrency: "AI 동시 실행 수",
+  // AI 기능 스위치 셋(D-507) — 파일 소유에서 DB 설정으로 옮기면서 이 표에 들어왔다.
+  chat_enabled: "AI 채팅",
+  game_ai_enabled: "게임 퀴즈 AI",
+  assistant_narrative_enabled: "홈 AI 문장 요약",
 };
 export const settingLabel = (k) => SETTING_LABELS[k] || k;
 
@@ -54,8 +58,8 @@ export const OBJECT_SCHEMA_HELP = {
   allowed_email_domains: 'JSON 예: ["example.com"], **계정을 새로 추가할 때** 허용할 이메일 도메인 목록입니다. 이미 있는 계정은 도메인을 좁혀도 계속 로그인합니다(로그인 검사가 아닙니다). 빈 목록([])이면 제한 없이 모든 이메일을 허용합니다.',
   ui_branding: 'JSON 예: {"product_name": "ClovirONE", "support_email": "help@example.com"}, 제품명, 지원 이메일 등 브랜딩 값.',
   // 비밀번호를 이 JSON 에 넣으면 설정 화면·감사·버전 스냅샷에 평문으로 남는다. 그래서
-  // 서버는 **파일 이름**(password_ref)만 받는다 - 그 사실을 여기서 분명히 말한다.
-  smtp: 'JSON 예: {"enabled": true, "host": "smtp.example.com", "port": 587, "security": "starttls", "from_address": "portal@example.com", "password_ref": "smtp_password"}, 비밀번호는 여기 적지 않습니다. 서버의 secret 파일 이름만 password_ref 에 적습니다.',
+  // 비밀번호는 이 값에 들어가지 않는다 - 메일 설정 화면의 비밀번호 칸이 따로 저장한다(계획 2.3).
+  smtp: 'JSON 예: {"enabled": true, "host": "smtp.example.com", "port": 587, "security": "starttls", "from_address": "portal@example.com", "tls_verify": true}, 비밀번호는 여기 적지 않고 메일 설정의 비밀번호 칸에 저장합니다.',
   // 백엔드(_backup_schedule)가 **저장 시점에** cron·타임존을 검증한다 — 여기 예시는 그것과
   // 같은 모양이라야 한다(틀린 예시를 그대로 붙여 넣으면 저장이 거부된다).
   backup_schedule: 'JSON 예: {"enabled": true, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14, "keep_days": 7}, cron 은 분 시 일 월 요일(0 3 * * * = 매일 새벽 3시), keep 은 남길 백업 개수(1~365), keep_days 는 개수를 넘어도 남기는 기간(0~365일).',
@@ -167,8 +171,7 @@ export function summarizeSetting(key, v) {
   if (key === "smtp") {
     // VIS-54: 이 case 가 없어서 backup_schedule 과 같은 object 설정인데도 요약이 없어
     // displayValue()의 잘린 raw JSON({"enabled":false,"host":"",...)으로 새어 나갔다 -
-    // 다른 object 설정과 같은 "켜짐/꺼짐 + 핵심 정보" 관례로 맞춘다. 비밀번호는
-    // password_ref(파일 이름)일 뿐이라 여기 보여도 값 노출이 아니다.
+    // 다른 object 설정과 같은 "켜짐/꺼짐 + 핵심 정보" 관례로 맞춘다. 비밀번호는 이 값에 없다.
     if (!v.enabled) return "비활성";
     const parts = ["활성"];
     if (v.host) parts.push(String(v.host) + ":" + (v.port != null ? v.port : "?"));
@@ -176,6 +179,7 @@ export function summarizeSetting(key, v) {
     // 보이면 같은 값이 두 이름을 갖는다(지시 36).
     if (v.security) parts.push(SMTP_SECURITY_LABELS[v.security] || String(v.security));
     if (v.from_address) parts.push("발신: " + String(v.from_address));
+    if (v.tls_verify === false && v.security !== "none") parts.push("인증서 확인 안 함");
     return parts.join(", ");
   }
   return null;
@@ -184,6 +188,14 @@ export function summarizeSetting(key, v) {
 // 보안을 '약화'시키는 설정 변경을 감지해 확인 문구를 돌려준다(해당 없으면 null).
 // 검증만 통과하면 한 클릭으로 커밋되던 위험, 롤백, 유지보수 토글처럼 확인 단계를 둔다.
 export function securityDowngradeWarning(setting, value) {
+  /* 메일 서버 인증서 확인을 끄는 것도 같은 성격이다(계획 3.3) — 중간에서 메일과 로그인 비밀번호를 가로챌 수 있다. */
+  if (setting.key === "smtp") {
+    const cur = setting.value || {};
+    const turningOff = value && value.tls_verify === false && cur.tls_verify !== false && value.security !== "none";
+    return turningOff
+      ? "메일 서버 인증서 확인을 끕니다. 중간에서 메일과 로그인 비밀번호를 가로챌 수 있게 됩니다. 사설 인증서라면 CA 인증서를 붙여 넣는 쪽이 안전합니다. 계속할까요?"
+      : null;
+  }
   if (setting.key === "allowed_email_domains") {
     // 빈 목록([])은 백엔드에서 '모든 도메인 허용'이라 로그인 제한이 통째로 풀린다.
     if (Array.isArray(value) && value.length === 0)

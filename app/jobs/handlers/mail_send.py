@@ -98,7 +98,7 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
 
     try:
         body = render_body(db, delivery, ctx)
-        _transport(ctx).send(
+        sent_id = _transport(ctx).send(
             config,
             secret_provider,
             to_email=delivery.to_email,
@@ -128,7 +128,8 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
             raise PermanentJobError(f"{type(exc).__name__}: {exc}") from exc
         raise
 
-    record_sent(db, delivery, now=now)
+    # 진짜 전송기는 보낸 메일의 Message-ID 를 돌려준다. 시험의 가짜 전송기는 아무것도 안 돌려줄 수 있다.
+    record_sent(db, delivery, now=now, message_id=sent_id if isinstance(sent_id, str) else None)
     logger.info("메일 발송 완료 (kind=%s, delivery=%s)", delivery.kind, delivery.id)
 
 

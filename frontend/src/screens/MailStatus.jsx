@@ -244,6 +244,11 @@ export function MailStatus() {
           { key: "enabled", label: "발송", type: "status", value: <Badge value={server.enabled ? "사용" : "사용 안 함"} kind={server.enabled ? "ok" : "warn"} /> },
           { key: "host", label: "메일 서버", type: "identifier", value: server.host ? server.host + ":" + (server.port == null ? "?" : server.port) : "설정 안 됨" },
           { key: "security", label: "보안 연결", type: "enum", value: SMTP_SECURITY_LABELS[server.security] || server.security || "설정 안 됨" },
+          /* 인증서 확인을 끈 설치는 경고로 선다(계획 3.3) — 끈 사실이 화면 어디에도 없으면 아무도 다시 켜지 않는다. */
+          server.security && server.security !== "none" ? {
+            key: "tls", label: "인증서 확인", type: "status",
+            value: <Badge value={server.tls_verify === false ? "확인 안 함" : "확인함"} kind={server.tls_verify === false ? "warn" : "ok"} />,
+          } : null,
           {
             key: "from", label: "보내는 사람", type: "identifier",
             value: server.from_address

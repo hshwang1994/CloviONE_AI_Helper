@@ -5,6 +5,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { Button, Callout, Tag, FieldLabel } from "../../ui/kit.jsx";
+import { SecretField } from "../../ui/SecretField.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { fmtDuration } from "./settingsRegistry.js";
 
@@ -394,10 +395,12 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
        그래서 관리자는 중괄호를 손으로 맞추고, `security` 에 무엇을 쓸 수 있는지는 힌트 문장을
        읽어야 알았고, 오타는 저장 왕복 뒤에야 드러났다. 필드마다 이름과 허용값을 준다.
 
-       **비밀번호 자체는 여기서 받지 않는다.** 백엔드 검증기(registry.py::_smtp)가 `password`
+       **비밀번호는 이 설정 값에 들어가지 않는다.** 백엔드 검증기(registry.py::_smtp)가 `password`
        계열 키를 모양이 맞아도 거절한다 - DB 설정은 관리 API 와 진단 번들에 실리므로 값이
-       들어오는 순간 평문이 응답을 타고 나간다(불변 §3). 화면도 같은 경계를 지켜, 서버에 둔
-       파일의 **이름**만 받는다. */
+       들어오는 순간 평문이 응답을 타고 나간다(불변 §3). 비밀번호 칸은 비밀 저장 API
+       (`/api/admin/secrets/smtp.password`)로 따로 저장되고 되읽히지 않는다(`SecretField`, 계획 2.3).
+       예전에는 서버에 파일을 손으로 두고 그 이름을 적어야 했다. 옛 설치가 적어 둔 이름(`password_ref`)은
+       그대로 이기므로, 여기서 비밀번호를 저장하면 그 이름을 비워 저장한 비밀번호를 쓰게 한다. */
     const secId = fieldId("security");
     return (
       <Box sx={{ display: "grid", gap: 2.5 }}>
@@ -478,18 +481,46 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
               value={safe.username || ""} onChange={(e) => patch({ username: e.target.value })}
             />
           </Box>
-          <Box>
-            <Box sx={{ minWidth: 0 }}>
-              <FieldLabel htmlFor={fieldId("password_ref")}>비밀번호 파일 이름</FieldLabel>
-              <TextField
-                id={fieldId("password_ref")} size="small" fullWidth disabled={!canWrite} error={!!invalid}
-                inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
-                value={safe.password_ref || ""} onChange={(e) => patch({ password_ref: e.target.value })}
-              />
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-              비밀번호 자체는 적지 않습니다. 서버에 미리 둔 파일의 이름만 적습니다.
-            </Typography>
+          <Box sx={{ minWidth: 0 }}>
+            <SecretField
+              slot="smtp.password"
+              label="로그인 비밀번호"
+              help={safe.password_ref && safe.password_ref !== "smtp.password"
+                ? "지금은 서버에 둔 비밀번호 파일을 씁니다. 여기서 저장하면 그 파일 대신 저장한 비밀번호를 쓰고, 설정을 저장하면 적용됩니다."
+                : "저장한 비밀번호는 다시 보여 주지 않습니다. 로그인 계정이 있을 때만 씁니다."}
+              disabled={!canWrite}
+              onChanged={() => { if (safe.password_ref) patch({ password_ref: "" }); }}
+            />
+          </Box>
+        </Box>
+        <Box sx={pairGrid}>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("tls_verify")}>서버 인증서 확인</FieldLabel>
+            <TextField
+              id={fieldId("tls_verify")} select size="small" fullWidth
+              disabled={!canWrite || safe.security === "none"} error={!!invalid} SelectProps={{ native: true }}
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
+              value={safe.tls_verify === false ? "false" : "true"}
+              onChange={(e) => patch({ tls_verify: e.target.value === "true" })}
+            >
+              <option value="true">확인함</option>
+              <option value="false">확인 안 함(권장하지 않음)</option>
+            </TextField>
+            {safe.tls_verify === false && safe.security !== "none" ? (
+              <Typography variant="caption" color="warning.main" sx={{ display: "block", mt: 0.5 }}>
+                인증서를 확인하지 않으면 중간에서 메일과 비밀번호를 가로챌 수 있습니다. 사설 인증서라면 CA 인증서를 붙여 넣으세요.
+              </Typography>
+            ) : null}
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel htmlFor={fieldId("ca_pem")}>사설 CA 인증서(PEM, 선택)</FieldLabel>
+            <TextField
+              id={fieldId("ca_pem")} size="small" fullWidth multiline minRows={3} maxRows={8}
+              disabled={!canWrite || safe.security === "none"} error={!!invalid}
+              placeholder="-----BEGIN CERTIFICATE-----"
+              inputProps={{ "aria-invalid": ariaInvalid, "aria-describedby": describedBy, spellCheck: false }}
+              value={safe.ca_pem || ""} onChange={(e) => patch({ ca_pem: e.target.value })}
+            />
           </Box>
         </Box>
         <Box sx={pairGrid}>
