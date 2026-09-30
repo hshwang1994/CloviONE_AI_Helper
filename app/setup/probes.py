@@ -285,7 +285,7 @@ def probe_llm(ctx: ProbeContext) -> Outcome:
     # 답변은 되고 의미 검색 모델만 없다. 검색은 낱말 레인으로 동작하므로 설계된 상태이지 고장이 아니다(D-201).
     return _unknown(
         "답변 생성은 동작합니다. 문서 검색 모델이 없어 낱말이 맞는 문서만 찾습니다.",
-        "의미 검색이 필요하면 설치 명령을 AI 구성 요소와 함께 다시 실행해 문서 검색 모델을 넣으세요.",
+        "의미 검색이 필요하면 서버에서 sudo clovirassist ai --download-model 을 실행해 문서 검색 모델을 넣으세요.",
         link=LINK_AI, checked_at=checked_at,
     )
 

@@ -44,6 +44,9 @@ EXEMPT: dict[str, str] = {
     # 사이트의 브라우저 요청을 막는 Origin 검사가 겹친다(app/ai/connect_router.py).
     "/api/connect/openai/begin": "쿠키 없는 도우미 요청이다 — 짝짓기 토큰과 Origin 검사로 막는다",
     "/api/connect/openai/complete": "쿠키 없는 도우미 요청이다 — 짝짓기 토큰과 Origin 검사로 막는다",
+    # 첫 관리자 계정(D-522). 계정이 하나도 없는 서버라 세션이 있을 수 없다. 설치 콘솔에만 나온 128비트 일회용 코드(해시만
+    # 저장, 5번 틀리면 폐기), IP 단위 속도 제한, Origin 검사가 겹친다. 사용자가 한 명이라도 있으면 경로 자체가 404 다.
+    "/setup/first-admin": "계정이 없는 서버의 첫 계정이다 — 일회용 설정 코드와 Origin 검사로 막는다",
 }
 
 
@@ -117,6 +120,7 @@ def test_login_is_the_only_unauthenticated_write_route(app):
     # ChatGPT 계정 연결 도우미의 두 경로(D-516)도 같은 수준의 근거가 있다: 관리자가 화면에서 연 시도에만 붙고,
     # 한 번 쓰는 256비트 짝짓기 토큰이 권한을 증명하며, 그 토큰은 해시로만 남고 10분 뒤 사라진다. Origin 검사와
     # IP 단위 속도 제한이 위에 겹친다. 응답에는 토큰이 없다.
+    # 첫 관리자 계정(D-522)은 계정이 하나도 없을 때만 열린다. 권한은 설치 콘솔에만 나온 일회용 코드가 증명한다.
     assert sorted(open_routes) == sorted(
         [
             "['POST'] /login",
@@ -124,5 +128,6 @@ def test_login_is_the_only_unauthenticated_write_route(app):
             "['POST'] /reset-password",
             "['POST'] /api/connect/openai/begin",
             "['POST'] /api/connect/openai/complete",
+            "['POST'] /setup/first-admin",
         ]
     ), ("인증 없이 부를 수 있는 쓰기 라우트 목록이 달라졌다:\n  " + "\n  ".join(open_routes))

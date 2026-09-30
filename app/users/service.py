@@ -106,8 +106,8 @@ def ensure_can_grant_role(actor_role: str, role: str) -> None:
     this check, but the CSV bulk-import path (``app/users/bulk.py``) called
     ``create_user`` directly with no equivalent check at all — an `admin`
     could mint a `system_admin` account through a CSV upload. Putting the
-    gate here means every entry point (web form, CSV import, CLI,
-    seed_admin.py) is covered by construction; a new caller cannot forget it.
+    gate here means every entry point (web form, CSV import, CLI, the
+    first-admin setup page) is covered by construction; a new caller cannot forget it.
     """
     if role in CONSOLE_WRITE_ROLES and actor_role != ROLE_SYSTEM_ADMIN:
         raise ForbiddenError("admin 이상 권한 계정 생성은 system_admin만 가능합니다.")

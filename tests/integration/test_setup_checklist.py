@@ -364,7 +364,7 @@ def test_an_unchecked_integration_is_a_question_not_a_failure(client, db, sysadm
 
 
 def test_an_admin_who_never_changed_the_temp_password_is_not_done(app, db, make_user):
-    """seed_admin.py 만 돌고 아무도 로그인하지 않은 설치의 상태다.
+    """관리자를 임시 비밀번호로 만들고(clovirassist user add) 아무도 로그인하지 않은 설치의 상태다.
 
     이 가지는 **API 로는 볼 수 없다**: 그 상태의 관리자는 로그인 직후 비밀번호 변경에
     막혀 이 화면에 닿지 못한다(app/core/deps.py). 그래도 판정은 돌아간다 - 사용자 배너가

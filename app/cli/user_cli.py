@@ -108,6 +108,23 @@ def cmd_add(db: Session, session_service: SessionService, settings: Settings, ar
     return 0
 
 
+def cmd_first_admin_code(db: Session, session_service, settings: Settings, args) -> int:
+    """첫 관리자 설정 코드를 만든다(D-522). 사용자가 한 명이라도 있으면 만들지 않는다.
+
+    출력은 설치 스크립트가 읽는 두 줄(`code=`, `expires_at=`)이다. 원문은 여기서 한 번 나가고 어디에도 남지 않는다 -
+    서버에는 해시만 남는다(app/setup/first_admin.py).
+    """
+    from app.setup.first_admin import format_code, issue_code
+
+    issued = issue_code(db, settings.data_dir, now=SystemClock().now())
+    if issued is None:
+        print("이미 계정이 있어 첫 관리자 코드를 만들지 않았습니다.", file=sys.stderr)
+        return 0
+    print(f"code={format_code(issued.code)}")
+    print(f"expires_at={issued.expires_at.replace(microsecond=0).isoformat()}")
+    return 0
+
+
 def cmd_list(db: Session, session_service, settings, args) -> int:
     # 웹 목록과 같은 규칙: 보관된 계정은 기본으로 감추고 --archived로만 본다.
     # 두 화면이 다른 명부를 보여 주면 어느 쪽이 사실인지 알 수 없다.
@@ -312,6 +329,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--inactive", action="store_true")
     p.add_argument("--password-stdin", action="store_true", help="비밀번호를 stdin에서 읽음")
     p.set_defaults(func=cmd_add)
+
+    p = sub.add_parser("first-admin-code", help="첫 관리자 설정 코드 만들기 (사용자가 없을 때만)")
+    p.set_defaults(func=cmd_first_admin_code)
 
     p = sub.add_parser("list", help="사용자 목록 (기본: 보관된 계정 제외)")
     p.add_argument("--archived", action="store_true", help="보관된 계정만 표시")

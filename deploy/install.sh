@@ -3,7 +3,18 @@
 #
 #   sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 #
-# 서브커맨드: install · upgrade · rollback · uninstall · verify · version · preflight
+# 서브커맨드: install · upgrade · rollback · uninstall · verify · version · preflight · storage · ai
+#
+# ── 받는 길은 셋이고 설치 명령은 하나다 (계획 3.17, D-522) ─────────────────────
+#
+#   최종 사용자  Release 페이지에서 이 파일 하나를 받아 실행한다.
+#                sudo bash install.sh install --release v1.2.0 --dns-name <host> --bind-ip <ip>
+#                스크립트가 같은 Release 의 묶음과 SHA256SUMS 를 받아 **확인한 뒤에만** 푼다.
+#   개발자       git clone 한 저장소 안의 deploy/install.sh 를 실행한다(--ref 로 태그 고정).
+#   폐쇄망       오프라인 번들(--source bundle)과 wheelhouse 로 설치한다.
+#
+# 설치가 끝나면 /usr/local/bin/clovirassist 가 생긴다. 그 뒤의 업그레이드, 되돌리기, 검증, 계정, 저장소, AI 모델은
+# 전부 `sudo clovirassist <명령>` 하나로 한다(deploy/clovirassist-cli.sh).
 #
 # ── 이 스크립트가 옛 installer 와 다른 점 ────────────────────────────────────
 #
@@ -110,6 +121,23 @@ PURGE=0
 # 「켠다」는 뜻이므로 함께 켜진다.
 WITH_AI=0
 AI_MODEL_DIR="${AI_MODEL_DIR:-}"
+# 임베딩 모델을 설치 중에 받는다(계획 3.16). 주소, revision, 파일마다의 sha256 은 제품 카탈로그(app/ai/catalog.py)에
+# 고정돼 있고, 받은 파일은 그 값과 맞아야만 쓴다. 폐쇄망은 지금처럼 --ai-model-dir 로 넣는다.
+DOWNLOAD_MODEL=0
+
+# GitHub Release 설치(계획 3.17, D-522). RELEASE_TAG_DEFAULT 는 저장소에서는 비어 있고, Release 에 올리는 단독
+# install.sh 에는 scripts/build-bundle.sh 가 그 Release 의 태그를 적는다. 그래서 Release 에서 받은 파일은
+# --release 없이 돌려도 자기 버전을 설치한다.
+RELEASE_TAG=""
+RELEASE_TAG_DEFAULT=""
+RELEASE_BASE="${RELEASE_BASE:-}"
+RELEASE_BASE_DEFAULT="https://github.com/hshwang1994/clovirassist/releases/download"
+RELEASE_WORK_DIR=""
+# 설치 뒤의 운영 명령. 이 파일(deploy/clovirassist-cli.sh)을 Stage 13 이 깐다.
+CLI_BIN="/usr/local/bin/$SLUG"
+# Stage 10 이 만든 첫 관리자 설정 코드. 설치 로그에는 쓰지 않고, 모든 Stage 가 끝난 뒤 콘솔에만 한 번 보인다.
+FIRST_ADMIN_CODE=""
+FIRST_ADMIN_EXPIRES=""
 
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -302,19 +330,26 @@ ClovirAssist 설치 진입점
   storage     Stage 11 만 실행한다. 저장소를 추가한 뒤 마운트 유닛을 다시 깐다(S8)
   ai          Stage 12 만 실행한다. 모델을 나중에 넣고 AI 를 켤 때 쓴다(S9)
 
+설치 뒤에는 같은 일을 sudo clovirassist <서브커맨드> 로 합니다. clovirassist user, migrate, storage-cli,
+ai-cli, first-admin-code 는 제품 안의 도구입니다(clovirassist --help).
+
 옵션
   --dns-name <name>     설치처 호스트명. 인증서 CN/SAN 과 nginx server_name 이 이 값이다
   --bind-ip <ip>        nginx 가 묶일 주소
   --upstream-proxy <ip[,cidr…]>
                         앞단 역방향 프록시 주소. nginx 가 그 뒤의 실제 사용자 주소로 속도 제한을
                         건다. 한 번 주면 manifest 가 기억하고, none 을 주면 지운다
-  --source git|bundle|local
+  --source git|bundle|local|release
+  --release <tag>       GitHub Release 로 설치하거나 업그레이드한다(예: v1.2.0). 받은 묶음은
+                        SHA256SUMS 와 맞아야만 푼다. Release 에서 받은 install.sh 는 기본이 자기 태그다
+  --release-base <url>  Release 자산을 받을 주소. 기본은 공개 저장소의 releases/download 다
   --git-remote <url>    제품 기준 Source. 기본은 기존 설치의 manifest 값
   --ref <tag>           고정할 tag. 브랜치 추적은 하지 않는다
   --wheelhouse <dir>    오프라인 wheel 디렉터리
   --offline             네트워크를 쓰지 않는다(wheelhouse·번들 필수)
   --with-ai             AI Component 를 함께 설치한다(임베딩 런타임 + 모델 로드 검증)
   --ai-model-dir <dir>  임베딩 모델 파일이 있는 디렉터리. 주면 --with-ai 가 함께 켜진다
+  --download-model      임베딩 모델을 설치 중에 받는다. 제품이 고정한 체크섬과 맞아야 쓴다. --with-ai 가 함께 켜진다
   --inject-failure <n>  Stage n 에서 일부러 멈춘다(리허설 전용)
   --purge               uninstall 에서 데이터·백업까지 지운다
   --yes                 되돌리기 어려운 동작을 묻지 않고 진행한다
@@ -326,6 +361,20 @@ SUBCOMMAND="${1:-}"
 shift || true
 case "$SUBCOMMAND" in
   install|upgrade|rollback|uninstall|verify|version|preflight|storage|ai) ;;
+  # clovirassist user|migrate|storage-cli|ai-cli|first-admin-code 가 이 길로 온다(deploy/clovirassist-cli.sh).
+  # 설치 환경을 읽어 서비스 계정으로 도는 방법(run_as_app)이 이 파일 한 곳에만 있게 하려는 것이다.
+  app-cli)
+    [ "${EUID:-$(id -u)}" -eq 0 ] || die "root 권한이 필요합니다: sudo clovirassist …" 1
+    APP_CLI_MODULE="${1:-}"
+    shift || true
+    case "$APP_CLI_MODULE" in
+      user_cli|migrate_cli|storage_cli|ai_cli) ;;
+      *) die "모르는 제품 명령입니다: ${APP_CLI_MODULE:-<없음>}" 64 ;;
+    esac
+    [ -x "$APP_DIR/venv/bin/python" ] || die "설치된 제품을 찾을 수 없습니다($APP_DIR/venv)" 1
+    APP_CLI_RC=0
+    run_as_app "$APP_DIR/venv/bin/python" -m "app.cli.$APP_CLI_MODULE" "$@" || APP_CLI_RC=$?
+    exit "$APP_CLI_RC" ;;
   -h|--help) usage; exit 0 ;;
   *) echo "모르는 서브커맨드: $SUBCOMMAND"; usage; exit 64 ;;
 esac
@@ -338,12 +387,16 @@ while [ $# -gt 0 ]; do
     --source) SOURCE_KIND="${2:-}"; shift 2 ;;
     --git-remote) GIT_REMOTE="${2:-}"; shift 2 ;;
     --ref) GIT_REF="${2:-}"; shift 2 ;;
+    --release) RELEASE_TAG="${2:-}"; shift 2 ;;
+    --release-base) RELEASE_BASE="${2:-}"; shift 2 ;;
     --wheelhouse) WHEELHOUSE="${2:-}"; shift 2 ;;
     --offline) OFFLINE=1; shift ;;
     --with-ai) WITH_AI=1; shift ;;
     # 모델 디렉터리를 주는 것은 「AI 를 켠다」는 뜻이다. 둘을 따로 주게 하면 하나만
     # 준 설치가 «켰는데 모델이 없다»/«모델은 넣었는데 안 켜진다» 로 끝난다.
     --ai-model-dir) AI_MODEL_DIR="${2:-}"; WITH_AI=1; shift 2 ;;
+    # 모델을 받는 것도 「AI 를 켠다」는 뜻이다. 위와 같은 이유로 함께 켠다.
+    --download-model) DOWNLOAD_MODEL=1; WITH_AI=1; shift ;;
     --inject-failure) INJECT_FAILURE="${2:-}"; shift 2 ;;
     --purge) PURGE=1; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
@@ -365,13 +418,90 @@ STARTED_AT="$(date -Is)"
 PREFLIGHT_NOTES=""
 note() { PREFLIGHT_NOTES="${PREFLIGHT_NOTES}${PREFLIGHT_NOTES:+ · }$1"; }
 
+# 지원하는 OS 인가. 시험(tests/regression/test_installer_contract.py)이 이 함수만 떼어 22.04 와 24.04 로 부른다.
+os_release_supported() {
+  [ "${1:-}" = ubuntu ] && [ "${2:-}" = "24.04" ]
+}
+
+# --source 를 안 줬을 때의 소스 종류. 표준 출력 한 줄이 결과다.
+#   --release 를 줬다                          → release
+#   스크립트가 $APP_DIR 안에 있다(설치된 자리) → git 트리면 git, 아니면 manifest 가 기억하는 종류(없으면 local)
+#   저장소 clone 이나 풀린 번들 안에 있다       → local
+#   이 파일 하나만 받아 저장소 밖에서 돌렸다   → release
+resolve_source_kind() {
+  if [ -n "$RELEASE_TAG" ]; then echo release; return 0; fi
+  if [ "$SRC_DIR" = "$APP_DIR" ]; then
+    if [ -d "$APP_DIR/.git" ]; then echo git; return 0; fi
+    local remembered; remembered="$(jq_get source_kind)"
+    echo "${remembered:-local}"; return 0
+  fi
+  if [ -f "$SRC_DIR/requirements.txt" ]; then echo local; return 0; fi
+  echo release
+}
+
+# Release 받기(계획 3.17, D-522). **확인이 끝나기 전에는 아무것도 풀지 않는다.**
+#
+# 묶음과 SHA256SUMS 를 임시 자리에 받고, 목록에서 그 묶음의 줄을 골라 sha256sum 으로 맞춰 본다. 목록에 그 줄이 없으면
+# 확인한 것이 없으므로 실패다. 맞으면 임시 자리에 풀고 그 안의 제품 트리를 SRC_DIR 로 삼는다. $APP_DIR 는 Stage 3 에서야
+# 바뀐다. 그래서 받다 끊겼거나 파일이 바뀐 Release 는 서버에 아무 흔적도 남기지 않는다.
+fetch_release() {
+  local tag="${RELEASE_TAG:-$RELEASE_TAG_DEFAULT}" base="${RELEASE_BASE:-$RELEASE_BASE_DEFAULT}"
+  [ -n "$tag" ] || fail "어느 Release 를 설치할지 모릅니다" "--release v<버전> 을 주십시오(Release 페이지의 태그)" 16 || return $?
+  case "$tag" in
+    v[0-9]*) ;;
+    *) fail "Release 태그 모양이 아닙니다: $tag" "v1.2.0 처럼 v 로 시작하는 태그를 주십시오" 16 || return $? ;;
+  esac
+  case "$tag" in
+    *[!A-Za-z0-9._-]*) fail "Release 태그에 쓸 수 없는 글자가 있습니다: $tag" "v1.2.0 처럼 주십시오" 16 || return $? ;;
+  esac
+  local ver="${tag#v}" tarball dir
+  tarball="$SLUG-$ver.tar.gz"
+  dir="$(mktemp -d "/var/tmp/$SLUG-release.XXXXXX")"
+  RELEASE_WORK_DIR="$dir"
+  # 설치가 어디서 끝나든(성공, 실패, 중단) 임시 자리를 치운다. 풀린 트리는 Stage 3 이 이미 옮긴 뒤다.
+  trap 'rm -rf "$RELEASE_WORK_DIR"' EXIT
+  RELEASE_TAG="$tag"
+  log "release $tag 받기: $base/$tag/"
+  if ! curl -fsSL --retry 3 --proto '=https' -o "$dir/$tarball" "$base/$tag/$tarball" >>"$LOG" 2>&1 \
+     || ! curl -fsSL --retry 3 --proto '=https' -o "$dir/SHA256SUMS" "$base/$tag/SHA256SUMS" >>"$LOG" 2>&1; then
+    fail "Release 자산을 받을 수 없습니다($base/$tag)" \
+      "태그가 있는지, 이 서버가 github.com 에 닿는지 확인하십시오. 폐쇄망이면 오프라인 번들(--source bundle)을 쓰십시오" 16 || return $?
+  fi
+  if ! verify_release_checksum "$dir" "$tarball"; then
+    fail "받은 Release 묶음의 체크섬이 맞지 않습니다($tarball)" \
+      "아무것도 풀지 않았습니다. 다시 받아 보고, 계속 틀리면 Release 페이지의 SHA256SUMS 와 비교하십시오" 16 || return $?
+  fi
+  mkdir -p "$dir/src"
+  tar -xzf "$dir/$tarball" -C "$dir/src" --no-same-owner >>"$LOG" 2>&1 \
+    || { fail "Release 묶음을 풀 수 없습니다" "$LOG 를 확인하십시오" 16 || return $?; }
+  local root="$dir/src/$SLUG-$ver"
+  [ -f "$root/requirements.txt" ] && [ -f "$root/deploy/install.sh" ] \
+    || { fail "풀린 Release 에 제품 트리가 없습니다($SLUG-$ver/)" "Release 자산이 scripts/build-bundle.sh --release 로 만든 것인지 확인하십시오" 16 || return $?; }
+  SRC_DIR="$root"
+  note "Release $tag 를 받아 체크섬을 확인했습니다"
+  return 0
+}
+
+# SHA256SUMS 에서 그 파일의 줄 하나만 골라 확인한다. 시험이 이 함수만 떼어 맞는 묶음과 바뀐 묶음으로 부른다.
+verify_release_checksum() {
+  local dir="$1" name="$2" line
+  # 이름은 글자 그대로 비교한다(정규식으로 만들면 이름의 점이 아무 글자와 맞는다). 앞의 * 는 이진 모드 표시다.
+  line="$(awk -v n="$name" 'length($1) == 64 && $1 ~ /^[0-9a-f]+$/ && ($2 == n || $2 == "*" n) { print; exit }' \
+    "$dir/SHA256SUMS" 2>/dev/null)"
+  [ -n "$line" ] || return 1
+  ( cd "$dir" && printf '%s\n' "$line" | sha256sum -c --strict --status - )
+}
+
 stage_0_preflight() {
   local os_id os_ver arch mem_mb disk_mb
 
   os_id="$(. /etc/os-release 2>/dev/null && echo "${ID:-}")"
   os_ver="$(. /etc/os-release 2>/dev/null && echo "${VERSION_ID:-}")"
   [ "$os_id" = ubuntu ] || fail "지원하지 않는 OS 입니다(id=$os_id)" "Ubuntu Server 24.04 에서 실행하십시오" 10 || return $?
-  [ "$os_ver" = "24.04" ] || note "OS 버전이 24.04 가 아닙니다($os_ver) — 계속 진행합니다"
+  # 24.04 만 받는다(계획 결정 6, D-522). 예전에는 다른 버전이면 알리기만 하고 계속했다. 그러면 python3.12-venv,
+  # postgresql-16 같은 패키지 이름이 없는 버전에서 Stage 1 이 한참 뒤에 이해하기 어려운 apt 오류로 멈췄다.
+  os_release_supported "$os_id" "$os_ver" \
+    || fail "지원하지 않는 Ubuntu 버전입니다($os_ver)" "이 제품은 Ubuntu Server 24.04 만 지원합니다. 24.04 서버에서 실행하십시오" 10 || return $?
 
   arch="$(dpkg --print-architecture 2>/dev/null || uname -m)"
   case "$arch" in amd64|x86_64|arm64|aarch64) ;; *) fail "지원하지 않는 아키텍처: $arch" "amd64 또는 arm64 가 필요합니다" 10 || return $?;; esac
@@ -446,15 +576,18 @@ stage_0_preflight() {
     note "옛 slug 설치($LEGACY_SLUG)를 감지했습니다 — 스냅샷 후 새 이름으로 이전합니다"
   fi
 
-  # 소스 종류 결정. 스크립트가 이미 $APP_DIR 안에 있으면 그 자리가 소스다(§1 의 3줄 경로).
-  if [ -z "$SOURCE_KIND" ]; then
-    if [ "$SRC_DIR" = "$APP_DIR" ]; then SOURCE_KIND=git
-    else SOURCE_KIND=local; fi
-  fi
+  # 소스 종류 결정(resolve_source_kind). 스크립트가 이미 $APP_DIR 안에 있으면 그 자리가 소스다(§1 의 3줄 경로).
+  # 저장소 밖에서 이 파일 하나만 받아 실행했으면 Release 를 받는다.
+  [ -n "$SOURCE_KIND" ] || SOURCE_KIND="$(resolve_source_kind)"
   case "$SOURCE_KIND" in
-    git|bundle|local) ;;
-    *) fail "모르는 --source: $SOURCE_KIND" "git · bundle · local 중 하나입니다" 15 || return $? ;;
+    git|bundle|local|release) ;;
+    *) fail "모르는 --source: $SOURCE_KIND" "git, bundle, local, release 중 하나입니다" 15 || return $? ;;
   esac
+  # Release 는 받아서 확인한 뒤 임시 자리에 푼다. 그 자리가 이번 설치의 소스다(Stage 3 이 그것을 $APP_DIR 로 옮긴다).
+  # 설치된 Release 를 --release 없이 다시 돌리면 받을 것이 없다 - 지금 자리가 소스다.
+  if [ "$SOURCE_KIND" = release ] && { [ -n "$RELEASE_TAG" ] || [ ! -f "$SRC_DIR/requirements.txt" ]; }; then
+    fetch_release || return $?
+  fi
   if [ "$SOURCE_KIND" = git ] && [ "$SRC_DIR" != "$APP_DIR" ] && [ -z "$GIT_REMOTE" ]; then
     fail "--source git 인데 원본을 모릅니다" "--git-remote <url> 을 주거나 $APP_DIR 에 clone 한 뒤 그 안의 install.sh 를 실행하십시오" 15 || return $?
   fi
@@ -850,7 +983,27 @@ stage_8_config() {
   # 아래 목록에 그 엔진 이름이 글자로 남는 것은 **지우기 위해서**다 — 부르기 위해서가
   # 아니다. `test_installer_and_ops_scripts_have_no_n8n_trace` 가 같은 줄의 `S11` 표식으로
   # 그 둘을 구별한다(그 검사가 처음부터 그렇게 적혀 있다).
+  # 옛 LLM 설정이 가리키던 API 키 파일을 AI 제공자 슬롯 이름으로 옮긴다(계획 3.16, D-517). 파일을 복사할 뿐 값을 읽거나
+  # 출력하지 않는다. 새 슬롯에 이미 파일이 있으면 관리자가 화면에서 넣은 값이므로 건드리지 않는다.
+  local legacy_ref
+  legacy_ref="$(env_get LLM_API_SECRET_REF 2>/dev/null || true)"
+  if [ -n "$legacy_ref" ] && [[ "$legacy_ref" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] \
+     && [ -f "$SECRETS_DIR/$legacy_ref" ] && [ ! -f "$SECRETS_DIR/ai.anthropic.api_key" ]; then
+    install -o root -g "$SVC_USER" -m 0640 "$SECRETS_DIR/$legacy_ref" "$SECRETS_DIR/ai.anthropic.api_key"
+    log "옛 LLM_API_SECRET_REF 가 가리키던 키 파일을 ai.anthropic.api_key 로 옮겼습니다(값은 로그에 남기지 않습니다)"
+  fi
+
   local dead tmp
+  # A1 이 걷어낸 옛 LLM 실행기의 키들이다. AI 설정은 이제 관리 화면이 DB 에 둔다(D-517). 남겨 두면 설정을 읽는 사람이
+  # 「이 값으로 AI 가 돈다」고 읽는다.
+  for dead in LLM_ENABLED LLM_BACKEND LLM_MODEL LLM_EXECUTABLE LLM_CLI_PATH LLM_TIMEOUT_SECONDS \
+              LLM_MAX_CONCURRENCY LLM_API_URL LLM_API_MODEL LLM_API_SECRET_REF; do
+    grep -qE "^${dead}=" "$ENV_FILE" 2>/dev/null || continue
+    tmp="$(mktemp)"
+    grep -vE "^${dead}=" "$ENV_FILE" >"$tmp" && cat "$tmp" >"$ENV_FILE"
+    rm -f "$tmp"
+    log "걷어낸 LLM 실행기의 죽은 설정 줄을 지웠습니다: $dead"
+  done
   for dead in N8N_WORK_ASSISTANT_URL N8N_TIMEOUT_SECONDS; do  # S11 이 걷어낸 엔진의 죽은 키
     grep -qE "^${dead}=" "$ENV_FILE" 2>/dev/null || continue
     tmp="$(mktemp)"
@@ -871,14 +1024,27 @@ stage_8_config() {
   # 반대 방향도 있었다: S13 이 만든 `allowed-migration-sources.json` 은 목록에 없어서
   # 서버로 안 갔고, `AllowlistRegistry` 는 파일이 없으면 **전부 거절**이라 Cutover 회차의
   # Notion 호출이 전부 400 이 됐을 것이다. 그 400 은 설정 실수처럼 안 보인다.
-  local f
+  #
+  # 허용 목록(`hosts` 가 있는 파일)은 **새 기본 호스트만** 더한다(deploy/merge_allowlist.py, D-522). 설치본을 덮지 않는
+  # 규칙만 있으면 새 버전이 기본 목록에 더한 호스트(예: OpenAI)가 업그레이드한 서버에 영영 안 들어가고, 사람이 서버에서
+  # 파일을 고쳐야 한다. 직전 기본 목록의 사본을 $ETC_DIR/defaults/ 에 남겨 운영자가 지운 기본 항목은 되살리지 않는다.
+  local f added_line
+  install -d -o root -g "$SVC_USER" -m 0750 "$ETC_DIR/defaults"
   for f in "$APP_DIR"/config/*.json; do
     [ -f "$f" ] || continue
     local base; base="$(basename "$f")"
     if [ ! -f "$ETC_DIR/$base" ]; then
       cp "$f" "$ETC_DIR/$base"
     fi
+    if ! added_line="$("$APP_DIR/venv/bin/python" "$APP_DIR/deploy/merge_allowlist.py" \
+        --default "$f" --installed "$ETC_DIR/$base" --record "$ETC_DIR/defaults/$base" 2>>"$LOG")"; then
+      fail "허용 목록을 합치지 못했습니다($base)" "$LOG 를 보고 $ETC_DIR/$base 가 JSON 인지 확인하십시오" 28 || return $?
+    fi
+    if [ -n "$added_line" ]; then
+      log "$base 에 새 기본 호스트를 더했습니다: $(echo "$added_line" | sed 's/^added //' | tr '\n' ' ')"
+    fi
     chown root:"$SVC_USER" "$ETC_DIR/$base"; chmod 0640 "$ETC_DIR/$base"
+    [ -f "$ETC_DIR/defaults/$base" ] && { chown root:"$SVC_USER" "$ETC_DIR/defaults/$base"; chmod 0640 "$ETC_DIR/defaults/$base"; }
   done
   # 🔴 **0750 이지 0700 이 아니다** (S14). 소유자는 root 이고 그룹이 서비스 계정이다 —
   # `0700` 이면 그룹에 아무 권한이 없어서 **제품이 자기 비밀을 못 읽는다.** 파일이 0640
@@ -937,12 +1103,20 @@ stage_10_seed() {
   local nusers
   nusers="$(runuser -u "$SVC_USER" -- psql -d "$PG_DB" -tAc 'select count(*) from users' 2>/dev/null || echo 0)"
   if [ "${nusers:-0}" -eq 0 ]; then
-    # 🔴 관리자 계정을 여기서 만들지 않는다. 임시 비밀번호가 설치 로그에 남는다.
-    _reason="기본 Role/Permission 은 마이그레이션이 넣었습니다. **관리자 계정이 아직 없습니다**"
-    _action="sudo runuser -u $SVC_USER -- $APP_DIR/venv/bin/python -m app.cli.user_cli add --email <you> --role admin"
-    say "  ⚠️ 관리자 계정이 없습니다. 만들기: $_action"
+    # 🔴 관리자 계정을 여기서 만들지 않는다(D-522). 계정을 만들면 비밀번호를 누군가 정해야 하고, 그 값이 설치 콘솔이나
+    # 로그에 남는다. 대신 일회용 설정 코드를 만든다. 서버에는 해시만 남고, 원문은 모든 Stage 가 끝난 뒤 콘솔에만 한 번
+    # 나온다(print_first_admin_code). 사람은 브라우저의 /setup/first-admin 에서 자기 비밀번호로 계정을 만든다.
+    local out
+    if ! out="$(run_as_app "$APP_DIR/venv/bin/python" -m app.cli.user_cli first-admin-code 2>>"$LOG")"; then
+      fail "첫 관리자 설정 코드를 만들지 못했습니다" "$LOG 의 traceback 을 보십시오" 30 || return $?
+    fi
+    FIRST_ADMIN_CODE="$(printf '%s\n' "$out" | sed -n 's/^code=//p' | head -1)"
+    FIRST_ADMIN_EXPIRES="$(printf '%s\n' "$out" | sed -n 's/^expires_at=//p' | head -1)"
+    unset out
+    [ -n "$FIRST_ADMIN_CODE" ] || { fail "첫 관리자 설정 코드가 비어 있습니다" "$LOG 를 보십시오" 30 || return $?; }
+    _reason="아직 계정이 없습니다. 설치가 끝나면 첫 관리자 설정 코드를 보여 드립니다"
   else
-    _reason="사용자 ${nusers}명 · 기본 Role/Permission 확인"
+    _reason="사용자 ${nusers}명, 기본 Role/Permission 확인"
   fi
   return 0
 }
@@ -1034,6 +1208,24 @@ ai_env_apply() {
   fi
 }
 
+# 카탈로그가 정한 모델 파일을 받는다. 파일마다 크기와 sha256 을 맞춰 보고, 하나라도 틀리면 실패다.
+# 계획표 한 줄은 `<주소> <sha256> <크기> <상대 경로>` 다(app/cli/ai_cli.py::cmd_download_plan).
+download_model_files() {
+  local target="$1" plan url sum size rel
+  plan="$(run_as_app "$APP_DIR/venv/bin/python" -m app.cli.ai_cli download-plan 2>>"$LOG")" || return 1
+  [ -n "$plan" ] || return 1
+  while read -r url sum size rel; do
+    [ -n "$rel" ] || continue
+    case "$rel" in /*|*..*) log "모델 계획의 경로가 이상합니다: $rel"; return 1 ;; esac
+    mkdir -p "$target/$(dirname "$rel")"
+    log "모델 파일 받기: $rel (${size}바이트)"
+    curl -fsSL --retry 3 --proto '=https' -o "$target/$rel" "$url" >>"$LOG" 2>&1 || { log "받기 실패: $rel"; return 1; }
+    [ "$(stat -c %s "$target/$rel")" = "$size" ] || { log "크기가 다릅니다: $rel"; return 1; }
+    echo "$sum  $target/$rel" | sha256sum -c --strict --status - || { log "체크섬이 다릅니다: $rel"; return 1; }
+  done <<<"$plan"
+  return 0
+}
+
 stage_12_ai() {
   # 모델 캐시 뿌리. **`storage_providers` 와 별개다** — 모델은 사용자 데이터가 아니라
   # 재생성 가능한 자산이고 백업 대상이 아니다(D-203 · D-204). 저장소 표에 안 넣는다.
@@ -1059,17 +1251,34 @@ stage_12_ai() {
       || { fail "AI 런타임 설치에 실패했습니다" "pypi.org 도달 여부를 확인하십시오" 32 || return $?; }
   fi
 
-  # ② 모델 파일. **네트워크로 받지 않는다** — 폐쇄망이 기본 전제이고, 설치 중에 바깥
-  # 호스트를 새로 여는 것은 그 전제와 정반대다(D-205). 오프라인 번들이나 --ai-model-dir
+  # ② 모델 파일. 기본은 **네트워크로 받지 않는다** — 폐쇄망이 기본 전제다(D-205). 오프라인 번들이나 --ai-model-dir
   # 로 들어오고, 이미 캐시에 있으면 그대로 쓴다.
-  local source=""
+  #
+  # --download-model 을 주면 설치가 받는다(계획 3.16, D-522). 받는 것은 이 셸이고 제품은 받지 않는다 - 제품의 바깥
+  # 허용 목록에 모델 호스트를 넣지 않기 위해서다. 주소, revision, 파일마다의 sha256 은 제품 카탈로그가 정하고
+  # (ai_cli download-plan), 받은 파일은 install-model --verify 가 그 값과 맞춰 본 뒤에야 캐시에 놓인다.
+  local source="" fetched=""
   if [ -n "$AI_MODEL_DIR" ]; then source="$AI_MODEL_DIR"
   elif [ -d "$APP_DIR/ai-models" ]; then source="$APP_DIR/ai-models"
+  elif [ "$DOWNLOAD_MODEL" = 1 ]; then
+    fetched="$(mktemp -d "/var/tmp/$SLUG-model.XXXXXX")"
+    if ! download_model_files "$fetched"; then
+      rm -rf "$fetched"
+      fail "임베딩 모델을 받지 못했습니다" \
+        "$LOG 에 어느 파일에서 멈췄는지 적혀 있습니다. 이 서버가 huggingface.co 에 닿는지 확인하거나, 받아 둔 파일을 --ai-model-dir 로 주십시오" 32 || return $?
+    fi
+    chown -R "$SVC_USER":"$SVC_USER" "$fetched"
+    source="$fetched"
   fi
   if [ -n "$source" ]; then
-    run_as_app "$APP_DIR/venv/bin/python" -m app.cli.ai_cli install-model --from "$source" >>"$LOG" 2>&1 \
-      || { fail "모델 파일을 캐시 자리에 놓지 못했습니다(원본: $source)" \
-           "$LOG 에 어느 파일이 없는지 적혀 있습니다. 그 파일들을 갖춘 뒤 다시 실행하십시오" 32 || return $?; }
+    local verify_flag=""
+    [ -n "$fetched" ] && verify_flag="--verify"
+    if ! run_as_app "$APP_DIR/venv/bin/python" -m app.cli.ai_cli install-model --from "$source" $verify_flag >>"$LOG" 2>&1; then
+      [ -n "$fetched" ] && rm -rf "$fetched"
+      fail "모델 파일을 캐시 자리에 놓지 못했습니다(원본: $source)" \
+        "$LOG 에 어느 파일이 없거나 체크섬이 틀렸는지 적혀 있습니다. 그 파일들을 갖춘 뒤 다시 실행하십시오" 32 || return $?
+    fi
+    [ -n "$fetched" ] && rm -rf "$fetched"
   fi
 
   # ③ **제품 코드가** 지금 쓸 수 있는지 판정한다. 종료코드가 계약이다 — 셸이 모델
@@ -1078,7 +1287,7 @@ stage_12_ai() {
   if ! run_as_app "$APP_DIR/venv/bin/python" -m app.cli.ai_cli status >"$out" 2>>"$LOG"; then
     cat "$out" >>"$LOG" 2>/dev/null || true; rm -f "$out"
     fail "AI 를 켜고 설치했는데 임베딩을 쓸 수 없는 상태입니다" \
-      "모델 파일을 --ai-model-dir <디렉터리> 로 주고 다시 실행하십시오. 상태: $APP_DIR/venv/bin/python -m app.cli.ai_cli status" 32 \
+      "--download-model 로 모델을 받게 하거나 모델 파일을 --ai-model-dir <디렉터리> 로 주고 다시 실행하십시오. 상태: sudo clovirassist ai-cli status" 32 \
       || return $?
   fi
   rm -f "$out"
@@ -1128,7 +1337,11 @@ stage_13_units() {
   for u in "${ALL_UNITS[@]}"; do
     systemd-analyze verify "/etc/systemd/system/$u" >>"$LOG" 2>&1 || log "systemd-analyze verify 경고: $u"
   done
-  _reason="유닛 ${#ALL_UNITS[@]}종 설치"
+  # 설치 뒤의 운영 명령(D-522). 설치본 안의 파일을 그대로 깐다 - 업그레이드가 설치본을 바꾸면 명령도 함께 바뀐다.
+  [ -f "$APP_DIR/deploy/clovirassist-cli.sh" ] \
+    || { fail "운영 명령 파일이 배포본에 없습니다: deploy/clovirassist-cli.sh" "저장소에 그 파일이 있는지 확인하십시오" 33 || return $?; }
+  install -o root -g root -m 0755 "$APP_DIR/deploy/clovirassist-cli.sh" "$CLI_BIN"
+  _reason="유닛 ${#ALL_UNITS[@]}종 설치, $CLI_BIN 명령 설치"
   return 0
 }
 
@@ -1326,6 +1539,9 @@ write_manifest() {
   fi
   [ -n "$GIT_REMOTE" ] && git_remote="$GIT_REMOTE"
   [ -n "$GIT_REF" ] && git_ref="$GIT_REF"
+  # Release 로 설치했으면 그 태그를, 아니면 전에 기록한 태그를 그대로 둔다(같은 Release 를 다시 돌린 경우).
+  local release_tag=""
+  if [ "$SOURCE_KIND" = release ]; then release_tag="${RELEASE_TAG:-$(jq_get release_tag)}"; fi
   ver="$(cat "$APP_DIR/VERSION" 2>/dev/null || echo unknown)"
   head="$(alembic_current_db)"
   local pgver extver
@@ -1347,6 +1563,7 @@ write_manifest() {
     printf '  "git_remote": %s,\n' "$(json_str "$git_remote")"
     printf '  "git_ref": %s,\n' "$(json_str "$git_ref")"
     printf '  "git_commit": %s,\n' "$(json_str "$git_commit")"
+    printf '  "release_tag": %s,\n' "$(json_str "$release_tag")"
     printf '  "alembic_head": %s,\n' "$(json_str "$head")"
     printf '  "postgres_version": %s,\n' "$(json_str "$pgver")"
     printf '  "extensions": %s,\n' "$(json_str "$extver")"
@@ -1413,6 +1630,9 @@ do_verify() {
   fi
 
   vchk "실패한 제품 유닛이 없다" "[ -z \"\$(systemctl --failed --plain --no-legend 2>/dev/null | grep $SLUG)\" ]"
+  vchk "운영 명령 $CLI_BIN 이 있다" "[ -x '$CLI_BIN' ]"
+  # 화면에서 넣는 비밀(메일 비밀번호, AI 키)과 ChatGPT 토큰 갱신이 이 소켓을 지난다(계획 2.3, 3.15).
+  vchk "비밀 저장 도우미 소켓이 있다" "[ -S '$RUN_DIR/privhelper.sock' ]"
 
   local dbrev codehead
   dbrev="$(alembic_current_db)"; codehead="$(alembic_head_code)"
@@ -1440,7 +1660,9 @@ do_version() {
     echo "  git commit    : $(git -C "$APP_DIR" rev-parse HEAD 2>/dev/null || echo '?')"
     echo "  git remote    : $(git -C "$APP_DIR" remote get-url origin 2>/dev/null || echo '?')"
   else
-    echo "  git           : (bundle 설치이거나 git 트리가 아닙니다)"
+    echo "  git           : (Release 나 번들 설치라 git 트리가 아닙니다)"
+    echo "  source        : $(jq_get source_kind)"
+    echo "  release       : $(jq_get release_tag)"
     echo "  manifest ref  : $(jq_get git_ref)"
   fi
   echo "  alembic head  : $(alembic_current_db 2>/dev/null || echo '?')  (코드: $(alembic_head_code 2>/dev/null || echo '?'))"
@@ -1717,6 +1939,7 @@ do_uninstall() {
   rm -f "/etc/nginx/sites-enabled/$NGINX_SITE" "/etc/nginx/sites-available/$NGINX_SITE" "/etc/logrotate.d/$SLUG"
   nginx -t >>"$LOG" 2>&1 && { systemctl reload nginx >>"$LOG" 2>&1 || true; }
   rm -rf "$APP_DIR" "$SSL_FALLBACK_DIR"
+  rm -f "$CLI_BIN"
   rm -f /etc/systemd/timesyncd.conf.d/99-"$SLUG".conf /etc/systemd/resolved.conf.d/99-"$SLUG".conf
   # AI 모델 캐시(S9). **`--purge` 가 아니어도 지운다** — 모델은 사용자 데이터가 아니라
   # 재생성 가능한 자산이고(D-203 · D-204), 465MB 짜리 파일을 「데이터를 남겼습니다」에
@@ -1737,6 +1960,21 @@ do_uninstall() {
 # ═════════════════════════════════════════════════════════════════════════════
 # install / upgrade 본체
 # ═════════════════════════════════════════════════════════════════════════════
+# 첫 관리자 설정 코드를 콘솔에만 보인다. say 가 아니라 echo 인 이유: say 는 설치 로그에도 쓴다(D-522).
+print_first_admin_code() {
+  [ -n "$FIRST_ADMIN_CODE" ] || return 0
+  echo
+  echo "=== 첫 관리자 계정 ==="
+  echo "아직 계정이 없습니다. 브라우저에서 https://$DNS_NAME/setup/first-admin 을 열고 아래 설정 코드를 넣어"
+  echo "시스템 관리자 계정을 만드세요. 코드는 한 번만 쓸 수 있고 설치 로그에는 남지 않습니다."
+  echo
+  echo "  설정 코드: $FIRST_ADMIN_CODE"
+  [ -n "$FIRST_ADMIN_EXPIRES" ] && echo "  만료(UTC): $FIRST_ADMIN_EXPIRES"
+  echo
+  echo "코드를 잃어버렸거나 만료됐으면 sudo clovirassist first-admin-code 로 새 코드를 만드세요."
+  FIRST_ADMIN_CODE=""
+}
+
 run_all_stages() {
   run_stage 0  PREFLIGHT   stage_0_preflight
   run_stage 1  APT         stage_1_apt
@@ -1776,12 +2014,18 @@ case "$SUBCOMMAND" in
     fi
     run_all_stages
     say "INSTALL_OK dns=$DNS_NAME log=$LOG"
+    print_first_admin_code
     ;;
   upgrade)
     open_log
     [ -f "$MANIFEST" ] || [ -f "$ENV_FILE" ] || legacy_present \
       || die "업그레이드할 기존 설치가 없습니다. 먼저 install 을 실행하십시오" 43
     # Source 위치를 사용자가 다시 알려 줄 필요가 없다 — manifest 가 들고 있다.
+    # Release 로 설치한 서버에는 git 트리가 없다. 다음 버전을 주지 않으면 올릴 것이 없다 - 같은 것을 다시 까는 것을
+    # 업그레이드라고 부르지 않는다.
+    if [ -z "$RELEASE_TAG" ] && [ -z "$GIT_REF" ] && [ ! -d "$APP_DIR/.git" ] && [ "$(jq_get source_kind)" = release ]; then
+      die "Release 로 설치한 서버입니다. 올릴 버전을 주십시오: sudo clovirassist upgrade --release v<버전>" 43
+    fi
     [ -n "$GIT_REMOTE" ] || GIT_REMOTE="$(jq_get git_remote)"
     [ -n "$DNS_NAME" ] || DNS_NAME="$(jq_get dns_name)"
     [ -n "$BIND_IP" ] || BIND_IP="$(jq_get bind_ip)"
@@ -1795,7 +2039,8 @@ case "$SUBCOMMAND" in
         || die "원격에서 fetch 할 수 없습니다($GIT_REMOTE)" 43
     fi
     run_all_stages
-    say "UPGRADE_OK ref=${GIT_REF:-<현재>} snapshot=$SNAPSHOT_DIR log=$LOG"
+    say "UPGRADE_OK ref=${GIT_REF:-${RELEASE_TAG:-<현재>}} snapshot=$SNAPSHOT_DIR log=$LOG"
+    print_first_admin_code
     ;;
   rollback)  open_log; do_rollback ;;
   uninstall) open_log; do_uninstall ;;

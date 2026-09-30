@@ -15797,3 +15797,40 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
   한두 개다. 호출 기록 탭은 예외다. 180일치 서버 페이지 목록에 조건이 넷이라 D-506 의 기준(서버 페이지이고 조건 셋 이상)을
   넘고, 「실패한 호출만, 이 기능」 같은 조합을 다시 쓸 일이 있다. 계획 3.12 의 「네 화면 모두 끈다」는 호출 기록 탭이 생기기
   전의 문장이고, 기준은 코드로 정한 D-506 이 정본이다.
+
+### D-522. 설치는 Release 의 파일 하나로 시작하고, 첫 관리자는 설치 코드로 브라우저에서 만들며, 설치 뒤 운영은 `clovirassist` 명령 하나로 한다 (관리자 화면 개선 회차 I1)
+
+- **받는 길은 셋이고 설치 명령은 하나다.** 최종 사용자는 GitHub Release 에서 `install.sh` 하나를 받아
+  `sudo bash install.sh install --dns-name … --bind-ip …` 를 실행한다. Release 에 올리는 사본은 그 Release 의 태그를
+  기본값(`RELEASE_TAG_DEFAULT`)으로 들고 있어 `--release` 없이도 자기 버전을 설치한다. 개발자 경로(`git clone` 뒤
+  `deploy/install.sh`)와 오프라인 번들 경로는 그대로다. `curl | bash` 는 문서 경로로 두지 않는다(D-205 의 이유 그대로):
+  스크립트는 실행 전에 읽을 수 있고 그 체크섬도 Release 의 `SHA256SUMS` 에 있다.
+- **확인이 풀기보다 먼저다.** `--source release` 는 Stage 0 안에서 묶음과 `SHA256SUMS` 를 임시 자리에 받고, 목록에서 그
+  묶음의 줄을 **글자 그대로** 골라(`verify_release_checksum`) 맞춰 본 뒤에만 푼다. 목록에 줄이 없거나 파일이 바뀌었으면
+  아무것도 풀지 않고 멈춘다. `$APP_DIR` 는 Stage 3 에서야 바뀐다.
+- **Ubuntu 24.04 만 받는다.** 다른 버전은 Stage 0 이 멈춘다(예전에는 알리기만 하고 계속해 Stage 1 이 한참 뒤에 apt 오류로
+  멈췄다).
+- **첫 관리자는 브라우저에서 만든다.** 설치가 계정을 만들지 않는다 - 만들면 누군가 비밀번호를 정해야 하고 그 값이 콘솔이나
+  로그에 남는다. 사용자가 0명이면 Stage 10 이 128비트 일회용 설정 코드를 만들고(`clovirassist first-admin-code` 와 같은
+  코드), 서버에는 sha256 해시, 만료(24시간), 실패 횟수만 `DATA_DIR/first-admin.json` 에 남긴다. 원문은 모든 Stage 가 끝난
+  뒤 콘솔에만 한 번 나온다(설치 로그에는 쓰지 않는다). 사람은 `/setup/first-admin`(스크립트 없는 서버 렌더 폼)에서 코드와
+  자기 이메일, 이름, 비밀번호로 시스템 관리자를 만든다. 사용자가 한 명이라도 있으면 그 경로는 404 다. 틀린 코드는 실패로
+  세고 다섯 번이면 코드를 폐기한다. 비밀번호 정책에 걸린 것은 코드 실패로 세지 않는다. 로그인 전 경로라 세션 CSRF 대신
+  로그인과 같은 Origin 검사와 IP 속도 제한이 겹치고, 맞는 코드를 든 두 요청은 advisory lock(`NS_FIRST_ADMIN`)이 한 줄로
+  세운다. `scripts/seed_admin.py` 와 Stage 10 의 `user_cli add` 안내는 지웠다.
+- **설치 뒤 운영은 `clovirassist` 하나다.** Stage 13 이 `deploy/clovirassist-cli.sh` 를 `/usr/local/bin/clovirassist` 로
+  깐다. 서버를 바꾸는 명령(install, upgrade, rollback, uninstall, verify, version, preflight, storage, ai)은 설치본의
+  `install.sh` 로, 제품 도구(user, migrate, storage-cli, ai-cli, first-admin-code)는 `install.sh app-cli <모듈>` 로 넘긴다.
+  두 번째 갈래도 설치 스크립트를 지나는 이유는 설치 환경을 읽어 서비스 계정으로 도는 방법(`run_as_app`)을 한 곳에만 두려는
+  것이다. Release 로 설치한 서버는 `clovirassist upgrade --release v<다음>` 으로 올리고, 다음 버전을 주지 않은 업그레이드는
+  거절한다(같은 것을 다시 까는 것을 업그레이드라고 부르지 않는다). manifest 에 `release_tag` 가 남는다.
+- **허용 목록은 새 기본 호스트만 더한다.** Stage 8 이 설치본을 덮지 않는 규칙은 그대로 두고, `hosts` 가 있는 설정 파일마다
+  직전 기본 목록의 사본(`$ETC_DIR/defaults/`)과 이번 기본 목록의 차이만 옮긴다(`deploy/merge_allowlist.py`). 운영자가 지운
+  기본 호스트는 되살리지 않고 운영자가 더한 호스트는 그대로 둔다. 사본이 없는 첫 병합은 빠진 기본 호스트를 한 번 더한다.
+  업그레이드한 서버에 OpenAI 호스트를 넣으려고 사람이 파일을 고칠 일이 없다.
+- **옛 LLM 설정을 치운다.** Stage 8 이 옛 실행기의 환경 키(`LLM_ENABLED` 등 열)를 지운다. 옛 `LLM_API_SECRET_REF` 가
+  가리키던 키 파일은 새 슬롯 이름(`ai.anthropic.api_key`)이 비어 있을 때만 그 이름으로 복사한다. 값은 읽지도 출력하지도 않는다.
+- **임베딩 모델은 부탁하면 설치가 받는다.** `--download-model`(또는 `clovirassist ai --download-model`)을 주면 Stage 12 가
+  카탈로그(`app/ai/catalog.py`)에 고정한 revision(커밋 해시)과 파일마다의 크기, sha256 으로 받고, `ai_cli install-model
+  --verify` 가 그 값과 맞춘 뒤에야 캐시에 놓는다. 받는 것은 설치 셸이고 제품은 모델 호스트로 나가지 않는다 - 바깥 허용
+  목록에 그 호스트가 없다. 기본은 여전히 받지 않고(D-205), 폐쇄망은 `--ai-model-dir` 로 넣는다.

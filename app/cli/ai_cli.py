@@ -1,7 +1,8 @@
 """AI CLI — Installer Stage 12 와 운영자가 같은 코드를 부른다 (S9).
 
     python -m app.cli.ai_cli status         # 지금 상태를 JSON 으로 낸다
-    python -m app.cli.ai_cli install-model  # 모델 파일을 캐시 자리에 놓는다
+    python -m app.cli.ai_cli install-model  # 모델 파일을 캐시 자리에 놓는다(--verify 면 고정한 체크섬과 맞춰 본다)
+    python -m app.cli.ai_cli download-plan  # 설치 스크립트가 받을 파일 목록을 낸다(주소, sha256, 크기, 경로)
     python -m app.cli.ai_cli selftest       # 실제로 벡터를 하나 만들어 본다
     python -m app.cli.ai_cli reindex        # 전 문서를 다시 색인하도록 표시한다
 
@@ -27,6 +28,7 @@ Stage 11 이 S8 에서 채워진 모양 그대로다: **제품 CLI 를 부르고
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import sys
@@ -131,9 +133,9 @@ def cmd_selftest(db: Session, settings: Settings, args) -> int:
 def cmd_install_model(db: Session, settings: Settings, args) -> int:
     """모델 파일을 캐시 자리에 놓는다. **네트워크를 쓰지 않는다.**
 
-    받아 오는 경로를 만들지 않는 이유: 폐쇄망이 이 제품의 기본 전제이고, 설치 중에
-    바깥 호스트 하나를 새로 여는 것은 그 전제와 정반대다(D-205 가 `curl … | bash` 를
-    거절한 이유와 같다). 모델은 오프라인 번들이나 `--from` 으로 **들어온다.**
+    받는 것은 이 명령이 아니다. 폐쇄망이 이 제품의 기본 전제라 모델은 오프라인 번들이나 `--from` 으로 들어오고(D-205),
+    설치할 때 `--download-model` 을 주면 설치 스크립트가 받아 이 명령에 `--verify` 와 함께 넘긴다(D-522). 그때는
+    카탈로그가 고정한 크기와 sha256 에 맞는 파일만 캐시에 놓는다.
     """
     config = registry.resolve_config(settings)
     model = catalog.embedding_model(config.embed_model_id)
@@ -151,6 +153,11 @@ def cmd_install_model(db: Session, settings: Settings, args) -> int:
     if missing:
         print(f"원본에 모델 파일 {len(missing)}개가 없습니다: {', '.join(missing)}", file=sys.stderr)
         return 1
+    if getattr(args, "verify", False):
+        wrong = _checksum_mismatches(model, source)
+        if wrong:
+            print(f"체크섬이 고정한 값과 다른 파일이 있습니다: {', '.join(wrong)}", file=sys.stderr)
+            return 1
     target.mkdir(parents=True, exist_ok=True)
     for name in model.required_files:
         destination = target / name
@@ -159,6 +166,44 @@ def cmd_install_model(db: Session, settings: Settings, args) -> int:
             continue
         shutil.copy2(source / name, destination)
     print(f"AI_MODEL_OK model={model.model_id} dir={target}")
+    return 0
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for block in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _checksum_mismatches(model: catalog.EmbeddingModel, source: Path) -> list[str]:
+    """카탈로그가 고정한 크기와 sha256 에 맞지 않는 파일. 고정 값이 없는 모델은 확인할 수 없으므로 전부 틀린 것으로 본다."""
+    if model.source is None:
+        return list(model.required_files)
+    pinned = {item.path: item for item in model.source.files}
+    wrong = []
+    for name in model.required_files:
+        item = pinned.get(name)
+        path = source / name
+        if item is None or path.stat().st_size != item.size or _sha256(path) != item.sha256:
+            wrong.append(name)
+    return wrong
+
+
+def cmd_download_plan(db: Session, settings: Settings, args) -> int:
+    """설치 스크립트가 받을 파일을 한 줄씩 낸다: `<주소> <sha256> <크기> <상대 경로>`. **여기서는 받지 않는다.**
+
+    받는 것은 설치 스크립트다(Stage 12). 제품 코드가 모델 호스트로 나가지 않게 하려는 것이다 - 이 명령은 카탈로그를 읽어
+    적을 뿐이다.
+    """
+    config = registry.resolve_config(settings)
+    model = catalog.embedding_model(config.embed_model_id)
+    if model is None or model.source is None:
+        print("이 모델은 받을 곳이 정해져 있지 않습니다. 모델 파일을 --ai-model-dir 로 주십시오.", file=sys.stderr)
+        return 1
+    for item in model.source.files:
+        print(f"{model.source.url_for(item)} {item.sha256} {item.size} {item.path}")
     return 0
 
 
@@ -181,7 +226,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("selftest").set_defaults(func=cmd_selftest)
     install = sub.add_parser("install-model")
     install.add_argument("--from", dest="source", required=True, help="모델 파일이 있는 디렉터리")
+    install.add_argument("--verify", action="store_true", help="고정한 크기와 sha256 에 맞는지 먼저 확인한다")
     install.set_defaults(func=cmd_install_model)
+    sub.add_parser("download-plan").set_defaults(func=cmd_download_plan)
     sub.add_parser("reindex").set_defaults(func=cmd_reindex)
     return parser
 

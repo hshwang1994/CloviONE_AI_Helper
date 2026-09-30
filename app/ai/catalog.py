@@ -45,6 +45,35 @@ FTS_CONFIG = "simple"
 
 
 @dataclass(frozen=True)
+class ModelFile:
+    """받을 파일 하나. 크기와 sha256 은 고정한 revision 에서 잰 값이다."""
+
+    path: str
+    size: int
+    sha256: str
+
+
+@dataclass(frozen=True)
+class ModelSource:
+    """설치가 모델을 받을 곳(계획 3.16, D-522).
+
+    **revision 을 커밋 해시로 고정한다.** `main` 을 받으면 모델 저장소가 파일을 바꾼 날 같은 설치 명령이 다른 벡터를 만드는
+    모델을 깐다. 그러면 어제 만든 색인과 오늘 만든 질의 벡터가 다른 공간에 선다(EMBEDDING_VERSION 이 막으려는 사고).
+    파일마다 sha256 을 적어 두고 받은 파일이 그 값과 맞아야만 쓴다. 이 값은 모델 저장소의 LFS 해시와 직접 계산한 값이
+    같은지 확인해 적었다.
+
+    받는 것은 설치 스크립트다. 제품(웹, 워커)은 모델 호스트에 나가지 않고, 바깥 허용 목록에도 그 호스트가 없다.
+    """
+
+    base_url: str
+    revision: str
+    files: tuple[ModelFile, ...]
+
+    def url_for(self, item: ModelFile) -> str:
+        return f"{self.base_url}/resolve/{self.revision}/{item.path}"
+
+
+@dataclass(frozen=True)
 class EmbeddingModel:
     """임베딩 모델 하나가 무엇인지의 전부."""
 
@@ -59,6 +88,8 @@ class EmbeddingModel:
     max_tokens: int
     #: 모델 디렉터리에 반드시 있어야 하는 파일. Stage 12 와 `ai_cli status` 가 이것을 본다.
     required_files: tuple[str, ...] = ("onnx/model.onnx", "tokenizer.json", "config.json")
+    #: 설치가 받을 곳(`--download-model`). 없으면 모델 파일을 사람이 넣어야 한다.
+    source: ModelSource | None = None
 
     @property
     def dir_name(self) -> str:
@@ -84,6 +115,18 @@ E5_SMALL = EmbeddingModel(
     query_prefix="query: ",
     passage_prefix="passage: ",
     max_tokens=512,
+    source=ModelSource(
+        base_url="https://huggingface.co/intfloat/multilingual-e5-small",
+        revision="614241f622f53c4eeff9890bdc4f31cfecc418b3",
+        files=(
+            ModelFile("onnx/model.onnx", 470268510,
+                      "ca456c06b3a9505ddfd9131408916dd79290368331e7d76bb621f1cba6bc8665"),
+            ModelFile("tokenizer.json", 17082730,
+                      "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39"),
+            ModelFile("config.json", 655,
+                      "69137736cab8b8903a07fe8afaafdda25aac55415a12a55d1bffa9f581abf959"),
+        ),
+    ),
 )
 
 #: 제품이 아는 임베딩 모델 전부. 설정은 여기 있는 id 만 받는다.

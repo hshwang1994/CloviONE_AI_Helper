@@ -51,6 +51,7 @@ from app.impersonation.router import router as impersonation_router
 from app.integrations.router import router as integrations_router
 from app.jobs.router import router as jobs_router
 from app.auth.reset_router import router as password_reset_router
+from app.setup.first_admin import router as first_admin_router
 from app.mail.router import router as mail_router
 from app.ai.connect_router import router as ai_connect_router
 from app.ai.usage_router import router as ai_usage_router
@@ -228,6 +229,7 @@ def create_app(
     app.include_router(auth_router)
     # 로그인 라우터 바로 뒤에 둔다 - 세션이 없는 상태에서 부르는 경로라 인접한 것이 맞다.
     app.include_router(password_reset_router)
+    app.include_router(first_admin_router)
     app.include_router(mail_router)
     app.include_router(profiles_router)
     app.include_router(chat_router)

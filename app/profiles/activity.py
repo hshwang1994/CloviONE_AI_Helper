@@ -143,6 +143,8 @@ OBJECT_LABELS: dict[str, str] = {
     "ai_config": "AI 설정",
     # 승인을 기다리는 AI 문서 초안(D-519). 승인 요청과 실행이 이 이름으로 감사에 남는다.
     "ai_action_request": "AI 초안",
+    # 첫 관리자 설정 코드(D-522). 틀린 코드로 코드가 폐기된 일이 이 이름으로 남는다.
+    "setup": "초기 설정",
 }
 
 # 액션 문자열의 **마지막 조각** → 한국어 동사. 'ticket.body.update' 처럼 조각이 셋이어도
@@ -186,6 +188,8 @@ ACTION_SENTENCES: dict[str, str] = {
     "user.login_failed": "로그인에 실패했습니다",
     "user.password_change_self": "비밀번호를 변경했습니다",
     "user.password_change_failed": "비밀번호 변경에 실패했습니다",
+    # 첫 관리자(D-522). 설치 코드로 만든 계정의 첫 줄이다.
+    "setup.first_admin_created": "설치 코드로 첫 시스템 관리자 계정을 만들었습니다",
     "profile.avatar.update": "프로필 사진을 바꿨습니다",
     "profile.avatar.delete": "프로필 사진을 지웠습니다",
     "profile.preferences.update": "알림, 방해금지 설정을 바꿨습니다",
