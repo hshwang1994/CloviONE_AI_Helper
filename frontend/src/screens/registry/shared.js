@@ -64,7 +64,7 @@ export const OBJTYPE_OPTS = [
   ["board_post", "게시글"], ["board_comment", "게시글 댓글"], ["board_attachment", "게시글 첨부"],
   ["chat_room", "채팅방"],
   // 시스템·운영
-  ["app_setting", "설정"], ["system_setting", "서버 설정"], ["feature_flag", "기능 플래그"],
+  ["app_setting", "설정"], ["system_setting", "서버 설정"], ["secret", "비밀 값"], ["feature_flag", "기능 플래그"],
   ["llm_config", "AI 모델 설정"], ["ai_quota", "AI 사용 상한"], ["announcement", "공지 배너"],
   ["prompts", "프롬프트"], ["policies", "정책"],
   ["schedule", "스케줄"], ["schedule_run", "예약 실행"], ["job", "작업"],

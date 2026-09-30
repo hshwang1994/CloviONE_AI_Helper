@@ -50,4 +50,6 @@ SENSITIVE_ACTION_PREFIXES: tuple[str, ...] = (
     "app_setting.",
     "backup.",
     "integration.change_config",
+    # 메일 비밀번호와 AI 키 교체. 값은 감사에 없지만 누가 언제 바꿨는지는 눈여겨볼 일이다.
+    "secret.",
 )

@@ -19,6 +19,7 @@ from fastapi.templating import Jinja2Templates
 from app.admin.feature_flags import router as feature_flags_router
 from app.admin.rbac import router as rbac_matrix_router
 from app.admin.router import router as admin_router
+from app.admin.secrets_router import router as admin_secrets_router
 from app.announcements.router import admin_router as announcements_admin_router
 from app.announcements.router import user_router as announcements_user_router
 from app.approvals.router import delegations_router as approval_delegations_router
@@ -282,6 +283,8 @@ def create_app(
     # 운영 콘솔의 시스템 설정(§S). 실제 변경은 root 로 도는 특권 헬퍼가 하고, 웹은 이름표만
     # 전달한다 — 웹 유닛은 하드닝돼 있어 /etc 를 쓸 수 없다(그 하드닝을 풀지 않는 것이 요점이다).
     app.include_router(sysops_router)
+    # 비밀 값(SMTP 비밀번호, AI 키)을 화면에서 넣는 길(계획 2.3). 운영에서는 같은 헬퍼가 쓴다.
+    app.include_router(admin_secrets_router)
     # 최초 실행 셋업 체크리스트(9-3). 읽기 전용이고 판정은 이미 있는 것을 모아서 한다
     # (app/setup/probes.py) - 여기서 설정을 바꾸지는 않는다.
     app.include_router(setup_router)

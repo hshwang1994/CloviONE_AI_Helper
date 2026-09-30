@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.audit import record_audit_from_request
 from app.authz.permissions import SYSTEM_CONFIGURE
 from app.core.deps import get_db, require_csrf, require_permission
-from app.sysops.actions import list_actions
+from app.sysops.actions import UnknownActionError, list_actions
 from app.sysops.client import STATUS_OK, SysopsClient
 
 router = APIRouter(
@@ -33,6 +33,14 @@ router = APIRouter(
 )
 
 OBJECT_TYPE = "system_setting"
+
+# 비밀 값 액션은 이 범용 경로로 부를 수 없다. 전용 라우터(`app/admin/secrets_router.py`)가
+# 감사 모양과 슬롯 검사를 따로 갖고 있다 - 여기로 열어 두면 그 검사를 우회하는 두 번째 문이 된다.
+PRIVATE_ACTION_PREFIXES = ("secret.",)
+
+
+def _public_actions() -> list[dict]:
+    return [a for a in list_actions() if not a["name"].startswith(PRIVATE_ACTION_PREFIXES)]
 
 
 class ActionRequest(BaseModel):
@@ -59,7 +67,7 @@ def system_overview(request: Request):
         "detail": reply.detail,
         "info": reply.data if reply.available and reply.ok else {},
         "certificate": _certificate_view(request),
-        "actions": list_actions(),
+        "actions": _public_actions(),
     }
 
 
@@ -95,6 +103,8 @@ def run_action(
     되돌아간 시도는 나중에 "그때 무슨 일이 있었나" 를 재구성할 유일한 단서다.
     ⚠️ `body.params` 는 감사에 넣지 않는다 - 인증서 개인키가 들어 있다.
     """
+    if action_name.startswith(PRIVATE_ACTION_PREFIXES):
+        raise UnknownActionError()
     reply = _client(request).call(action_name, body.params)
 
     record_audit_from_request(

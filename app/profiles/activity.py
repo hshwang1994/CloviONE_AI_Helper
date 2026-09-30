@@ -123,6 +123,8 @@ OBJECT_LABELS: dict[str, str] = {
     "workflow": "워크플로",
     #   app/sysops/router.py OBJECT_TYPE = "system_setting" (타임존·DNS·인증서 등 서버 설정)
     "system_setting": "시스템 설정",
+    #   app/admin/secrets_router.py OBJECT_TYPE = "secret" (메일 비밀번호, AI 키. 값은 남기지 않는다)
+    "secret": "비밀 값",
     # 관리자 백로그 잔여(0033, PLAN Phase 6).
     "announcement": "공지",
     "ai_quota": "AI 쿼터",

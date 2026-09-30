@@ -86,8 +86,26 @@ def test_the_helper_can_write_the_places_its_actions_touch():
     text = _text(HELPER_UNIT)
     rw = next((ln for ln in text.splitlines() if ln.startswith("ReadWritePaths=")), "")
     assert rw, "헬퍼에 ReadWritePaths 가 없다"
-    for needed in ("/etc/hosts", "/etc/systemd", "/etc/ssl/clovirassist"):
+    for needed in ("/etc/hosts", "/etc/systemd", "/etc/ssl/clovirassist", "/etc/clovirassist/secrets"):
         assert needed in rw, f"액션이 쓰는 경로가 빠졌다: {needed} / 실제: {rw}"
+
+
+@pytest.mark.parametrize("unit", [
+    "clovirassist-worker.service",
+    "clovirassist-worker-conversational.service",
+    "clovirassist-scheduler.service",
+])
+def test_worker_units_can_reach_the_helper_socket(unit):
+    """AI 계정 연결의 토큰 갱신은 워커에서 돌고, 갱신된 토큰은 헬퍼가 비밀 파일로 쓴다(계획 2.3).
+
+    웹 유닛만 소켓 디렉터리를 갖고 있으면 그 갱신이 운영에서만 조용히 실패한다 - 개발
+    머신에는 systemd 가 없어서 아무 시험도 못 잡는다. `-` 는 헬퍼 없는 설치에서도 유닛이
+    뜨게 한다.
+    """
+    text = _text(ROOT / "deploy" / "systemd" / unit)
+    rw = next((ln for ln in text.splitlines() if ln.startswith("ReadWritePaths=")), "")
+    assert "-/run/clovirassist" in rw.split(), f"{unit} 이 헬퍼 소켓에 닿지 못한다: {rw}"
+    assert "ProtectSystem=strict" in text, f"{unit} 의 하드닝이 사라졌다"
 
 
 def test_the_web_unit_keeps_its_hardening():

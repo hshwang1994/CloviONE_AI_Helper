@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 from app.core.errors import AppError
@@ -117,6 +118,31 @@ class FileSecretReferenceProvider:
     def directory(self) -> Path:
         """화면이 "어디에 놓으라" 고 말하려면 경로를 알아야 한다."""
         return self._secrets_dir
+
+    def modified_at(self, name: str) -> datetime | None:
+        """파일을 마지막으로 바꾼 시각(UTC, naive). 값은 읽지 않는다.
+
+        운영에서 디렉터리는 root:clovirassist 0750 이라 웹 계정도 `stat` 은 할 수 있다.
+        화면이 "언제 저장했는가" 를 보여 주는 유일한 근거다 - 값을 되돌려 보여 주는 길은 없다.
+        """
+        try:
+            path = self._path_for(name)
+            stat = path.stat()
+        except (InvalidSecretRefError, OSError):
+            return None
+        return datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).replace(tzinfo=None)
+
+    def delete(self, name: str) -> bool:
+        """파일을 지운다. 원래 있었는지를 돌려준다(감사 기록이 "바뀌었는가" 를 말해야 한다)."""
+        path = self._path_for(name)
+        existed = path.is_file()
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as exc:
+            raise SecretDirNotWritableError(
+                f"secret 파일을 지우지 못했습니다: {self._secrets_dir}"
+            ) from exc
+        return existed
 
     def writable(self) -> bool:
         """이 프로세스가 secret 파일을 **실제로 만들 수 있는가**.

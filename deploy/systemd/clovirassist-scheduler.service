@@ -58,7 +58,10 @@ LockPersonality=true
 MemoryDenyWriteExecute=true
 RestrictRealtime=true
 UMask=0027
-ReadWritePaths=/var/lib/clovirassist
+# `-/run/clovirassist`: 워커도 특권 헬퍼의 소켓에 닿아야 한다. AI 계정 연결의 토큰 갱신이
+# 워커에서 돌고, 갱신된 토큰은 헬퍼가 비밀 파일로 쓴다(계획 2.3). 웹 유닛과 같은 줄이고,
+# 앞의 `-` 때문에 헬퍼를 안 깐 설치에서도 유닛은 그대로 뜬다.
+ReadWritePaths=/var/lib/clovirassist -/run/clovirassist
 
 [Install]
 WantedBy=multi-user.target

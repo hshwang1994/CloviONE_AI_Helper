@@ -62,9 +62,12 @@ RestrictRealtime=true
 LockPersonality=true
 MemoryDenyWriteExecute=true
 UMask=0027
-# 액션 표가 실제로 건드리는 경로만. 새 액션이 다른 곳을 쓰려 하면 여기서 막히고,
-# 그때 이 목록을 늘릴지 사람이 판단하게 된다(조용히 늘어나지 않는다).
-ReadWritePaths=/etc/hosts /etc/systemd /etc/ssl/clovirassist /etc/clovirassist/tls /var/log/clovirassist /var/backups/clovirassist /run/clovirassist
+# 액션 표가 실제로 건드리는 경로의 목록이다.
+# ⚠️ 이 유닛에는 `ProtectSystem=` 이 없으므로 이 줄은 **쓰기를 막지 않는다** - root 는 목록 밖도
+# 쓸 수 있다. 경계는 액션 표(app/sysops/actions.py)와 그 안의 이름 검사다. 이 줄은 액션이
+# 어디를 쓰는지 한 곳에서 읽히게 하려는 기록이고, 새 액션이 새 경로를 쓰면 함께 적는다.
+# `/etc/clovirassist/secrets`: 비밀 값 저장(secret.write, 계획 2.3).
+ReadWritePaths=/etc/hosts /etc/systemd /etc/ssl/clovirassist /etc/clovirassist/tls /etc/clovirassist/secrets /var/log/clovirassist /var/backups/clovirassist /run/clovirassist
 
 [Install]
 WantedBy=multi-user.target
