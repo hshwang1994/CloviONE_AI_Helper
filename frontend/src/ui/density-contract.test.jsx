@@ -258,3 +258,29 @@ describe("판을 쌓는 화면은 정본 간격을 쓴다", () => {
     expect(() => readSrc("screens/NoSuchScreen.jsx")).toThrow();
   });
 });
+
+describe("페이지는 폭을 묶지 않는다 (계획 2.1 · 3.18, D-520)", () => {
+  it("판 폭 상한 토큰(READ_COLUMN)이 없다", async () => {
+    const density = await import("./density.js");
+    expect("READ_COLUMN" in density).toBe(false);
+  });
+
+  it("화면 파일이 판 폭 상한을 걸지 않는다 — 긴 줄은 카드 격자와 카드 안 글 폭으로 접는다", () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const screens = path.resolve(here, "../screens");
+    const offenders = [];
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) { walk(full); continue; }
+        if (!/\.jsx?$/.test(entry.name) || /\.test\./.test(entry.name)) continue;
+        const text = fs.readFileSync(full, "utf-8");
+        if (/maxWidth\s*:\s*(READ_COLUMN\b|["'`]min\(\s*100%\s*,\s*\d+(\.\d+)?rem\s*\)["'`])/.test(text)) {
+          offenders.push(path.relative(screens, full));
+        }
+      }
+    };
+    walk(screens);
+    expect(offenders).toEqual([]);
+  });
+});

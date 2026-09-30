@@ -9,7 +9,7 @@ import { Button, DataTable, DotLabel, EmptyState, ErrorState, RowActions, useToa
 import { FilterToggle } from "../../ui/FilterBar.jsx";
 import { HeaderActions } from "../../ui/HeaderSlot.jsx";
 import {
-  SETTING_LABELS, settingLabel, WRITE_ROLES, MAINTENANCE_KEYS, DEDICATED_SCREEN_KEYS, MAIL_SCREEN_KEYS,
+  SETTING_LABELS, settingLabel, WRITE_ROLES, MAINTENANCE_KEYS, DEDICATED_SCREEN_KEYS, MAIL_SCREEN_KEYS, SETUP_SCREEN_KEYS,
   summarizeSetting, displayValue,
 } from "./settingsRegistry.js";
 import { SettingEditor } from "./SettingEditor.jsx";
@@ -102,7 +102,8 @@ export function Settings({ embedded = false } = {}) {
   // 음성 제어 사용자가 행마다 다른 aria-label을 듣는다(예전엔 render가 있어 모든 행이 동일하게
   // '상세 보기'로만 들렸다). raw 키는 옆의 별도 열로 유지해 정보 손실 없이 보인다.
   const rows = Object.keys(map)
-    .filter((k) => !MAINTENANCE_KEYS.includes(k) && !DEDICATED_SCREEN_KEYS.includes(k) && !MAIL_SCREEN_KEYS.includes(k))
+    .filter((k) => !MAINTENANCE_KEYS.includes(k) && !DEDICATED_SCREEN_KEYS.includes(k) && !MAIL_SCREEN_KEYS.includes(k)
+      && !SETUP_SCREEN_KEYS.includes(k))
     .map((k) => ({ key: k, label: settingLabel(k), ...map[k] }));
   /* 주소가 항목 하나를 지목했으면 그 편집기를 연다 — **한 번만**. 열고 나서 주소를 비우는
      이유는 둘이다: 닫은 뒤 화면을 다시 그릴 때 같은 모달이 계속 되살아나지 않게, 그리고

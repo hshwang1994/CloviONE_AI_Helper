@@ -25,7 +25,8 @@
 그리고 ⑥ 셋업이 안 끝난 동안 **일반 사용자에게 조용히 빈 목록을 주지 않는다** -
 그게 지금 상태이고, 이 과제가 없애려는 바로 그 침묵이다.
 
-qa-contract-change: 「Notion 토큰과 데이터베이스」 단계가 제품에서 사라져 그 단계만 보던 두 시험(토큰만 채운 상태는 unknown 이다 · 동기화 실패는 사람이 고칠 일이다)이 함께 없어졌다. 판정할 대상이 없어진 것이지 판정 규칙이 약해진 것이 아니다 — todo/unknown 구분, 의존 순서, 항목 격리는 남은 항목들 위에서 그대로 검사한다.
+qa-contract-change: 초기 설정이 필수와 선택으로 나뉘었다(D-520). 메일은 설정만 채우면 「확인 전」(확인 불가)이고 연결 확인이 성공해야 「됨」이며, AI 도 연결을 확인하기 전에는 확인 불가다. 설치가 만든 자체 서명 인증서는 필수 항목 TLS 를 끝낸 것으로 보고 신뢰된 인증서를 권한다. 선택 항목(AI, 외부 연동)은 사용자 배너를 띄우지 않으므로 「확인 불가도 배너를 다시 띄운다」는 필수 항목(조직)의 확인 불가로 옮겨 잰다. 「지금 할 차례」는 필수 항목이 먼저라 조직 다음은 AI 가 아니라 TLS 다.
+그 전 변경: 「Notion 토큰과 데이터베이스」 단계가 제품에서 사라져 그 단계만 보던 두 시험(토큰만 채운 상태는 unknown 이다 · 동기화 실패는 사람이 고칠 일이다)이 함께 없어졌다. 판정할 대상이 없어진 것이지 판정 규칙이 약해진 것이 아니다 — todo/unknown 구분, 의존 순서, 항목 격리는 남은 항목들 위에서 그대로 검사한다.
 """
 
 from __future__ import annotations
@@ -120,7 +121,8 @@ def test_the_next_step_moves_forward_only_when_the_one_before_it_is_done(
     db.commit()
 
     payload = _items(client)
-    assert payload["next_key"] == "llm"
+    # 필수 항목이 먼저다(D-520). 조직 다음은 필수인 TLS 이고, AI(선택)는 막힘 없이 기다린다.
+    assert payload["next_key"] == "tls"
     assert _by_key(payload)["llm"]["blocked_by"] is None
 
 
@@ -286,22 +288,28 @@ def test_a_new_unmapped_user_does_not_reopen_the_banner(client, login_as, setup_
 def test_the_user_banner_reopens_when_the_only_gap_is_unknown_not_todo(
     client, login_as, setup_complete, db
 ):
-    """setup_complete 는 연동을 헬스체크 통과(up) 상태로 만든다. 그것을 '아직 점검 안 됨
-    (unknown)' 으로 되돌리면, 사람이 할 일은 없지만(확인 불가) 화면은 실제로 빌 수 있다.
+    """필수 항목(조직과 부서)이 확인 불가(unknown)면 사람이 할 일은 없지만 화면은 실제로 빌 수 있다 - 활성 조직 행이
+    하나도 없는 설치다.
 
     setup_notice() 가 STATE_TODO 만 보고 STATE_UNKNOWN 을 빼먹으면 이 상태에서 배너가
-    조용해진다 - 이 기능이 없애려던 바로 그 침묵이다.
+    조용해진다 - 이 기능이 없애려던 바로 그 침묵이다. 반대로 선택 항목(연동)의 확인 불가는 배너를 띄우지 않는다(D-520).
     """
     from app.integrations.models import Integration
+    from app.org.models import Organization
 
     integ = db.query(Integration).one()
     integ.last_health_status = "unknown"
     db.commit()
-
     login_as("user")
+    quiet = [n for n in client.get("/api/system/status").json()["notices"] if n["id"] == USER_NOTICE_ID]
+    assert quiet == [], "선택 항목(연동)의 확인 불가가 사용자 배너를 띄웠다"
+
+    for org in db.query(Organization).all():
+        org.status = "archived"
+    db.commit()
     notices = client.get("/api/system/status").json()["notices"]
     setup = [n for n in notices if n["id"] == USER_NOTICE_ID]
-    assert setup, "연동이 확인 불가(unknown) 상태인데도 사용자 배너가 조용하다"
+    assert setup, "조직이 확인 불가(unknown) 상태인데도 사용자 배너가 조용하다"
 
 
 def test_the_admin_notice_points_at_the_wizard(client, login_as):
@@ -387,10 +395,18 @@ def test_mail_unconfigured_is_a_persons_problem(client, sysadmin):
     assert mail["question"] is None
 
 
-def test_mail_configured_is_done(client, sysadmin):
+def test_mail_configured_is_a_question_until_a_check_succeeds(client, sysadmin, fake_clock):
+    """값이 채워졌다는 것과 메일이 나간다는 것은 다른 사실이다(D-520). 연결 확인이 성공해야 「됨」이다."""
+    from app.mail import health as mail_health
+    from app.mail.config import config_from_db
     from tests.integration.test_password_reset import configure_smtp
 
     configure_smtp(client.app)
+    mail = _by_key(_items(client))["mail"]
+    assert mail["state"] == STATE_UNKNOWN
+    with client.app.state.session_factory() as s:
+        mail_health.record_result(s, config_from_db(s), ok=True, now=fake_clock.now(), source="verify")
+        s.commit()
     mail = _by_key(_items(client))["mail"]
     assert mail["state"] == STATE_DONE
     assert "smtp.internal" in mail["detail"]
@@ -433,19 +449,23 @@ def test_a_configured_cert_path_with_no_file_is_a_persons_problem(
     assert tls["action"]
 
 
-def test_a_self_signed_cert_is_unknown_not_done(client, tmp_path, sysadmin):
-    """SYS-05: 만료 전이라도 자체서명이면 "됨"이 아니다 — 브라우저는 오늘 이미 경고를
-    띄우는데 초록으로 뭉개면 이 화면의 다른 문구(만료 시 경고를 띄운다는 안내)와
-    정면으로 어긋난다. `_TEST_CERT_PEM`은 자체서명(issuer==subject)이다."""
+def test_a_self_signed_cert_is_done_with_a_recommendation(client, tmp_path, sysadmin, monkeypatch):
+    """TLS 는 필수 항목이고 설치가 자체 서명 인증서를 만들어 처음부터 끝나 있다(D-520). 「확인 불가」로 두면 모든 새
+    설치가 영원히 미완료다. 그래도 브라우저가 경고를 띄운다는 사실과 신뢰된 인증서를 권하는 말은 남긴다.
+    `_TEST_CERT_PEM`은 자체서명(issuer==subject)이다. 만료가 가까우면 다시 할 일이다."""
+    import app.health.service as health_service
     from tests.integration.test_health_worker_hardening import _TEST_CERT_PEM
 
     cert = tmp_path / "server.crt"
     cert.write_text(_TEST_CERT_PEM, encoding="utf-8")
     client.app.state.settings.tls_cert_path = str(cert)
+    monkeypatch.setattr(health_service, "cert_days_remaining", lambda settings, now=None: 200)
     tls = _by_key(_items(client))["tls"]
-    assert tls["state"] == STATE_UNKNOWN
-    assert "자체서명" in tls["detail"]
-    assert "일" in tls["detail"]  # 남은 날짜 자체는 여전히 말해 준다
+    assert tls["state"] == STATE_DONE
+    assert "자체 서명" in tls["detail"] and "권합니다" in tls["detail"]
+    assert "200일" in tls["detail"]  # 남은 날짜 자체는 여전히 말해 준다
+    monkeypatch.setattr(health_service, "cert_days_remaining", lambda settings, now=None: 7)
+    assert _by_key(_items(client))["tls"]["state"] == STATE_TODO
 
 
 def test_a_ca_signed_cert_is_still_done(client, tmp_path, sysadmin, monkeypatch):
@@ -522,11 +542,16 @@ def _set_gateway(client, *, embed=True, generate=True):
 
 
 
-def test_a_working_gateway_flips_only_the_llm_item(client, sysadmin):
+def test_a_working_gateway_flips_only_the_llm_item(client, sysadmin, fake_clock):
     before = {i["key"]: i["state"] for i in _items(client)["items"]}
     assert before["llm"] == STATE_TODO
 
     _set_gateway(client, embed=True, generate=True)
+    # 연결을 확인하기 전에는 물어볼 일이다(D-520) - 확인이 성공한 뒤에 「됨」이다.
+    assert _by_key(_items(client))["llm"]["state"] == STATE_UNKNOWN
+    with client.app.state.session_factory() as s:
+        runtime = client.app.state.ai_runtime
+        runtime.record(runtime.config(s), result="ok", code=None, now=fake_clock.now())
 
     after = {i["key"]: i["state"] for i in _items(client)["items"]}
     assert after["llm"] == STATE_DONE
@@ -540,7 +565,8 @@ def test_search_without_generation_is_a_half_state_not_a_failure(client, sysadmi
     _set_gateway(client, embed=True, generate=False)
     item = _by_key(_items(client))["llm"]
     assert item["state"] == STATE_TODO
-    assert "문서 검색은 동작" in item["detail"]
+    assert "AI 제공자를 아직 연결하지 않았습니다" in item["detail"]
+    assert "문서 검색 모델" not in item["detail"], "검색은 되는데 검색 모델이 없다고 말한다"
     # 「안 됩니다」로 끝나면 안 된다 — 운영자가 무엇을 할지 말해야 한다.
     assert "확인하세요" in item["action"]
     assert item["question"] is None
@@ -550,5 +576,5 @@ def test_no_model_at_all_says_so(client, sysadmin):
     _set_gateway(client, embed=False, generate=False)
     item = _by_key(_items(client))["llm"]
     assert item["state"] == STATE_TODO
-    assert "쓸 수 없습니다" in item["detail"]
+    assert "AI 제공자를 아직 연결하지 않았습니다" in item["detail"] and "문서 검색 모델" in item["detail"]
 

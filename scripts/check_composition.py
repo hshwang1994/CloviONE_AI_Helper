@@ -19,6 +19,10 @@
                         — 그 자리는 30 · 34 보조다. 글자 단추는 목록 안 부수 동작(조건 지우기 · 더 보기 · 댓글 줄 동작)의 자리다
     primary-last        페이지 머리 동작(`<PageHeader actions=…>`)에서 채움 단추(`variant="primary"`) 뒤에 단추가 또 선다 — 순서는
                         보조 → 더 보기 → 주 동작이고 채움은 오른쪽 끝이다(D-501). 한 머리 안의 단추끼리만 비교한다
+    page-max-width      화면이 판 폭 상한(`READ_COLUMN` 이나 `min(100%, Nrem)` 모양)을 건다 — 페이지는 폭을 묶지 않고 긴 줄은
+                        카드 격자와 카드 안 글 폭(`PROSE_MAX_WIDTH`)으로 접는다(계획 2.1, D-520). 글 폭 상한은 잡지 않는다
+    tab-count-chip      `<TabShell tabs=…>` 의 탭 이름에 수를 이어 붙인다(`` `사람 (${n})` `` · `"사람 " + n`) — 수는 탭의
+                        `count` 가 이름 옆 칩으로 그린다(계획 3.2 · 3.18)
 
 ## 예외와 대기 목록
 
@@ -55,7 +59,17 @@ RULES = {
     "table-tag": "표 칸 안에 면 있는 Tag 를 그린다 — `DotLabel`",
     "ghost-slot": "메시지 박스 · 발 · 판 머리 · 페이지 머리 동작에 글자 단추를 둔다 — 30 · 34 보조",
     "primary-last": "페이지 머리 동작의 채움 단추 뒤에 단추가 또 선다 — 채움은 오른쪽 끝이다(D-501)",
+    "page-max-width": "화면이 판 폭 상한을 건다 — 페이지는 폭을 묶지 않는다(계획 2.1)",
+    "tab-count-chip": "탭 이름에 수를 이어 붙인다 — 탭의 `count` 가 칩으로 그린다(계획 3.18)",
 }
+
+# 판 폭 상한의 모양. `READ_COLUMN` 은 걷었고(D-520), 같은 값을 글자로 다시 적어도 잡는다. 글 폭(`PROSE_MAX_WIDTH`,
+# `60ch`)과 대화상자 폭은 판 폭이 아니라 잡지 않는다.
+PAGE_WIDTH_CAP = re.compile(
+    r"""maxWidth\s*:\s*(?:READ_COLUMN\b|["'`]min\(\s*100%\s*,\s*\d+(?:\.\d+)?rem\s*\)["'`])""")
+TABSHELL_OPEN = re.compile(r"<TabShell\b")
+# 탭 이름에 수를 잇는 모양 - 템플릿 안의 `${…}` 이거나 `+` 로 잇는 식.
+TAB_LABEL_WITH_NUMBER = re.compile(r"""\blabel\s*:\s*(?:`[^`]*\$\{[^`]*`|[^,}\n]*\+)""")
 
 FILTER_PARTS = {
     "FilterSurface", "ToolbarRow", "ToolbarEnd", "FilterRow", "FilterActions", "ResultLine",
@@ -332,6 +346,9 @@ def scan_file(rel: str, text: str) -> list[tuple[str, int, str]]:
         hits.append(("fab-clearance", line_of(pos), "FAB_CLEARANCE"))
     if not rel.startswith(SCREEN_ROOTS):
         return hits
+    for m in PAGE_WIDTH_CAP.finditer(text):
+        hits.append(("page-max-width", line_of(m.start()), m.group(0)))
+    hits.extend(_tab_label_hits(text, line_of))
     for m in FILTERBAR_IMPORT.finditer(text):
         names = {n.strip().split(" as ")[0].strip() for n in m.group(1).split(",") if n.strip()}
         parts = sorted(names & FILTER_PARTS)
@@ -363,6 +380,46 @@ def scan_file(rel: str, text: str) -> list[tuple[str, int, str]]:
             if slot:
                 hits.append(("ghost-slot", line_of(pos), f"<{name} variant=ghost> in {slot}"))
     hits.extend(_primary_last_hits(header_groups.values(), line_of, ""))
+    return hits
+
+
+def _balanced(text: str, start: int, opening: str, closing: str) -> str:
+    """`start` 의 여는 괄호부터 짝이 맞는 닫는 괄호까지의 글. 문자열 속 괄호는 세지 않는다(`_skip_string`)."""
+    depth, i = 0, start
+    while i < len(text):
+        ch = text[i]
+        if ch in "\"'`":
+            i = _skip_string(text, i)
+            continue
+        if ch == opening:
+            depth += 1
+        elif ch == closing:
+            depth -= 1
+            if depth == 0:
+                return text[start:i + 1]
+        i += 1
+    return text[start:]
+
+
+def _tab_label_hits(text: str, line_of) -> list[tuple[str, int, str]]:
+    """`<TabShell tabs=…>` 의 탭 이름에 수를 이어 붙였는가. 탭 목록이 같은 파일의 상수면 그 정의를 본다."""
+    hits = []
+    for m in TABSHELL_OPEN.finditer(text):
+        attr = re.compile(r"\btabs\s*=\s*\{").search(text, m.end())
+        # 이 요소의 속성이어야 한다 - 다음 `<TabShell` 보다 앞이고 멀지 않은 자리만 본다.
+        following = TABSHELL_OPEN.search(text, m.end())
+        if attr is None or attr.start() - m.end() > 3000 or (following and attr.start() > following.start()):
+            continue
+        expr = _balanced(text, attr.end() - 1, "{", "}")[1:-1].strip()
+        body = expr
+        name = re.fullmatch(r"[A-Za-z_$][\w$]*", expr)
+        if name:
+            decl = re.compile(r"\bconst\s+" + re.escape(expr) + r"\s*=\s*\[").search(text)
+            if decl is None:
+                continue
+            body = _balanced(text, decl.end() - 1, "[", "]")
+        for label in TAB_LABEL_WITH_NUMBER.finditer(body):
+            hits.append(("tab-count-chip", line_of(m.start()), label.group(0)[:40]))
     return hits
 
 
@@ -497,6 +554,8 @@ def selftest() -> int:
         "    <ListFooter total={1} loaded={1} />\n"
         '    <Callout tone="warn" action={<Button size="sm" variant="ghost" onClick={retry}>다시 시도</Button>}>안내</Callout>\n'
         '    <PageHeader title="진단" actions={<><Button variant="primary" onClick={run}>진단 수집</Button><Button onClick={copy}>복사</Button></>} />\n'
+        '    <Box sx={{ display: "grid", maxWidth: READ_COLUMN }}>판</Box>\n'
+        '    <TabShell tabs={[{ key: "p", label: `사람 (${people})` }]} />\n'
         "  </>);\n"
         "}\n"
     )
@@ -539,8 +598,12 @@ def selftest() -> int:
         '    <PageHeader title="갈래" actions={off ? (<><Button>이력</Button><Button variant="primary">복원</Button></>) : (<><Button>이동</Button><Button variant="primary">저장</Button></>)} />\n'
         '    <PageHeader title="부품" actions={<GoodHeadParts onRun={run} />} />\n'
         '    <Box><Button variant="primary">본문 채움</Button><Button>본문 보조</Button></Box>\n'
+        '    <Box sx={{ maxWidth: PROSE_MAX_WIDTH }}>긴 글</Box>\n'
+        '    <TabShell tabs={GOOD_TABS} />\n'
+        '    <FilterChips chips={[{ key: "q", label: `검색: ${q}` }]} />\n'
         "  </>);\n"
         "}\n"
+        'const GOOD_TABS = [{ key: "p", label: "사람", count: people }];\n'
         "export const X = () => <DataTable placement=\"surface\" columns={cols} rows={[]} list={{}} />;\n"
     )
     problems = []

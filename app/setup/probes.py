@@ -1,15 +1,20 @@
-"""항목별 상태 판정 - 이미 있는 것을 읽는다 (9-3, P3).
+"""항목별 상태 판정 - 이미 있는 것을 읽는다 (9-3, P3 · 계획 3.5, D-520).
 
 ## 새 판정을 만들지 않는다
 
 여기서 하는 일은 **판단이지 수집이 아니다.** 설치처 고유 설정은
 `app/core/tenant_config.py` 가, 시크릿 파일 유무는 `app/core/secret_refs.py` 가, 인증서
-만료는 `app/health/service.py` 가, 미러 동기화 상태는 `app/observability` 가, 연동과 러너의
-헬스는 각 레지스트리 행이 이미 알고 있다. 이 파일은 그 사실들을 읽어 **"됨 / 안 됨 /
-확인 불가"** 세 마디로 번역할 뿐이다.
+만료는 `app/health/service.py` 가, 메일 발송의 건강은 `app/mail/health.py` 가, AI 연결은
+`app/ai/runtime.py::AiRuntime.status` 가, 연동의 헬스는 레지스트리 행이 이미 알고 있다. 이 파일은 그 사실들을 읽어
+**"됨 / 안 됨 / 확인 불가"** 세 마디로 번역할 뿐이다.
 
 판정을 여기서 새로 만들면 두 벌이 된다. 두 벌이 되면 한쪽만 고쳐지고, 그러면 "설정했다는데
 안 된다" 가 정확히 다시 생긴다.
+
+## 요청 안에서 네트워크를 쓰지 않는다
+
+메일과 AI 는 **저장된 상태**만 읽는다(연결 확인과 실제 발송 · 호출이 적어 둔 결과). 이 판정은 모든 관리자의 상태
+폴링에서 돌기 때문에, 여기서 서버에 붙으면 화면을 열 때마다 바깥으로 호출이 나간다.
 
 ## 왜 "안 됨" 과 "확인 불가" 를 나누는가
 
@@ -18,7 +23,13 @@
 
 둘을 합치면 화면은 앞단 프록시가 TLS 를 끊는 정상 설치를 빨갛게 세우고 "인증서를 넣으세요"
 라고 말한다. 그 말을 따르면 안 되는데도. 반대로 확인 불가를 초록으로 뭉개면 아무도 안 되는
-설치가 다 됐다고 나온다. 둘 다 겪었기 때문에 상태를 셋으로 둔다.
+설치가 다 됐다고 나온다. 둘 다 겪었기 때문에 상태를 셋으로 둔다. 선택 항목을 「사용하지 않음」으로 표시하면 넷째
+상태(`skipped`)가 된다 - 그 판정은 체크리스트가 한다(`checklist.py`).
+
+## 링크는 서버가 준다
+
+항목마다 고치는 화면으로 가는 주소(`href`)와 그 이름(`link_label`)을 판정이 함께 준다. 같은 항목이라도 상태마다 가야
+할 곳이 다르다 - 메일이 비어 있으면 설정 표의 그 줄, 확인 전이거나 실패하면 메일 발송 화면이다.
 """
 
 from __future__ import annotations
@@ -35,6 +46,18 @@ from app.core.secret_refs import FileSecretReferenceProvider
 STATE_DONE = "done"
 STATE_TODO = "todo"
 STATE_UNKNOWN = "unknown"
+# 선택 항목을 「사용하지 않음」으로 표시했다(D-520). 체크리스트가 정한다.
+STATE_SKIPPED = "skipped"
+
+LINK_USERS = ("#/users", "사용자 화면 열기")
+LINK_DEPARTMENTS = ("#/departments", "부서 화면 열기")
+LINK_MAIL_SETTING = ("#/settings?setting=smtp", "메일 설정 열기")
+LINK_MAIL_SCREEN = ("#/mail", "메일 발송 화면 열기")
+LINK_AI = ("#/settings?tab=ai", "AI 설정 열기")
+LINK_DIAGNOSTICS_INTEGRATIONS = ("#/diagnostics", "진단에서 연동 상태 보기")
+LINK_DIAGNOSTICS_TLS = ("#/diagnostics", "진단에서 인증서 확인")
+# 인증서 만료가 이만큼 가까우면 다시 할 일이다.
+TLS_RENEW_DAYS = 14
 
 
 @dataclass(frozen=True)
@@ -43,24 +66,34 @@ class Outcome:
 
     `action` 과 `question` 은 **동시에 채우지 않는다.** 셋 중 무엇인지는 상태가 말하고,
     사람이 다음에 할 행동은 둘 중 하나만 말해야 한다.
+
+    `configured` 는 관리자가 이 항목에 무언가를 넣었는가다. 「사용하지 않음」은 비어 있을 때만 뜻이 있다 - 값을 채우면
+    선택과 무관하게 실제 상태를 보인다(D-520).
     """
 
     state: str
     detail: str
     action: str | None = None
     question: str | None = None
+    href: str | None = None
+    link_label: str | None = None
+    checked_at: str | None = None
+    configured: bool = True
 
 
-def _done(detail: str) -> Outcome:
-    return Outcome(state=STATE_DONE, detail=detail)
+def _done(detail: str, *, link=None, checked_at=None) -> Outcome:
+    return Outcome(state=STATE_DONE, detail=detail, href=link[0] if link else None,
+                   link_label=link[1] if link else None, checked_at=checked_at)
 
 
-def _todo(detail: str, action: str) -> Outcome:
-    return Outcome(state=STATE_TODO, detail=detail, action=action)
+def _todo(detail: str, action: str, *, link=None, checked_at=None, configured=True) -> Outcome:
+    return Outcome(state=STATE_TODO, detail=detail, action=action, href=link[0] if link else None,
+                   link_label=link[1] if link else None, checked_at=checked_at, configured=configured)
 
 
-def _unknown(detail: str, question: str) -> Outcome:
-    return Outcome(state=STATE_UNKNOWN, detail=detail, question=question)
+def _unknown(detail: str, question: str, *, link=None, checked_at=None) -> Outcome:
+    return Outcome(state=STATE_UNKNOWN, detail=detail, question=question, href=link[0] if link else None,
+                   link_label=link[1] if link else None, checked_at=checked_at)
 
 
 @dataclass(frozen=True)
@@ -99,39 +132,56 @@ def probe_admin_account(ctx: ProbeContext) -> Outcome:
         .all()
     )
     if not rows:
+        # 이 화면은 시스템 관리자만 연다 - 사람이 보는 자리에서는 닿지 않는 판정이지만 API 로는 닿는다.
         return _todo(
-            "시스템 관리자 계정이 없습니다.",
-            "scripts/seed_admin.py 로 시스템 관리자 계정을 만드세요.",
+            "활성 시스템 관리자 계정이 없습니다.",
+            "시스템 관리자 역할의 활성 계정을 하나 이상 만드세요.",
+            link=LINK_USERS,
         )
     if all(row.must_change_password for row in rows):
         return _todo(
             f"시스템 관리자 {len(rows)}명이 모두 초기 임시 비밀번호 상태입니다.",
             "관리자 계정으로 한 번 로그인해 비밀번호를 바꾸세요.",
+            link=LINK_USERS,
         )
-    return _done(f"시스템 관리자 {len(rows)}명이 있습니다.")
+    return _done(f"시스템 관리자 {len(rows)}명이 있습니다.", link=LINK_USERS)
 
 
 # ── 메일(SMTP) 발송 ──────────────────────────────────────────────────────────
 
 
 def probe_mail(ctx: ProbeContext) -> Outcome:
-    """ADM-02R: 메일이 안 되면 화면은 안 비지만(자가 재설정 버튼이 스스로 숨는다), 초대·
-    백업 실패·승인 요청 메일이 전부 조용히 사라진다 — 설치 자체는 "완료"로 보인다.
+    """메일은 선택 항목이다(D-520). 판정은 메일 발송 화면과 같은 건강 상태(`app/mail/health.py::health_state`)다.
 
-    판정을 새로 만들지 않는다(모듈 docstring) — `app/auth/reset_router.py::mail_is_sendable`
-    이 이미 쓰는 `app/mail/config.py::configuration_problems`를 그대로 부른다.
+    예전에는 값이 채워져 있으면 「됨」이었다 - 발송이 전부 실패해도 초기 설정은 끝난 것처럼 보였다. 이제 실제 연결
+    확인이나 발송이 성공해야 「됨」이다.
     """
-    from app.mail.config import config_from_db, configuration_problems
+    from app.mail import health as mail_health
+    from app.mail.config import config_from_db
 
     config = config_from_db(ctx.db)
-    problems = configuration_problems(config, ctx.secrets)
-    if problems:
-        detail = problems[0] if len(problems) == 1 else f"{len(problems)}가지가 비어 있습니다: " + " / ".join(problems)
+    state = mail_health.health_state(ctx.db, config, ctx.secrets)
+    checked_at = state.get("checked_at")
+    if state["state"] == mail_health.STATE_UNCONFIGURED:
         return _todo(
-            detail,
-            "관리 콘솔의 설정 화면에서 메일(SMTP) 발송 설정을 채우세요.",
+            f"메일 발송 설정이 비어 있습니다. {state['message']}",
+            "메일 설정을 채우세요. 메일을 쓰지 않는다면 이 항목을 사용하지 않음으로 표시하세요.",
+            link=LINK_MAIL_SETTING, configured=False,
         )
-    return _done(f"메일 발송이 설정돼 있습니다({config.host}:{config.port}).")
+    if state["state"] == mail_health.STATE_UNVERIFIED:
+        return _unknown(
+            "메일 설정은 채워졌지만 아직 발송을 확인하지 않았습니다.",
+            "메일 발송 화면에서 연결 확인을 눌러 주세요.",
+            link=LINK_MAIL_SCREEN, checked_at=checked_at,
+        )
+    if state["state"] == mail_health.STATE_FAILING:
+        return _todo(
+            f"메일 발송이 실패하고 있습니다. {state['message']}",
+            "메일 발송 화면에서 원인을 확인하고 설정을 고치세요.",
+            link=LINK_MAIL_SCREEN, checked_at=checked_at,
+        )
+    return _done(f"메일 발송이 확인됐습니다({config.host}:{config.port}).", link=LINK_MAIL_SCREEN,
+                 checked_at=checked_at)
 
 
 # ── 조직과 부서 ──────────────────────────────────────────────────────────────
@@ -151,12 +201,13 @@ def probe_organization(ctx: ProbeContext) -> Outcome:
         # 한 것이 아니라 설치가 덜 끝났다는 뜻이라 사람에게 시킬 일을 특정할 수 없다.
         return _unknown(
             "조직 행을 하나도 찾지 못했습니다.",
-            "데이터베이스 마이그레이션(alembic upgrade head)이 끝났는지 확인해 주세요.",
+            "데이터베이스 마이그레이션이 끝났는지 설치 로그를 확인해 주세요.",
         )
     if not any((org.name or "").strip() for org in orgs):
         return _todo(
             "조직 이름이 비어 있습니다.",
-            "관리 콘솔의 조직 화면에서 회사 이름을 입력하세요.",
+            "조직 관리 화면에서 회사 이름을 입력하세요.",
+            link=LINK_DEPARTMENTS,
         )
     departments = ctx.db.execute(
         select(func.count()).select_from(Department).where(Department.active.is_(True))
@@ -164,20 +215,23 @@ def probe_organization(ctx: ProbeContext) -> Outcome:
     if not departments:
         return _todo(
             "부서가 하나도 등록되지 않았습니다.",
-            "관리 콘솔의 부서 화면에서 부서를 하나 이상 등록하세요.",
+            "조직 관리 화면에서 부서를 하나 이상 등록하세요.",
+            link=LINK_DEPARTMENTS,
         )
-    return _done(f"조직 {len(orgs)}개, 부서 {departments}개가 등록돼 있습니다.")
+    return _done(f"조직 {len(orgs)}개, 부서 {departments}개가 등록돼 있습니다.", link=LINK_DEPARTMENTS)
 
 
-# ── AI 모델 ──────────────────────────────────────────────────────────────────
+# ── AI ───────────────────────────────────────────────────────────────────────
 
 
 def probe_llm(ctx: ProbeContext) -> Outcome:
-    """AI 가 지금 되는가. **이미 아는 것을 읽는다** - 검색은 Gateway, 답변 생성은 AI 런타임(D-515).
+    """AI 는 선택 항목이다(D-520). 검색은 Gateway, 답변 생성은 AI 런타임의 연결 상태(여섯 가지, D-516)를 읽는다.
 
-    답변·초안·요약이 전부 런타임을 지나므로 **여기서 되면 실제로 되는 것**이다. 런타임은 저장된 연결 상태만 읽고
-    제공자에 붙지 않는다.
+    런타임은 저장된 연결 상태만 읽고 제공자에 붙지 않는다. 확인 전과 일시 장애는 물어볼 일이고, 미설정 · 꺼짐 · 재로그인
+    필요 · 인증이나 구성 오류는 할 일이다.
     """
+    from app.ai.credentials import state as ai_state
+
     gateway = ctx.gateway
     if gateway is None:
         from app.ai.gateway.registry import build_gateway
@@ -189,24 +243,50 @@ def probe_llm(ctx: ProbeContext) -> Outcome:
 
         runtime = AiRuntime(settings=ctx.settings, secrets=ctx.secrets)
     embed = gateway.capabilities().embed
-    generate = runtime.capability(ctx.db)
-    if embed.available and generate.available:
-        return _done("문서 검색과 답변 생성이 모두 동작합니다.")
+    info = runtime.status(ctx.db)
+    checked_at = info.get("checked_at")
+    configured = bool(info.get("provider"))
+    search_note = "" if embed.available else " 문서 검색 모델은 아직 설치되지 않아 낱말이 맞는 문서만 찾습니다."
+
+    if info["state"] == ai_state.STATE_UNCONFIGURED:
+        return _todo(
+            "AI 제공자를 아직 연결하지 않았습니다." + search_note,
+            "AI 설정 화면에서 제공자와 인증을 넣고 연결을 확인하세요. AI 를 쓰지 않는다면 이 항목을 사용하지 않음으로 "
+            "표시하세요.",
+            link=LINK_AI, configured=configured,
+        )
+    if not info["generation_enabled"]:
+        return _todo(
+            "AI 연결은 설정됐지만 답변 생성이 꺼져 있습니다." + search_note,
+            "AI 설정 화면에서 답변 생성을 켜세요.",
+            link=LINK_AI, checked_at=checked_at,
+        )
+    if info["state"] in (ai_state.STATE_REAUTH, ai_state.STATE_ERROR):
+        reason = info.get("reason") or info.get("message") or ""
+        return _todo(
+            f"AI 연결이 막혀 있습니다. {reason}".strip(),
+            "AI 설정 화면에서 다시 로그인하거나 키를 다시 넣은 뒤 연결을 확인하세요.",
+            link=LINK_AI, checked_at=checked_at,
+        )
+    if info["state"] == ai_state.STATE_UNVERIFIED:
+        return _unknown(
+            "AI 연결을 아직 확인하지 않았습니다." + search_note,
+            "AI 설정 화면에서 연결 확인을 눌러 주세요.",
+            link=LINK_AI, checked_at=checked_at,
+        )
+    if info["state"] == ai_state.STATE_DEGRADED:
+        return _unknown(
+            "AI 연결이 잠시 불안정합니다. 사용자의 요청은 막지 않습니다." + search_note,
+            "잠시 뒤 AI 설정 화면에서 연결 확인을 다시 눌러 주세요.",
+            link=LINK_AI, checked_at=checked_at,
+        )
     if embed.available:
-        # 검색은 되고 생성만 안 된다. 이것은 반쪽 실패가 아니라 **설계된 상태**다
-        # (D-201) — 근거와 인용은 그대로 나온다.
-        return _todo(
-            f"문서 검색은 동작하지만 답변 생성이 되지 않습니다. {generate.notice}",
-            "AI 설정 화면에서 제공자와 API 키를 넣고 연결을 확인하세요.",
-        )
-    if generate.available:
-        return _todo(
-            f"답변 생성은 동작하지만 문서 검색이 되지 않습니다. {embed.notice}",
-            "설치 스크립트의 AI 단계(deploy/install.sh ai)로 임베딩 모델을 넣으세요.",
-        )
-    return _todo(
-        f"AI 기능을 아직 쓸 수 없습니다. {embed.notice}",
-        "설치 스크립트의 AI 단계(deploy/install.sh ai)를 실행하고 AI 기능을 켜세요.",
+        return _done("문서 검색과 답변 생성이 모두 동작합니다.", link=LINK_AI, checked_at=checked_at)
+    # 답변은 되고 의미 검색 모델만 없다. 검색은 낱말 레인으로 동작하므로 설계된 상태이지 고장이 아니다(D-201).
+    return _unknown(
+        "답변 생성은 동작합니다. 문서 검색 모델이 없어 낱말이 맞는 문서만 찾습니다.",
+        "의미 검색이 필요하면 설치 명령을 AI 구성 요소와 함께 다시 실행해 문서 검색 모델을 넣으세요.",
+        link=LINK_AI, checked_at=checked_at,
     )
 
 
@@ -225,23 +305,23 @@ def probe_integrations(ctx: ProbeContext) -> Outcome:
         #
         # 외부 연동은 **선택**이다. 하나도 없는 것은 장애가 아니라 「이 설치는 바깥으로
         # 나가는 호출이 없다」는 정상 상태다.
-        return _done("추가된 외부 연동이 없습니다. 이 설치는 바깥으로 나가는 호출을 쓰지 않습니다.")
+        return _done("추가된 외부 연동이 없습니다. 이 설치는 바깥으로 나가는 호출을 쓰지 않습니다.",
+                     link=LINK_DIAGNOSTICS_INTEGRATIONS)
     enabled = [row for row in rows if row.enabled]
     if not enabled:
         # 전부 꺼 둔 것도 운영자의 선택이다 — 「사용 안 함」이지 「고장」이 아니다.
-        return _done(f"연동 {len(rows)}개가 전부 사용 안 함 상태입니다.")
+        return _done(f"연동 {len(rows)}개가 전부 사용 안 함 상태입니다.", link=LINK_DIAGNOSTICS_INTEGRATIONS)
     return _health_outcome(
         [row.last_health_status for row in enabled],
         noun="연동",
         fix="해당 서비스가 실행 중인지, 주소가 맞는지 확인하세요.",
-        ask="관리 콘솔의 외부 연동 화면에서 헬스체크를 한 번 실행해 주세요.",
+        ask="진단 화면에서 연동 상태를 확인해 주세요.",
     )
 
 
 def _health_outcome(statuses: list[str], *, noun: str, fix: str, ask: str) -> Outcome:
     """헬스 문자열 목록 하나를 셋 중 하나로 옮긴다.
 
-    러너와 연동이 같은 어휘(up/down/unknown)를 쓰므로 판정도 한 번만 적는다.
     **중단이 미점검보다 먼저다**: 죽은 것이 하나라도 있으면 그건 물어볼 일이 아니라
     사람이 고칠 일이다.
     """
@@ -249,13 +329,14 @@ def _health_outcome(statuses: list[str], *, noun: str, fix: str, ask: str) -> Ou
 
     down = [s for s in statuses if s == HEALTH_DOWN]
     if down:
-        return _todo(f"{noun} {len(down)}개가 응답하지 않습니다.", fix)
+        return _todo(f"{noun} {len(down)}개가 응답하지 않습니다.", fix, link=LINK_DIAGNOSTICS_INTEGRATIONS)
     unchecked = [s for s in statuses if s != HEALTH_UP]
     if unchecked:
         return _unknown(
-            f"{noun} {len(unchecked)}개가 아직 한 번도 헬스체크되지 않았습니다.", ask
+            f"{noun} {len(unchecked)}개가 아직 한 번도 헬스체크되지 않았습니다.", ask,
+            link=LINK_DIAGNOSTICS_INTEGRATIONS,
         )
-    return _done(f"{noun} {len(statuses)}개가 모두 정상입니다.")
+    return _done(f"{noun} {len(statuses)}개가 모두 정상입니다.", link=LINK_DIAGNOSTICS_INTEGRATIONS)
 
 
 # ── TLS 인증서 ───────────────────────────────────────────────────────────────
@@ -271,30 +352,36 @@ def probe_tls(ctx: ProbeContext) -> Outcome:
         return _unknown(
             "이 앱에 인증서 경로가 설정돼 있지 않습니다.",
             "앞단 프록시에서 TLS 를 끊는 구성인가요? 그렇다면 프록시 쪽 인증서를 확인해 주세요.",
+            link=LINK_DIAGNOSTICS_TLS,
         )
     if not Path(cert_path).exists():
         return _todo(
             "설정된 경로에 인증서 파일이 없습니다.",
             "TLS_CERT_PATH 경로를 확인하거나 인증서 파일을 그 자리에 두세요.",
+            link=LINK_DIAGNOSTICS_TLS,
         )
     days = cert_days_remaining(ctx.settings)
     if days is None:
         return _unknown(
             "인증서 파일은 있지만 만료일을 읽지 못했습니다.",
             "올바른 PEM 형식 인증서가 맞는지 확인해 주세요.",
+            link=LINK_DIAGNOSTICS_TLS,
         )
     if days < 0:
-        return _todo("인증서가 이미 만료됐습니다.", "새 인증서로 교체하세요.")
-    # SYS-05: 만료 전이라도 자체서명이면 브라우저는 오늘 이미 경고를 띄운다 — "됨"으로
-    # 뭉개면 이 화면의 다른 문구("만료되면 브라우저가 경고를 띄우고 사용자는 접속을
-    # 포기합니다")와 정면으로 어긋난다. 운영 전 설치에서는 자체서명이 정상일 수 있어
-    # (CLAUDE.md §10) todo(빨강, "당장 하세요")가 아니라 unknown(사람이 판단할 일)으로 둔다.
+        return _todo("인증서가 이미 만료됐습니다.", "새 인증서로 교체하세요.", link=LINK_DIAGNOSTICS_TLS)
+    if days <= TLS_RENEW_DAYS:
+        return _todo(f"인증서 만료까지 {days}일 남았습니다.", "만료되기 전에 새 인증서로 교체하세요.",
+                     link=LINK_DIAGNOSTICS_TLS)
+    # TLS 는 필수 항목이고 설치가 자체 서명 인증서를 만들어 처음부터 끝나 있다(계획 3.5, D-520). 예전에는 자체 서명을
+    # 「확인 불가」로 두었는데, 필수 항목이 된 뒤로 그 판정은 모든 새 설치를 영원히 미완료로 만든다. 끝난 것으로 두고
+    # 신뢰된 인증서로 바꾸기를 권한다 - 브라우저가 지금도 경고를 띄운다는 사실은 그대로 적는다.
     if is_self_signed_cert(ctx.settings):
-        return _unknown(
-            f"인증서 만료까지 {days}일 남았지만 자체서명 인증서입니다(브라우저가 지금도 경고를 띄웁니다).",
-            "운영 전 내부 설치라면 그대로 둬도 됩니다. 실제 사용자에게 이 주소를 노출한다면 신뢰된 CA(사설 CA 포함)로 교체하세요.",
+        return _done(
+            f"설치가 만든 자체 서명 인증서가 있습니다(만료까지 {days}일). 브라우저가 경고를 띄우므로 사용자에게 "
+            "공개하는 주소라면 신뢰된 인증서로 바꾸기를 권합니다.",
+            link=LINK_DIAGNOSTICS_TLS,
         )
-    return _done(f"인증서 만료까지 {days}일 남았습니다.")
+    return _done(f"인증서 만료까지 {days}일 남았습니다.", link=LINK_DIAGNOSTICS_TLS)
 
 
 PROBES = {
@@ -313,4 +400,5 @@ __all__ = [
     "STATE_DONE",
     "STATE_TODO",
     "STATE_UNKNOWN",
+    "STATE_SKIPPED",
 ]

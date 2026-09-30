@@ -33,6 +33,8 @@ export const SETTING_LABELS = {
   // 감사 로그와 버전 기록이 이 이름으로 나온다. 노션 데이터베이스 id 세 개가 여기 함께
   // 있었는데, 그 값을 읽는 제품 코드도 그 값을 고치던 화면도 없어져 라벨만 남았었다.
   ai_generation_enabled: "AI 답변 생성",
+  // 초기 설정 화면에서 고른다(SETUP_SCREEN_KEYS). 라벨은 감사와 버전 기록에 쓰인다.
+  setup_optional_choices: "초기 설정의 선택 기능",
   ai_provider: "AI 제공자",
   ai_auth_method: "AI 인증 방식",
   ai_model: "AI 모델",
@@ -72,6 +74,7 @@ export const OBJECT_SCHEMA_HELP = {
   // 같은 모양이라야 한다(틀린 예시를 그대로 붙여 넣으면 저장이 거부된다).
   backup_schedule: 'JSON 예: {"enabled": true, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14, "keep_days": 7}, cron 은 분 시 일 월 요일(0 3 * * * = 매일 새벽 3시), keep 은 남길 백업 개수(1~365), keep_days 는 개수를 넘어도 남기는 기간(0~365일).',
   mail_notification_types: 'JSON 예: ["ticket_assigned", "ticket_status_changed", "ticket_resolved"], 메일 발송 화면의 「메일로 보내는 알림」에서 고르는 것이 편합니다.',
+  setup_optional_choices: 'JSON 예: {"mail": "use", "llm": "unused"}, 초기 설정 화면의 「사용하지 않음으로 표시」에서 고르는 것이 편합니다.',
 };
 // 값의 정본은 서버(app/core/authz.py)이고, 화면 쪽 사본은 lib/roles.js 한 곳이다(지시 21).
 export const WRITE_ROLES = CONSOLE_WRITE_ROLES;
@@ -95,6 +98,8 @@ export const DEDICATED_SCREEN_KEYS = [
 ];
 // 알림을 메일로도 보내기(계획 3.4)의 두 값은 메일 발송 화면의 「메일로 보내는 알림」이 다룬다. 같은 이유로 이 표에서 숨긴다.
 export const MAIL_SCREEN_KEYS = ["mail_notification_types", "mail_notification_max_age_days"];
+// 초기 설정 화면이 고치는 값(계획 3.5, D-520). 메일과 AI 를 쓰는지 고르는 자리는 그 화면의 항목 옆이다.
+export const SETUP_SCREEN_KEYS = ["setup_optional_choices"];
 // 이 object 설정들은 정해진 스키마가 있어 타입에 맞는 입력(숫자·분/시간·칩 목록)으로 편집할 수 있다.
 // 비개발자 관리자가 raw JSON을 손으로 추측하지 않게 하려는 목적(registry.py 주석과 동일 취지) —
 // 그 외 미지의 object 키는 여전히 JSON 텍스트로만 편집한다(스키마가 없으므로).

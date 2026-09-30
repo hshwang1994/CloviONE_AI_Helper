@@ -276,14 +276,13 @@ export const GRID_GAP = rem(DENSITY_PX.gridGap);                // 24px
 export const TILE_GRID_GAP = rem(DENSITY_PX.healthGridGap);     // 16px
 export const SECTION_GAP = rem(DENSITY_PX.sectionGap);          // 32px
 
-/** 판을 **위아래로만 쌓는 화면**의 판 폭 (2026-09-21).
+/* 페이지는 폭을 묶지 않는다 (계획 2.1 · 3.18, D-520).
  *
- * 두 판을 나란히 두지 않고 차례로 읽게 한 화면(조직 정합성 · 초기 설정)에서 판이 본문 폭을 다 쓰면
- * 설명 한 줄이 1,500px 를 달리고, 줄 오른쪽 끝의 값(건수 칩)이 글과 멀어져 어느 줄의 값인지 안 보인다.
- * 세 열짜리 작은 표도 값 셋이 흩어진다. **글에 상한을 걸지 않고 판에 건다** — 판 안에서는 글이 칸을
- * 끝까지 쓰므로 「카드는 넓은데 글만 왼쪽에 붙는」 모양(`theme.js::PROSE_MAX_WIDTH` 주석)이 되지 않는다.
- * 1366 이하는 본문이 이보다 좁아 상한이 안 걸린다. */
-export const READ_COLUMN = "min(100%, 70rem)";
+ * 예전에는 판을 위아래로 쌓는 화면(조직 정합성 · 초기 설정)이 판 폭을 70rem 으로 묶었다(`READ_COLUMN`, 2026-09-21).
+ * 설명 한 줄이 1,500px 를 달리는 것은 막았지만 넓은 화면의 오른쪽 3분의 1 이 비었다. 이제 화면 파일은 판 폭 상한을
+ * 걸지 않고 `CONTENT_MAX_WIDTH`(AppShell) 하나만 따른다. 긴 줄은 두 열 카드 격자(`pairTracks` · `contentPairTracks`)와
+ * 카드 안 글 폭(`theme.js::PROSE_MAX_WIDTH`)으로 접는다. `density-contract.test.jsx` 와 `check_composition.py` 의
+ * `page-max-width` 규칙이 그 상한이 다시 생기는 것을 막는다. */
 
 /* 좌측 레일 목록 화면의 그리드 한 벌 — `BASELINE_TRACKS.listRail` 의 소비 형태.
  * 값 조정은 여기(트랙)와 위(트랙 주석) 한 곳에서만 한다. */

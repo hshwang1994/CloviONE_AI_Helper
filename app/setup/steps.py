@@ -19,6 +19,19 @@
 순서(`SETUP_STEPS` 의 나열)는 의존을 **위상정렬한 것**이되, 의존이 없는 항목들 사이에서는
 안내하기 좋은 순서로 놓는다. 그래서 순서가 의존보다 촘촘할 수는 있어도 어긋나지는 않는다
 (tests/integration/test_setup_checklist.py 가 그 성질을 못박는다).
+
+## 필수와 선택 (계획 3.5, D-520)
+
+예전에는 여섯 항목이 전부 끝나야 설치가 「완료」였다. 그래서 메일과 AI 를 쓰지 않는 설치는 영원히 미완료였고 사용자
+배너가 계속 떴다. 제품이 실제로 요구하는 것은 셋이다:
+
+  관리자 계정   이 사람이 없으면 아무도 설정을 못 한다
+  조직과 부서   담당자 배정, 부서 범위 관리자, 회차(팀 소유)가 부서를 요구한다
+  TLS 인증서    설치가 자체 서명 인증서를 만들어 처음부터 끝나 있다. 만료가 가까우면 다시 할 일이 된다
+
+메일, AI, 외부 연동은 **선택**이다. 없으면 그 기능만 꺼지고 나머지는 그대로다. 메일과 AI 는 관리자가 「사용하지
+않음」으로 표시할 수 있다(`setup_optional_choices`) - 그러면 설정이 비어 있어도 할 일로 세지 않는다. 설정을 채우면
+선택과 무관하게 실제 상태를 보인다. 외부 연동은 하나도 없는 것이 이미 정상이다.
 """
 
 from __future__ import annotations
@@ -41,6 +54,10 @@ class SetupStep:
     # 쓴다. 관리자 계정과 TLS 는 사용자 화면이 비는 이유가 아니고, 사용자가 할 수 있는
     # 일도 아니므로 말하지 않는다(app/observability/router.py 와 같은 선).
     user_visible: bool = False
+    # 설치가 「완료」이려면 끝나야 하는 항목인가(D-520). 선택 항목은 남아 있어도 완료를 막지 않는다.
+    required: bool = True
+    # 「사용하지 않음」을 고를 수 있는 선택 항목의 이름(`setup_optional_choices` 의 키). 없으면 고를 수 없다.
+    optional_choice: str | None = None
 
 
 SETUP_STEPS: tuple[SetupStep, ...] = (
@@ -61,6 +78,8 @@ SETUP_STEPS: tuple[SetupStep, ...] = (
             "화면이 비지는 않으므로(ADM-02R) 사용자 배너에는 쓰지 않지만, 그냥 두면 그 사실을 "
             "아무도 알려 주지 않습니다."
         ),
+        required=False,
+        optional_choice="mail",
         # 관리자 계정 화면과 같은 선: 화면이 비는 이유가 아니라 사용자가 할 수 있는 일도
         # 아니므로 user_visible=False (steps.py 클래스 docstring 참조).
     ),
@@ -101,6 +120,8 @@ SETUP_STEPS: tuple[SetupStep, ...] = (
             "조직 단위가 없으면 AI 가 살아 있어도 답이 비어 있습니다."
         ),
         user_visible=True,
+        required=False,
+        optional_choice="llm",
     ),
     # 🔴 이 단계의 이유가 「자동화 워크플로가 호출할 곳이 없어 예약 실행과 웹훅이 …」였다.
     # 워크플로와 웹훅도 S11 이 걷었다. 그리고 `requires=("llm",)` 는 「연동 워크플로는 결국
@@ -117,6 +138,7 @@ SETUP_STEPS: tuple[SetupStep, ...] = (
             "연동을 하나도 안 쓰는 설치라면 이 단계는 그대로 넘어갑니다."
         ),
         user_visible=True,
+        required=False,
     ),
     SetupStep(
         key="tls",
@@ -135,6 +157,10 @@ STEP_BY_KEY: dict[str, SetupStep] = {step.key: step for step in SETUP_STEPS}
 USER_VISIBLE_KEYS: tuple[str, ...] = tuple(
     step.key for step in SETUP_STEPS if step.user_visible
 )
+# 설치가 「완료」이려면 끝나야 하는 항목(D-520).
+REQUIRED_KEYS: tuple[str, ...] = tuple(step.key for step in SETUP_STEPS if step.required)
+# 「사용하지 않음」을 고를 수 있는 선택 항목의 이름.
+OPTIONAL_CHOICES: tuple[str, ...] = tuple(step.optional_choice for step in SETUP_STEPS if step.optional_choice)
 
 __all__ = [
     "SetupStep",
@@ -142,4 +168,6 @@ __all__ = [
     "SETUP_ORDER",
     "STEP_BY_KEY",
     "USER_VISIBLE_KEYS",
+    "REQUIRED_KEYS",
+    "OPTIONAL_CHOICES",
 ]

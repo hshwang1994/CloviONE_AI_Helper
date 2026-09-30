@@ -20,7 +20,9 @@ import { MemoryRouter } from "react-router-dom";
  *   ④ **없는 화면으로 보내지 않는다.** 항목마다 붙는 링크는 실제로 라우팅되는 경로여야
  *      한다. 죽은 링크는 안내가 아니라 막다른 길이다.
  *
- * qa-contract-change: 레일이 「지금 할 차례」 판이 됐다(D-501). 다음 항목의 이름 · 할 일 · 고치는 화면으로 가는 링크(이 화면의 주 동작)가 레일에
+ * qa-contract-change: 진행 문장이 필수 항목을 센다(D-520) — 설치가 끝났는지는 필수 항목이 정하므로 「6개 중 1개」가 「필수 항목 6개 중 1개」가 됐다(이
+ * 시험의 픽스처는 required 를 적지 않아 모든 항목이 필수다). 필수 · 선택 구역과 「사용하지 않음」, 서버가 주는 링크를 따로 잰다.
+ * 그 전 변경: 레일이 「지금 할 차례」 판이 됐다(D-501). 다음 항목의 이름 · 할 일 · 고치는 화면으로 가는 링크(이 화면의 주 동작)가 레일에
  * 서고, 목록의 그 줄은 할 일과 링크를 되풀이하지 않는다 — 그래서 「안 됨에는 할 일」 단언이 레일과 다음이 아닌 항목 두 자리로 나뉜다. 남은 수는
  * 조각 문장 + 상태 요약 카드 둘에서 한 문장(「6개 중 1개가 끝났습니다. 직접 할 일이 4개, 확인할 것이 1개 남았습니다.」)으로 모였고, 접은 뒤의
  * 단언은 숫자 한 글자(「5」) 대신 그 문장 전체를 잰다. 레일에도 다음 항목의 이름이 서서 「조직과 부서」가 화면에 둘이므로, 불러왔는지는
@@ -243,16 +245,19 @@ describe("레일 — 지금 할 차례가 이 화면의 주 동작이다 (D-501)
   it("진행은 한 문장이다 — 같은 수를 조각 문장과 요약 카드로 두 번 세우지 않는다", async () => {
     renderWizard();
     const rail = await screen.findByTestId("setup-summary");
-    expect(rail).toHaveTextContent("6개 중 1개가 끝났습니다. 직접 할 일이 4개, 확인할 것이 1개 남았습니다.");
+    expect(rail).toHaveTextContent("필수 항목 6개 중 1개가 끝났습니다. 직접 할 일이 4개, 확인할 것이 1개 남았습니다.");
     expect(within(rail).queryByText("남은 항목")).toBeNull();
     expect(document.querySelector("[data-summary-total]")).toBeNull();
   });
 
   it("진행 문장은 없는 갈래를 말하지 않는다", () => {
     const base = { items: [item("a", "가", "done"), item("b", "나", "todo")], todo: ["b"], unknown: [] };
-    expect(setupProgressText(base)).toBe("2개 중 1개가 끝났습니다. 직접 할 일이 1개 남았습니다.");
+    expect(setupProgressText(base)).toBe("필수 항목 2개 중 1개가 끝났습니다. 직접 할 일이 1개 남았습니다.");
     expect(setupProgressText({ ...base, items: [item("a", "가", "unknown")], todo: [], unknown: ["a"] }))
-      .toBe("1개 중 아직 끝난 항목이 없습니다. 확인할 것이 1개 남았습니다.");
+      .toBe("필수 항목 1개 중 아직 끝난 항목이 없습니다. 확인할 것이 1개 남았습니다.");
+    // 선택 항목은 필수 수에 들지 않고 남은 수만 덧붙는다.
+    const mixed = { items: [item("a", "가", "done"), item("m", "메일", "todo", { required: false })], optional_pending: ["m"] };
+    expect(setupProgressText(mixed)).toBe("필수 항목 1개 중 1개가 끝났습니다. 선택 항목은 1개가 남아 있습니다.");
   });
 
   it("레일이 문서 순서의 앞이다 — 좁은 화면에서도 할 차례가 목록 위에 선다", async () => {
@@ -275,7 +280,7 @@ describe("끝난 뒤에도 계속 보인다", () => {
     expect(screen.queryByTestId("setup-item-organization")).toBeNull();
     // 접어도 요약은 남는다. 이것이 사라지면 "한 번 닫으면 끝" 인 마법사가 된다.
     const rail = screen.getByTestId("setup-summary");
-    expect(rail).toHaveTextContent("6개 중 1개가 끝났습니다. 직접 할 일이 4개, 확인할 것이 1개 남았습니다.");
+    expect(rail).toHaveTextContent("필수 항목 6개 중 1개가 끝났습니다. 직접 할 일이 4개, 확인할 것이 1개 남았습니다.");
     // 할 차례도 남는다 — 목록을 접은 사람이 다음에 할 일을 잃지 않는다.
     expect(within(rail).getByRole("link", { name: SETUP_LINKS.organization.label })).toBeInTheDocument();
   });
@@ -353,5 +358,61 @@ describe("권한", () => {
       expect(screen.getByText(/시스템 관리자만/)).toBeInTheDocument()
     );
     expect(apiMock).not.toHaveBeenCalledWith(CHECKLIST);
+  });
+});
+
+// ── 필수와 선택, 사용하지 않음 (D-520) ─────────────────────────────────────────
+
+describe("필수와 선택", () => {
+  function optionalPayload(extra = {}) {
+    const items = [
+      item("admin_account", "관리자 계정", "done", { required: true }),
+      item("mail", "메일(SMTP) 발송", "todo", {
+        required: false, optional_choice: "mail", choice: "use", configured: false,
+        href: "#/settings?setting=smtp", link_label: "메일 설정 열기",
+      }),
+      item("organization", "조직과 부서", "done", { required: true }),
+      item("llm", "AI", "skipped", { required: false, optional_choice: "llm", choice: "unused", configured: false,
+        detail: "사용하지 않기로 했습니다.", action: null }),
+      item("tls", "TLS 인증서", "done", { required: true }),
+    ];
+    return payload({
+      items, remaining: ["mail"], todo: ["mail"], unknown: [], skipped: ["llm"], optional_pending: ["mail"],
+      required_remaining: [], next_key: "mail", complete: true, summary: "정상 설치입니다(AI 사용 안 함).", ...extra,
+    });
+  }
+
+  it("필수 항목과 선택 항목이 다른 구역에 서고, 필수가 끝나면 설치가 끝났다고 말한다", async () => {
+    apiMock.mockImplementation((path) => Promise.resolve(path === CHECKLIST ? optionalPayload() : {}));
+    renderWizard();
+    const required = await screen.findByRole("region", { name: "필수 항목" });
+    const optional = screen.getByRole("region", { name: "선택 항목" });
+    expect(within(required).getByTestId("setup-item-organization")).toBeInTheDocument();
+    expect(within(optional).getByTestId("setup-item-mail")).toBeInTheDocument();
+    expect(screen.getByTestId("setup-summary")).toHaveTextContent("필수 설정이 모두 끝났습니다. 정상 설치입니다(AI 사용 안 함).");
+    expect(within(optional).getByText("사용하지 않음")).toBeInTheDocument();
+  });
+
+  it("「사용하지 않음으로 표시」가 다른 선택을 지킨 채 한 값만 바꾼다", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation((path) => Promise.resolve(path === CHECKLIST ? optionalPayload() : {}));
+    renderWizard();
+    const mail = await screen.findByTestId("setup-item-mail");
+    await user.click(within(mail).getByRole("button", { name: "사용하지 않음으로 표시" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/settings/setup_optional_choices",
+      { method: "PUT", body: { value: { mail: "unused", llm: "unused" } } }));
+    const llm = screen.getByTestId("setup-item-llm");
+    expect(within(llm).getByRole("button", { name: "사용하기로 바꾸기" })).toBeInTheDocument();
+  });
+
+  it("서버가 준 링크가 대체 표보다 먼저다", async () => {
+    const items = optionalPayload().items.map((i) => (i.key === "mail"
+      ? { ...i, state: "unknown", action: null, question: "연결 확인을 눌러 주세요", href: "#/mail", link_label: "메일 발송 화면 열기" }
+      : i));
+    apiMock.mockImplementation((path) => Promise.resolve(path === CHECKLIST
+      ? optionalPayload({ items, next_key: null }) : {}));
+    renderWizard();
+    const mail = await screen.findByTestId("setup-item-mail");
+    expect(within(mail).getByRole("link", { name: "메일 발송 화면 열기" }).getAttribute("href")).toBe("#/mail");
   });
 });
