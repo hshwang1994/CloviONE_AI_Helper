@@ -218,7 +218,16 @@ export function ImportModal({ onClose, onImported }) {
       return <Badge value={s.label} kind={s.kind} />;
     } },
     { key: "message", label: "설명", type: "text" },
-  ];
+    /* 적용한 뒤에만 선다 — 만든 계정마다 초대 메일이 큐에 들어갔는지(계획 3.3). 못 들어갔으면 그 까닭이 칸의 힌트다. */
+    preview && preview.dry_run === false ? {
+      key: "invite", label: "초대 메일", type: "status",
+      render: (r) => (r.invite_mail
+        ? <Badge value={r.invite_mail.queued ? "보냄" : "못 보냄"} kind={r.invite_mail.queued ? "ok" : "warn"} />
+        : "-"),
+      hint: (r) => (r.invite_mail && !r.invite_mail.queued ? r.invite_mail.reason || "" : ""),
+    } : null,
+  ].filter(Boolean);
+  const invites = preview && preview.dry_run === false ? preview.invites : null;
   const applied = preview && preview.dry_run === false;
   // 붙여넣은 CSV가 있으면(아직 반영 전) Esc·바깥 클릭·X·'취소' 전부에서 확인을 받는다
   // (VIS-88) — 이미 만들어졌으면(applied) 더 잃을 게 없어 그냥 닫는다.
@@ -259,7 +268,7 @@ export function ImportModal({ onClose, onImported }) {
         가져오기는 <strong>새 계정만 추가합니다</strong>: 이미 있는 이메일은 건너뜁니다(기존 계정을 조용히 덮어쓰지 않습니다).
       </Note>
       <Note sx={{ mt: 0.75 }}>
-        추가된 계정은 임시 비밀번호가 발급되고 첫 로그인 시 변경을 요구합니다.
+        추가된 계정에는 비밀번호를 직접 정하는 초대 메일이 나갑니다. 첫 로그인 때 비밀번호를 바꾸게 합니다.
       </Note>
       <Box sx={{ minWidth: 0, mt: 2 }}>
         <FieldLabel htmlFor="users-csv-text">CSV 내용</FieldLabel>
@@ -285,6 +294,14 @@ export function ImportModal({ onClose, onImported }) {
             총 {preview.total}행, {preview.dry_run ? "추가 예정" : "추가"} {preview.created}
             {", 건너뜀 "}{preview.skipped}{", 실패 "}{preview.failed}
           </Callout>
+          {/* 초대 메일이 못 나간 계정이 있으면 그 사실과 까닭을 말한다 — 조용히 넘기면 관리자는 초대가 나갔다고 믿는다. */}
+          {invites && invites.not_queued ? (
+            <Callout tone="warn" compact sx={{ mt: 1.5 }}>
+              {`초대 메일 ${invites.not_queued}건을 보내지 못했습니다. ${invites.reason || ""} 메일 발송 화면에서 설정을 확인하세요.`}
+            </Callout>
+          ) : invites && invites.queued ? (
+            <Callout tone="success" compact sx={{ mt: 1.5 }}>{`초대 메일 ${invites.queued}건을 보냈습니다.`}</Callout>
+          ) : null}
           <Box sx={{ mt: 1.5 }}>
             <DataTable columns={columns} rows={preview.results} rowKey={(r) => r.line} />
           </Box>

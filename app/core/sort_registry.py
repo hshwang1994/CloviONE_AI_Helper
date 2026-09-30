@@ -32,6 +32,7 @@ def all_sort_specs() -> dict:
     from app.audit.repository import LIST_SORT as audit_sort
     from app.impersonation.router import _LIST_SORT as impersonation_sort
     from app.jobs.repository import LIST_SORT as jobs_sort
+    from app.mail.service import LIST_SORT as mail_deliveries_sort
     from app.notifications.router import LIST_SORT as notifications_sort
     from app.offboarding.service import LIST_SORT as offboarding_sort
     from app.schedules.router import _RUN_SORT as schedule_runs_sort
@@ -45,6 +46,7 @@ def all_sort_specs() -> dict:
         "notifications": notifications_sort,
         "admin-notifications": notifications_sort,
         "jobs": jobs_sort,
+        "mail-deliveries": mail_deliveries_sort,
         "approvals": approvals_service.list_sort_spec(now, admin=True),
         "my-approvals": approvals_service.list_sort_spec(now, admin=False),
         "announcements": announcements_sort(),

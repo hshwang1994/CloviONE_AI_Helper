@@ -9,7 +9,7 @@ pytestmark = pytest.mark.unit
 
 
 def test_conversational_job_types_are_the_latency_sensitive_two():
-    assert set(lanes.CONVERSATIONAL_JOB_TYPES) == {"chat_message", "llm_connection_test"}
+    assert set(lanes.CONVERSATIONAL_JOB_TYPES) == {"chat_message", "llm_connection_test", "mail_verify"}
 
 
 def test_batch_job_types_are_not_in_the_conversational_set():

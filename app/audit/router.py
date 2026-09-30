@@ -5,8 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import json
-import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -22,6 +21,7 @@ from app.core.deps import get_db, get_principal, require_permission
 from app.core.scope import Principal, visible_user_ids
 from app.core.errors import NotFoundError, ValidationAppError
 from app.core.pagination import PageParams
+from app.core.dates import parse_kst_boundary
 # 수식 주입 방어는 **한 벌만 둔다**. 사용자 CSV 가 이미 쓰는 그 함수를 그대로 가져다 쓴다 —
 # 여기에 두 번째 구현을 만들면 두 파일의 위험한 문자 목록이 언젠가 갈라진다.
 from app.users.bulk import csv_safe
@@ -35,36 +35,10 @@ router = APIRouter(
 
 # 표시·경계 판정은 Asia/Seoul 기준(§불변 9). created_at은 UTC naive로 저장돼 있다.
 _KST = ZoneInfo("Asia/Seoul")
-_DATE_ONLY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
-def _parse_boundary(value: str, field: str, *, upper: bool) -> datetime:
-    """필터 경계값을 UTC naive datetime으로 정규화한다.
-
-    - 'YYYY-MM-DD'(날짜만): 화면이 KST로 시각을 보여주므로 그 날짜도 KST 달력일로
-      해석한다. since는 KST 그날 00:00, until은 KST 다음날 00:00(선택한 날 포함)로 잡아
-      UTC로 변환한다. 이렇게 안 하면 UTC 자정 경계가 KST 09:00에 걸려 그날 앞 9시간이
-      조용히 빠지고, '종료일=오늘'이 그날 전체를 제외해 버린다.
-    - 오프셋이 붙은 전체 ISO datetime: UTC로 변환. naive datetime: 기존처럼 UTC로 간주.
-    """
-    if _DATE_ONLY.match(value):
-        try:
-            day = datetime.fromisoformat(value)
-        except ValueError:
-            raise ValidationAppError(
-                f"{field} 형식이 올바르지 않습니다 (ISO 8601)."
-            ) from None
-        local = day.replace(tzinfo=_KST)
-        if upper:
-            local = local + timedelta(days=1)  # 선택한 날을 포함(상한은 exclusive '<')
-        return local.astimezone(timezone.utc).replace(tzinfo=None)
-    try:
-        dt = datetime.fromisoformat(value)
-    except ValueError:
-        raise ValidationAppError(f"{field} 형식이 올바르지 않습니다 (ISO 8601).") from None
-    if dt.tzinfo is not None:
-        return dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt
+# 경계 해석은 공용 함수다(`app/core/dates.py::parse_kst_boundary`) — 메일 발송 기록이 같은 규칙을 쓴다.
+_parse_boundary = parse_kst_boundary
 
 
 def _filtered_stmt(

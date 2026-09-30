@@ -36,7 +36,9 @@ ISO 문자열은 사전순 정렬이 날짜순 정렬과 같아서 `ORDER BY` �
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+import re
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 __all__ = [
     "parse_date",
@@ -44,7 +46,12 @@ __all__ = [
     "iso_date",
     "iso_dt",
     "as_date",
+    "parse_kst_boundary",
 ]
+
+# 목록 필터의 표시 · 경계 판정 기준(불변 9). 저장은 naive UTC 다.
+_KST = ZoneInfo("Asia/Seoul")
+_DATE_ONLY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # 날짜만 필요한 자리에서 타임스탬프가 들어오는 일이 흔하다(Notion 의 date 속성은
 # 시각을 포함할 수 있다). 앞 10자가 달력일이다.
@@ -133,3 +140,34 @@ def as_date(value, *, fallback: date | None = None) -> date | None:
     """
     parsed = parse_date(value)
     return parsed if parsed is not None else fallback
+
+
+def parse_kst_boundary(value: str, field: str, *, upper: bool) -> datetime:
+    """목록 필터의 시작 · 끝 경계를 naive UTC datetime 으로 (감사 목록에서 옮겨 왔다 · 메일 발송 기록이 함께 쓴다).
+
+    - 'YYYY-MM-DD'(날짜만): 화면이 KST로 시각을 보여주므로 그 날짜도 KST 달력일로
+      해석한다. since는 KST 그날 00:00, until은 KST 다음날 00:00(선택한 날 포함)로 잡아
+      UTC로 변환한다. 이렇게 안 하면 UTC 자정 경계가 KST 09:00에 걸려 그날 앞 9시간이
+      조용히 빠지고, '종료일=오늘'이 그날 전체를 제외해 버린다.
+    - 오프셋이 붙은 전체 ISO datetime: UTC로 변환. naive datetime: 기존처럼 UTC로 간주.
+    """
+    from app.core.errors import ValidationAppError
+
+    if _DATE_ONLY.match(value):
+        try:
+            day = datetime.fromisoformat(value)
+        except ValueError:
+            raise ValidationAppError(
+                f"{field} 형식이 올바르지 않습니다 (ISO 8601)."
+            ) from None
+        local = day.replace(tzinfo=_KST)
+        if upper:
+            local = local + timedelta(days=1)  # 선택한 날을 포함(상한은 exclusive '<')
+        return local.astimezone(timezone.utc).replace(tzinfo=None)
+    try:
+        dt = datetime.fromisoformat(value)
+    except ValueError:
+        raise ValidationAppError(f"{field} 형식이 올바르지 않습니다 (ISO 8601).") from None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt

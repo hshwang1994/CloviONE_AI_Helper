@@ -478,6 +478,14 @@ def summarize_failure(raw: str | None) -> str | None:
     return _UNKNOWN_FAILURE
 
 
+def _skip_label(reason: str | None) -> str | None:
+    from app.mail.relevance import REASON_LABELS
+
+    if not reason:
+        return None
+    return REASON_LABELS.get(reason, "보내지 않았습니다.")
+
+
 def delivery_view(row: MailDelivery) -> dict:
     return {
         "id": row.id,
@@ -494,6 +502,7 @@ def delivery_view(row: MailDelivery) -> dict:
         "last_error": row.last_error,
         "failure_kind": row.failure_kind,
         "skip_reason": row.skip_reason,
+        "skip_reason_label": _skip_label(row.skip_reason),
         "message_id": row.message_id,
         "resendable": row.kind not in NOT_RESENDABLE_KINDS
         and row.status in (MAIL_FAILED, MAIL_UNCONFIGURED, MAIL_CANCELLED),
@@ -558,3 +567,58 @@ def recent_failures(db: Session, *, limit: int = 10) -> list[MailDelivery]:
         .scalars()
         .all()
     )
+
+
+# ── 발송 기록 목록 (계획 3.3) ─────────────────────────────────────────────────
+
+def _list_sort():
+    from app.core.sort import SortSpec
+
+    return SortSpec(
+        columns={
+            "created_at": MailDelivery.created_at,
+            "status": MailDelivery.status,
+            "kind": MailDelivery.kind,
+            "to_email": MailDelivery.to_email,
+            "attempt_count": MailDelivery.attempt_count,
+        },
+        default="created_at",
+        tiebreak=MailDelivery.id,
+        default_order="desc",
+    )
+
+
+LIST_SORT = _list_sort()
+
+
+def list_deliveries(
+    db: Session, *, status: str | None = None, kind: str | None = None, q: str | None = None,
+    since: str | None = None, until: str | None = None, sort=None, offset: int = 0, limit: int = 50,
+) -> tuple[list[MailDelivery], int]:
+    """발송 기록 한 쪽. 모르는 상태 · 종류는 422 다 - 빈 목록으로 삼키면 「그런 메일이 없다」로 읽힌다."""
+    from app.core.dates import parse_kst_boundary
+    from app.core.errors import ValidationAppError
+    from app.core.search_text import contains_folded
+    from app.core.sort import order_by
+    from app.mail.models import ALL_MAIL_STATUSES
+    from app.mail.renderers import MAIL_KINDS
+
+    stmt = select(MailDelivery)
+    if status:
+        if status not in ALL_MAIL_STATUSES:
+            raise ValidationAppError(f"알 수 없는 발송 상태입니다: {status}")
+        stmt = stmt.where(MailDelivery.status == status)
+    if kind:
+        if kind not in MAIL_KINDS:
+            raise ValidationAppError(f"알 수 없는 메일 종류입니다: {kind}")
+        stmt = stmt.where(MailDelivery.kind == kind)
+    clause = contains_folded((MailDelivery.to_email, MailDelivery.subject), q)
+    if clause is not None:
+        stmt = stmt.where(clause)
+    if since:
+        stmt = stmt.where(MailDelivery.created_at >= parse_kst_boundary(since, "since", upper=False))
+    if until:
+        stmt = stmt.where(MailDelivery.created_at < parse_kst_boundary(until, "until", upper=True))
+    total = int(db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one())
+    rows = list(db.execute(stmt.order_by(*order_by(LIST_SORT, sort)).offset(offset).limit(limit)).scalars())
+    return rows, total

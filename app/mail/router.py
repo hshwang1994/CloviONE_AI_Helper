@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.audit import record_audit_from_request
@@ -31,14 +31,17 @@ from app.core.deps import (
     require_csrf,
     require_roles,
 )
-from app.core.errors import ForbiddenError
+from app.core.errors import ForbiddenError, NotFoundError
+from app.core.pagination import PageParams
 from app.core.scope import Principal, require_global_management
-from app.mail.config import config_from_cache, mail_status
+from app.core.sort import SortParams
+from app.mail.config import config_from_cache, config_from_db, mail_status
 from app.mail.renderers import KIND_TEST
 from app.mail.service import (
     cancel_delivery,
     delivery_detail,
     delivery_view,
+    list_deliveries,
     pending_unconfigured_count,
     queue_counts,
     queue_mail,
@@ -62,15 +65,47 @@ def current_mail_status(request: Request) -> dict:
     )
 
 
+def _secrets(request: Request):
+    return getattr(request.app.state, "secret_provider", None)
+
+
+def current_health(request: Request, db: Session) -> dict:
+    """저장된 건강 상태(`app/mail/health.py`). 메일 서버에 붙지 않는다."""
+    from app.mail.health import health_state
+
+    return health_state(db, config_from_db(db), _secrets(request))
+
+
 @router.get("/status", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def status(request: Request, db: Session = Depends(get_db)):
     return {
         "mail": current_mail_status(request),
+        # 「값이 있다」와 「동작한다」를 가른 상태(미설정 · 확인 전 · 정상 · 발송 실패)와 마지막 확인 시각.
+        "health": current_health(request, db),
         "counts": queue_counts(db),
         "recent_failures": [delivery_view(r) for r in recent_failures(db)],
         # 설정 전에 쌓여 설정 뒤 다시 보낼 수 있는 메일(초대 등, 최근 7일). 화면이 그 단추 옆에 건수를 말한다.
         "pending_unconfigured_count": pending_unconfigured_count(db, now=request.app.state.clock.now()),
     }
+
+
+@router.get("/deliveries", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+def deliveries(
+    status: str | None = Query(default=None, max_length=16),
+    kind: str | None = Query(default=None, max_length=64),
+    q: str | None = Query(default=None, max_length=200),
+    since: str | None = Query(default=None, max_length=32),
+    until: str | None = Query(default=None, max_length=32),
+    page: PageParams = Depends(),
+    sort: SortParams = Depends(),
+    db: Session = Depends(get_db),
+):
+    """발송 기록 — 상태 · 종류 · 받는 사람과 제목 검색 · 기간(KST 달력일) · 정렬 · 페이지."""
+    rows, total = list_deliveries(
+        db, status=status, kind=kind, q=q, since=since, until=until, sort=sort,
+        offset=page.offset, limit=page.page_size,
+    )
+    return {"items": [delivery_view(r) for r in rows], "total": total, "page": page.page, "page_size": page.page_size}
 
 
 @router.get("/deliveries/{delivery_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
@@ -188,3 +223,58 @@ def send_test(
         after={"status": row.status, "kind": row.kind},
     )
     return {"delivery": delivery_view(row), "mail": current_mail_status(request)}
+
+
+# ── 연결 확인 (계획 3.3) ──────────────────────────────────────────────────────
+
+@router.post("/verify", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def start_verify(
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """메일 서버 연결 확인을 큐에 넣고 **곧바로** 잡 id 를 돌려준다. 메일은 보내지 않는다."""
+    from app.jobs.handlers.mail_verify import MAIL_VERIFY_JOB_TYPE, VERIFY_TIMEOUT_SECONDS
+    from app.jobs.repository import enqueue
+
+    _require_mail_operator(request, db, principal, "메일 연결", "확인할")
+    job = enqueue(
+        db, job_type=MAIL_VERIFY_JOB_TYPE, payload={}, now=request.app.state.clock.now(),
+        user_id=request.state.user.id, max_attempts=1,
+    )
+    record_audit_from_request(
+        request, db, action="mail.verify", object_type="mail_settings", object_id=job.id, after={"queued": True},
+    )
+    return {"job_id": job.id, "status": job.status, "timeout_seconds": VERIFY_TIMEOUT_SECONDS}
+
+
+@router.get("/verify/{job_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+def verify_result(job_id: str, request: Request, db: Session = Depends(get_db)):
+    """연결 확인 하나의 결과. 아직 안 끝났으면 **끝난 척하지 않는다**(`result` 가 null 이다)."""
+    from app.jobs.handlers.mail_verify import MAIL_VERIFY_JOB_TYPE
+    from app.jobs.models import (
+        STATUS_CANCELLED,
+        STATUS_FAILED,
+        STATUS_QUEUED,
+        STATUS_RUNNING,
+        STATUS_SUCCEEDED,
+        Job,
+    )
+
+    job = db.get(Job, job_id)
+    if job is None or job.job_type != MAIL_VERIFY_JOB_TYPE:
+        raise NotFoundError("연결 확인 기록을 찾을 수 없습니다.")
+    result = None
+    if job.status == STATUS_SUCCEEDED:
+        result = {"ok": True, "message": "메일 서버에 연결했고, 로그인이 필요한 설정이면 로그인까지 확인했습니다."}
+    elif job.status == STATUS_FAILED:
+        result = {"ok": False, "message": (job.last_error or "").strip() or "메일 서버 연결을 확인하지 못했습니다."}
+    elif job.status == STATUS_CANCELLED:
+        result = {"ok": False, "message": "연결 확인이 취소됐습니다."}
+    return {
+        "job_id": job.id,
+        "status": job.status,
+        "pending": job.status in (STATUS_QUEUED, STATUS_RUNNING),
+        "result": result,
+        "health": current_health(request, db),
+    }

@@ -391,3 +391,26 @@ def test_a_failed_row_says_who_it_was(client, admin, crowd, db):
     assert row["email"] == "boss@goodmit.co.kr"
     assert row["display_name"] == "관리자"
     assert row["error"] == "본인 계정은 비활성화할 수 없습니다."
+
+
+def test_imported_accounts_get_invites_like_one_by_one_accounts(client, app, admin, org, db):
+    """CSV 로 만든 계정도 초대 메일을 받는다(계획 3.3 · D-512). 못 나갔으면 그 사실이 행과 요약에 선다."""
+    from app.mail.models import MailDelivery
+    from tests.integration.test_password_reset import configure_smtp
+
+    configure_smtp(app, enabled=False)
+    body = _import(client, admin, CSV_OK, dry_run=False).json()
+    assert body["invites"]["queued"] == 0 and body["invites"]["not_queued"] == 2
+    assert body["invites"]["reason"], "초대가 왜 안 나갔는지 말하지 않는다"
+    created = [r for r in body["results"] if r["status"] == "created"]
+    assert all(r["invite_mail"]["queued"] is False for r in created)
+    db.expire_all()
+    assert db.query(MailDelivery).filter(MailDelivery.kind == "invite").count() == 2, "못 보낸 초대도 기록은 남아야 한다"
+
+
+def test_imported_accounts_get_queued_invites_when_mail_works(client, app, admin, org, db):
+    from tests.integration.test_password_reset import configure_smtp
+
+    configure_smtp(app)
+    body = _import(client, admin, CSV_OK, dry_run=False).json()
+    assert body["invites"] == {"queued": 2, "not_queued": 0, "reason": None}

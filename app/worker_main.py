@@ -281,6 +281,7 @@ def build_handlers() -> dict:
     from app.jobs.handlers.chat_message import handle_chat_message
     from app.jobs.handlers.llm_connection_test import handle_llm_connection_test
     from app.jobs.handlers.mail_send import handle_mail_send
+    from app.jobs.handlers.mail_verify import MAIL_VERIFY_JOB_TYPE, handle_mail_verify
     from app.jobs.handlers.project_weekly_summary import handle_project_weekly_summary
     from app.jobs.handlers.schedule_run import handle_schedule_run
     from app.llm_console.service import JOB_TYPE_TEST
@@ -291,6 +292,8 @@ def build_handlers() -> dict:
         # 메일은 **여기서만** 나간다(9-9 P4). 새 큐를 만들지 않는 이유: 재시도, 백오프,
         # 좀비 회수, 실패 알림이 이미 이 큐에 있다.
         "mail_send": handle_mail_send,
+        # 메일 서버 연결 확인(계획 3.3). 화면이 결과를 기다리므로 대화형 레인에서 돈다(app/jobs/lanes.py).
+        MAIL_VERIFY_JOB_TYPE: handle_mail_verify,
         # AI 연결 테스트(9-5). 웹 요청에서 기다리면 처리 칸이 수십 초 잠긴다 -
         # 이유는 핸들러 파일 맨 위에 적어 뒀다.
         JOB_TYPE_TEST: handle_llm_connection_test,

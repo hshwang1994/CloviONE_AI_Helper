@@ -1,0 +1,238 @@
+"""메일 건강 상태 · 연결 확인 · 복구 재큐 · 발송 기록 (계획 3.3, D-512).
+
+못박는 것:
+  * 상태는 넷이다 — 미설정 · 확인 전 · 정상 · 발송 실패. 설정을 바꾸면 옛 기록은 「확인 전」이다.
+  * 연결 확인은 잡이고 메일을 보내지 않으며, 결과가 상태에 적힌다. 받는 사람 거부는 상태를 바꾸지 않는다.
+  * 「발송 실패」에서 「정상」이 되면 최근 7일의 서버 탓 실패 중 **아직 의미가 있는 것만** 다시 보낸다.
+  * 보내기 직전에 의미를 잃은 메일(이미 처리된 승인 요청 등)은 보내지 않고 까닭과 함께 끝낸다.
+  * 발송 기록 목록은 상태 · 종류 · 검색 · 기간 · 정렬 · 페이지를 받는다. 쓰기는 전역 관리 범위만 한다.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import pytest
+
+from app.audit.models import AuditLog
+from app.mail.models import (
+    FAILURE_AUTH,
+    FAILURE_RECIPIENT,
+    MAIL_FAILED,
+    MAIL_SENT,
+    MAIL_SUPERSEDED,
+    MailDelivery,
+)
+from app.mail.transport import MailTransportError
+from tests.integration.test_password_reset import FakeSmtp, configure_smtp, drain_worker
+
+pytestmark = pytest.mark.integration
+
+
+class FakeServer(FakeSmtp):
+    """보내기와 연결 확인을 둘 다 흉내 낸다. `fail` 에 예외를 주면 둘 다 그 예외로 실패한다."""
+
+    def __init__(self, fail_with=None):
+        super().__init__()
+        self.fail_with = fail_with
+        self.verified = 0
+
+    def send(self, config, secret_provider, *, to_email, subject, body):
+        if self.fail_with is not None:
+            raise self.fail_with
+        self.sent.append({"to": to_email, "subject": subject, "body": body})
+        return "<test@example.com>"
+
+    def verify(self, config, secret_provider):
+        self.verified += 1
+        if self.fail_with is not None:
+            raise self.fail_with
+        return {"ok": True, "stages": ["connect", "ehlo", "noop"]}
+
+
+AUTH_FAIL = MailTransportError("SMTPAuthenticationError: (535, b'bad')", kind=FAILURE_AUTH, permanent=True, stage="auth")
+RECIPIENT_FAIL = MailTransportError("SMTPRecipientsRefused", kind=FAILURE_RECIPIENT, permanent=True, stage="send")
+
+
+def _health(client, csrf):
+    return client.get("/api/admin/mail/status", headers={"X-CSRF-Token": csrf}).json()["health"]
+
+
+def _verify(client, csrf, app, settings, fake_clock, server):
+    r = client.post("/api/admin/mail/verify", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200, r.text
+    drain_worker(app, settings, fake_clock, server)
+    return client.get(f"/api/admin/mail/verify/{r.json()['job_id']}", headers={"X-CSRF-Token": csrf}).json()
+
+
+def _invite(app, email, *, user_id="u-x", created=None):
+    from app.mail.service import queue_mail
+
+    with app.state.session_factory() as db:
+        row = queue_mail(db, kind="invite", to_email=email, subject="초대", params={"user_id": user_id},
+                         now=app.state.clock.now())
+        if created is not None:
+            row.created_at = created
+        db.commit()
+        return row.id
+
+
+def _row(app, delivery_id):
+    with app.state.session_factory() as db:
+        row = db.get(MailDelivery, delivery_id)
+        db.expunge(row)
+        return row
+
+
+# ── 상태 넷 ───────────────────────────────────────────────────────────────────
+
+
+def test_the_four_states(client, app, settings, fake_clock, login_as):
+    csrf = login_as("system_admin")
+    assert _health(client, csrf)["state"] == "unconfigured"
+    configure_smtp(app)
+    assert _health(client, csrf)["state"] == "unverified", "값이 있다는 것만으로 정상이라고 했다"
+
+    body = _verify(client, csrf, app, settings, fake_clock, FakeServer())
+    assert body["result"]["ok"] is True and body["pending"] is False
+    assert body["health"]["state"] == "ok"
+
+    body = _verify(client, csrf, app, settings, fake_clock, FakeServer(fail_with=AUTH_FAIL))
+    assert body["result"]["ok"] is False
+    assert "로그인" in body["result"]["message"], body
+    health = _health(client, csrf)
+    assert health["state"] == "failing" and health["failure_kind"] == FAILURE_AUTH and health["stage"] == "auth"
+
+    configure_smtp(app, host="smtp.other")
+    assert _health(client, csrf)["state"] == "unverified", "설정을 바꿨는데 옛 기록이 지금 설정을 말했다"
+
+
+def test_verify_never_sends_a_mail(client, app, settings, fake_clock, login_as):
+    csrf = login_as("system_admin")
+    configure_smtp(app)
+    server = FakeServer()
+    _verify(client, csrf, app, settings, fake_clock, server)
+    assert server.verified == 1 and server.sent == []
+
+
+def test_a_recipient_rejection_does_not_change_the_state(client, app, settings, fake_clock, login_as, make_user):
+    csrf = login_as("system_admin")
+    configure_smtp(app)
+    _verify(client, csrf, app, settings, fake_clock, FakeServer())
+    user = make_user("nobody-there@goodmit.co.kr")
+    _invite(app, "nobody-there@goodmit.co.kr", user_id=user.id)
+    drain_worker(app, settings, fake_clock, FakeServer(fail_with=RECIPIENT_FAIL))
+    assert _health(client, csrf)["state"] == "ok", "받는 사람 주소 하나가 틀렸다고 메일 서버가 고장이라고 했다"
+
+
+# ── 복구 재큐 ─────────────────────────────────────────────────────────────────
+
+
+def test_recovery_requeues_only_what_still_means_something(client, app, db, settings, fake_clock, login_as, make_user):
+    csrf = login_as("system_admin")
+    configure_smtp(app)
+    waiting = make_user("waiting@goodmit.co.kr")
+    joined = make_user("joined@goodmit.co.kr")
+    typo = make_user("typo@goodmit.co.kr")
+    old = make_user("old@goodmit.co.kr")
+    ids = {
+        "waiting": _invite(app, "waiting@goodmit.co.kr", user_id=waiting.id),
+        "joined": _invite(app, "joined@goodmit.co.kr", user_id=joined.id),
+        "old": _invite(app, "old@goodmit.co.kr", user_id=old.id),
+    }
+    # 서버가 로그인을 거부하는 동안 셋이 실패한다.
+    drain_worker(app, settings, fake_clock, FakeServer(fail_with=AUTH_FAIL))
+    ids["typo"] = _invite(app, "typo@goodmit.co.kr", user_id=typo.id)
+    drain_worker(app, settings, fake_clock, FakeServer(fail_with=RECIPIENT_FAIL))
+    assert _health(client, csrf)["state"] == "failing"
+    with app.state.session_factory() as s:
+        s.get(MailDelivery, ids["old"]).created_at = fake_clock.now() - timedelta(days=9)
+        from app.users.models import User
+
+        s.get(User, joined.id).last_login_at = fake_clock.now()
+        s.commit()
+
+    body = _verify(client, csrf, app, settings, fake_clock, FakeServer())
+    assert body["health"]["state"] == "ok"
+    # 다시 큐에 들어간 초대는 같은 워커 차례에 실제로 나간다.
+    assert _row(app, ids["waiting"]).status == MAIL_SENT, "복구됐는데 밀린 초대를 다시 안 보냈다"
+    joined_row = _row(app, ids["joined"])
+    assert (joined_row.status, joined_row.skip_reason) == (MAIL_SUPERSEDED, "already_active")
+    assert _row(app, ids["typo"]).status == MAIL_FAILED, "받는 사람 거부를 다시 보냈다"
+    assert _row(app, ids["old"]).status == MAIL_FAILED, "7일 넘은 메일을 뒤늦게 보냈다"
+    audit = db.query(AuditLog).filter(AuditLog.action == "mail.requeue_on_recovery").one()
+    assert '"requeued": 1' in audit.after_json and '"superseded": 1' in audit.after_json
+
+
+def test_an_approval_already_decided_is_not_mailed(app, settings, fake_clock):
+    from app.mail.service import queue_mail
+
+    configure_smtp(app)
+    with app.state.session_factory() as db:
+        row = queue_mail(db, kind="approval_requested", to_email="boss@goodmit.co.kr", subject="승인 요청",
+                         params={"approval_id": "gone-approval"}, now=app.state.clock.now())
+        db.commit()
+        delivery_id = row.id
+    server = FakeServer()
+    drain_worker(app, settings, fake_clock, server)
+    row = _row(app, delivery_id)
+    assert server.sent == []
+    assert (row.status, row.skip_reason) == (MAIL_SUPERSEDED, "approval_gone")
+
+
+def test_every_mailable_kind_has_a_relevance_rule():
+    from app.mail.relevance import ALWAYS_RELEVANT_KINDS, RULES
+    from app.mail.renderers import MAIL_KINDS
+
+    missing = sorted(set(MAIL_KINDS) - set(RULES) - ALWAYS_RELEVANT_KINDS)
+    assert missing == [], f"보내기 직전 판정이 없는 종류: {missing}"
+
+
+# ── 발송 기록 목록 ────────────────────────────────────────────────────────────
+
+
+def test_the_delivery_list_filters_searches_and_pages(client, app, settings, fake_clock, login_as, make_user):
+    csrf = login_as("system_admin")
+    configure_smtp(app)
+    for n in range(3):
+        user = make_user(f"list{n}@goodmit.co.kr")
+        _invite(app, f"list{n}@goodmit.co.kr", user_id=user.id)
+    drain_worker(app, settings, fake_clock, FakeServer())
+    h = {"X-CSRF-Token": csrf}
+    page = client.get("/api/admin/mail/deliveries", params={"page_size": 2}, headers=h).json()
+    assert page["total"] == 3 and len(page["items"]) == 2
+    sent = client.get("/api/admin/mail/deliveries", params={"status": MAIL_SENT, "kind": "invite"}, headers=h).json()
+    assert sent["total"] == 3 and sent["items"][0]["message_id"] == "<test@example.com>"
+    found = client.get("/api/admin/mail/deliveries", params={"q": "LIST1@"}, headers=h).json()
+    assert [i["to_email"] for i in found["items"]] == ["list1@goodmit.co.kr"], "검색이 대소문자를 접지 않는다"
+    ordered = client.get("/api/admin/mail/deliveries", params={"sort": "to_email", "order": "asc"}, headers=h).json()
+    assert [i["to_email"] for i in ordered["items"]] == sorted(i["to_email"] for i in ordered["items"])
+    today = fake_clock.now().date().isoformat()
+    assert client.get("/api/admin/mail/deliveries", params={"since": "2099-01-01"}, headers=h).json()["total"] == 0
+    assert client.get("/api/admin/mail/deliveries", params={"until": "2000-01-01"}, headers=h).json()["total"] == 0
+    assert client.get("/api/admin/mail/deliveries", params={"since": today}, headers=h).status_code == 200
+    assert client.get("/api/admin/mail/deliveries", params={"status": "lost"}, headers=h).status_code == 422
+
+
+def test_an_auditor_reads_and_only_a_global_admin_verifies(client, app, db, login_as, make_user):
+    from app.org.constants import DEFAULT_ORG_ID
+    from app.org.models import Department
+    from app.users.models import ADMIN_SCOPE_DEPT
+
+    configure_smtp(app)
+    login_as("auditor")
+    assert client.get("/api/admin/mail/deliveries").status_code == 200
+    csrf = login_as("operator")
+    assert client.post("/api/admin/mail/verify", headers={"X-CSRF-Token": csrf}).status_code == 403
+
+    dept = Department(name="메일 확인 부서", org_id=DEFAULT_ORG_ID)
+    db.add(dept)
+    db.commit()
+    scoped = make_user(email="verify-scoped@goodmit.co.kr", role="admin", display_name="부서 관리자")
+    scoped.department_id = dept.id
+    scoped.membership_kind = "department"
+    scoped.admin_scope = ADMIN_SCOPE_DEPT
+    scoped.scope_dept_id = dept.id
+    db.commit()
+    csrf = login_as("admin", email="verify-scoped@goodmit.co.kr")
+    assert client.post("/api/admin/mail/verify", headers={"X-CSRF-Token": csrf}).status_code == 403

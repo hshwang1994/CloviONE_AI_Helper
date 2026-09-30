@@ -378,6 +378,9 @@ def import_users_csv(
         dry_run=payload.dry_run,
     )
     if not payload.dry_run:
+        now = request.app.state.clock.now()
+        queued = not_queued = 0
+        first_reason = None
         for row in result["results"]:
             if row.get("status") == "created" and row.get("user_id"):
                 record_audit_from_request(
@@ -385,6 +388,19 @@ def import_users_csv(
                     object_id=row["user_id"],
                     after={"email": row["email"], "role": row["role"]},
                 )
+                # CSV 로 만든 계정도 한 명씩 만든 계정과 같이 초대 메일을 받는다(계획 3.3). 예전에는 CSV 경로만
+                # 초대를 안 보내서, 한꺼번에 들어온 새 직원들은 로그인할 길을 모른 채 첫 출근을 했다.
+                user = db.get(User, row["user_id"])
+                invite = _queue_invite_mail(request, db, user, now) if user is not None else {
+                    "queued": False, "reason": "만든 계정을 찾지 못했습니다.",
+                }
+                row["invite_mail"] = invite
+                if invite["queued"]:
+                    queued += 1
+                else:
+                    not_queued += 1
+                    first_reason = first_reason or invite.get("reason")
+        result["invites"] = {"queued": queued, "not_queued": not_queued, "reason": first_reason}
     return result
 
 

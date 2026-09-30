@@ -47,8 +47,10 @@ from app.mail.models import (
     PENDING_MAIL_STATUSES,
     MailDelivery,
 )
+from app.mail import health
+from app.mail.relevance import still_relevant
 from app.mail.renderers import render_body
-from app.mail.service import record_failure, record_sent, retry_delay_for
+from app.mail.service import record_failure, record_sent, record_skipped, retry_delay_for, summarize_failure
 
 logger = logging.getLogger("app.handlers.mail_send")
 
@@ -84,6 +86,13 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
         return
 
     now = ctx.clock.now()
+    # 보내기 직전에 아직 의미가 있는가(계획 3.3 · 3.4). 장애가 길었으면 그 사이 초대받은 사람이 로그인했거나 승인이
+    # 끝났을 수 있다 - 그런 메일은 보내지 않고 까닭과 함께 끝낸다. 재시도할 때마다 다시 본다.
+    relevant, reason = still_relevant(db, delivery, now)
+    if not relevant:
+        record_skipped(db, delivery, status=MAIL_SUPERSEDED, reason=reason or "", now=now)
+        logger.info("mail %s 는 의미가 없어져 보내지 않는다 (%s)", delivery.id, reason)
+        return
     config = config_from_db(db)
     secret_provider = (ctx.extras or {}).get("secret_provider")
     problems = configuration_problems(config, secret_provider)
@@ -121,6 +130,11 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
         record_failure(
             db, fresh, error=f"{type(exc).__name__}: {exc}", now=now, terminal=terminal, failure_kind=kind,
         )
+        # 메일 서버 탓인 실패만 건강 상태를 바꾼다(`app/mail/health.py`) - 받는 사람 거부는 서버가 멀쩡하다는 뜻이다.
+        health.record_result(
+            db, config, ok=False, now=now, source="send", failure_kind=kind,
+            stage=getattr(exc, "stage", None), summary=summarize_failure(f"{type(exc).__name__}: {exc}"),
+        )
         db.commit()
         logger.warning("메일 발송 실패 (kind=%s, 종류=%s, 끝=%s): %s", fresh.kind, kind, terminal, exc)
         if permanent and not isinstance(exc, PermanentJobError):
@@ -130,6 +144,7 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
 
     # 진짜 전송기는 보낸 메일의 Message-ID 를 돌려준다. 시험의 가짜 전송기는 아무것도 안 돌려줄 수 있다.
     record_sent(db, delivery, now=now, message_id=sent_id if isinstance(sent_id, str) else None)
+    health.record_result(db, config, ok=True, now=now, source="send")
     logger.info("메일 발송 완료 (kind=%s, delivery=%s)", delivery.kind, delivery.id)
 
 

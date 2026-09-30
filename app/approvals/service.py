@@ -437,6 +437,8 @@ def _mail_approvers(db: Session, row: Approval, requested_by: User, *, now: date
                 "request_type": row.request_type,
                 "requested_by": requested_by.display_name,
                 "object_type": row.object_type,
+                # 보내기 직전에 이 승인이 아직 대기 중인지 본다(`app/mail/relevance.py`).
+                "approval_id": row.id,
             },
             now=now,
         )

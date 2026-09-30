@@ -79,6 +79,19 @@
       "status"
     ]
   },
+  "mail-deliveries": {
+    "default": {
+      "dir": "desc",
+      "key": "created_at"
+    },
+    "keys": [
+      "attempt_count",
+      "created_at",
+      "kind",
+      "status",
+      "to_email"
+    ]
+  },
   "my-approvals": {
     "default": {
       "dir": "desc",

@@ -5,8 +5,13 @@ import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import {
-  Badge, Button, Callout, DataTable, EmptyState, ErrorState, MetaBar, PageHeader, Section, Skeleton, TechDetail, useConfirm, useToast,
+  Badge, Button, Callout, DataTable, EmptyState, ErrorState, MetaBar, Section, Skeleton, TechDetail, useConfirm, useToast,
 } from "../ui/kit.jsx";
+import { HeaderActions } from "../ui/HeaderSlot.jsx";
+import { TabShell } from "../ui/TabShell.jsx";
+import { DataScreen } from "./DataScreen.jsx";
+import { MAIL_DELIVERIES } from "./mail/mailDeliveries.js";
+import { fmtDateTimeCompact } from "./registry/shared.js";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { DateCell, NumberCell } from "../ui/cells.jsx";
 import { FONT_WEIGHT } from "../ui/theme.js";
@@ -57,6 +62,27 @@ const HELP = "비밀번호 재설정, 승인 알림, 백업 실패 알림 메일
 const MAIL_SETTING_HREF = "#/settings?setting=smtp";
 /* 시험 발송 단추가 가리키는 이유 문장의 자리(`aria-describedby`). */
 const PROBLEMS_ID = "mail-problems";
+
+/* 건강 상태(계획 2.4 · 3.3) — 「값이 있다」와 「동작한다」를 가른다. 서버가 저장된 상태만 읽어 준다(`app/mail/health.py`):
+   미설정이면 무엇을 고칠지(아래 `ProblemsList`), 확인 전이면 연결 확인을, 정상이면 마지막 확인 시각을, 발송 실패면 그
+   까닭을 말한다. 예전에는 설정이 채워지면 「지금 메일이 나갑니다」라고 했다 — 비밀번호가 틀려도 그랬다. */
+function HealthStatus({ health, problems, canFix }) {
+  const h = health || {};
+  if (!h.state || h.state === "unconfigured") return <ProblemsList problems={problems} canFix={canFix} />;
+  const checked = h.checked_at ? " 마지막 확인 " + fmtDateTimeCompact(h.checked_at) + "." : "";
+  if (h.state === "ok") {
+    return <Callout tone="success">메일 서버에 정상으로 연결했습니다.{checked}</Callout>;
+  }
+  if (h.state === "unverified") {
+    return <Callout tone="info">메일 설정은 채워졌지만 아직 발송을 확인하지 않았습니다. 연결 확인으로 확인하세요.</Callout>;
+  }
+  return (
+    <Callout tone="danger" action={canFix ? <Button size="sm" href={MAIL_SETTING_HREF}>메일 설정 열기</Button> : null}>
+      <Typography component="span" sx={{ fontWeight: FONT_WEIGHT.semibold }}>메일 발송이 실패하고 있습니다.</Typography>
+      {" " + (h.message || "") + checked}
+    </Callout>
+  );
+}
 
 /* 왜 못 보내는가 — 이 화면의 첫 답이다. 고칠 자리로 가는 단추(「메일 설정 열기」)가 상자의 동작 칸에 선다(D-501 —
    발송이 꺼져 있을 때 머리의 「시험 메일 보내기」는 성공할 수 없는 일이었고, 정작 할 일은 설정을 여는 것이었다).
@@ -139,6 +165,31 @@ const TEST_DONE = ["sent", "failed", "unconfigured", "cancelled", "superseded"];
 const TEST_POLL_MS = 1500;
 const TEST_WAIT_LIMIT_MS = 90000;
 
+/* 연결 확인 — 잡을 넣고 끝날 때까지 결과를 읽는다(`GET /verify/{job_id}`). 메일은 보내지 않는다. */
+function useMailVerify({ onDone }) {
+  const [jobId, setJobId] = React.useState(null);
+  const [result, setResult] = React.useState(null);
+  const start = useMutation({
+    mutationFn: () => api("/api/admin/mail/verify", { method: "POST" }),
+    onSuccess: (data) => { setResult(null); setJobId(data && data.job_id); },
+  });
+  const poll = useQuery({
+    queryKey: ["mail-verify", jobId],
+    queryFn: () => api(`/api/admin/mail/verify/${jobId}`),
+    enabled: !!jobId,
+    refetchInterval: (q) => (q.state.data && q.state.data.pending === false ? false : TEST_POLL_MS),
+  });
+  React.useEffect(() => {
+    const d = poll.data;
+    if (d && d.pending === false && d.result) {
+      setResult(d.result);
+      setJobId(null);
+      if (onDone) onDone(d.result);
+    }
+  }, [poll.data, onDone]);
+  return { start, result, waiting: start.isPending || !!jobId };
+}
+
 function useTestMailWatch() {
   const [delivery, setDelivery] = React.useState(null);
   const [timedOut, setTimedOut] = React.useState(false);
@@ -163,6 +214,18 @@ function useTestMailWatch() {
 }
 
 export function MailStatus() {
+  return (
+    <TabShell
+      area="운영" title="메일 발송" idPrefix="mail"
+      tabs={[
+        { key: "status", label: "상태", help: HELP, render: () => <MailStatusPanel /> },
+        { key: "deliveries", label: "발송 기록", help: MAIL_DELIVERIES.help, render: () => <DataScreen config={MAIL_DELIVERIES} embedded /> },
+      ]}
+    />
+  );
+}
+
+function MailStatusPanel() {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -199,11 +262,29 @@ export function MailStatus() {
       : null)
     || (watch.timedOut ? "워커가 응답하지 않아 시험 메일이 아직 나가지 않았습니다. 워커 서비스가 실행 중인지 확인하세요." : null);
 
-  if (query.isLoading) return <Box className="c-screen"><PageHeader area="운영" title="메일 발송" help={HELP} /><Skeleton lines={6} /></Box>;
-  if (query.isError) return <Box className="c-screen"><PageHeader area="운영" title="메일 발송" help={HELP} /><ErrorState error={query.error} onRetry={query.refetch} /></Box>;
+  const verify = useMailVerify({
+    onDone: React.useCallback((r) => {
+      qc.invalidateQueries({ queryKey: ["mail-status"] });
+      if (r && r.ok) toast("메일 서버 연결을 확인했습니다.", "success");
+    }, [qc, toast]),
+  });
+  const verifyNotice = failureText([verify.start, "연결 확인을 시작하지 못했습니다."])
+    || (verify.result && !verify.result.ok ? "연결 확인에 실패했습니다. " + (verify.result.message || "") : null);
+  const sendBacklog = useMutation({
+    mutationFn: () => api("/api/admin/mail/resend-unconfigured", { method: "POST" }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["mail-status"] });
+      toast(`쌓여 있던 메일 ${(res && res.queued) || 0}건을 보냈습니다.`, "success");
+    },
+  });
+
+  if (query.isLoading) return <Skeleton lines={6} />;
+  if (query.isError) return <ErrorState error={query.error} onRetry={query.refetch} />;
 
   const data = query.data || {};
   const mail = data.mail || {};
+  const health = data.health || null;
+  const backlog = data.pending_unconfigured_count || 0;
   const server = mail.server || {};
   const counts = data.counts || {};
   const failures = data.recent_failures || [];
@@ -222,20 +303,38 @@ export function MailStatus() {
     await test.mutateAsync();
   }
 
+  /* 머리 동작 둘 — 보조 「연결 확인」(메일을 보내지 않는다)과 주 동작 「시험 메일 보내기」. 설정 문제가 남아 있으면 둘 다
+     성공할 수 없어 꺼 두고, 이유는 바로 아래 목록이 말한다(`aria-describedby`). */
+  const headActions = canWrite ? (
+    <>
+      <Button loading={verify.waiting} disabled={blocked} onClick={() => verify.start.mutate()}
+        aria-describedby={blocked ? PROBLEMS_ID : undefined}>
+        연결 확인
+      </Button>
+      <Button variant="primary" loading={test.isPending || watch.waiting} disabled={blocked} onClick={sendTest}
+        aria-describedby={blocked ? PROBLEMS_ID : undefined}>
+        시험 메일 보내기
+      </Button>
+    </>
+  ) : null;
+
   return (
-    <Box className="c-screen">
-      <PageHeader
-        area="운영" title="메일 발송" help={HELP}
-        actions={canWrite ? (
-          <Button variant="primary" loading={test.isPending || watch.waiting} disabled={blocked} onClick={sendTest}
-            aria-describedby={blocked ? PROBLEMS_ID : undefined}>
-            시험 메일 보내기
-          </Button>
-        ) : null}
-      />
+    <Box>
+      {headActions ? <HeaderActions fallback={headActions}>{headActions}</HeaderActions> : null}
 
       {testNotice ? <Callout tone="danger" compact sx={{ mb: 2 }}>{testNotice}</Callout> : null}
-      <ProblemsList problems={mail.problems} canFix={canWrite} />
+      {verifyNotice ? <Callout tone="danger" compact sx={{ mb: 2 }}>{verifyNotice}</Callout> : null}
+      <HealthStatus health={health} problems={mail.problems} canFix={canWrite} />
+      {/* 설정 전에 쌓인 초대 메일(최근 7일) — 연결이 확인된 뒤에만 보낼 수 있게 묻는다. 오래된 메일을 예고 없이
+          뿌리지 않는다(계획 3.4). 보내기 직전에 아직 의미가 있는지 서버가 한 번 더 본다. */}
+      {canWrite && backlog > 0 && health && health.state === "ok" ? (
+        <Callout
+          tone="info" sx={{ mt: 2 }}
+          action={<Button size="sm" loading={sendBacklog.isPending} onClick={() => sendBacklog.mutate()}>보내기</Button>}
+        >
+          설정 전에 쌓인 메일 {backlog}건이 있습니다. 지금 보내도 되는지 확인한 뒤 보내세요.
+        </Callout>
+      ) : null}
 
       {mailSettingsShown(server) ? <MetaBar
         ariaLabel="메일 서버 설정"
@@ -279,7 +378,7 @@ export function MailStatus() {
            한정하는지 다시 찾을 필요가 없다. */
         notes={counts.unconfigured ? [{
           key: "blocked", label: "발송 못 함",
-          text: "설정을 고쳐도 이 건들은 다시 보내지 않습니다. 고친 뒤 새로 생기는 메일부터 나갑니다.",
+          text: "설정을 고쳐도 저절로 다시 보내지 않습니다. 연결 확인이 정상이면 최근 7일 안의 초대는 위에서 보낼 수 있습니다.",
         }] : null}
       />
 

@@ -3,7 +3,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 
+/* qa-contract-change: 메일 화면이 탭 그릇(상태 · 발송 기록)이 됐고 설정 완성 문장이 건강 상태(미설정 · 확인 전 · 정상 · 발송 실패, 계획 3.3 · D-512)로 바뀌었다 — 「설정이 완성돼 있습니다」를 기다리던 단언을 건강 문장으로, 「다시 보내지 않습니다」 각주를 「저절로 다시 보내지 않고 연결 확인 뒤 보낼 수 있다」로 옮기고, 연결 확인 · 쌓인 메일 보내기 단언을 더했다.
+ */
 /* FN-01 + 지시 35 · 36 · 40: 메일 발송 화면.
  *
  * app/mail/router.py는 진단(GET /status)·시험 발송(POST /test)을 처음부터 완성해 뒀는데
@@ -49,6 +52,7 @@ const NOT_CONFIGURED = {
     server: { enabled: false, host: "", port: null, security: null, from_address: "", from_name: "", username: "" },
     password_secret: null,
   },
+  health: { state: "unconfigured", label: "미설정", message: "메일 발송이 꺼져 있습니다." },
   counts: { queued: 0, sent: 3, failed: 1, unconfigured: 5 },
   recent_failures: [
     {
@@ -61,9 +65,10 @@ const NOT_CONFIGURED = {
   ],
 };
 
-/* 설정이 완성된 설치 — 문제 목록이 비어 있고 시험 발송이 성공할 수 있다. */
+/* 설정이 완성되고 연결이 확인된 설치 — 문제 목록이 비어 있고 시험 발송이 성공할 수 있다. */
 const CONFIGURED = {
   ...NOT_CONFIGURED,
+  health: { state: "ok", label: "정상", message: "메일 서버에 정상으로 연결했습니다.", checked_at: "2026-09-30T01:00:00" },
   mail: {
     configured: true,
     problems: [],
@@ -96,7 +101,9 @@ function renderScreen() {
       <ThemeModeProvider>
         <ToastProvider>
           <ConfirmProvider>
-            <MailStatus />
+            <MemoryRouter initialEntries={["/mail"]}>
+              <MailStatus />
+            </MemoryRouter>
           </ConfirmProvider>
         </ToastProvider>
       </ThemeModeProvider>
@@ -127,7 +134,7 @@ describe("메일 발송 화면", () => {
   // 각주로 둔다(지시 35: 같은 강도의 경고 상자를 늘리지 않는다).
   it("발송 못 함 건수가 있으면 재발송 안 된다는 각주가 그 숫자에 붙는다", async () => {
     renderScreen();
-    const note = await screen.findByText(/설정을 고쳐도 이 건들은 다시 보내지 않습니다/);
+    const note = await screen.findByText(/설정을 고쳐도 저절로 다시 보내지 않습니다/);
     // 정의 목록의 한 항목 — 이름(dt)과 각주(dd)가 한 짝이다.
     const cell = note.closest("[data-summary-notes] > *");
     expect(cell, "각주가 어느 숫자를 한정하는지 알 수 없는 자리에 있다").toBeTruthy();
@@ -140,7 +147,7 @@ describe("메일 발송 화면", () => {
     renderScreen();
     await screen.findByText(/메일 서버 주소가 비어 있습니다/);
     expect(
-      screen.queryByText(/설정을 고쳐도 이 건들은 다시 보내지 않습니다/),
+      screen.queryByText(/설정을 고쳐도 저절로 다시 보내지 않습니다/),
     ).not.toBeInTheDocument();
   });
 
@@ -148,7 +155,7 @@ describe("메일 발송 화면", () => {
     const user = userEvent.setup();
     withStatus(CONFIGURED);
     renderScreen();
-    await screen.findByText(/메일 발송 설정이 완성돼 있습니다/);
+    await screen.findByText(/메일 서버에 정상으로 연결했습니다/);
 
     apiMock.mockImplementation((path, opt) => {
       if (String(path).startsWith("/api/admin/mail/status")) return Promise.resolve(CONFIGURED);
@@ -190,7 +197,7 @@ describe("메일 발송 화면", () => {
     const user = userEvent.setup();
     withStatus(CONFIGURED);
     renderScreen();
-    await screen.findByText(/메일 발송 설정이 완성돼 있습니다/);
+    await screen.findByText(/메일 서버에 정상으로 연결했습니다/);
     sendTestWith({ id: "d-3", status: "sent", error_summary: null });
 
     await user.click(screen.getByRole("button", { name: "시험 메일 보내기" }));
@@ -205,7 +212,7 @@ describe("메일 발송 화면", () => {
     const user = userEvent.setup();
     withStatus(CONFIGURED);
     renderScreen();
-    await screen.findByText(/메일 발송 설정이 완성돼 있습니다/);
+    await screen.findByText(/메일 서버에 정상으로 연결했습니다/);
     sendTestWith({ id: "d-3", status: "failed", error_summary: "메일 서버가 로그인을 거부했습니다. 사용자 이름과 비밀번호를 확인하세요." });
 
     await user.click(screen.getByRole("button", { name: "시험 메일 보내기" }));
@@ -248,7 +255,7 @@ describe("메일 발송 화면", () => {
   it("반례: 설정이 완성돼 있으면 시험 메일이 켜져 있고 이유 연결도 없다", async () => {
     withStatus(CONFIGURED);
     renderScreen();
-    await screen.findByText(/메일 발송 설정이 완성돼 있습니다/);
+    await screen.findByText(/메일 서버에 정상으로 연결했습니다/);
     const send = screen.getByRole("button", { name: "시험 메일 보내기" });
     expect(send).toBeEnabled();
     expect(send).not.toHaveAttribute("aria-describedby");
@@ -366,5 +373,83 @@ describe("메일 발송 화면", () => {
     const meta = await screen.findByLabelText("메일 서버 설정");
     expect(within(meta).getByText("등록 안 됨")).toBeInTheDocument();
     expect(within(meta).queryByText(/smtp_password/)).toBeNull();
+  });
+});
+
+/* 계획 3.3 · D-512 — 건강 상태, 연결 확인, 설정 전에 쌓인 메일, 발송 기록 탭. */
+describe("메일 건강 상태와 연결 확인", () => {
+  function withHealth(health, extra = {}) {
+    const body = { ...CONFIGURED, health, ...extra };
+    apiMock.mockImplementation((path, opt) => {
+      const p = String(path);
+      if (p.startsWith("/api/admin/mail/status")) return Promise.resolve(body);
+      if (p === "/api/admin/mail/verify" && opt && opt.method === "POST") return Promise.resolve({ job_id: "j-1", status: "queued" });
+      if (p === "/api/admin/mail/verify/j-1") return Promise.resolve(extra.verifyReply || { job_id: "j-1", pending: false, result: { ok: true, message: "확인" } });
+      if (p === "/api/admin/mail/resend-unconfigured") return Promise.resolve({ queued: 2 });
+      if (p.startsWith("/api/admin/mail/deliveries")) return Promise.resolve({ items: [], total: 0, page: 1, page_size: 50 });
+      return Promise.resolve({});
+    });
+  }
+
+  it("값이 채워졌어도 확인 전이면 「지금 나간다」고 하지 않는다", async () => {
+    withHealth({ state: "unverified", label: "확인 전" });
+    renderScreen();
+    expect(await screen.findByText(/아직 발송을 확인하지 않았습니다/)).toBeInTheDocument();
+    expect(screen.queryByText(/지금 메일이 나갑니다/)).toBeNull();
+  });
+
+  it("발송 실패면 까닭과 설정으로 가는 단추가 선다", async () => {
+    withHealth({ state: "failing", label: "발송 실패", message: "메일 서버가 로그인을 거부했습니다." });
+    renderScreen();
+    expect(await screen.findByText(/메일 발송이 실패하고 있습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/메일 서버가 로그인을 거부했습니다/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "메일 설정 열기" }).getAttribute("href")).toBe("#/settings?setting=smtp");
+  });
+
+  it("연결 확인은 잡을 넣고 결과를 읽어 성공을 말한다 — 메일은 보내지 않는다", async () => {
+    const user = userEvent.setup();
+    withHealth({ state: "unverified", label: "확인 전" });
+    renderScreen();
+    await user.click(await screen.findByRole("button", { name: "연결 확인" }));
+    expect(await screen.findByText("메일 서버 연결을 확인했습니다.")).toBeInTheDocument();
+    const paths = apiMock.mock.calls.map(([p]) => String(p));
+    expect(paths).toContain("/api/admin/mail/verify/j-1");
+    expect(paths).not.toContain("/api/admin/mail/test");
+  });
+
+  it("연결 확인이 실패하면 서버가 고른 까닭을 말한다", async () => {
+    const user = userEvent.setup();
+    withHealth({ state: "unverified", label: "확인 전" }, {
+      verifyReply: { job_id: "j-1", pending: false, result: { ok: false, message: "메일 서버에 연결하지 못했습니다." } },
+    });
+    renderScreen();
+    await user.click(await screen.findByRole("button", { name: "연결 확인" }));
+    expect(await screen.findByText(/연결 확인에 실패했습니다\. 메일 서버에 연결하지 못했습니다\./)).toBeInTheDocument();
+  });
+
+  it("설정 전에 쌓인 메일은 연결이 정상일 때만 묻고, 누르면 보낸다", async () => {
+    const user = userEvent.setup();
+    withHealth(CONFIGURED.health, { pending_unconfigured_count: 2 });
+    renderScreen();
+    expect(await screen.findByText(/설정 전에 쌓인 메일 2건이 있습니다/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "보내기" }));
+    await waitFor(() => expect(apiMock.mock.calls.some(([p, o]) =>
+      String(p) === "/api/admin/mail/resend-unconfigured" && o && o.method === "POST")).toBe(true));
+  });
+
+  it("반례: 확인 전이면 쌓인 메일을 보내자고 묻지 않는다", async () => {
+    withHealth({ state: "unverified", label: "확인 전" }, { pending_unconfigured_count: 2 });
+    renderScreen();
+    await screen.findByText(/아직 발송을 확인하지 않았습니다/);
+    expect(screen.queryByText(/설정 전에 쌓인 메일/)).toBeNull();
+  });
+
+  it("발송 기록 탭은 모든 발송 목록을 서버에서 받는다", async () => {
+    const user = userEvent.setup();
+    withHealth(CONFIGURED.health);
+    renderScreen();
+    await user.click(await screen.findByRole("tab", { name: "발송 기록" }));
+    await waitFor(() => expect(apiMock.mock.calls.some(([p]) =>
+      String(p).startsWith("/api/admin/mail/deliveries?"))).toBe(true));
   });
 });

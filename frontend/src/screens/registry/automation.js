@@ -419,7 +419,7 @@ export const AUTOMATION_SCREENS = {
         //    것은 둘뿐이다: `schedule_run` 이면 그 예약 실행을 건너뜀으로, `chat_message` 면
         //    그 메시지를 실패로 끝낸다(`app/jobs/router.py::_terminalize_linked_record`).
         //    티켓·문서 갈래는 없고, 이 제품의 잡 유형도 셋뿐이다(shared.js `JOB_TYPE`).
-        confirm: "대기 중인 이 작업을 취소할까요? 연결된 예약 실행이나 채팅 요청도 함께 종료됩니다." },
+        confirm: "대기 중인 이 작업을 취소할까요? 연결된 예약 실행, 채팅 요청, 메일 발송도 함께 종료됩니다." },
       // 재시도/취소는 모두 object_type='job'으로 감사 로그에 기록된다(app/jobs/router.py) — 다른
       // 화면과 동일한 딥링크. operator는 이 화면(OPS_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다
       // (App.jsx SCREEN_ROLES.audit=admin/system_admin/auditor) — admin/system_admin에만 노출한다.

@@ -437,6 +437,16 @@ def build_dashboard(
     }
 
 
+
+def _mail_health(db, bundle_cache) -> dict:
+    from app.mail.config import config_from_cache
+    from app.mail.health import health_state
+
+    try:
+        return health_state(db, config_from_cache(bundle_cache))
+    except Exception:  # noqa: BLE001 - 진단 번들은 한 칸이 실패해도 나머지를 준다
+        return {"state": "unknown"}
+
 def build_diagnostic_bundle(
     db: Session, settings: Settings, now: datetime, cache=None,
     *, include_critical_audit: bool = True,
@@ -508,6 +518,9 @@ def build_diagnostic_bundle(
         "mail": {
             **mail_status(config_from_cache(bundle_cache)),
             "counts": mail_queue_counts(db),
+            # 저장된 건강 상태(계획 3.3) — 「설정은 됐는데 실제로 나가는가」. 비밀 파일을 못 보므로 비밀번호 문제는
+            # 위 `problems` 처럼 관리 화면이 말한다. 네트워크는 쓰지 않는다.
+            "health": _mail_health(db, bundle_cache),
         },
         "recent_job_errors": [
             {"job_type": jt, "error": err, "at": ts.isoformat()}

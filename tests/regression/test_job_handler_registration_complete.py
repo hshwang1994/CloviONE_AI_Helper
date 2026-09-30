@@ -13,6 +13,7 @@
 
 from app.jobs.models import JOB_TYPE_CHAT_MESSAGE
 from app.llm_console.service import JOB_TYPE_TEST
+from app.jobs.handlers.mail_verify import MAIL_VERIFY_JOB_TYPE
 from app.mail.service import MAIL_JOB_TYPE
 from app.worker_main import build_handlers
 
@@ -24,6 +25,7 @@ from app.worker_main import build_handlers
 _ALL_ENQUEUED_JOB_TYPES = {
     JOB_TYPE_CHAT_MESSAGE,
     MAIL_JOB_TYPE,
+    MAIL_VERIFY_JOB_TYPE,
     JOB_TYPE_TEST,
     "schedule_run",
     "project_weekly_summary",

@@ -37,7 +37,9 @@ LANE_INDEX = "index"
 # 같은 이유로 최근 이 큐로 옮겨졌다(핸들러 자신의 주석 참고 — 웹 요청에서 기다리면 처리 칸이
 # 수십 초 잠긴다). 배치 잡(schedule_run·mail_send·
 # project_weekly_summary)은 전부 여기 없다 — 기본값(제외 목록 없음)이 배치 레인이 된다.
-CONVERSATIONAL_JOB_TYPES: tuple[str, ...] = ("chat_message", JOB_TYPE_TEST)
+# 메일 연결 확인(`mail_verify`)도 사람이 화면 앞에서 결과를 기다린다 — 배치 레인의 발송 몇백 통 뒤에 서면 확인
+# 단추가 몇 분씩 돈다(계획 3.3). 발송(`mail_send`)은 배치다.
+CONVERSATIONAL_JOB_TYPES: tuple[str, ...] = ("chat_message", JOB_TYPE_TEST, "mail_verify")
 
 
 def lock_filename(lane: str) -> str:

@@ -70,7 +70,7 @@ describe("작업 취소 확인 문구 — 실제로 일어나는 일만 말한�
 
   it("없어진 잡 유형(티켓·문서)을 정리한다고 말하지 않는다", () => {
     expect(cancel.confirm).toBe(
-      "대기 중인 이 작업을 취소할까요? 연결된 예약 실행이나 채팅 요청도 함께 종료됩니다."
+      "대기 중인 이 작업을 취소할까요? 연결된 예약 실행, 채팅 요청, 메일 발송도 함께 종료됩니다."
     );
     expect(cancel.confirm).not.toContain("티켓");
     expect(cancel.confirm).not.toContain("문서");
