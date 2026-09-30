@@ -76,7 +76,7 @@ def normalize_value(slot: SecretSlot, value: object) -> str:
     if not text:
         raise ValidationAppError("빈 값은 저장하지 않습니다.")
     if len(text.encode("utf-8")) > slot.max_bytes:
-        raise ValidationAppError(f"{slot.label}이(가) 너무 깁니다.")
+        raise ValidationAppError(f"{slot.label} 값이 너무 깁니다.")
     if "\x00" in text:
         raise ValidationAppError(f"{slot.label}에 쓸 수 없는 문자가 들어 있습니다.")
     if slot.kind == KIND_TEXT and ("\n" in text or "\r" in text):

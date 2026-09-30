@@ -32,7 +32,10 @@
 - 다음: A1 ~ A6 → U3 · U4 → I1 ~ I3.
   U3 에서 `READ_COLUMN` 상수를 지우고 `check_composition.py` 의 `page-max-width` · `tab-count-chip` 규칙을 더한다.
   U3 는 초기 설정 3.5 전체다 — 필수 · 선택 구분과 「사용하지 않음」, 메일 판정(M4 에서 옮김), AI 판정(A2 뒤), 격자 배치.
-- 공유 기반을 바꾼 Packet(F3 · M4) 뒤의 전량 회귀(`verify.py --full`)는 M4 커밋에서 돈다. 결과는 다음 커밋의 이 줄이 적는다.
+- 전량 회귀(`verify.py --full`, M4 커밋 `19b6389c`): 이번 회차 앞 Packet 이 남긴 누락 8건(백엔드 unit 5 · integration 1,
+  vitest 2 - F1 괄호 조사, F4 메뉴 플래그 시험, U1 · M2 감사 대상 이름과 예외 분류표, U2 한글 줄바꿈)을 다음 커밋이 고쳤다.
+  나머지는 통과했다(regression · security · integration 3묶음, vitest 458/460 파일). 정적 전량의 실패는 커밋된 번들이
+  소스보다 오래된 것 하나이고, 번들은 화면 Packet 이 모인 뒤 한 번에 다시 빌드한다(아래 줄).
 - 번들(`app/static/react`)은 화면 Packet 이 모인 뒤 한 번에 다시 빌드한다(아직 안 했다).
 
 ## CHECKPOINT

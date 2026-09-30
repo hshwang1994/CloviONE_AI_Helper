@@ -275,7 +275,8 @@ TRIAGE: dict[str, Triage] = {
         defined_in="app/jobs/exceptions.py", kind=WORKER,
         raised_in=_fs(
             "app/jobs/handlers/chat_message.py", "app/jobs/handlers/llm_connection_test.py",
-            "app/jobs/handlers/mail_send.py", "app/jobs/handlers/project_weekly_summary.py",
+            "app/jobs/handlers/mail_send.py", "app/jobs/handlers/mail_verify.py",
+            "app/jobs/handlers/project_weekly_summary.py",
             "app/jobs/handlers/schedule_run.py", "app/jobs/worker.py", "app/mail/renderers.py",
         ),
         caught_in=_fs("app/jobs/worker.py"),
@@ -318,13 +319,27 @@ TRIAGE: dict[str, Triage] = {
         defined_in="app/mail/transport.py", kind=WORKER,
         raised_in=_fs("app/mail/transport.py"),
         why=(
-            "SMTP 발송기(`SmtpTransport`)는 메일 발송 잡만 만든다. 관리자의 「시험 메일 보내기」는 발송을 큐에 넣고"
-            " 돌아오며, 발송 실패는 워커가 발송 기록에 남긴다."
+            "SMTP 발송기(`SmtpTransport`)는 메일 발송 잡과 연결 확인 잡만 만든다. 관리자의 「시험 메일 보내기」와"
+            " 「연결 확인」은 잡을 큐에 넣고 돌아오며, 실패는 워커가 발송 기록과 건강 상태에 남긴다."
         ),
-        reach={"SmtpTransport": _fs("app/mail/transport.py", "app/jobs/handlers/mail_send.py")},
+        reach={"SmtpTransport": _fs(
+            "app/mail/transport.py", "app/jobs/handlers/mail_send.py", "app/jobs/handlers/mail_verify.py",
+        )},
         proof=(
             "tests/security/test_global_scope_gate.py::test_global_admin_still_sends_test_mail",
             "tests/integration/test_mail_delivery.py::test_a_failed_send_is_recorded_not_swallowed",
+        ),
+    ),
+    "_Rejected": Triage(
+        defined_in="app/sysops/actions_secrets.py", kind=CAUGHT,
+        raised_in=_fs("app/sysops/actions_secrets.py"), caught_in=_fs("app/sysops/actions_secrets.py"),
+        why=(
+            "특권 헬퍼의 비밀 값 검증 실패다. 같은 파일의 정규화 감싸개가 잡아 문구만 든 실패 결과로 돌려주고, 값은"
+            " 싣지 않는다."
+        ),
+        proof=(
+            "tests/unit/test_sysops_secret_actions.py::test_a_name_outside_the_table_is_refused_and_nothing_is_written",
+            "tests/unit/test_sysops_secret_actions.py::test_a_text_slot_refuses_line_breaks",
         ),
     ),
     "ConvertError": Triage(

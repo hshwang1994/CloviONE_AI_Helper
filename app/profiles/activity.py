@@ -104,6 +104,9 @@ OBJECT_LABELS: dict[str, str] = {
     "job": "작업",
     # 메일 발송(9-9 P4). 관리 콘솔의 시험 발송이 이 이름으로 감사에 남는다.
     "mail_delivery": "메일 발송",
+    # 메일 서버 연결 확인(D-512)과 조직 정합성의 일괄 정리(D-508).
+    "mail_settings": "메일 설정",
+    "integrity_check": "조직 정합성 검사",
     "runner": "러너",
     "schedule": "실행 일정",
     "schedule_run": "실행 이력",

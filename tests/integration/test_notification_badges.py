@@ -1,5 +1,9 @@
 """사이드바 신규 알림 배지와 '확인하면 자동 제거' (S2).
 
+qa-contract-change: `/api/me` 의 메뉴 기능 플래그에 AI 채팅 스위치(`chat_enabled`)가 더해졌다(D-507) — 채팅을 꺼도
+메뉴가 남아 눌러 보면 404 이던 것을 고치려고 화면(`navConfig.js` 의 `/chat`)이 그 값으로 메뉴를 감춘다. 기대 목록에 그
+키를 더한다.
+
 사용자 지적: "페이지 내에서 신규로 확인해야 할 사항이 발생하면 왼쪽 사이드에 표시해 줬으면
 좋겠다. 신규 알람을. 확인하면 자동으로 없애는 형태로."
 
@@ -119,6 +123,6 @@ def test_me_reports_menu_feature_flags(client, login_as):
 
     assert features is not None, "/api/me 가 기능 플래그를 안 준다"
     assert set(features) == {
-        "board_enabled", "team_docs_enabled", "games_enabled", "team_chat_enabled",
+        "board_enabled", "team_docs_enabled", "games_enabled", "team_chat_enabled", "chat_enabled",
     }, f"메뉴와 대응하지 않는 키가 섞였다: {sorted(features)}"
     assert all(isinstance(v, bool) for v in features.values())

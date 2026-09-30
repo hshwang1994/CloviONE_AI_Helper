@@ -51,7 +51,13 @@ function columnsFor({ showDepartment, duplicateNames }) {
           <PersonLine person={u} name={u.display_name} size="xs" />
           {/* 같은 이름이 이 목록에 둘 이상이면 둘째 줄이 이메일이다 - 이름만으로는 누구인지 모른다. */}
           {duplicateNames.has(u.display_name) ? (
-            <Typography component="p" sx={{ m: 0, fontSize: FONT_SIZE.bodySm, color: "text.secondary", overflowWrap: "anywhere" }}>
+            <Typography
+              component="p" title={u.email}
+              sx={{
+                m: 0, fontSize: FONT_SIZE.bodySm, color: "text.secondary",
+                minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}
+            >
               {u.email}
             </Typography>
           ) : null}

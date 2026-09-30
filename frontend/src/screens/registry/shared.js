@@ -69,6 +69,7 @@ export const OBJTYPE_OPTS = [
   ["prompts", "프롬프트"], ["policies", "정책"],
   ["schedule", "스케줄"], ["schedule_run", "예약 실행"], ["job", "작업"],
   ["backup", "백업"], ["storage_provider", "파일 저장소"], ["mail_delivery", "메일 발송"],
+  ["mail_settings", "메일 설정"], ["integrity_check", "조직 정합성 검사"],
   ["search_index", "검색 색인"], ["integration", "외부 연동"],
   // 없어진 기능의 옛 기록 — 새로 쌓이지 않는다.
   ["runner", "러너(옛 기능)"], ["workflow", "워크플로(옛 기능)"], ["template", "템플릿(옛 기능)"],
@@ -226,7 +227,7 @@ export const OBJ_ROUTE = {
      가면 「대시보드로 이동」만 있는 거부 화면을 본다. 좁은 것은 화면이 아니라 탭이므로
      아래 `OBJ_ROUTE_ROLES` 에 그 둘을 적는다. */
   storage_provider: "#/settings?tab=storage", llm_config: "#/settings?tab=ai",
-  mail_delivery: "#/mail",
+  mail_delivery: "#/mail", mail_settings: "#/mail",
 };
 // OBJ_ROUTE 대상 화면 중 일부는 App.jsx의 SCREEN_ROLES로 더 좁게 제한된다(예: 사용자·부서·직책은
 // admin/system_admin만, 작업 큐는 operator/admin/system_admin만 — auditor 제외). '관련 항목 보기'가
