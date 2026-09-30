@@ -139,6 +139,8 @@ OBJECT_LABELS: dict[str, str] = {
     "notion_token": "Notion 토큰",
     "notion_database": "Notion 데이터베이스",
     "llm_config": "AI 설정",
+    # AI 설정 화면(D-515). 설정 저장과 연결 확인이 이 이름으로 감사에 남는다.
+    "ai_config": "AI 설정",
 }
 
 # 액션 문자열의 **마지막 조각** → 한국어 동사. 'ticket.body.update' 처럼 조각이 셋이어도

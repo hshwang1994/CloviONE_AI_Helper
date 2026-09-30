@@ -478,16 +478,16 @@ def test_the_report_says_why_it_is_a_rule_summary(client, login_as, world):
 
 
 def test_opening_the_report_does_not_run_the_language_model(client, login_as, world, monkeypatch):
-    """🔴 이 경로는 **화면을 여는 GET** 이다. CLI 왕복(수십 초)을 여기서 하면 안 된다."""
-    from app.llm import provider as llm_provider
+    """🔴 이 경로는 **화면을 여는 GET** 이다. 제공자 왕복(수십 초)을 여기서 하면 안 된다."""
+    from app.ai.runtime import AiRuntime
 
     called = {"n": 0}
-    original = llm_provider.select_backend
+    original = AiRuntime.generate
 
-    def _counted(*a, **k):
+    def _counted(self, *a, **k):
         called["n"] += 1
-        return original(*a, **k)
+        return original(self, *a, **k)
 
-    monkeypatch.setattr(llm_provider, "select_backend", _counted)
+    monkeypatch.setattr(AiRuntime, "generate", _counted)
     _get(client, f"/api/projects/{world['alpha']}/weekly-report", _hdr(login_as))
-    assert called["n"] == 0, "리포트를 여는 것만으로 LLM 백엔드를 만들었다"
+    assert called["n"] == 0, "리포트를 여는 것만으로 AI 를 불렀다"

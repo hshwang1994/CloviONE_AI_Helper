@@ -41,6 +41,7 @@ def build_setup_checklist(
     secrets: FileSecretReferenceProvider,
     cache=None,
     gateway=None,
+    runtime=None,
 ) -> dict:
     """항목별 상태 + 안내 순서 + 막힌 이유.
 
@@ -50,7 +51,7 @@ def build_setup_checklist(
     """
     effective = _effective(db, cache)
     ctx = ProbeContext(
-        db=db, settings=settings, secrets=secrets, effective=effective, gateway=gateway,
+        db=db, settings=settings, secrets=secrets, effective=effective, gateway=gateway, runtime=runtime,
     )
 
     outcomes = {step.key: PROBES[step.key](ctx) for step in SETUP_STEPS}
@@ -103,6 +104,7 @@ def setup_notice(
     secrets: FileSecretReferenceProvider,
     cache=None,
     gateway=None,
+    runtime=None,
     for_admin: bool = False,
 ) -> dict | None:
     """셋업이 안 끝난 동안 **모든 로그인 사용자**에게 보이는 한 줄. 정상이면 None.
@@ -122,7 +124,7 @@ def setup_notice(
     무엇을 하라는 지시도 못 되면서 내부 구조만 알려 준다(app/observability/router.py 와
     같은 선). 관리자에게만 어디로 가면 되는지 한 문장을 덧붙인다.
     """
-    checklist = build_setup_checklist(db, settings, secrets=secrets, cache=cache, gateway=gateway)
+    checklist = build_setup_checklist(db, settings, secrets=secrets, cache=cache, gateway=gateway, runtime=runtime)
     blocking = [
         item
         for item in checklist["items"]

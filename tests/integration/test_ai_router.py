@@ -48,34 +48,31 @@ class FlatEmbed(contract.EmbedAdapter):
         )
 
 
-class Generator(contract.GenerateAdapter):
-    def __init__(self, *, status=contract.STATUS_OK, text="초안 첫 문단.\n\n둘째 문단 [1]."):
-        self.name = "scripted"
-        self.model = "scripted-model"
-        self._status = status
-        self._text = text
+class Generator:
+    """제공자 자리에 선다(D-515). ``reply`` 가 실패면 그 실패를, 아니면 ``text`` 를 돌려준다.
+
+    ``off=True`` 는 관리자가 답변 생성을 켜지 않은 설치다 - 런타임이 제공자를 부르지 않는다.
+    """
+
+    def __init__(self, *, text="초안 첫 문단.\n\n둘째 문단 [1].", reply=None, off=False):
+        from app.ai.providers import base
+
+        self._reply = reply if reply is not None else base.success(text)
+        self.off = off
         self.calls = 0
 
-    def capability(self):
-        if self._status != contract.STATUS_OK:
-            return contract.unavailable(contract.CAP_GENERATE, self._status, model=self.model)
-        return contract.available(contract.CAP_GENERATE, model=self.model)
-
-    def generate(self, *, system: str, user: str):  # noqa: ARG002
+    def generate(self, *, system, user, model, max_output_tokens, timeout):  # noqa: ARG002
         self.calls += 1
-        return contract.GenerateResult(
-            status=self._status, model=self.model,
-            text=self._text if self._status == contract.STATUS_OK else None,
-        )
+        return self._reply
 
 
 def _install(app, *, generate=None, embed=True) -> contract.Gateway:
-    gateway = contract.Gateway(
-        enabled=True,
-        embed_adapter=FlatEmbed() if embed else None,
-        generate_adapter=generate,
-    )
+    """검색은 Gateway, 생성은 가짜 제공자를 끼운 AI 런타임이다."""
+    from tests.fakes.ai import install_runtime
+
+    gateway = contract.Gateway(enabled=True, embed_adapter=FlatEmbed() if embed else None)
     app.state.ai_gateway = gateway
+    install_runtime(app, generate, enabled=not (generate is not None and generate.off))
     return gateway
 
 
@@ -116,13 +113,13 @@ def _ai_calls(db) -> int:
 
 def test_status_says_what_works_and_what_does_not(client, app, login_as, seeded):
     login_as("user")
-    _install(app, generate=Generator(status=contract.STATUS_NOT_LOGGED_IN))
+    _install(app, generate=Generator(off=True))
 
     body = client.get("/api/ai/status").json()
     assert body["capabilities"]["embed"]["available"] is True
     assert body["capabilities"]["generate"]["available"] is False
     # 「안 됩니다」로 끝내지 않는다 — 운영자가 무엇을 해야 하는지가 상태에 있다.
-    assert body["capabilities"]["generate"]["status"] == contract.STATUS_NOT_LOGGED_IN
+    assert body["capabilities"]["generate"]["status"] == contract.STATUS_DISABLED
     assert body["capabilities"]["generate"]["notice"]
     # 리랭커는 **일부러** 없다 (D-212 · D-255).
     assert body["capabilities"]["rerank"]["status"] == contract.STATUS_UNSUPPORTED
@@ -139,7 +136,7 @@ def test_status_needs_a_session(client, seeded):
 def test_search_answers_while_generation_is_blocked(client, app, login_as, db, seeded):
     """🔴 S10 Exit — 생성 Provider 차단 시 검색/인용이 계속 동작한다."""
     login_as("user")
-    blocked = Generator(status=contract.STATUS_NOT_LOGGED_IN)
+    blocked = Generator(off=True)
     _install(app, generate=blocked)
 
     before = _ai_calls(db)
@@ -187,7 +184,9 @@ def test_ask_returns_the_answer_with_its_evidence(client, app, login_as, db, see
 def test_a_failed_generation_does_not_spend_the_quota(client, app, login_as, db, seeded):
     """모델이 죽은 날 사용자가 답을 못 받고 상한만 잃으면 안 된다."""
     csrf = login_as("user")
-    _install(app, generate=Generator(status=contract.STATUS_TIMEOUT))
+    from tests.fakes.ai import timeout_failure
+
+    _install(app, generate=Generator(reply=timeout_failure()))
 
     before = _ai_calls(db)
     body = client.post(
@@ -231,7 +230,9 @@ def test_a_draft_becomes_a_document_marked_as_ai_made(client, app, login_as, db,
 def test_a_failed_draft_leaves_no_empty_document(client, app, login_as, db, seeded):
     """제목만 있는 껍데기가 쌓이면 사람은 그것이 실패의 흔적인 줄 모른다."""
     csrf = login_as("user")
-    _install(app, generate=Generator(status=contract.STATUS_NOT_LOGGED_IN))
+    from tests.fakes.ai import auth_failure
+
+    _install(app, generate=Generator(reply=auth_failure()))
 
     before = int(db.execute(select(func.count()).select_from(Document)).scalar_one())
     body = client.post(

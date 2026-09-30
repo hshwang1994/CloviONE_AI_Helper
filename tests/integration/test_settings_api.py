@@ -208,17 +208,17 @@ def test_string_setting_is_trimmed_on_save(client, login_as):
     관리 화면은 이미 `.trim()` 하지만, 그 화면을 거치지 않는 raw API PUT(system_admin)이나
     DB 직접 수정으로 공백 섞인 값이 들어오면 - 검증기는 `strip()` 해서 **모양만** 보고 원문은
     그대로 통과시키므로 - 저장된 값에 공백이 남는다. 그 값이 실행 인자나 주소로 나가는 순간
-    원인을 못 읽는 실패가 된다. `llm_model` 은 SYSTEM_ADMIN_ONLY_KEYS 라 system_admin 으로 문다.
+    원인을 못 읽는 실패가 된다. `ai_model` 은 SYSTEM_ADMIN_ONLY_KEYS 라 system_admin 으로 문다.
     """
     csrf = login_as("system_admin")
     model = "claude-test-model"
     r = client.put(
-        "/api/admin/settings/llm_model",
+        "/api/admin/settings/ai_model",
         json={"value": f" {model}\n"},
         headers=_headers(csrf),
     )
     assert r.status_code == 200, r.text
     assert r.json()["after"] == model, "저장 응답에 공백이 그대로 남아 있다"
 
-    fetched = client.get("/api/admin/settings").json()["settings"]["llm_model"]
+    fetched = client.get("/api/admin/settings").json()["settings"]["ai_model"]
     assert fetched["value"] == model, f"저장된 값에 공백이 남았다: {fetched['value']!r}"

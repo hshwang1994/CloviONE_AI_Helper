@@ -16,7 +16,7 @@
 
 `app/ai/retrieval/answer.py::answer()` 를 부른다. AI 작업공간(`/ai`)이 부르는 것과 같은
 함수이고, 그래서 두 화면의 답이 같은 권한·같은 프롬프트 경계·같은 인용 규약을 지난다.
-여기서 `Gateway.generate()` 를 직접 부르지 않는다 — 부르는 순간 방어가 한쪽에만 걸리는
+여기서 런타임을 직접 부르지 않는다 — 부르는 순간 권한 필터와 인용 규약이 한쪽에만 걸리는
 두 번째 경로가 생긴다.
 
 ## 실패는 세 종류이고 셋을 구별한다
@@ -190,8 +190,12 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
 
     db.flush()
 
+    from app.ai.actions import CHAT_ANSWER
+    from app.ai.runtime import runtime_for_worker
+
     ans = answer_mod.answer(
-        db, user, raw_query=payload.get("content"), gateway=_gateway(ctx)
+        db, user, raw_query=payload.get("content"), gateway=_gateway(ctx),
+        runtime=runtime_for_worker(ctx), action_key=CHAT_ANSWER,
     )
     text, stored, answered = _reply(ans, had_attachments=_has_attachments(payload))
 

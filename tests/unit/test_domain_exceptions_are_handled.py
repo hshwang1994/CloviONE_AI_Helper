@@ -254,22 +254,26 @@ TRIAGE: dict[str, Triage] = {
     "WorkerLockHeld": Triage(
         defined_in="app/core/worker_lock.py", kind=WORKER,
         raised_in=_fs("app/core/worker_lock.py"),
-        why="워커 리스를 `with` 로 잡을 때만 난다 — 리스는 워커 기동과 워커 잡(LLM 요약)만 잡는다.",
+        why=(
+            "워커 리스를 `with` 로 잡을 때만 난다 — `with` 로 잡는 곳은 워커 기동뿐이고, AI 동시 실행 슬롯은"
+            " `acquire()` 로 잡아 예외 대신 거짓을 받는다."
+        ),
         reach={
-            "WorkerLock": _fs("app/core/worker_lock.py", "app/worker_main.py", "app/llm/service.py"),
-            "LlmService": _fs("app/llm/service.py", "app/jobs/handlers/"),
-            "build_service": _fs("app/llm/service.py", "app/jobs/handlers/"),
+            "WorkerLock": _fs("app/core/worker_lock.py", "app/worker_main.py", "app/ai/concurrency.py"),
         },
     ),
     "WorkerLockError": Triage(
-        defined_in="app/core/worker_lock.py", kind=WORKER,
-        raised_in=_fs("app/core/worker_lock.py"), caught_in=_fs("app/worker_main.py"),
-        why="리스 파일을 못 쓰는 환경을 알리는 신호이고, 리스를 잡는 곳이 워커 기동과 워커 잡(LLM 요약)뿐이다.",
+        defined_in="app/core/worker_lock.py", kind=CAUGHT,
+        raised_in=_fs("app/core/worker_lock.py"), caught_in=_fs("app/worker_main.py", "app/ai/runtime.py"),
+        why=(
+            "리스 파일을 못 쓰는 환경을 알리는 신호다. 워커 기동이 잡아 멈추고, AI 런타임(웹과 워커의 생성)은"
+            " 동시 실행 슬롯을 못 잡은 호출을 실패 결과로 접는다."
+        ),
         reach={
-            "WorkerLock": _fs("app/core/worker_lock.py", "app/worker_main.py", "app/llm/service.py"),
-            "LlmService": _fs("app/llm/service.py", "app/jobs/handlers/"),
-            "build_service": _fs("app/llm/service.py", "app/jobs/handlers/"),
+            "WorkerLock": _fs("app/core/worker_lock.py", "app/worker_main.py", "app/ai/concurrency.py"),
+            "concurrency_lock": _fs("app/ai/concurrency.py", "app/ai/runtime.py"),
         },
+        proof=("tests/unit/test_ai_runtime_parts.py::test_an_unwritable_slot_directory_is_a_failed_result_not_a_crash",),
     ),
     "PermanentJobError": Triage(
         defined_in="app/jobs/exceptions.py", kind=WORKER,
@@ -283,23 +287,14 @@ TRIAGE: dict[str, Triage] = {
         why="잡 처리기와 잡 루프만 던지고, 워커가 잡아 그 잡을 재시도 없이 실패로 끝낸다.",
         reach={"render_body": _fs("app/mail/renderers.py", "app/jobs/handlers/mail_send.py")},
     ),
-    "ModelNotConfiguredError": Triage(
-        defined_in="app/llm/cli_backend.py", kind=GUARD,
-        raised_in=_fs("app/llm/cli_backend.py"),
-        why="`build_argv` 를 부르는 유일한 자리(`ClaudeCliBackend.run`)가 모델 이름을 먼저 보고 「설정 안 됨」 결과를 돌려준다.",
-        reach={"build_argv": _fs("app/llm/cli_backend.py")},
-        proof=("tests/regression/test_ai_readiness_and_wiring.py::test_an_unconfigured_model_is_refused_not_defaulted",),
-    ),
     "InvalidNonceError": Triage(
         defined_in="app/llm/prompt.py", kind=GUARD,
-        raised_in=_fs("app/llm/prompt.py"), caught_in=_fs("app/llm/api_backend.py", "app/llm/cli_backend.py"),
+        raised_in=_fs("app/llm/prompt.py"),
         why=(
-            "난스는 언제나 `new_nonce()` 가 만든다(사용자 입력이 아니다). 두 백엔드는 그래도 잡아 실패 결과로 접고,"
-            " 게이트웨이는 `new_nonce()` 를 그대로 넘긴다."
+            "난스는 언제나 `new_nonce()` 가 만든다(사용자 입력이 아니다). 프롬프트를 조립하는 유일한 자리인 AI 런타임이"
+            " `new_nonce()` 를 그대로 넘긴다."
         ),
-        reach={"build_prompt": _fs(
-            "app/llm/prompt.py", "app/llm/api_backend.py", "app/llm/cli_backend.py", "app/ai/gateway/contract.py",
-        )},
+        reach={"build_prompt": _fs("app/llm/prompt.py", "app/ai/runtime.py")},
         proof=(
             "tests/unit/test_llm_prompt.py::test_a_weak_nonce_is_refused",
             "tests/unit/test_llm_prompt.py::test_different_nonces_produce_different_markers",
@@ -308,11 +303,9 @@ TRIAGE: dict[str, Triage] = {
     "EmptyBodyError": Triage(
         defined_in="app/llm/prompt.py", kind=CAUGHT,
         raised_in=_fs("app/llm/prompt.py"),
-        caught_in=_fs("app/ai/gateway/contract.py", "app/llm/api_backend.py", "app/llm/cli_backend.py"),
-        why="`build_prompt` 를 부르는 세 자리가 전부 잡아 「비었다」 결과로 접는다.",
-        reach={"build_prompt": _fs(
-            "app/llm/prompt.py", "app/llm/api_backend.py", "app/llm/cli_backend.py", "app/ai/gateway/contract.py",
-        )},
+        caught_in=_fs("app/ai/runtime.py"),
+        why="`build_prompt` 를 부르는 유일한 자리(AI 런타임)가 잡아 「비었다」 결과로 접는다.",
+        reach={"build_prompt": _fs("app/llm/prompt.py", "app/ai/runtime.py")},
         proof=("tests/unit/test_ai_gateway.py::test_generate_with_empty_data_says_empty",),
     ),
     "MailTransportError": Triage(

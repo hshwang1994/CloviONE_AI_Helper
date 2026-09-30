@@ -28,6 +28,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
+from app.ai.actions import WORKSPACE_ASK
 from app.ai.gateway import contract, registry
 from app.ai.index import service as index_service
 from app.ai.retrieval import answer as answer_mod
@@ -67,6 +68,13 @@ def _gateway(request: Request) -> contract.Gateway:
     return gateway
 
 
+def _runtime(request: Request):
+    """프로세스에 하나뿐인 AI 런타임(`app/main.py`). 설정은 들고 있지 않고 호출마다 읽는다."""
+    from app.ai.runtime import runtime_for_app
+
+    return runtime_for_app(request.app)
+
+
 @router.get("/status")
 def ai_status(
     request: Request,
@@ -78,7 +86,8 @@ def ai_status(
     「안 됩니다」만 말하지 않는다 — 운영자가 고칠 수 있는 것(모델 파일을 안 넣었다)과
     못 고치는 것(어댑터가 없다)이 다른 상태이고, 그 구별을 `capabilities()` 가 든다.
     """
-    caps = _gateway(request).capabilities()
+    # 검색은 Gateway 가, 생성은 런타임이 안다(D-515). 화면이 받는 모양은 예전 그대로 세 칸이다.
+    caps = contract.with_generation(_gateway(request).capabilities(), _runtime(request).capability(db))
     body: dict = {"capabilities": caps.as_dict()}
     try:
         health = index_service.index_health(db)
@@ -137,6 +146,8 @@ def ai_ask(
             db, user,
             raw_query=payload.question,
             gateway=_gateway(request),
+            runtime=_runtime(request),
+            action_key=WORKSPACE_ASK,
             top_k=payload.top_k or retrieval_service.TOP_K,
         )
         if result.ok:
@@ -173,6 +184,7 @@ def ai_draft_document(
             db, user,
             instruction=payload.instruction,
             gateway=_gateway(request),
+            runtime=_runtime(request),
             top_k=payload.top_k or retrieval_service.TOP_K,
         )
         if not result.ok:

@@ -121,7 +121,7 @@ describe("StructuredObjectFields — smtp (지시 32 · 36)", () => {
     fireEvent.change(input, { target: { value: "s3cret-value" } });
     // 입력만으로는 설정 값이 바뀌지 않는다 - 평문이 설정 JSON 으로 들어가는 길이 없다.
     expect(onChange.mock.calls.some(([v]) => String(v).includes("s3cret-value"))).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    fireEvent.click(screen.getByRole("button", { name: "로그인 비밀번호 저장" }));
     await waitFor(() => expect(apiMock.mock.calls.some(([p, o]) =>
       p === "/api/admin/secrets/smtp.password" && o && o.method === "PUT")).toBe(true));
     // 옛 설치가 적어 둔 파일 이름은 저장한 비밀번호를 쓰도록 비운다(설정을 저장하면 적용된다).

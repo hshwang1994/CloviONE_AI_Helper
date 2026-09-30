@@ -104,7 +104,7 @@ describe("감사 「대상」은 고른 이름과 보이는 이름이 같다 (R8
 
 describe("설정 탭 딥링크는 그 탭에 들어갈 수 있는 역할에게만 (R8-02)", () => {
   it("파일 저장소·AI 설정은 시스템 관리자만 닿는다", () => {
-    for (const objType of ["storage_provider", "llm_config"]) {
+    for (const objType of ["storage_provider", "llm_config", "ai_config"]) {
       expect(canReachObjRoute(objType, "system_admin")).toBe(true);
       expect(canReachObjRoute(objType, "admin")).toBe(false);
       expect(canReachObjRoute(objType, "operator")).toBe(false);

@@ -33,7 +33,7 @@ describe("SecretField", () => {
     const input = screen.getByLabelText("메일 비밀번호");
     expect(input.getAttribute("type")).toBe("password");
     expect(input.getAttribute("autocomplete")).toBe("new-password");
-    expect(screen.queryByRole("button", { name: "삭제" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "메일 비밀번호 삭제" })).toBeNull();
   });
 
   it("저장하면 PUT 을 보내고 입력칸을 비운다", async () => {
@@ -44,7 +44,7 @@ describe("SecretField", () => {
     renderField();
     const input = await screen.findByLabelText("메일 비밀번호");
     fireEvent.change(input, { target: { value: "p@ss-word" } });
-    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    fireEvent.click(screen.getByRole("button", { name: "메일 비밀번호 저장" }));
     await waitFor(() => expect(api).toHaveBeenCalledWith(
       "/api/admin/secrets/smtp.password", { method: "PUT", body: { value: "p@ss-word" } },
     ));
@@ -56,14 +56,14 @@ describe("SecretField", () => {
     renderField();
     expect(await screen.findByText(/저장된 값이 있습니다/)).toBeTruthy();
     expect(screen.getByLabelText("메일 비밀번호").value).toBe("");
-    expect(screen.getByRole("button", { name: "삭제" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "메일 비밀번호 삭제" })).toBeTruthy();
   });
 
   it("빈 값으로는 저장할 수 없다", async () => {
     api.mockResolvedValue(listing(false));
     renderField();
     await screen.findByText(/저장된 값이 없습니다/);
-    expect(screen.getByRole("button", { name: "저장" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "메일 비밀번호 저장" }).disabled).toBe(true);
   });
 
   it("서버가 거절하면 이유를 보여 준다", async () => {
@@ -74,7 +74,7 @@ describe("SecretField", () => {
     renderField();
     const input = await screen.findByLabelText("메일 비밀번호");
     fireEvent.change(input, { target: { value: "x" } });
-    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    fireEvent.click(screen.getByRole("button", { name: "메일 비밀번호 저장" }));
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toMatch(/도우미/);
   });

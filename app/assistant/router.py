@@ -61,8 +61,10 @@ def _with_narrative(
     now = request.app.state.clock.now()
 
     def _call():
+        from app.ai.runtime import runtime_for_app
+
         return narrate_service.narrate(
-            request.app.state.ai_gateway, settings,
+            runtime_for_app(request.app), db, settings,
             kind=body.get("kind", ""), facts=body,
             requester={"user_id": user.id, "display_name": user.display_name},
             settings_cache=cache,

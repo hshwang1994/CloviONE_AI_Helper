@@ -23,7 +23,8 @@ Adapter 는 이미 조립된 `system`/`user` 쌍만 본다 — 원문을 못 본
 붙이는 사람이 방어를 빠뜨릴 자리 자체가 없다. `app/llm/prompt.py` 의 난스 구분자 +
 `neutralize()` 가 여기서 **전 경로에** 걸린다.
 
-`scripts/check_ai_prompt_boundary.py` 가 이 경계를 정적으로 지킨다.
+생성은 D-515 부터 AI 런타임(`app/ai/runtime.py`)이 맡고 Gateway 는 임베딩만 한다. 프롬프트 조립을 부를 수 있는
+자리는 `scripts/check_domain_single_source.py` 의 「프롬프트 조립」 규칙이 정적으로 지킨다.
 """
 
 from __future__ import annotations
@@ -36,9 +37,9 @@ __all__ = [
     "CAP_EMBED", "CAP_GENERATE", "CAP_RERANK",
     "KIND_PASSAGE", "KIND_QUERY",
     "Capabilities", "Capability", "EmbedAdapter", "EmbedResult",
-    "GenerateAdapter", "GenerateResult", "Gateway",
-    "STATUS_BUSY", "STATUS_DISABLED", "STATUS_EMPTY", "STATUS_FAILED",
-    "STATUS_MODEL_MISSING", "STATUS_NOT_LOGGED_IN", "STATUS_OK",
+    "GenerateResult", "Gateway",
+    "STATUS_BUSY", "STATUS_CREDENTIAL_ERROR", "STATUS_DEGRADED", "STATUS_DISABLED", "STATUS_EMPTY",
+    "STATUS_FAILED", "STATUS_MODEL_MISSING", "STATUS_OK", "with_generation",
     "STATUS_RUNTIME_MISSING", "STATUS_TIMEOUT", "STATUS_UNCONFIGURED",
     "STATUS_UNSUPPORTED",
 ]
@@ -54,7 +55,10 @@ CAPABILITIES = (CAP_EMBED, CAP_RERANK, CAP_GENERATE)
 # 화면이 두 벌을 분기하게 된다.
 STATUS_OK = "ok"
 STATUS_DISABLED = "disabled"
-STATUS_NOT_LOGGED_IN = "not_logged_in"
+#: 연결이 막혔다(키 거부, 없는 모델, 재로그인 필요). 사람이 고칠 때까지 호출하지 않는다(D-515).
+STATUS_CREDENTIAL_ERROR = "credential_error"
+#: 제공자가 잠시 응답하지 못한다. 다음 호출이 다시 시도한다(D-515).
+STATUS_DEGRADED = "degraded"
 STATUS_TIMEOUT = "timeout"
 STATUS_BUSY = "busy"
 STATUS_UNCONFIGURED = "unconfigured"
@@ -70,7 +74,8 @@ STATUS_UNSUPPORTED = "unsupported"
 #: 상태 → 화면에 그대로 실을 수 있는 한 줄. 「그래서 지금 무엇을 보고 있는가」로 끝난다.
 NOTICES: dict[str, str] = {
     STATUS_DISABLED: "AI 기능이 꺼져 있습니다.",
-    STATUS_NOT_LOGGED_IN: "서버의 AI 명령줄 도구에 로그인되어 있지 않습니다.",
+    STATUS_CREDENTIAL_ERROR: "AI 연결이 끊겨 있습니다. 관리자에게 알려 주세요.",
+    STATUS_DEGRADED: "AI 연결이 잠시 불안정합니다. 잠시 뒤 다시 시도해 주세요.",
     STATUS_TIMEOUT: "AI 응답이 제한 시간 안에 끝나지 않았습니다.",
     STATUS_BUSY: "다른 AI 작업이 진행 중입니다.",
     STATUS_UNCONFIGURED: "AI 모델이 아직 설정되지 않았습니다.",
@@ -189,6 +194,12 @@ class GenerateResult:
     #: 본문에서 구분자 흉내를 걷어냈는가. 조용히 고치면 아무도 추적하지 못한다.
     delimiter_conflict: bool = False
     truncated: bool = False
+    #: 실패의 기계 코드(`http_401`, `timeout`, `output_too_long`). 화면 문장은 `notice` 가 준다.
+    error_code: str | None = None
+    provider: str = ""
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    latency_ms: int | None = None
 
     @property
     def ok(self) -> bool:
@@ -221,22 +232,9 @@ class EmbedAdapter:
         raise NotImplementedError
 
 
-class GenerateAdapter:
-    """생성 Adapter. **원문을 안 받는다** — 이미 조립된 (system, user) 쌍만 받는다.
-
-    이 시그니처가 D-202 의 「전 AI 경로에 적용」을 구조로 만든다. Adapter 가 원문을
-    받으면 언젠가 그것을 그대로 프롬프트에 붙이는 Adapter 가 하나 생기고, 그 하나가
-    방어를 통째로 무효로 만든다.
-    """
-
-    name: str = ""
-    model: str = ""
-
-    def capability(self) -> Capability:  # pragma: no cover - 계약 선언
-        raise NotImplementedError
-
-    def generate(self, *, system: str, user: str) -> GenerateResult:  # pragma: no cover
-        raise NotImplementedError
+def with_generation(caps: Capabilities, generate: Capability) -> Capabilities:
+    """Gateway 의 능력 보고에 AI 런타임의 생성 판정을 끼운다 - 화면이 받는 모양은 예전 그대로 세 칸이다."""
+    return Capabilities(embed=caps.embed, rerank=caps.rerank, generate=generate)
 
 
 # ── Gateway ──────────────────────────────────────────────────────────────────
@@ -252,7 +250,6 @@ class Gateway:
     """
 
     embed_adapter: EmbedAdapter | None = None
-    generate_adapter: GenerateAdapter | None = None
     #: 꺼져 있으면 Adapter 가 있어도 안 부른다. AI 를 기본 ON 으로 두는 관례가
     #: 이 저장소에 없다(`llm_enabled` · `game_ai_enabled` · `assistant_narrative_enabled`).
     enabled: bool = False
@@ -274,8 +271,8 @@ class Gateway:
             embed=(self.embed_adapter.capability() if self.embed_adapter
                    else unavailable(CAP_EMBED, STATUS_UNCONFIGURED)),
             rerank=self._rerank,
-            generate=(self.generate_adapter.capability() if self.generate_adapter
-                      else unavailable(CAP_GENERATE, STATUS_UNCONFIGURED)),
+            # 생성은 AI 런타임이 맡는다(D-515). 부르는 쪽이 `with_generation` 으로 런타임의 판정을 끼운다.
+            generate=unavailable(CAP_GENERATE, STATUS_UNSUPPORTED, detail="답변 생성은 AI 런타임이 맡습니다."),
         )
 
     def can(self, name: str) -> bool:
@@ -308,38 +305,6 @@ class Gateway:
             )
             return EmbedResult(status=STATUS_FAILED, model=result.model)
         return result
-
-    # ── generate ─────────────────────────────────────────────────────────────
-
-    def generate(self, *, task: str, data: str) -> GenerateResult:
-        """지시(`task`) + **신뢰하지 않는 내용**(`data`) → 문장.
-
-        `data` 는 사용자가 쓴 글이거나 문서에서 온 내용이다. 여기서 난스 구분자로 가두고
-        구분자 흉내를 걷어낸 뒤에야 Adapter 로 간다 (D-202).
-        """
-        cap = self.capabilities().generate
-        if not cap.available:
-            return GenerateResult(status=cap.status, model=cap.model)
-        from app.llm import prompt as prompt_mod
-
-        try:
-            built = prompt_mod.build_prompt(
-                body=data, nonce=prompt_mod.new_nonce(), task=task
-            )
-        except prompt_mod.EmptyBodyError:
-            return GenerateResult(status=STATUS_EMPTY, model=cap.model)
-        try:
-            result = self.generate_adapter.generate(system=built.system, user=built.user)
-        except Exception:  # noqa: BLE001
-            _logger().exception("생성 어댑터가 예상 못 한 예외를 냈다")
-            return GenerateResult(status=STATUS_FAILED, model=cap.model)
-        return GenerateResult(
-            status=result.status,
-            model=result.model or cap.model,
-            text=result.text,
-            delimiter_conflict=built.delimiter_conflict,
-            truncated=built.truncated,
-        )
 
     # ── rerank ───────────────────────────────────────────────────────────────
 

@@ -13,7 +13,7 @@
 
 from __future__ import annotations
 
-from app.llm_console.service import JOB_TYPE_TEST
+from app.ai.console.service import JOB_TYPE_VERIFY as JOB_TYPE_TEST
 
 LANE_BATCH = "batch"
 LANE_CONVERSATIONAL = "conversational"

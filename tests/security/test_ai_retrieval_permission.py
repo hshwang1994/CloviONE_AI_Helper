@@ -28,6 +28,7 @@ from sqlalchemy import select
 
 from app.ai import catalog
 from app.ai.gateway import contract
+from tests.fakes.ai import offline_runtime
 from app.ai.index import service as index_service
 from app.ai.models import DocumentChunk
 from app.ai.retrieval import answer as answer_mod
@@ -76,22 +77,21 @@ class BlindEmbed(contract.EmbedAdapter):
         )
 
 
-class ScriptedGenerate(contract.GenerateAdapter):
-    """넘어온 (system, user) 쌍을 그대로 들고 있는다. **그것이 증거다.**"""
+class ScriptedGenerate:
+    """제공자 자리에 선다. 넘어온 (system, user) 쌍을 그대로 들고 있는다. **그것이 증거다.**
+
+    생성은 AI 런타임이 맡으므로(D-515) 가짜는 제공자 계약(`app/ai/providers/base.py`)을 따른다. 런타임은
+    `offline_runtime` 으로 DB 없이 돈다 - 여기서 보는 것은 권한 필터가 Context 를 만들기 **전에** 걸리는가다.
+    """
 
     def __init__(self):
-        self.name = "scripted"
-        self.model = "scripted-model"
         self.calls: list[tuple[str, str]] = []
 
-    def capability(self):
-        return contract.available(contract.CAP_GENERATE, model=self.model)
+    def generate(self, *, system, user, model, max_output_tokens, timeout):
+        from app.ai.providers import base
 
-    def generate(self, *, system: str, user: str):
         self.calls.append((system, user))
-        return contract.GenerateResult(
-            status=contract.STATUS_OK, model=self.model, text="답변입니다."
-        )
+        return base.success("답변입니다.")
 
 
 @pytest.fixture()
@@ -101,9 +101,7 @@ def generator():
 
 @pytest.fixture()
 def gateway(generator):
-    return contract.Gateway(
-        enabled=True, embed_adapter=BlindEmbed(), generate_adapter=generator
-    )
+    return contract.Gateway(enabled=True, embed_adapter=BlindEmbed())
 
 
 def _space(db, *, slug, dept=None, confidential=False, created_by=None):
@@ -142,7 +140,7 @@ def _index(db, gateway):
 def _context_of(db, user, gateway, generator, *, query=QUERY):
     """실제로 모델에게 넘어간 사용자 메시지. 안 불렸으면 빈 문자열이다."""
     generator.calls.clear()
-    answer_mod.answer(db, user, raw_query=query, gateway=gateway)
+    answer_mod.answer(db, user, raw_query=query, gateway=gateway, runtime=offline_runtime(generator))
     return generator.calls[0][1] if generator.calls else ""
 
 
@@ -323,7 +321,7 @@ def test_document_text_arrives_as_data_not_as_instruction(db, people, gateway, g
     _document(db, space, "주입 시도", injection)
     _index(db, gateway)
 
-    answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway)
+    answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway, runtime=offline_runtime(generator))
     system, user = generator.calls[0]
 
     # 본문은 구분자 **안**에 있다.
@@ -345,7 +343,7 @@ def test_a_faked_delimiter_in_a_document_is_stripped_and_reported(db, people, ga
     _document(db, space, "구분자 흉내", faked)
     _index(db, gateway)
 
-    result = answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway)
+    result = answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway, runtime=offline_runtime(generator))
     assert result.delimiter_conflict is True
     assert result.as_dict()["delimiter_conflict"] is True
     _system, user = generator.calls[0]
@@ -357,6 +355,6 @@ def test_the_nonce_is_different_every_time(db, people, gateway, generator):
     _document(db, space, "계약", SECRET_SENTENCE)
     _index(db, gateway)
 
-    answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway)
-    answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway)
+    answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway, runtime=offline_runtime(generator))
+    answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway, runtime=offline_runtime(generator))
     assert generator.calls[0][1] != generator.calls[1][1]

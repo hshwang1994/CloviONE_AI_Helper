@@ -12,7 +12,7 @@
 """
 
 from app.jobs.models import JOB_TYPE_CHAT_MESSAGE
-from app.llm_console.service import JOB_TYPE_TEST
+from app.ai.console.service import JOB_TYPE_VERIFY as JOB_TYPE_TEST
 from app.jobs.handlers.mail_verify import MAIL_VERIFY_JOB_TYPE
 from app.mail.service import MAIL_JOB_TYPE
 from app.worker_main import build_handlers

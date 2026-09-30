@@ -36,7 +36,6 @@ from sqlalchemy.orm import Session
 from app.jobs.exceptions import PermanentJobError
 from app.jobs.models import Job
 from app.jobs.worker import WorkerContext, parse_payload
-from app.llm.service import build_service
 from app.projects.models import Project
 
 logger = logging.getLogger("app.handlers.project_weekly_summary")
@@ -63,15 +62,17 @@ def handle_project_weekly_summary(db: Session, job: Job, ctx: WorkerContext) -> 
     )
     body = report["summary_md"]
 
-    llm = build_service(
-        ctx.settings, backend=ctx.extras.get("llm_backend"), outbound=ctx.outbound_client
-    )
-    # DBTX: 아웃바운드(CLI) 호출 직전 커밋 — 위 db.get()/project_weekly_report()의 읽기가
+    from app.ai.actions import WEEKLY_SUMMARY
+    from app.ai.runtime import runtime_for_worker
+    from app.llm.prompt import TASK_WEEKLY
+
+    runtime = runtime_for_worker(ctx)
+    # DBTX: 아웃바운드(제공자) 호출 직전 커밋 — 위 db.get()/project_weekly_report()의 읽기가
     # 연 스냅샷을 쥔 채로 수십 초짜리 호출을 통과하면, 응답을 받은 뒤의 쓰기가
     # "database is locked"로 거부될 수 있다(app/core/db.py의 "begin" 이벤트 주석,
     # app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
     db.commit()
-    result = llm.summarize(body=body)
+    result = runtime.generate(db, action_key=WEEKLY_SUMMARY, task=TASK_WEEKLY, data=body)
     if not result.ok:
         logger.warning(
             "프로젝트 %s %s주 AI 요약 실패: %s", project_id, week_of, result.status

@@ -42,6 +42,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -337,3 +338,43 @@ class AiIndexState(UUIDPrimaryKeyMixin, Base):
         # 「지금 할 일」 — 색인 레인이 매 tick 에 던지는 그 질의다.
         Index("ix_index_state_queue", "status", "next_attempt_at", "queued_at"),
     )
+
+
+# ── AI 연결 상태 (계획 3.14 · 3.15, D-515) ─────────────────────────────────────
+
+
+class AiCredentialState(UUIDPrimaryKeyMixin, Base):
+    """제공자와 인증 방식 한 쌍의 연결 상태. 판정 규칙은 `app/ai/credentials/state.py` 에 있다.
+
+    토큰이나 키는 여기 두지 않는다 - 비밀 칸(`app/core/secret_slots.py`)에 산다. 여기에는 상태와 시각, 화면에 보일
+    계정 이름, 만료 시각(계정 연결, A2)만 있다.
+    """
+
+    __tablename__ = "ai_credential_state"
+    __table_args__ = (
+        UniqueConstraint("provider", "auth_method", name="uq_ai_credential_state_pair"),
+    )
+
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    auth_method: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(64))
+    reason_text: Mapped[str | None] = mapped_column(String(300))
+    #: 이 기록을 만든 설정의 지문. 지금 설정과 다르면 기록은 「확인 전」으로 읽힌다.
+    config_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    account_label: Mapped[str | None] = mapped_column(String(200))
+    client_id: Mapped[str | None] = mapped_column(String(200))
+    ext_agent_host_id: Mapped[str | None] = mapped_column(String(100))
+    access_expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    refresh_obtained_at: Mapped[datetime | None] = mapped_column(DateTime)
+    refresh_expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    expiry_source: Mapped[str | None] = mapped_column(String(32))
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_changed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    #: 관리자에게 마지막으로 알린 상태. 같은 상태를 두 번 알리지 않는다.
+    last_notified_state: Mapped[str | None] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)

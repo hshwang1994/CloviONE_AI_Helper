@@ -340,45 +340,29 @@ def test_assistant_requires_authentication(client):
 # ── 문장 생성을 켠 상태: **모델이 죽어도 숫자는 살아남는다** ──────────────────
 #
 # S11 이전에는 이 절이 러너 HTTP(`assistant_runner_url`)를 가짜로 세웠다. 지금은 요약
-# 문장이 `Gateway.generate()` 를 지나므로(D-266) 가짜를 세울 자리도 Gateway 다. 지키는
+# 문장이 AI 런타임을 지나므로(D-515) 가짜를 세울 자리는 그 런타임의 제공자다. 지키는
 # 것은 한 글자도 안 바뀌었다: **숫자는 언제나 완전하고, 빠지는 것은 문장뿐이다.**
 
 
 class ScriptedGenerate:
-    """넘어온 (system, user) 쌍을 그대로 들고 있는다. 상태는 시험이 정한다."""
+    """제공자 자리에 선다. 넘어온 (system, user) 쌍을 그대로 들고 있는다. 답은 시험이 정한다."""
 
-    name = "scripted"
-    model = "scripted-model"
+    def __init__(self, *, reply=None, text="요약 문장입니다."):
+        from app.ai.providers import base
 
-    def __init__(self, *, status=None, text="요약 문장입니다."):
-        from app.ai.gateway import contract
-
-        self._status = status or contract.STATUS_OK
-        self._text = text
+        self._reply = reply if reply is not None else base.success(text)
         self.calls: list[tuple[str, str]] = []
 
-    def capability(self):
-        from app.ai.gateway import contract
-
-        if self._status != contract.STATUS_OK:
-            return contract.unavailable(contract.CAP_GENERATE, self._status, model=self.model)
-        return contract.available(contract.CAP_GENERATE, model=self.model)
-
-    def generate(self, *, system: str, user: str):
-        from app.ai.gateway import contract
-
+    def generate(self, *, system, user, model, max_output_tokens, timeout):
         self.calls.append((system, user))
-        return contract.GenerateResult(
-            status=self._status, model=self.model,
-            text=self._text if self._status == contract.STATUS_OK else None,
-        )
+        return self._reply
 
 
-def _use(app, adapter):
-    """이 앱의 Gateway 를 그 Adapter 하나짜리로 바꾼다."""
-    from app.ai.gateway import contract
+def _use(app, adapter, **kwargs):
+    """이 앱의 AI 런타임에 그 제공자를 끼운다(설정을 켜고 키를 둔다)."""
+    from tests.fakes.ai import install_runtime
 
-    app.state.ai_gateway = contract.Gateway(enabled=True, generate_adapter=adapter)
+    install_runtime(app, adapter, **kwargs)
     return adapter
 
 
@@ -432,26 +416,28 @@ def test_narrative_is_added_when_the_model_answers(narrative_client):
     assert body["tickets"]["due_today"]["count"] == 1
 
 
-@pytest.mark.parametrize("break_model", ["timeout", "busy", "not_logged_in", "empty"])
+@pytest.mark.parametrize("break_model", ["timeout", "busy", "credential_error", "empty"])
 def test_numbers_survive_every_model_failure_mode(narrative_client, break_model):
     """계획서 Phase 5: '러너가 죽어도 숫자는 그대로 보여야 한다(문장만 빠진다).'
 
     문장을 끄고 받은 응답과 모델이 죽은 채로 받은 응답의 **사실 부분이 바이트 동일**한지
     dict 비교로 직접 확인한다. 한 필드라도 사라지면 여기서 깨진다.
     """
-    from app.ai.gateway import contract
+    from tests.fakes import ai as fake_ai
 
     client, app = narrative_client
     _use(app, ScriptedGenerate())
     baseline = _facts_only(_get(client, "/api/assistant/briefing"))
 
-    status = {
-        "timeout": contract.STATUS_TIMEOUT,
-        "busy": contract.STATUS_BUSY,
-        "not_logged_in": contract.STATUS_NOT_LOGGED_IN,
-        "empty": contract.STATUS_EMPTY,
-    }[break_model]
-    _use(app, ScriptedGenerate(status=status))
+    if break_model == "busy":
+        _use(app, ScriptedGenerate(), lock_factory=lambda config: fake_ai.BusyLock())
+    else:
+        reply = {
+            "timeout": fake_ai.timeout_failure(),
+            "credential_error": fake_ai.auth_failure(),
+            "empty": fake_ai.empty_reply(),
+        }[break_model]
+        _use(app, ScriptedGenerate(reply=reply))
 
     body = _get(client, "/api/assistant/briefing?narrate=true")
     assert _facts_only(body) == baseline               # 숫자는 한 글자도 안 변했다
@@ -464,11 +450,9 @@ def test_an_unconfigured_model_reports_that_not_a_generic_failure(narrative_clie
     """「아직 설정 안 됨」과 「지연/실패」는 운영자가 할 일이 다르다. 예전에는 러너 토큰
     파일이 없는 상태가 애매한 실패 문구로 뭉개졌다 — 지금은 Gateway 의 상태 어휘가
     그 구별을 들고 온다."""
-    from app.ai.gateway import contract
-
     client, app = narrative_client
-    # 어댑터가 아예 없는 앱 — 모델을 안 넣은 설치다.
-    app.state.ai_gateway = contract.Gateway(enabled=True, generate_adapter=None)
+    # 모델을 고르지 않은 설치다 - 제품은 모델을 대신 고르지 않는다.
+    _use(app, ScriptedGenerate(), model="")
     body = _get(client, "/api/assistant/briefing?narrate=true")
     assert body["narrative"]["enabled"] is True
     assert body["narrative"]["text"] is None

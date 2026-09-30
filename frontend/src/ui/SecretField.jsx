@@ -77,11 +77,17 @@ export function SecretField({ slot, label, help, disabled = false, onChanged }) 
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && value.trim()) { e.preventDefault(); save.mutate(value); } }}
         />
-        <Button size="small" onClick={() => save.mutate(value)} disabled={disabled || busy || !value.trim()} loading={save.isPending}>
+        <Button
+          size="small" aria-label={`${label} 저장`}
+          onClick={() => save.mutate(value)} disabled={disabled || busy || !value.trim()} loading={save.isPending}
+        >
           저장
         </Button>
         {stored ? (
-          <Button size="small" variant="ghost" onClick={() => clear.mutate()} disabled={disabled || busy} loading={clear.isPending}>
+          <Button
+            size="small" variant="ghost" aria-label={`${label} 삭제`}
+            onClick={() => clear.mutate()} disabled={disabled || busy} loading={clear.isPending}
+          >
             삭제
           </Button>
         ) : null}

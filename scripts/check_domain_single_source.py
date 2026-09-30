@@ -166,11 +166,8 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
     ),
     (
         "프롬프트 조립",
-        (
-            "app/llm/cli_backend.py",
-            "app/llm/api_backend.py",
-            "app/ai/gateway/contract.py",
-        ),
+        # 생성의 유일한 문이다(D-515). 예전에는 명령줄 도구 백엔드, API 백엔드, Gateway 세 곳이었다.
+        ("app/ai/runtime.py",),
         # **정의는 호출이 아니다.** `app/llm/prompt.py` 가 이 함수를 만드는 자리라
         # `def` 뒤는 빼고 본다 — 안 그러면 정의 파일 자신이 위반이 되고, 그 예외를
         # 목록에 적으면 그 파일에서의 진짜 호출도 함께 통과한다.

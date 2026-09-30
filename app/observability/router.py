@@ -58,6 +58,7 @@ def system_status(
         secrets=request.app.state.secret_provider,
         cache=request.app.state.settings_cache,
         gateway=getattr(request.app.state, "ai_gateway", None),
+        runtime=getattr(request.app.state, "ai_runtime", None),
         for_admin=user.role in CONSOLE_READ_ROLES,
     )
     if setup is not None:

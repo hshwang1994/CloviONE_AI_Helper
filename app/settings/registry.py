@@ -217,7 +217,6 @@ def _smtp_ca(value: dict, security: str) -> None:
         raise ValidationAppError("CA 인증서를 읽지 못했습니다. PEM 원문 전체를 그대로 붙여 넣으세요.") from None
 
 
-# LLM 설정(9-5). 빈 값 = '안 정함'(환경변수를 따른다)이라는 규약을 세 검증기가 공유한다.
 def _mail_notification_types(value: Any) -> None:
     """메일로도 보낼 수 있는 알림 유형(계획 3.4). 메일로 보낼 수 있는 유형 밖의 값은 받지 않는다."""
     from app.profiles.prefs import MAILABLE_TYPES
@@ -231,50 +230,44 @@ def _mail_notification_types(value: Any) -> None:
         raise ValidationAppError("같은 알림 유형이 두 번 들어 있습니다.")
 
 
-_LLM_ENABLED_CHOICES = ("", "on", "off")
-_LLM_BACKEND_CHOICES = ("", "cli", "api")
+# AI 생성 설정(계획 3.13, D-515). 소비자는 `app/ai/runtime.py` 하나다 - 호출마다 이 값을 읽으므로 저장하면 다음 호출부터
+# 쓰인다. 제공자와 인증 방식의 짝은 여기서 따로 보고, 둘을 함께 맞는지는 AI 설정 API 가 한 벌로 본다.
+def _ai_provider(value: Any) -> None:
+    from app.ai.providers.base import PROVIDERS
+
+    if value != "" and value not in PROVIDERS:
+        raise ValidationAppError("지원하지 않는 AI 제공자입니다.")
 
 
-def _llm_enabled(value: Any) -> None:
-    if value not in _LLM_ENABLED_CHOICES:
-        raise ValidationAppError("빈 값(환경변수를 따름), on, off 중 하나여야 합니다.")
+def _ai_auth_method(value: Any) -> None:
+    from app.ai.providers.base import PROVIDERS
+
+    known = {m.key for spec in PROVIDERS.values() for m in spec.auth_methods}
+    if value != "" and value not in known:
+        raise ValidationAppError("지원하지 않는 인증 방식입니다.")
 
 
-def _llm_backend(value: Any) -> None:
-    if value not in _LLM_BACKEND_CHOICES:
-        raise ValidationAppError("빈 값(환경변수를 따름), cli, api 중 하나여야 합니다.")
-
-
-def _llm_text(value: Any) -> None:
-    """모델 이름과 실행 파일 경로. 빈 값 허용, **줄바꿈과 널 문자는 거절**.
-
-    이 값은 argv 로 들어간다(app/llm/cli_backend.py::build_argv). `shell=False` 라
-    명령 주입은 안 되지만, 줄바꿈이 섞인 경로는 실행 실패의 원인을 로그에서 못 읽게 만든다.
-    """
+def _ai_model(value: Any) -> None:
+    """모델 이름. 비우면 AI 는 꺼진다 - 제품이 모델을 대신 고르지 않는다."""
     if not isinstance(value, str):
         raise ValidationAppError("문자열이어야 합니다.")
-    if len(value) > 512:
-        raise ValidationAppError("512자 이하여야 합니다.")
+    if len(value) > 200:
+        raise ValidationAppError("200자 이하여야 합니다.")
     if any(c in value for c in "\r\n\x00"):
         raise ValidationAppError("줄바꿈이나 널 문자를 넣을 수 없습니다.")
 
 
-def _llm_timeout(value: Any) -> None:
-    """0 = '안 정함'. 상한은 cli_backend.MAX_TIMEOUT_SECONDS 와 같은 값을 쓴다."""
-    from app.llm.cli_backend import MAX_TIMEOUT_SECONDS, MIN_TIMEOUT_SECONDS
+def _ai_timeout(value: Any) -> None:
+    from app.ai.concurrency import MAX_TIMEOUT_SECONDS, MIN_TIMEOUT_SECONDS
 
-    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-        raise ValidationAppError("0 이상 정수여야 합니다(0이면 환경변수나 기본값을 따릅니다).")
-    if value and not (MIN_TIMEOUT_SECONDS <= value <= MAX_TIMEOUT_SECONDS):
-        raise ValidationAppError(
-            f"{MIN_TIMEOUT_SECONDS}~{MAX_TIMEOUT_SECONDS}초 사이여야 합니다(0이면 기본값)."
-        )
+    if not isinstance(value, int) or isinstance(value, bool) or not (
+        MIN_TIMEOUT_SECONDS <= value <= MAX_TIMEOUT_SECONDS
+    ):
+        raise ValidationAppError(f"{MIN_TIMEOUT_SECONDS}~{MAX_TIMEOUT_SECONDS}초 사이의 정수여야 합니다.")
 
 
-def _llm_concurrency(value: Any) -> None:
-    """동시 실행 슬롯. 상한을 낮게 잡는 이유는 app/llm/service.py 에 적어 뒀다 -
-    구독 한도는 이 서버에서 CLI 를 쓰는 **사람과 공유**한다."""
-    from app.llm.service import MAX_CONCURRENCY
+def _ai_concurrency(value: Any) -> None:
+    from app.ai.concurrency import MAX_CONCURRENCY
 
     if not isinstance(value, int) or isinstance(value, bool) or not (1 <= value <= MAX_CONCURRENCY):
         raise ValidationAppError(f"1~{MAX_CONCURRENCY} 사이의 정수여야 합니다.")
@@ -403,34 +396,20 @@ REGISTRY: dict[str, SettingSpec] = {
         # 읽어 노션을 조회했기 때문이다. 지금은 셋 다 자체 데이터베이스에서 나오므로
         # 관리자가 정할 것이 없다. 옛 데이터를 한 번 읽어 오는 이관 CLI 는 데이터베이스를
         # 제목으로 찾거나 명령행 인자로 받는다(app/migration/source_notion.py).
-        # ── LLM (9-5) ────────────────────────────────────────────────────────
+        # ── AI 생성 (계획 3.13, D-515) ──────────────────────────────────────
         #
-        # 소비자는 `app/llm/provider.py::resolve_config` 다. 그 함수는 이미
-        # `Settings` 필드 → 환경변수 → 기본값 순으로 읽으므로, 여기 저장한 값이 위 오버레이를
-        # 거쳐 `Settings` 에 얹히면 **provider 코드를 고치지 않고** 그쪽이 이긴다.
-        # 빈 값과 0 이 '안 정함' 이고, 그때는 환경변수가 산다.
-        SettingSpec("llm_enabled", "string", "", False,
-                    "AI 요약 사용 여부. on 이면 켜고 off 면 끕니다. 비우면 서버 환경변수"
-                    "(LLM_ENABLED)를 따릅니다",
-                    _llm_enabled),
-        SettingSpec("llm_backend", "string", "", False,
-                    "AI 백엔드. cli 는 서버에 로그인된 구독 명령줄 도구, api 는 Anthropic API "
-                    "입니다. 비우면 환경변수(LLM_BACKEND)를 따릅니다",
-                    _llm_backend),
-        SettingSpec("llm_executable", "string", "", False,
-                    "명령줄 도구의 실행 파일 이름 또는 절대 경로. 비우면 claude 를 씁니다",
-                    _llm_text),
-        SettingSpec("llm_model", "string", "", False,
-                    "사용할 모델 이름. 비우면 서버 환경변수(LLM_MODEL)를 따르고, 그것도 "
-                    "없으면 AI 요약을 쓰지 않습니다",
-                    _llm_text),
-        SettingSpec("llm_timeout_seconds", "int", 0, False,
-                    "AI 호출 하나의 제한 시간(초). 0이면 기본값(120초)을 씁니다",
-                    _llm_timeout),
-        SettingSpec("llm_max_concurrency", "int", 1, False,
-                    "동시에 돌 수 있는 AI 호출 수. 구독 한도를 이 서버에서 명령줄 도구를 쓰는 "
-                    "사람과 나눠 쓰므로 작게 잡습니다",
-                    _llm_concurrency),
+        # 소비자는 `app/ai/runtime.py` 하나다. 호출마다 이 값을 읽으므로 저장하면 재시작 없이 다음 호출부터 쓰인다.
+        # 빈 제공자, 빈 모델, 꺼짐이 기본이다 - AI 를 기본으로 켜 두는 관례가 이 저장소에 없고, 모델은 제품이 대신 고를
+        # 자리가 아니다. 서버에 로그인된 구독 명령줄 도구로 돌던 옛 설정(`llm_*`)은 0037 이 옮겼다.
+        SettingSpec("ai_generation_enabled", "bool", False, False,
+                    "AI 답변 생성: 켜면 채팅, 작업 공간, 홈 요약, 퀴즈가 설정한 AI 제공자로 답을 만듭니다", _bool),
+        SettingSpec("ai_provider", "string", "", False, "답변을 만드는 AI 제공자입니다", _ai_provider),
+        SettingSpec("ai_auth_method", "string", "", False, "AI 제공자에 연결하는 방법입니다", _ai_auth_method),
+        SettingSpec("ai_model", "string", "", False, "답변을 만드는 모델 이름입니다. 비우면 AI 가 꺼집니다", _ai_model),
+        SettingSpec("ai_timeout_seconds", "int", 60, False,
+                    "AI 호출 하나를 기다리는 시간(초)입니다", _ai_timeout),
+        SettingSpec("ai_max_concurrency", "int", 2, False,
+                    "웹과 워커가 함께 나눠 쓰는 AI 동시 실행 수입니다", _ai_concurrency),
     ]
 }
 
@@ -446,12 +425,12 @@ REGISTRY: dict[str, SettingSpec] = {
 # 다르다. 표 옆에 두면 새 키를 넣을 때 이 목록이 눈에 들어온다.
 SYSTEM_ADMIN_ONLY_KEYS: frozenset[str] = frozenset(
     {
-        "llm_enabled",
-        "llm_backend",
-        "llm_executable",
-        "llm_model",
-        "llm_timeout_seconds",
-        "llm_max_concurrency",
+        "ai_generation_enabled",
+        "ai_provider",
+        "ai_auth_method",
+        "ai_model",
+        "ai_timeout_seconds",
+        "ai_max_concurrency",
         "chat_enabled",
         "game_ai_enabled",
         "assistant_narrative_enabled",

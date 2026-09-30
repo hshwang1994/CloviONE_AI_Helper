@@ -7,7 +7,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 
 /* PA-RC-0017: /settings의 탭 그릇(SettingsShell.jsx). 각 탭 내용(설정 표·시스템 설정·
  * AI 관리·유지보수)의 자체 동작은 이미 각자의 테스트(system-ops*.test.jsx,
- * llm-console.test.jsx, settings-*.test.jsx)가 지킨다 — 여기서 다시 확인하지 않는다.
+ * settings/ai-settings.test.jsx, settings-*.test.jsx)가 지킨다 — 여기서 다시 확인하지 않는다.
  * 이 파일이 지키는 건 이 화면이 **새로 만든** 것만이다: 탭 가시성이 role을 따라가는가(가장
  * 큰 위험이라고 Handoff가 짚은 지점), 탭 전환이 실제로 다른 화면을 그리는가, 그리고 권한
  * 없는 role이 주소를 손으로 바꿔도 안 뚫리는가.
@@ -151,12 +151,12 @@ describe("설정 탭 — 전환하면 실제로 다른 화면을 그린다", () 
     expect(await screen.findByText("서비스")).toBeInTheDocument();
   });
 
-  it("'AI' 탭을 누르면 LlmConsole 고유 영역(지금 적용 중인 값)이 나타난다", async () => {
+  it("'AI' 탭을 누르면 AI 설정 고유 영역(연결 상태)이 나타난다", async () => {
     currentRole = "system_admin";
     const user = userEvent.setup();
     renderShell();
     await user.click(screen.getByRole("tab", { name: "AI" }));
-    expect(await screen.findByText("지금 적용 중인 값")).toBeInTheDocument();
+    expect(await screen.findByText("연결 상태")).toBeInTheDocument();
   });
 
   // 없어진 '연동' 탭의 옛 주소(#/settings?tab=integration)가 즐겨찾기에 남아 있을 수 있다.
@@ -255,7 +255,7 @@ describe("기술 정보 토글 — 그릇 머리의 동작 자리 (D-454 · D-50
     renderShell();
     await screen.findByRole("button", { name: "기술 정보(설정 키) 보기" });
     await user.click(screen.getByRole("tab", { name: "AI" }));
-    await screen.findByText("지금 적용 중인 값");
+    await screen.findByText("연결 상태");
     expect(screen.queryByRole("button", { name: "기술 정보(설정 키) 보기" })).toBeNull();
   });
 });

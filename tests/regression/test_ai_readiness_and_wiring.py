@@ -19,7 +19,6 @@ import pytest
 from app.ai import catalog
 from app.core import product
 from app.jobs import lanes
-from app.llm import provider
 
 pytestmark = pytest.mark.regression
 
@@ -138,7 +137,7 @@ def test_readyz_stays_ready_when_only_generation_is_missing(client, app):
             def capability(self):
                 return contract.available(contract.CAP_EMBED, model=self.model)
 
-        return contract.Gateway(enabled=True, embed_adapter=_Embed(), generate_adapter=None)
+        return contract.Gateway(enabled=True, embed_adapter=_Embed())
 
     from app.ai.gateway import registry
 
@@ -170,40 +169,38 @@ def test_the_dashboard_shows_the_ai_axis(db, settings):
 
 def test_the_product_does_not_choose_a_generation_model_for_you():
     """예전에는 `DEFAULT_MODEL = "sonnet"` 이 있었다. 그 한 줄이 「설정에서 모델을
-    지운다」와 「그 모델을 쓴다」를 같은 상태로 만들었다."""
-    assert provider.DEFAULT_MODEL == ""
-    assert provider.resolve_config(None, env={"LLM_ENABLED": "true"}).model == ""
+    지운다」와 「그 모델을 쓴다」를 같은 상태로 만들었다. 이제 모델 설정의 기본값도 비어 있다."""
+    from app.ai.runtime import RuntimeConfig, config_from_values
+    from app.settings.registry import REGISTRY
+
+    assert REGISTRY["ai_model"].default == ""
+    assert RuntimeConfig().model == ""
+    assert config_from_values({"ai_generation_enabled": True}).model == ""
 
 
 def test_an_unconfigured_model_is_refused_not_defaulted():
-    """빈 문자열을 `--model` 에 넘기면 CLI 가 자기 기본 모델로 돈다. 그건 우리가 고른
-    모델이 아니고, 로그에도 「무엇으로 돌았는지」가 안 남는다."""
-    from app.llm import cli_backend
+    """모델이 비어 있으면 「미설정」이다 - 제공자의 기본 모델로 돌지 않는다. 그건 우리가 고른 모델이 아니고,
+    로그에도 「무엇으로 돌았는지」가 안 남는다."""
+    from app.ai.gateway import contract
+    from tests.fakes.ai import ScriptedAdapter, offline_runtime
 
-    config = provider.LlmConfig(enabled=True, model="")
-    with pytest.raises(cli_backend.ModelNotConfiguredError):
-        cli_backend.build_argv(config, system_prompt="시스템")
-
-    backend = cli_backend.ClaudeCliBackend(config)
-    result = backend.run(system="시스템", user="사용자")
-    assert result.status == provider.STATUS_UNCONFIGURED
+    adapter = ScriptedAdapter()
+    result = offline_runtime(adapter, model="").generate(None, action_key="chat.answer", task="t", data="d")
+    assert result.status == contract.STATUS_UNCONFIGURED
+    assert adapter.calls == [], "모델 없이 제공자를 불렀다"
 
 
-def test_the_api_backend_refuses_an_unconfigured_model():
-    """API 는 `model` 이 필수라 빈 값이면 400 이 오는데, 그 400 은 「설정 안 됨」이
-    아니라 「실패」로 읽혀 원인이 가려진다."""
-    from app.llm import api_backend
+def test_the_provider_refuses_to_go_out_without_a_model():
+    """제공자 쪽에서도 모델 없이 바깥 호출이 나가지 않는다 - API 는 `model` 이 필수라 빈 값이면 400 이 오는데,
+    그 400 은 「설정 안 됨」이 아니라 「실패」로 읽혀 원인이 가려진다."""
+    from app.ai.runtime import problems, RuntimeConfig
 
-    class _Outbound:
-        def request(self, *args, **kwargs):  # pragma: no cover - 여기 오면 안 된다
-            raise AssertionError("모델 없이 바깥 호출이 나갔다")
+    class _Secrets:
+        def status(self, name):
+            return "configured"
 
-    config = provider.LlmConfig(
-        enabled=True, backend=provider.BACKEND_API, model="",
-        api_model="", api_secret_ref="ref",
-    )
-    backend = api_backend.AnthropicApiBackend(config, outbound=_Outbound())
-    assert backend.run(system="시스템", user="사용자").status == provider.STATUS_UNCONFIGURED
+    found = problems(RuntimeConfig(generation_enabled=True, provider="anthropic", auth_method="api_key"), _Secrets())
+    assert found == ["모델을 아직 고르지 않았습니다."], found
 
 
 def test_the_runner_that_had_a_default_model_is_gone():

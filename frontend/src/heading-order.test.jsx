@@ -51,24 +51,21 @@ beforeEach(() => {
 });
 
 describe("heading 순서 — 건너뛰지 않는다(PA-RC-0012)", () => {
-  it("LlmConsole: h1 다음이 h6이 아니라 h2다", async () => {
+  it("AiSettings: h1 다음이 h6이 아니라 h2다", async () => {
     apiMock.mockImplementation((path) => {
-      if (path === "/api/admin/llm") {
+      if (path === "/api/admin/ai") {
         return Promise.resolve({
-          config: { enabled: false, backend: "cli", executable: "claude", model: "sonnet", timeout_seconds: 120, max_concurrency: 1 },
-          limits: { min_timeout_seconds: 5, max_timeout_seconds: 600, max_concurrency: 4, test_timeout_seconds: 60 },
-          sources: {}, editable_keys: [],
-          login: { backend: "cli", title: "t", steps: [], note: "" },
-          apply_note: "", test_mode_note: "", verified: false, verified_note: "",
+          config: { generation_enabled: false, provider: "", auth_method: "", model: "", timeout_seconds: 60, max_concurrency: 2 },
+          state: { state: "unconfigured", label: "미설정", message: "m", problems: ["p"] },
+          providers: [], features: {}, limits: { timeout_seconds: [5, 300], max_concurrency: [1, 8] },
         });
       }
-      if (path === "/api/admin/settings") return Promise.resolve({ settings: {} });
       return Promise.resolve({});
     });
-    const { LlmConsole } = await import("./screens/LlmConsole.jsx");
-    const { container } = qcRender(<LlmConsole />);
-    await screen.findByText("지금 적용 중인 값");
-    assertSequentialHeadings(container, "LlmConsole");
+    const { AiSettings } = await import("./screens/settings/AiSettings.jsx");
+    const { container } = qcRender(<AiSettings />);
+    await screen.findByText("연결 상태");
+    assertSequentialHeadings(container, "AiSettings");
   });
 
   it("MailStatus: h1 다음이 h6이 아니라 h2다", async () => {

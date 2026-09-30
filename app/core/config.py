@@ -153,34 +153,11 @@ class Settings(BaseSettings):
     # 지금은 구현체가 자체 DB 하나뿐이라 고를 것이 없다 — 배선은 코드가 정한다
     # (`app/core/source_registry.py`).
 
-    # ── LLM (9-5) ────────────────────────────────────────────────────────────
-    #
-    # `app/llm/provider.py::resolve_config` 는 이미 `Settings` 필드 → 환경변수 → 기본값
-    # 순으로 읽도록 만들어져 있고, 그 docstring 이 "필드가 생기면 이 함수를 고치지 않아도
-    # 그쪽이 이긴다" 고 적어 뒀다. 그 자리를 여기서 만든다.
-    #
-    # 🔴 기본값이 전부 **빈 값**인 것이 핵심이다. 비어 있으면 resolve_config 가 환경변수로
-    # 떨어지므로, 이미 `LLM_*` 환경변수로 켜 둔 설치가 업그레이드하는 순간 꺼지지 않는다.
-    # 관리 콘솔에서 저장하면 그 값이 여기로 얹히고(app/core/tenant_config.py::apply_overrides)
-    # 그때부터 화면이 이긴다.
-    #
-    # llm_enabled 가 bool 이 아니라 문자열인 이유도 같다: bool 은 "안 정했다" 를 표현할 수
-    # 없어서, 기본 False 가 곧바로 "끄기로 정했다" 로 읽힌다. 빈 문자열이 '안 정함' 이다.
-    llm_enabled: str = ""
-    llm_backend: str = ""
-    llm_model: str = ""
-    llm_executable: str = ""
-    # None 이 '안 정함' 이다. 0 을 기본으로 두면 resolve_config 가 "설정값이 있다" 로 읽고
-    # 환경변수를 건너뛴다(0 은 None 이 아니다) - 그러면 LLM_TIMEOUT_SECONDS 가 죽는다.
-    llm_timeout_seconds: int | None = None
-    # 동시 실행 슬롯 수. 소비자는 app/llm/service.py 의 슬롯 락이다.
-    llm_max_concurrency: int = 1
-
     # ── AI Platform (S9 · D-200~D-203) ───────────────────────────────────────
     #
     # `app/ai/gateway/registry.py::resolve_config` 가 `Settings` 필드 → 환경변수 →
-    # 기본값 순으로 읽는다. `llm_*` 와 같은 규약이고, 이유도 같다 — 빈 값이 「안 정함」
-    # 이라 이미 환경변수로 켜 둔 설치가 업그레이드에서 꺼지지 않는다.
+    # 기본값 순으로 읽는다. 빈 값이 「안 정함」이라 이미 환경변수로 켜 둔 설치가 업그레이드에서 꺼지지 않는다.
+    # 이 값은 **임베딩 부품이 깔렸는가**의 뜻이다. 답변 생성은 관리 화면의 설정이 정한다(`ai_generation_enabled`).
     #
     # 🔴 기본이 **꺼짐**이다. AI 기능을 기본 ON 으로 두는 관례가 이 저장소에 없다.
     ai_enabled: str = ""

@@ -77,6 +77,8 @@ class ProbeContext:
     # Adapter 가 매번 ONNX 세션을 열고(S1 실측 2.3초), 무엇보다 **화면이 실제로 쓰는
     # 것과 다른 객체**를 재게 된다. None 이면 설정에서 만든다(스크립트 호출부).
     gateway: object | None = None
+    # 프로세스에 하나뿐인 AI 런타임(`app.state.ai_runtime`, D-515). 답변 생성의 판정은 여기서 온다.
+    runtime: object | None = None
 
 
 # ── 관리자 계정 ──────────────────────────────────────────────────────────────
@@ -171,20 +173,23 @@ def probe_organization(ctx: ProbeContext) -> Outcome:
 
 
 def probe_llm(ctx: ProbeContext) -> Outcome:
-    """AI 가 지금 되는가. **Gateway 가 이미 아는 것을 읽는다.**
+    """AI 가 지금 되는가. **이미 아는 것을 읽는다** - 검색은 Gateway, 답변 생성은 AI 런타임(D-515).
 
-    S11 이전에는 러너 레지스트리 행의 헬스체크 결과를 읽었다. 그 판정은 「응답은 하는가」
-    까지였고, 실제 업무 처리는 그 레지스트리를 안 지났다 — 그래서 여기 "실제 업무 처리
-    여부와는 별개입니다" 라는 단서를 달아야 했다. 이제 그 단서가 필요 없다: 답변·초안·
-    요약이 전부 이 Gateway 를 지나므로 **여기서 되면 실제로 되는 것**이다.
+    답변·초안·요약이 전부 런타임을 지나므로 **여기서 되면 실제로 되는 것**이다. 런타임은 저장된 연결 상태만 읽고
+    제공자에 붙지 않는다.
     """
     gateway = ctx.gateway
     if gateway is None:
         from app.ai.gateway.registry import build_gateway
 
         gateway = build_gateway(ctx.settings)
-    caps = gateway.capabilities()
-    embed, generate = caps.embed, caps.generate
+    runtime = ctx.runtime
+    if runtime is None:
+        from app.ai.runtime import AiRuntime
+
+        runtime = AiRuntime(settings=ctx.settings, secrets=ctx.secrets)
+    embed = gateway.capabilities().embed
+    generate = runtime.capability(ctx.db)
     if embed.available and generate.available:
         return _done("문서 검색과 답변 생성이 모두 동작합니다.")
     if embed.available:
@@ -192,7 +197,7 @@ def probe_llm(ctx: ProbeContext) -> Outcome:
         # (D-201) — 근거와 인용은 그대로 나온다.
         return _todo(
             f"문서 검색은 동작하지만 답변 생성이 되지 않습니다. {generate.notice}",
-            "서버의 AI 명령줄 도구 로그인과 AI 설정을 확인하세요.",
+            "AI 설정 화면에서 제공자와 API 키를 넣고 연결을 확인하세요.",
         )
     if generate.available:
         return _todo(

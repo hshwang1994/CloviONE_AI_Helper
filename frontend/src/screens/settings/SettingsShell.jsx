@@ -4,7 +4,7 @@ import { useAuth } from "../../app/auth.jsx";
 import { TabShell } from "../../ui/TabShell.jsx";
 import { Settings } from "./SettingsMain.jsx";
 import { SystemOps, HELP as SYSTEM_OPS_HELP } from "../SystemOps.jsx";
-import { LlmConsole } from "../LlmConsole.jsx";
+import { AiSettings } from "./AiSettings.jsx";
 import { StorageProviders, HELP as STORAGE_HELP } from "../StorageProviders.jsx";
 import { Maintenance } from "../ops/Maintenance.jsx";
 
@@ -45,7 +45,7 @@ import { Maintenance } from "../ops/Maintenance.jsx";
  * ## role 게이트를 두 번 거는 이유
  *
  * `visibleTabs`가 이미 role 로 걸러 `tab` 이 "os"/"ai" 가 되는 순간 role 은 system_admin 으로
- * 보장된다 — 그런데도 아래 렌더 분기에 role 검사를 한 번 더 남긴다. SystemOps/LlmConsole 은
+ * 보장된다 — 그런데도 아래 렌더 분기에 role 검사를 한 번 더 남긴다. SystemOps/AiSettings 는
  * 지금까지 라우트의 RequireRole 하나에만 기대 왔고 자체 role 검사가 없다(Settings/Maintenance
  * 와 달리) — 이 화면들이 처음으로 "라우트가 아니라 탭 상태"로 접근 가능해지는 지점이라,
  * 파생 로직 한 곳의 실수가 OS 특권 동작을 그대로 노출시킬 수 있다. 실제 서버 게이트는 각
@@ -95,7 +95,7 @@ export function SettingsShell() {
     ),
     os: () => (isSystemAdmin ? <SystemOps embedded /> : null),
     storage: () => (isSystemAdmin ? <StorageProviders embedded /> : null),
-    ai: () => (isSystemAdmin ? <LlmConsole embedded /> : null),
+    ai: () => (isSystemAdmin ? <AiSettings /> : null),
   };
   /* 사이드바가 이 화면을 「설정」 묶음에 두므로 빵부스러기도 「설정」이다(S20). 제목은 고정이고
      탭은 아래다(D-452) — 예전에는 탭 라벨이 h1 이라 「AI」가 제목이었다. 전환할 곳이 없는 탭

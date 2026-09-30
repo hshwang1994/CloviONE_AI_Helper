@@ -2,9 +2,9 @@
 
 ## 🔴 생성 경로를 새로 만들지 않는다
 
-`Gateway.generate(task=, data=)` 가 유일한 문이다. `data` 로 넘어간 것은 난스 구분자
-안에 갇히고 구분자 흉내는 걷어내진다 — **Adapter 는 원문을 못 본다.** 그래서 새
-Adapter 를 붙이는 사람이 방어를 빠뜨릴 자리 자체가 없다.
+`AiRuntime.generate(action_key=, task=, data=)` 가 유일한 문이다(`app/ai/runtime.py`, D-515). `data` 로 넘어간
+것은 난스 구분자 안에 갇히고 구분자 흉내는 걷어내진다 — **제공자는 원문을 못 본다.** 그래서 새 제공자를 붙이는
+사람이 방어를 빠뜨릴 자리 자체가 없다. 검색(임베딩)은 여전히 Gateway 가 한다.
 
 `scripts/check_domain_single_source.py` 의 「프롬프트 조립」 규칙이 다른 자리에서
 `build_prompt()` 를 부르는 것을 막는다. 이 파일도 그것을 안 부른다 — 부를 필요가 없다.
@@ -28,6 +28,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.ai import actions
 from app.ai.gateway import contract
 from app.ai.retrieval import service as retrieval_service
 
@@ -98,8 +99,8 @@ def _payload(question: str, retrieval: retrieval_service.RetrievalResult) -> str
     ])
 
 
-def _generate(gateway: contract.Gateway, *, task: str, question: str, retrieval) -> Answer:
-    result = gateway.generate(task=task, data=_payload(question, retrieval))
+def _generate(db: Session, runtime, *, action_key: str, task: str, question: str, retrieval, actor) -> Answer:
+    result = runtime.generate(db, action_key=action_key, task=task, data=_payload(question, retrieval), actor=actor)
     return Answer(
         retrieval=retrieval,
         status=result.status,
@@ -116,9 +117,15 @@ def answer(
     *,
     raw_query: str | None,
     gateway: contract.Gateway,
+    runtime,
+    action_key: str = actions.CHAT_ANSWER,
     top_k: int = retrieval_service.TOP_K,
 ) -> Answer:
-    """질문 → (인용, 답변). 인용은 언제나 나가고 답변은 될 때만 나간다."""
+    """질문 → (인용, 답변). 인용은 언제나 나가고 답변은 될 때만 나간다.
+
+    ``action_key`` 는 어느 화면의 질문인가다(채팅이면 `chat.answer`, 작업 공간이면 `workspace.ask`) - 출력 길이와 사용
+    기록이 그 이름으로 갈린다.
+    """
     retrieval = retrieval_service.retrieve(
         db, user, raw_query=raw_query, gateway=gateway, top_k=top_k
     )
@@ -126,7 +133,8 @@ def answer(
         # 근거가 없으면 부르지 않는다. 빈 Context 로 부르면 모델은 무언가를 지어내고,
         # 그 문장에는 인용이 하나도 안 붙는다 — 사람은 그것을 답으로 읽는다.
         return Answer(retrieval=retrieval, status=contract.STATUS_EMPTY)
-    return _generate(gateway, task=TASK_ANSWER, question=retrieval.query, retrieval=retrieval)
+    return _generate(db, runtime, action_key=action_key, task=TASK_ANSWER, question=retrieval.query,
+                     retrieval=retrieval, actor=user)
 
 
 def draft_document(
@@ -135,6 +143,7 @@ def draft_document(
     *,
     instruction: str | None,
     gateway: contract.Gateway,
+    runtime,
     top_k: int = retrieval_service.TOP_K,
 ) -> Answer:
     """문서 초안. 답변과 **같은 문**을 지나고 지시문만 다르다.
@@ -147,4 +156,5 @@ def draft_document(
     )
     if retrieval.empty:
         return Answer(retrieval=retrieval, status=contract.STATUS_EMPTY)
-    return _generate(gateway, task=TASK_DRAFT, question=retrieval.query, retrieval=retrieval)
+    return _generate(db, runtime, action_key=actions.WORKSPACE_DRAFT, task=TASK_DRAFT, question=retrieval.query,
+                     retrieval=retrieval, actor=user)

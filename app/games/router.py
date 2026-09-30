@@ -269,9 +269,11 @@ def quiz_generate(
             "AI 생성을 너무 자주 요청했습니다. 잠시 후 다시 시도하세요.",
             retry_after_seconds=request.app.state.game_ai_ratelimiter.retry_after_seconds(limit_key),
         )
+    from app.ai.runtime import runtime_for_app
+
     questions = ai.generate_quiz(
-        request.app.state.ai_gateway,
-        request.app.state.settings,
+        runtime_for_app(request.app),
+        db,
         topic=payload.topic,
         count=payload.count,
         num_options=payload.num_options,

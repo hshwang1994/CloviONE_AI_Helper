@@ -55,30 +55,39 @@ def test_config_from_cache_does_not_raise_on_a_malformed_cached_value():
     assert config.timeout_seconds == 20
 
 
-# --- 2. app/llm/provider.py::_as_int: 다중 대시 문자열이 crash 났다 -----------
+# --- 2. AI 실행 값: 다중 대시 문자열이 crash 났다 ------------------------------
+#
+# 예전 자리는 `app/llm/provider.py::_as_int` 였다. 그 모듈은 D-515 에서 없어졌고, 같은 값(제한 시간, 동시 실행 수)을
+# 이제 `app/ai/concurrency.py` 가 접는다. 지키는 원칙은 같다 - 망가진 값은 크래시가 아니라 기본값으로 떨어진다.
 
 
-def test_as_int_degrades_to_none_on_a_multi_dash_string():
-    """"--5".lstrip("-") 는 "5"라 isdigit() 을 통과하지만 int("--5") 는 ValueError.
-    _as_int 의 나머지 분기(전부 실패-안전)와 같은 원칙으로 None 을 돌려줘야 한다."""
-    from app.llm.provider import _as_int
+def test_a_multi_dash_timeout_degrades_to_the_default():
+    """"--5".lstrip("-") 는 "5"라 isdigit() 을 통과하지만 int("--5") 는 ValueError 다."""
+    from app.ai.concurrency import DEFAULT_TIMEOUT_SECONDS, clamp_timeout
 
-    assert _as_int("--5") is None
-
-
-def test_as_int_still_parses_ordinary_ints_and_signed_strings():
-    from app.llm.provider import _as_int
-
-    assert _as_int(30) == 30
-    assert _as_int("30") == 30
-    assert _as_int("-30") == -30
-    assert _as_int("not a number") is None
+    assert clamp_timeout("--5") == DEFAULT_TIMEOUT_SECONDS
 
 
-def test_resolve_config_does_not_raise_on_a_malformed_timeout_env():
-    """resolve_config 가 명시적 env 매핑(테스트, 향후 리팩터, pydantic 을 거치지 않는
-    호출부)으로 불려도 크래시 대신 기본 타임아웃으로 떨어져야 한다."""
-    from app.llm.provider import DEFAULT_TIMEOUT_SECONDS, resolve_config
+def test_ordinary_values_still_parse_and_stay_in_range():
+    from app.ai.concurrency import (
+        DEFAULT_CONCURRENCY,
+        MAX_TIMEOUT_SECONDS,
+        MIN_TIMEOUT_SECONDS,
+        clamp_concurrency,
+        clamp_timeout,
+    )
 
-    config = resolve_config(None, env={"LLM_TIMEOUT_SECONDS": "--5"})
+    assert clamp_timeout(30) == 30
+    assert clamp_timeout("30") == 30
+    assert clamp_timeout("-30") == MIN_TIMEOUT_SECONDS
+    assert clamp_timeout(10_000) == MAX_TIMEOUT_SECONDS
+    assert clamp_concurrency("not a number") == DEFAULT_CONCURRENCY
+
+
+def test_a_malformed_stored_timeout_falls_back_instead_of_raising():
+    """설정 표에 망가진 값이 있어도(손으로 고친 행, 옛 형식) 런타임은 크래시 대신 기본 제한 시간을 쓴다."""
+    from app.ai.concurrency import DEFAULT_TIMEOUT_SECONDS
+    from app.ai.runtime import config_from_values
+
+    config = config_from_values({"ai_timeout_seconds": "--5"})
     assert config.timeout_seconds == DEFAULT_TIMEOUT_SECONDS

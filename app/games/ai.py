@@ -57,7 +57,7 @@ def _parse(text: str) -> list:
     return []
 
 
-def generate_quiz(gateway, settings, *, topic: str, count: int, num_options: int) -> list[dict]:
+def generate_quiz(runtime, db, *, topic: str, count: int, num_options: int) -> list[dict]:
     """모델을 불러 퀴즈 문제를 생성하고, 앱이 쓸 수 있게 정제·검증한 목록을 돌려준다.
 
     실패는 사용자 친화 메시지(QuizGenerateError)로 올린다. 「아직 설정되지 않았다」만
@@ -69,13 +69,12 @@ def generate_quiz(gateway, settings, *, topic: str, count: int, num_options: int
         "count": int(count),
         "num_options": int(num_options),
     }
-    result = gateway.generate(
-        task=TASK, data=json.dumps(request, ensure_ascii=False)
-    )
+    from app.ai.actions import GAME_QUIZ
+
+    result = runtime.generate(db, action_key=GAME_QUIZ, task=TASK, data=json.dumps(request, ensure_ascii=False))
     if not result.ok:
         if result.status in (contract.STATUS_UNCONFIGURED, contract.STATUS_DISABLED,
-                             contract.STATUS_MODEL_MISSING, contract.STATUS_RUNTIME_MISSING,
-                             contract.STATUS_UNSUPPORTED, contract.STATUS_NOT_LOGGED_IN):
+                             contract.STATUS_CREDENTIAL_ERROR):
             raise QuizGenerateError(
                 f"{result.notice or contract.FALLBACK_NOTICE} 관리자에게 문의하세요."
             )

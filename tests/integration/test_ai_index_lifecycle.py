@@ -53,7 +53,7 @@ class FakeEmbed(contract.EmbedAdapter):
 
 
 def _gateway() -> contract.Gateway:
-    return contract.Gateway(enabled=True, embed_adapter=FakeEmbed(), generate_adapter=None)
+    return contract.Gateway(enabled=True, embed_adapter=FakeEmbed())
 
 
 def _pptx(text: str) -> bytes:
@@ -200,7 +200,7 @@ def test_an_installation_without_a_model_does_not_reindex_forever(db, document):
     """🔴 모델이 없는 설치에서 「임베딩 판이 안 맞는다」로 매 tick 마다 전 문서를 다시
     색인하면, **아무 벡터도 안 만들면서 CPU 만 태운다.** 그 상태에서도 최신은 최신이다.
     """
-    empty = contract.Gateway(enabled=True, embed_adapter=None, generate_adapter=None)
+    empty = contract.Gateway(enabled=True, embed_adapter=None)
     index_service.run_once(db, gateway=empty, limit=20)
     assert _state(db, document.id).status == STATE_OK
     index_service.sweep_stale(db, versions=index_service.current_versions(empty))

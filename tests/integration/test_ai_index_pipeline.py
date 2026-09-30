@@ -2,8 +2,8 @@
 
 ## 🔴 이 파일의 Exit 성질
 
-**생성 Adapter 가 비활성인 상태에서 파싱·색인·임베딩이 정상이다.** 그것이 P-18 의
-완료 조건이고, 여기 있는 시험 전부가 `generate_adapter=None` 인 Gateway 로 돈다.
+**생성이 없는 상태에서 파싱·색인·임베딩이 정상이다.** 그것이 P-18 의 완료 조건이고, 여기 있는 시험 전부가
+생성 없이 돈다(생성은 D-515 부터 AI 런타임이 맡고 Gateway 는 임베딩만 한다).
 
 그리고 그 반대편도 함께 든다: **임베딩 모델까지 없으면** chunk 는 만들어지고 벡터
 칸이 NULL 로 남는다. 그 상태가 정상이라는 것을 못박아야 「모델이 없으면 색인이
@@ -79,11 +79,10 @@ class FakeEmbed(contract.EmbedAdapter):
 
 
 def _gateway(*, embed_available: bool = True, adapter=None) -> contract.Gateway:
-    # 🔴 `generate_adapter` 가 없다. 그것이 이 파일의 전제다.
+    # 🔴 생성이 없다. 그것이 이 파일의 전제다 - Gateway 는 임베딩만 한다(D-515).
     return contract.Gateway(
         enabled=True,
         embed_adapter=adapter or FakeEmbed(available=embed_available),
-        generate_adapter=None,
     )
 
 

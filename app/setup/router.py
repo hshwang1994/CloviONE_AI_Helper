@@ -47,6 +47,7 @@ def setup_checklist(request: Request, db: Session = Depends(get_db)) -> dict:
         secrets=request.app.state.secret_provider,
         cache=request.app.state.settings_cache,
         gateway=getattr(request.app.state, "ai_gateway", None),
+        runtime=getattr(request.app.state, "ai_runtime", None),
     )
 
 

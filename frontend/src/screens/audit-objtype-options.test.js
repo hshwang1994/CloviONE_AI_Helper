@@ -56,14 +56,14 @@ const DYNAMIC = {
   job_title: "app/org/router.py — object_type=audit_type",
   app_setting: "app/settings/service.py — OBJECT_TYPE",
   system_setting: "app/sysops/router.py — OBJECT_TYPE",
-  llm_config: "app/llm_console/service.py — OBJECT_TYPE",
+  ai_config: "app/ai/console/service.py — OBJECT_TYPE",
   integration: "app/integrations/service.py — OBJECT_TYPE",
 };
 
 /* 없어진 기능의 옛 기록 — 새로 쌓이지 않지만 지난 기록이 남아 있어 고를 수는 있어야 한다.
    그래서 「고를 수 있는 값」이 「지금 기록되는 값」보다 넓은 것은 정상이고, 그 사실이
    이름표에 적혀 있어야 한다. */
-const RETIRED = ["runner", "workflow", "template", "document_generation", "user_notion_mapping"];
+const RETIRED = ["runner", "workflow", "template", "document_generation", "user_notion_mapping", "llm_config"];
 
 const values = OBJTYPE_OPTS.map((o) => o.value);
 
@@ -112,7 +112,8 @@ describe("objTypeKo — 표의 「대상」 칸도 같은 낱말을 쓴다 (xe-1
   it("공용 사전이 모르는 값도 한국어로 나온다", () => {
     expect(objTypeKo("board_post")).toBe("게시글");
     expect(objTypeKo("storage_provider")).toBe("파일 저장소");
-    expect(objTypeKo("llm_config")).toBe("AI 모델 설정");
+    expect(objTypeKo("llm_config")).toBe("AI 모델 설정(옛 기능)");
+    expect(objTypeKo("ai_config")).toBe("AI 설정");
   });
 
   it("반례 — 사전 어디에도 없는 값은 원문을 그대로 둔다(정보를 지우지 않는다)", () => {

@@ -76,33 +76,32 @@ class TopicEmbed(contract.EmbedAdapter):
         )
 
 
-class ScriptedGenerate(contract.GenerateAdapter):
-    """넘어온 (system, user) 쌍을 그대로 들고 있는다. **그것이 시험 대상이다.**"""
+class ScriptedGenerate:
+    """제공자 자리에 선다. 넘어온 (system, user) 쌍을 그대로 들고 있는다. **그것이 시험 대상이다.**
 
-    def __init__(self, *, status: str = contract.STATUS_OK, text: str = "답변입니다 [1]."):
-        self.name = "scripted"
-        self.model = "scripted-model"
-        self._status = status
+    ``reject=True`` 는 자격이 거부된 제공자다(예전 시험의 「로그인 안 됨」 자리) - 런타임이 연결 상태를 막힘으로
+    바꾸고 사용자에게 「AI 연결이 끊겨 있습니다」를 말한다.
+    """
+
+    def __init__(self, *, text: str = "답변입니다 [1].", reject: bool = False):
         self._text = text
+        self._reject = reject
         self.calls: list[tuple[str, str]] = []
 
-    def capability(self):
-        if self._status != contract.STATUS_OK:
-            return contract.unavailable(contract.CAP_GENERATE, self._status, model=self.model)
-        return contract.available(contract.CAP_GENERATE, model=self.model)
+    def generate(self, *, system, user, model, max_output_tokens, timeout):
+        from app.ai.providers import base
 
-    def generate(self, *, system: str, user: str):
         self.calls.append((system, user))
-        return contract.GenerateResult(
-            status=self._status, model=self.model,
-            text=self._text if self._status == contract.STATUS_OK else None,
-        )
+        if self._reject:
+            return base.failure(base.ERROR_AUTH, "http_401", http_status=401)
+        return base.success(self._text)
 
 
-def _gateway(generate) -> contract.Gateway:
-    return contract.Gateway(
-        enabled=True, embed_adapter=TopicEmbed(), generate_adapter=generate
-    )
+def _gateway(generate=None) -> contract.Gateway:
+    """검색만 하는 Gateway 에 가짜 제공자를 붙여 둔다 - `worker_for` 가 그 제공자로 런타임을 만든다."""
+    gateway = contract.Gateway(enabled=True, embed_adapter=TopicEmbed())
+    gateway.scripted_generate = generate
+    return gateway
 
 
 # ── 세계 ─────────────────────────────────────────────────────────────────────
@@ -149,14 +148,16 @@ def _seed_doc(db, space, title, *paragraphs):
 
 @pytest.fixture()
 def worker_for(app, settings, fake_clock):
-    """가짜 Gateway 를 실은 워커. 잡 핸들러가 `ctx.extras["ai_gateway"]` 를 읽는다."""
+    """가짜 Gateway 와 가짜 제공자를 끼운 런타임을 실은 워커. 핸들러가 `ctx.extras` 에서 둘을 읽는다."""
+    from tests.fakes.ai import install_runtime
 
     def build(gateway):
+        runtime = install_runtime(app, gateway.scripted_generate)
         ctx = WorkerContext(
             settings=settings,
             clock=fake_clock,
             outbound_client=app.state.outbound_client,
-            extras={"ai_gateway": gateway},
+            extras={"ai_gateway": gateway, "ai_runtime": runtime},
         )
         return Worker(
             app.state.session_factory, fake_clock,
@@ -310,7 +311,7 @@ def test_when_generation_is_blocked_the_citations_still_come_out(
 ):
     """생성이 막혀도 근거로는 갈 수 있다(S10 Exit). 그리고 **왜 막혔는지** 말한다."""
     _seed_doc(db, space, "연차 규정", "연차는 입사 1년 뒤부터 15일이 생긴다.")
-    gateway = _gateway(ScriptedGenerate(status=contract.STATUS_NOT_LOGGED_IN))
+    gateway = _gateway(ScriptedGenerate(reject=True))
     index_service.run_once(db, gateway=_gateway(ScriptedGenerate()), limit=50)
     db.commit()
 
@@ -320,7 +321,7 @@ def test_when_generation_is_blocked_the_citations_still_come_out(
     replies = _replies(db, posted["conversation_id"])
     stored = json.loads(replies[0]["structured_payload_json"])
     assert stored["citations"], "생성이 막혔다고 인용까지 사라지면 안 된다"
-    assert "로그인되어 있지 않습니다" in replies[0]["content"]
+    assert "AI 연결이 끊겨 있습니다" in replies[0]["content"]
     # 이쪽은 재시도할 값이 있다 — 사용자 메시지를 실패로 남겨 '다시 시도'를 살린다.
     assert _user_message(db, posted["conversation_id"])["processing_status"] == PROC_FAILED
 

@@ -2,8 +2,9 @@
 
 ## 이 파일의 Exit 성질
 
-**생성 Adapter 가 비활성인 상태에서 검색과 인용이 정상이다.** 그것이 S10 의 Exit 조건
-하나이고, 여기 있는 시험 대부분이 `generate_adapter=None` 인 Gateway 로 돈다.
+**생성이 비활성인 상태에서 검색과 인용이 정상이다.** 그것이 S10 의 Exit 조건 하나이고, 여기 있는 시험
+대부분이 생성 없이 돈다. 생성은 D-515 부터 AI 런타임이 맡으므로 생성을 보는 시험은 가짜 제공자를 끼운
+오프라인 런타임(`tests/fakes/ai.py::offline_runtime`)을 함께 넘긴다.
 
 권한 축은 여기 없다 — `tests/security/test_ai_retrieval_permission.py` 가 본다.
 두 관심사를 한 파일에 섞으면 「권한 시험이 있다」는 말이 절반만 사실이 된다.
@@ -18,6 +19,7 @@ import pytest
 from sqlalchemy import select
 
 from app.ai import catalog
+from tests.fakes.ai import offline_runtime
 from app.ai.gateway import contract
 from app.ai.index import service as index_service
 from app.ai.models import SOURCE_DOCUMENT, SOURCE_FILE, DocumentChunk
@@ -84,27 +86,18 @@ class ScriptedEmbed(contract.EmbedAdapter):
         )
 
 
-class ScriptedGenerate(contract.GenerateAdapter):
-    """받은 (system, user) 쌍을 그대로 들고 있는다. **무엇이 넘어갔는지가 시험 대상이다.**"""
+class ScriptedGenerate:
+    """제공자 자리에 선다. 받은 (system, user) 쌍을 그대로 들고 있는다. **무엇이 넘어갔는지가 시험 대상이다.**"""
 
-    def __init__(self, *, status: str = contract.STATUS_OK, text: str = "답변입니다 [1]."):
-        self.name = "scripted"
-        self.model = "scripted-model"
-        self._status = status
+    def __init__(self, *, text: str = "답변입니다 [1]."):
         self._text = text
         self.calls: list[tuple[str, str]] = []
 
-    def capability(self):
-        if self._status != contract.STATUS_OK:
-            return contract.unavailable(contract.CAP_GENERATE, self._status, model=self.model)
-        return contract.available(contract.CAP_GENERATE, model=self.model)
+    def generate(self, *, system, user, model, max_output_tokens, timeout):
+        from app.ai.providers import base
 
-    def generate(self, *, system: str, user: str):
         self.calls.append((system, user))
-        return contract.GenerateResult(
-            status=self._status, model=self.model,
-            text=self._text if self._status == contract.STATUS_OK else None,
-        )
+        return base.success(self._text)
 
 
 TOPICS = {
@@ -114,13 +107,12 @@ TOPICS = {
 }
 
 
-def _gateway(*, embed=True, generate=None) -> contract.Gateway:
+def _gateway(*, embed=True) -> contract.Gateway:
     # `embed=False` 는 **모델 파일을 안 넣은 설치**다(어댑터는 있고 파일이 없다). 그것이
     # 실제로 흔한 상태이고, 「어댑터 자체가 없다」와는 운영자가 할 일이 다르다.
     return contract.Gateway(
         enabled=True,
         embed_adapter=ScriptedEmbed(TOPICS, available=embed),
-        generate_adapter=generate,
     )
 
 
@@ -235,7 +227,7 @@ def test_semantic_finds_what_the_word_lanes_cannot(db, reader, world):
 def test_the_query_is_embedded_as_a_query_not_as_a_passage(db, reader, world):
     """접두사를 안 붙이면 **오류가 하나도 안 나고** 품질만 조용히 떨어진다(S9)."""
     adapter = ScriptedEmbed(TOPICS)
-    gateway = contract.Gateway(enabled=True, embed_adapter=adapter, generate_adapter=None)
+    gateway = contract.Gateway(enabled=True, embed_adapter=adapter)
     _index(db, gateway)
     adapter.kinds.clear()
     retrieval.retrieve(db, reader, raw_query="연차", gateway=gateway)
@@ -316,11 +308,14 @@ def test_archived_documents_are_not_evidence(db, reader, space):
 
 def test_search_and_citations_keep_working_while_generation_is_blocked(db, reader, world):
     """🔴 S10 Exit — 생성 Provider 차단 시 검색/인용이 계속 동작한다."""
-    blocked = ScriptedGenerate(status=contract.STATUS_NOT_LOGGED_IN)
-    gateway = _gateway(generate=blocked)
+    blocked = ScriptedGenerate()
+    gateway = _gateway()
     _index(db, gateway)
 
-    result = answer_mod.answer(db, reader, raw_query="연차", gateway=gateway)
+    # 생성이 꺼진 설치 - 관리자가 아직 켜지 않았거나 연결이 막혔다.
+    result = answer_mod.answer(
+        db, reader, raw_query="연차", gateway=gateway, runtime=offline_runtime(blocked, enabled=False),
+    )
     assert result.ok is False
     assert result.notice
     assert result.retrieval.citations          # 근거는 그대로 나간다
@@ -333,10 +328,10 @@ def test_search_and_citations_keep_working_while_generation_is_blocked(db, reade
 def test_the_model_only_sees_the_retrieved_chunks(db, reader, world):
     """Context 는 인용 목록 밖을 못 본다 — 그것이 「권한이 먼저」의 다른 쪽 면이다."""
     generator = ScriptedGenerate()
-    gateway = _gateway(generate=generator)
+    gateway = _gateway()
     _index(db, gateway)
 
-    result = answer_mod.answer(db, reader, raw_query="연차", gateway=gateway)
+    result = answer_mod.answer(db, reader, raw_query="연차", gateway=gateway, runtime=offline_runtime(generator))
     assert result.ok
     _system, user_message = generator.calls[0]
     for cite in result.retrieval.citations:
@@ -347,11 +342,11 @@ def test_the_model_only_sees_the_retrieved_chunks(db, reader, world):
 def test_no_evidence_means_the_model_is_not_called_at_all(db, reader, world):
     """빈 Context 로 부르면 모델은 무언가를 지어내고, 그 문장에는 인용이 없다."""
     generator = ScriptedGenerate()
-    gateway = _gateway(generate=generator)
+    gateway = _gateway()
     _index(db, gateway)
 
     result = answer_mod.answer(
-        db, reader, raw_query="존재하지않는낱말조합xyz", gateway=gateway
+        db, reader, raw_query="존재하지않는낱말조합xyz", gateway=gateway, runtime=offline_runtime(generator),
     )
     assert result.status == contract.STATUS_EMPTY
     assert generator.calls == []
@@ -359,10 +354,10 @@ def test_no_evidence_means_the_model_is_not_called_at_all(db, reader, world):
 
 def test_the_context_is_numbered_so_the_answer_can_point_back(db, reader, world):
     generator = ScriptedGenerate()
-    gateway = _gateway(generate=generator)
+    gateway = _gateway()
     _index(db, gateway)
 
-    result = answer_mod.answer(db, reader, raw_query="연차", gateway=gateway)
+    result = answer_mod.answer(db, reader, raw_query="연차", gateway=gateway, runtime=offline_runtime(generator))
     _system, user_message = generator.calls[0]
     assert "[1]" in user_message
 

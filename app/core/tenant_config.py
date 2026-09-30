@@ -45,7 +45,8 @@ class TenantSetting:
 # 새 설치처 고유값을 설정에 추가하면 여기에도 넣어야 한다. 안 넣으면 그 값은 비어 있어도
 # 아무 데도 안 뜨고, 우리가 없애려던 바로 그 침묵으로 돌아간다.
 #
-# ⚠️ 이 목록과 아래 OVERRIDABLE_KEYS 는 **다른 목적의 다른 목록**이다 - 지금은 겹치는
+# ⚠️ 관리 콘솔에서 바꾼 값을 `Settings` 에 덮어쓰던 목록(`OVERRIDABLE_KEYS`)은 D-515 에서 걷었다 - 그 목록과는
+# **다른 목적의 다른 목록**이었다. 아래 설명은 그때의 기록이다. 지금은 겹치는
 # 항목이 하나도 없다. `allowed_email_domains` 가 여기에만 있고 저기엔 없는 이유는 취향이
 # 아니라 **타입이 안 맞기 때문**이다: `Settings.allowed_email_domains` 는 `str`(콤마
 # 구분)인데 레지스트리 값은 `list`(registry.py:264) 다. `apply_overrides` 는
@@ -68,103 +69,6 @@ TENANT_SETTINGS: tuple[TenantSetting, ...] = (
 
 STATE_SET = "set"
 STATE_UNSET = "unset"
-
-
-# ── 관리 콘솔에서 바꾼 값을 살아 있는 Settings 에 덮어쓰는 목록 (9-4, 9-5) ────
-#
-# ## 왜 필요한가
-#
-# 이 값들의 **소비자는 전부 `settings.<key>` 를 읽는다**
-# (app/llm/provider.py::resolve_config).
-# 그래서 DB 설정만 바꾸면 화면에는 새 값이 보이는데 실제 조회는 옛 값으로 나간다 -
-# 이 저장소가 가장 싫어하는 종류의 거짓말이다("설정했다는데 안 된다").
-#
-# 소비자를 전부 고쳐 캐시를 읽게 만드는 길도 있지만, 그러면 판정이 소비자 수만큼 흩어진다.
-# 대신 **한 곳**에서 살아 있는 Settings 객체에 값을 얹는다. `SettingsCache.load()` 가
-# 이 함수를 부르고, 그 load 는 웹 부팅 - 워커 부팅 - 설정 저장 - 워커의 60초 재적재 틱
-# (worker_main.py::settings_cache_tick)마다 돈다. 즉 두 프로세스가 최대 60초 안에 같은
-# 값으로 수렴한다.
-#
-# 이 목록과 위 TENANT_SETTINGS 가 다른 목적의 다른 목록인 이유는 그 목록 위 주석에 적었다.
-# ## 왜 빈 값은 덮지 않고 **원래 값으로 되돌리는가**
-#
-# 레지스트리 기본값이 빈 문자열이다(= 아직 이 화면에서 저장한 적 없음). 빈 값까지 덮으면
-# **env 로 설정해 둔 기존 설치가 업그레이드하는 순간 통째로 미설정이 된다.**
-#
-# 그래서 빈 값은 "덮지 않는다" 가 아니라 **"원래 값(부팅 시점의 env 값)으로 되돌린다"** 다.
-# 처음에는 '덮지 않는다' 로 만들었는데, 그러면 화면에서 값을 넣었다가 지웠을 때 지운 값이
-# 그대로 남는다 - 화면은 "환경변수 값을 씁니다" 라고 말하면서 실제로는 방금 지운 값으로
-# 조회한다. 테스트가 그것을 잡았다. 그래서 첫 load 에서 원래 값을 기억해 둔다.
-OVERRIDABLE_KEYS: tuple[str, ...] = (
-    "llm_enabled",
-    "llm_backend",
-    "llm_model",
-    "llm_executable",
-    "llm_timeout_seconds",
-    "llm_max_concurrency",
-)
-
-
-def _override_is_set(value: Any) -> bool:
-    """오버레이에서 '값이 정해졌다' 고 볼 수 있는가.
-
-    `_is_set` 과 **한 군데 다르다**: 숫자 0 을 '안 정함' 으로 본다.
-
-    이유: `llm_timeout_seconds` 의 레지스트리 기본값 0 은 "환경변수나 기본값을 따른다"는
-    센티널이다(app/settings/registry.py::_llm_timeout). 그런데 `_is_set(0)` 은 True 다.
-    그대로 쓰면 **아무도 손대지 않은 설치에서 0 이 얹혀** env 의 `LLM_TIMEOUT_SECONDS` 가
-    조용히 무시된다 - 화면에는 아무 표시도 안 난다. `_is_set` 자체를 고치지 않는 이유:
-    그 함수는 진단의 '설정 안 함' 판정에도 쓰이고, 거기서는 0 의 뜻이 다르다.
-
-    ⚠️ 이 목록의 숫자 키가 `llm_timeout_seconds` 뿐이라는 전제는 **더 이상 사실이 아니다**
-    (`llm_max_concurrency` 도 숫자이고 OVERRIDABLE_KEYS 에 있다). 그 키의 레지스트리
-    기본값은 1(센티널이 아니라 **실제 값** - "동시 실행 1개"). 그래서 이 함수는
-    `llm_max_concurrency` 를 **아무도 손대지 않아도 매 재적재마다 1로 얹는다** - env 의
-    `LLM_MAX_CONCURRENCY` 를 설정해 둔 설치라면 그 값이 조용히 무시된다. 실노출은 좁다
-    (어느 env 템플릿에도 이 변수가 없는, 비문서 노브다) - 같은 비대칭이 화면에도 있어
-    `SYS-08`(docs/BACKLOG.md)로 추적한다. 두 숫자 키가 "0=센티널" 규약을 공유하게 만들거나,
-    센티널 판정을 값이 아니라 "DB 행이 있는가"로 바꾸는 것이 근본 수정이다.
-    """
-    if isinstance(value, bool):
-        return True
-    if isinstance(value, (int, float)) and value == 0:
-        return False
-    return _is_set(value)
-
-
-def apply_overrides(settings, values: dict, baseline: dict | None = None) -> list[str]:
-    """DB 설정 값을 `settings` 에 얹는다. 실제로 바꾼 키 이름을 돌려준다.
-
-    `baseline` 은 **부팅 시점의 env 값**을 담는 dict 다. 제자리에서 채워 넣으므로 부르는
-    쪽(SettingsCache)은 같은 dict 를 계속 넘기기만 하면 된다. 첫 호출에서 채워지고,
-    그 뒤로는 "DB 값이 비었으면 여기로 되돌린다" 의 기준이 된다.
-
-    `settings` 가 None 이면 아무것도 안 한다(테스트가 Settings 없이 캐시만 쓰는 경우).
-    """
-    if settings is None:
-        return []
-    if baseline is None:
-        baseline = {}
-    changed: list[str] = []
-    for key in OVERRIDABLE_KEYS:
-        if not hasattr(settings, key):
-            # Settings 에 없는 필드는 얹을 자리가 없다. 배선 실수지만 부팅을 죽이지는 않는다.
-            continue
-        if key not in baseline:
-            baseline[key] = getattr(settings, key)
-        db_value = _unwrap(values.get(key))
-        target = db_value if _override_is_set(db_value) else baseline[key]
-        if getattr(settings, key, None) == target:
-            continue
-        try:
-            setattr(settings, key, target)
-        except (AttributeError, ValueError, TypeError):
-            # 타입이 안 맞으면 조용히 넘긴다. 레지스트리 검증기가 모양을 이미 봤으므로
-            # 여기까지 오는 것은 배선 실수뿐인데, 그것 때문에 부팅이 죽으면 설정 하나가
-            # 서버 전체를 못 뜨게 만든다.
-            continue
-        changed.append(key)
-    return changed
 
 
 def _unwrap(value: Any) -> Any:
@@ -212,7 +116,7 @@ def tenant_config_status(settings, effective: dict | None = None) -> dict:
         # 9-4 에서 노션 DB id 도 레지스트리에 들어오면서 그 규칙이 뒤집혔다: 저장한 적 없는
         # 키도 기본값(빈 문자열)으로 항상 존재하게 되어, env 로 설정을 마친 설치가
         # "설정 안 함" 으로 보고됐다. 빈 DB 값은 '아직 이 화면에서 안 건드림' 이라는 뜻이고
-        # 그때 실제로 적용되는 값은 env 다(app/core/tenant_config.py::apply_overrides).
+        # 그때 실제로 적용되는 값은 env 다.
         db_value: Any = _unwrap(eff[spec.key]) if spec.key in eff else None
         if _is_set(db_value):
             value: Any = db_value

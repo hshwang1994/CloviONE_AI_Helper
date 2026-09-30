@@ -675,23 +675,23 @@ flow("FF-0764", "admin_settings__os", "refresh",
 # 탭 — AI
 # ═══════════════════════════════════════════════════════════════════════════
 def _ai_effective(r, ctx):
-    panel = r.page.locator('[data-testid="llm-effective"]')
+    panel = r.page.locator('[data-testid="ai-state"]')
     if not panel.count():
-        stop("«지금 적용 중인 값» 이 없다")
+        stop("«연결 상태» 가 없다")
     text = " ".join((panel.first.inner_text() or "").split())[:200]
     return {"ui_action": "AI 탭을 연다",
-            "observed": {"effective": text},
-            "rendered": "지금 적용 중인 값 «%s»" % text,
-            "failed": None if text else "적용 중인 값이 비었다"}
+            "observed": {"state": text},
+            "rendered": "연결 상태 «%s»" % text,
+            "failed": None if text else "연결 상태가 비었다"}
 
 
 flow("FF-0776", "admin_settings__ai", "read",
-     "지금 적용 중인 값·한도·연결 확인 여부·로그인 안내 조회",
+     "연결 상태(여섯 가지)와 마지막 확인, 마지막 성공 시각 조회",
      _ai_effective, route="/settings?tab=ai", shell=ADMIN, api="/api/admin")
 
 
 def _ai_saved(r, ctx):
-    grid = r.page.locator('[data-testid="llm-settings-grid"]')
+    grid = r.page.locator('[data-testid="ai-settings-form"]')
     fields = grid.locator("input, [role=combobox]").count() if grid.count() else 0
     return {"ui_action": "저장된 설정 값을 받는다",
             "observed": {"fields": fields},
@@ -714,7 +714,7 @@ def _ai_draft(r, ctx):
     save = r.page.get_by_role("button", name="저장")
     revert = r.page.get_by_role("button", name="되돌리기")
     return {"ui_action": "«모델» 을 초안으로 바꾼다",
-            "frontend_state": "draft.llm_model=s18-pilot-model",
+            "frontend_state": "draft.model=s18-pilot-model",
             "observed": {"before": before,
                          "save_enabled": bool(save.count()) and not save.first.is_disabled(),
                          "revert_enabled": bool(revert.count()) and not revert.first.is_disabled()},
@@ -727,7 +727,7 @@ def _ai_draft(r, ctx):
 
 
 flow("FF-0778", "admin_settings__ai", "inline_edit",
-     "사용 여부·백엔드·모델·제한 시간·동시 실행 수·실행 파일을 초안(draft)으로 편집",
+     "제공자·모델·제한 시간·동시 실행 수·답변 생성 켜기를 초안(draft)으로 편집",
      _ai_draft, route="/settings?tab=ai", shell=ADMIN, server=False,
      cross=("@reload", ""))
 
@@ -791,15 +791,15 @@ flow("FF-0781", "admin_settings__ai", "form_validation", "초안이 없으면 �
 
 
 def _ai_test(r, ctx):
-    button = r.page.get_by_role("button", name="연결 테스트")
+    button = r.page.get_by_role("button", name="연결 확인")
     if not button.count():
-        stop("«연결 테스트» 가 없다")
+        stop("«연결 확인» 이 없다")
     r.rec.reset()
     button.first.click()
     r.settle(2500)
     posts = [c for c in r.rec.calls if c["method"] == "POST"]
     gets = [c for c in r.rec.calls if c["method"] == "GET" and "job" in c["path"]]
-    return {"ui_action": "«연결 테스트» 를 누른다",
+    return {"ui_action": "«연결 확인» 을 누른다",
             "frontend_state": "작업 큐에 맡기고 결과만 되묻는다",
             "observed": {"posts": [(c["path"], c["status"]) for c in posts][:2],
                          "polls": len(gets)},
@@ -809,14 +809,14 @@ def _ai_test(r, ctx):
 
 
 flow("FF-0782", "admin_settings__ai", "admin_op",
-     "연결 테스트를 작업 큐에 맡긴다(웹 요청에서 기다리지 않는다)",
+     "연결 확인을 작업 큐에 맡긴다(웹 요청에서 기다리지 않는다)",
      _ai_test, route="/settings?tab=ai", shell=ADMIN, api="/api/admin")
 flow("FF-0783", "admin_settings__ai", "read",
      "테스트 잡 결과를 끝날 때까지만 2초 간격으로 다시 묻는다",
      _ai_test, route="/settings?tab=ai", shell=ADMIN, api="/api/admin")
 
 flow("FF-0784", "admin_settings__ai", "refresh", "조회 실패 시 다시 시도",
-     retry_from_error("/api/admin/llm", "AI 설정"), route="/settings?tab=ai",
+     retry_from_error("/api/admin/ai", "AI 설정"), route="/settings?tab=ai",
      shell=ADMIN, api="/api/admin")
 
 

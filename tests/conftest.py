@@ -574,10 +574,11 @@ def setup_complete(db, app, settings, make_user, fake_clock):
     비는 이유가 아니라 배너에 쓰이지 않는다(app/setup/steps.py). 「Notion 토큰」과
     「사용자 매핑」 단계는 그 런타임과 함께 없어졌다(S14).
 
-    AI 항목은 S11 부터 Model Gateway 가 판정한다 — 레지스트리 행을 심는 것으로는 안 되고,
-    이 앱이 실제로 읽는 `app.state.ai_gateway` 를 「둘 다 된다」로 바꿔야 한다.
+    AI 항목은 검색을 `app.state.ai_gateway` 가, 답변 생성을 AI 런타임이 판정한다(D-515) — 레지스트리 행을 심는
+    것으로는 안 되고, 검색 Gateway 를 「된다」로 바꾸고 AI 설정을 채워야 한다.
     """
     from app.ai.gateway import contract
+    from tests.fakes.ai import configure_ai
 
     class _Ok:
         name = "seeded"
@@ -593,8 +594,8 @@ def setup_complete(db, app, settings, make_user, fake_clock):
     app.state.ai_gateway = contract.Gateway(
         enabled=True,
         embed_adapter=_Ok(contract.CAP_EMBED),
-        generate_adapter=_Ok(contract.CAP_GENERATE),
     )
+    configure_ai(app)
 
     from app.integrations.models import HEALTH_UP, Integration
     from app.notion_mapping.models import STATUS_VERIFIED, UserNotionMapping

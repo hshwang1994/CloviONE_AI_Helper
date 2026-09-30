@@ -946,37 +946,21 @@ def _ai_app(db_url, tmp_path, fake_clock, fake_http):
 
 
 class _ScriptedGenerate:
-    """S11 이후 퀴즈는 `Gateway.generate()` 를 지난다(D-266) — 가짜를 세울 자리도 거기다."""
+    """퀴즈는 AI 런타임을 지난다(D-515) — 가짜를 세울 자리는 그 런타임의 제공자다."""
 
-    name = "scripted"
-    model = "scripted-model"
-
-    def __init__(self, *, text="", status=None):
-        from app.ai.gateway import contract
-
+    def __init__(self, *, text=""):
         self._text = text
-        self._status = status or contract.STATUS_OK
 
-    def capability(self):
-        from app.ai.gateway import contract
+    def generate(self, *, system, user, model, max_output_tokens, timeout):
+        from app.ai.providers import base
 
-        if self._status != contract.STATUS_OK:
-            return contract.unavailable(contract.CAP_GENERATE, self._status, model=self.model)
-        return contract.available(contract.CAP_GENERATE, model=self.model)
-
-    def generate(self, *, system, user):
-        from app.ai.gateway import contract
-
-        return contract.GenerateResult(
-            status=self._status, model=self.model,
-            text=self._text if self._status == contract.STATUS_OK else None,
-        )
+        return base.success(self._text)
 
 
-def _use_model(app, adapter):
-    from app.ai.gateway import contract
+def _use_model(app, adapter, **kwargs):
+    from tests.fakes.ai import install_runtime
 
-    app.state.ai_gateway = contract.Gateway(enabled=True, generate_adapter=adapter)
+    install_runtime(app, adapter, **kwargs)
 
 
 def test_quiz_generate_flag_on_returns_cleaned(db_url, tmp_path, fake_clock, fake_http):
@@ -1031,10 +1015,9 @@ def test_quiz_generate_without_a_model_reports_unconfigured_not_generic_failure(
     """「아직 설정 안 됨」과 「지연/실패」는 사용자가 할 일이 다르다 — 앞은 다시 시도해도
     소용없다. 러너 시절에는 그 구별이 토큰 파일 유무였고, 지금은 Gateway 의 상태 어휘가
     들고 온다."""
-    from app.ai.gateway import contract
-
     app, settings = _ai_app(db_url, tmp_path, fake_clock, fake_http)
-    app.state.ai_gateway = contract.Gateway(enabled=True, generate_adapter=None)
+    # 모델을 고르지 않은 설치다 - 다시 시도해도 소용없으니 관리자에게 가라고 말해야 한다.
+    _use_model(app, _ScriptedGenerate(), model="")
     with TestClient(app, raise_server_exceptions=False) as c:
         c.post("/login", json={"email": "qa@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
         csrf = c.get("/api/me").json()["csrf_token"]

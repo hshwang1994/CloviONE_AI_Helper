@@ -284,7 +284,7 @@ def build_handlers() -> dict:
     from app.jobs.handlers.mail_verify import MAIL_VERIFY_JOB_TYPE, handle_mail_verify
     from app.jobs.handlers.project_weekly_summary import handle_project_weekly_summary
     from app.jobs.handlers.schedule_run import handle_schedule_run
-    from app.llm_console.service import JOB_TYPE_TEST
+    from app.ai.console.service import JOB_TYPE_VERIFY as JOB_TYPE_TEST
 
     return {
         "chat_message": handle_chat_message,
@@ -294,7 +294,7 @@ def build_handlers() -> dict:
         "mail_send": handle_mail_send,
         # 메일 서버 연결 확인(계획 3.3). 화면이 결과를 기다리므로 대화형 레인에서 돈다(app/jobs/lanes.py).
         MAIL_VERIFY_JOB_TYPE: handle_mail_verify,
-        # AI 연결 테스트(9-5). 웹 요청에서 기다리면 처리 칸이 수십 초 잠긴다 -
+        # AI 연결 확인(9-5 · D-515). 웹 요청에서 기다리면 처리 칸이 수십 초 잠긴다 -
         # 이유는 핸들러 파일 맨 위에 적어 뒀다.
         JOB_TYPE_TEST: handle_llm_connection_test,
         # 주간 리포트 AI 요약(§L 소비처). 같은 이유로 웹에서 안 부르고 잡 큐를 지난다.
@@ -334,6 +334,14 @@ def _bootstrap(settings: Settings, clock: Clock):
             "secret_provider": secrets,
             "ai_gateway": build_gateway(settings, outbound=outbound),
         },
+    )
+    # 생성은 AI 런타임 하나가 맡는다(D-515). 대화형 레인은 설정 캐시를 새로 읽는 틱이 없지만 런타임이 호출마다
+    # 캐시의 나이를 보고 새로 읽는다 - 관리 화면에서 바꾼 값이 워커 재시작 없이 쓰인다.
+    from app.ai.runtime import AiRuntime
+
+    ctx.extras["ai_runtime"] = AiRuntime(
+        settings=settings, outbound=outbound, secrets=secrets, session_factory=session_factory,
+        settings_cache=settings_cache, clock=clock,
     )
     return session_factory, ctx, settings_cache, outbound
 

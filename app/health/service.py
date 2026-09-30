@@ -92,8 +92,13 @@ def _ai_health(db: Session, settings: Settings) -> dict:
     from app.ai.index.service import index_health
 
     try:
+        from app.ai.gateway import contract
+        from app.ai.runtime import AiRuntime
+        from app.core.secret_refs import FileSecretReferenceProvider
+
         gateway = build_gateway(settings)
-        caps = gateway.capabilities()
+        runtime = AiRuntime(settings=settings, secrets=FileSecretReferenceProvider(settings.secrets_dir))
+        caps = contract.with_generation(gateway.capabilities(), runtime.capability(db))
         out = {"enabled": gateway.enabled, "capabilities": caps.as_dict()}
     except Exception:  # noqa: BLE001
         logger.exception("AI 상태를 읽지 못했다")

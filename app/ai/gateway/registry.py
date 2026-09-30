@@ -2,7 +2,7 @@
 
 ## 읽는 순서
 
-`Settings` 필드 → 환경변수 → 기본값. `app/llm/provider.py::resolve_config` 와 같은 순서다.
+`Settings` 필드 → 환경변수 → 기본값.
 설정 객체는 테스트가 명시적으로 주입할 수 있어 결정적이고, 환경변수는 관리 화면이 생기기
 전에도 운영자가 켤 수 있는 통로다. 둘 다 없으면 **꺼진 상태**가 기본이다(fail-closed).
 
@@ -143,24 +143,6 @@ def build_embed_adapter(config: AiConfig) -> contract.EmbedAdapter | None:
     )
 
 
-def build_generate_adapter(settings, *, outbound=None) -> contract.GenerateAdapter | None:
-    """생성 Adapter. 지금은 `app/llm` 의 CLI/API 백엔드 하나를 감싼 것뿐이다.
-
-    **`app/llm` 을 지우지 않는다.** 지우면 주간 리포트 요약이 멈추고, 두 벌로 두면
-    프롬프트 방어가 한쪽에만 걸린다(D-202 가 지적한 바로 그 상태다).
-    """
-    from app.ai.gateway.adapters.claude_cli import LlmBackendAdapter
-    from app.llm import provider as llm_provider
-
-    llm_config = llm_provider.resolve_config(settings)
-    if not llm_config.enabled:
-        return None
-    backend = llm_provider.select_backend(llm_config, outbound=outbound)
-    if backend is None:
-        return None
-    return LlmBackendAdapter(backend=backend, config=llm_config)
-
-
 def build_gateway(settings=None, *, outbound=None, env=None) -> contract.Gateway:
     """부팅 지점에서 한 번 부른다. **어떤 이유로도 예외를 올리지 않는다.**"""
     config = resolve_config(settings, env=env)
@@ -171,14 +153,8 @@ def build_gateway(settings=None, *, outbound=None, env=None) -> contract.Gateway
     except Exception:  # noqa: BLE001 - 어댑터를 못 만드는 것이 기동 실패가 되면 안 된다
         _logger().exception("임베딩 어댑터를 만들지 못했다")
         embed_adapter = None
-    try:
-        generate_adapter = build_generate_adapter(settings, outbound=outbound)
-    except Exception:  # noqa: BLE001
-        _logger().exception("생성 어댑터를 만들지 못했다")
-        generate_adapter = None
-    return contract.Gateway(
-        enabled=True, embed_adapter=embed_adapter, generate_adapter=generate_adapter
-    )
+    # 생성은 여기 없다 - AI 런타임(`app/ai/runtime.py`)이 호출마다 설정을 읽어 맡는다(D-515).
+    return contract.Gateway(enabled=True, embed_adapter=embed_adapter)
 
 
 def _logger():

@@ -230,11 +230,11 @@ class _AlwaysAnswers:
         return contract.EmbedResult(status=contract.STATUS_OK, model=self.model,
                                     dim=384, vectors=tuple(one for _ in texts))
 
-    def generate(self, *, system, user):
-        from app.ai.gateway import contract
+    def generate(self, *, system, user, model, max_output_tokens, timeout):
+        # 제공자 자리(D-515) - 생성은 AI 런타임이 이 가짜를 부른다.
+        from app.ai.providers import base
 
-        return contract.GenerateResult(status=contract.STATUS_OK, model=self.model,
-                                       text="답변입니다.")
+        return base.success("답변입니다.")
 
 
 @pytest.fixture()
@@ -248,12 +248,14 @@ def chat_quota_world(client, app, login_as, db, settings, fake_clock):
     from app.knowledge.models import Document, KnowledgeSpace
     from app.org.constants import DEFAULT_ORG_ID
 
+    from tests.fakes.ai import install_runtime
+
     gateway = contract.Gateway(
         enabled=True,
         embed_adapter=_AlwaysAnswers(contract.CAP_EMBED),
-        generate_adapter=_AlwaysAnswers(contract.CAP_GENERATE),
     )
     app.state.ai_gateway = gateway
+    runtime = install_runtime(app, _AlwaysAnswers(contract.CAP_GENERATE))
 
     space = KnowledgeSpace(org_id=DEFAULT_ORG_ID, name="규정", slug="rules",
                            owner_kind="organization")
@@ -271,7 +273,7 @@ def chat_quota_world(client, app, login_as, db, settings, fake_clock):
 
     ctx = WorkerContext(settings=settings, clock=fake_clock,
                         outbound_client=app.state.outbound_client,
-                        extras={"ai_gateway": gateway})
+                        extras={"ai_gateway": gateway, "ai_runtime": runtime})
     worker = Worker(app.state.session_factory, fake_clock,
                     {"chat_message": handle_chat_message}, ctx, poll_interval=0.01)
     return worker

@@ -479,11 +479,11 @@ def test_a_garbage_cert_file_is_unanswerable_not_missing(client, tmp_path, sysad
     assert tls["question"]
 
 
-# ── AI 항목은 이제 Model Gateway 를 읽는다 (S11 · D-266) ──────────────────────
+# ── AI 항목은 검색을 Gateway 에서, 답변 생성을 AI 런타임에서 읽는다 (S11 · D-266 · D-515) ─────
 #
 # 예전에는 러너 레지스트리 행의 헬스체크 결과였다. 그래서 「정상」이 「응답은 한다」까지만
 # 뜻했고 항목 문구에 "실제 업무 처리 여부와는 별개입니다" 라는 단서를 달아야 했다.
-# 지금은 답변·초안·요약이 전부 이 Gateway 를 지나므로 그 단서가 필요 없다.
+# 지금은 답변·초안·요약이 전부 이 두 문을 지나므로 그 단서가 필요 없다.
 
 
 class _Cap:
@@ -508,14 +508,17 @@ class _Cap:
 
 
 def _set_gateway(client, *, embed=True, generate=True):
-    """이 앱의 Gateway 를 바꾼다 — 체크리스트가 실제로 읽는 그 객체다."""
+    """이 앱의 Gateway(검색)를 바꾸고, 답변 생성을 켜거나 둔다 — 체크리스트가 실제로 읽는 그 객체들이다."""
     from app.ai.gateway import contract
+    from tests.fakes.ai import configure_ai
 
     client.app.state.ai_gateway = contract.Gateway(
         enabled=True,
         embed_adapter=_Cap(contract.CAP_EMBED, available=embed),
-        generate_adapter=_Cap(contract.CAP_GENERATE, available=generate) if generate else None,
     )
+    if generate:
+        # 제공자, 모델, 키를 채우고 켠다. 아직 성공한 호출이 없어도(확인 전) 생성은 막히지 않는다.
+        configure_ai(client.app)
 
 
 

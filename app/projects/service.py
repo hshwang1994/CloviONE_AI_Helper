@@ -468,20 +468,21 @@ def _weekly_facts(db: Session, project: Project, week: weekly.Week, settings) ->
         #
         # ⚠️ 여기서 LLM 을 **부르지 않는다.** 이 함수는 화면을 여는 GET 경로이고 CLI 왕복은
         # 수십 초가 걸린다. 설정만 읽어(프로세스를 띄우지 않는다) 상태를 말한다.
-        "llm_notice": _llm_notice(settings),
+        "llm_notice": _llm_notice(db),
     }
 
 
-def _llm_notice(settings) -> str | None:
+def _llm_notice(db: Session) -> str | None:
     """AI 요약이 왜 없는지 한 줄. 켜져 있으면 None(할 말이 없다).
 
     설정만 읽는다 - `resolve_config` 는 프로세스를 띄우지 않는다. 실제로 불러 봐야 아는 것
     (로그인 안 됨 등)은 여기서 판정할 수 없고, 그건 생성 경로가 알려 준다.
     """
     try:
-        from app.llm import provider as llm_provider
+        from app.ai.runtime import config_from_values
+        from app.settings.service import SettingsCache
 
-        if llm_provider.resolve_config(settings).enabled:
+        if config_from_values(SettingsCache().get_all(db)).generation_enabled:
             return None
     except Exception:  # noqa: BLE001 - 안내 한 줄 때문에 리포트가 통째로 실패하면 안 된다
         return "AI 요약 설정을 확인하지 못해 규칙 기반 요약을 보여 줍니다."

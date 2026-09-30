@@ -64,13 +64,9 @@ class SettingsCache:
         self._values: dict[str, Any] | None = None
         self._loaded_at: float | None = None
         self._ttl = float(ttl_seconds)
-        # 살아 있는 `Settings` 객체(선택). 있으면 load 마다 설치처 설정을 그 위에 얹는다 -
-        # 이유는 app/core/tenant_config.py::apply_overrides 에 적어 뒀다. 없으면(테스트가
-        # 캐시만 쓰는 경우) 아무 일도 안 한다.
+        # 살아 있는 `Settings` 객체(선택). 예전에는 load 마다 AI 설정을 그 위에 얹었다. AI 런타임이 캐시를 직접
+        # 읽게 되면서(D-515) 얹을 값이 없다 - 부르는 쪽의 모양을 바꾸지 않으려고 받기만 한다.
         self._settings = settings
-        # 부팅 시점의 env 값. 화면에서 값을 지웠을 때 여기로 되돌린다 - 이유는
-        # app/core/tenant_config.py::OVERRIDABLE_KEYS 위에 적어 뒀다.
-        self._settings_baseline: dict[str, Any] = {}
 
     def load(self, db: Session) -> dict[str, Any]:
         values = {key: spec.default for key, spec in REGISTRY.items()}
@@ -81,11 +77,6 @@ class SettingsCache:
         with self._lock:
             self._values = values
             self._loaded_at = time.monotonic()
-        # 락 밖에서 얹는다. 여기서 하는 일은 다른 객체의 속성 대입이라 이 락과 무관하고,
-        # 락 안에서 하면 부팅 경로가 남의 객체를 잡은 채 도는 모양이 된다.
-        from app.core.tenant_config import apply_overrides
-
-        apply_overrides(self._settings, values, self._settings_baseline)
         return values
 
     def get_all(self, db: Session) -> dict[str, Any]:

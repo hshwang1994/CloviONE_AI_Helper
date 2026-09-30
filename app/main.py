@@ -52,7 +52,7 @@ from app.integrations.router import router as integrations_router
 from app.jobs.router import router as jobs_router
 from app.auth.reset_router import router as password_reset_router
 from app.mail.router import router as mail_router
-from app.llm_console.router import router as llm_console_router
+from app.ai.console.router import router as ai_console_router
 from app.offboarding.router import router as offboarding_router
 from app.org.router import (
     departments_router,
@@ -122,9 +122,7 @@ def create_app(
 
     # Effective-settings cache: load once at startup so consumers read live
     # values without a DB round-trip (session/password policy, retention, …).
-    # `settings` 를 함께 넘긴다: 노션 DB id 와 LLM 설정의 소비자는 전부 `settings.<key>` 를
-    # 읽으므로(app/core/tenant_config.py::apply_overrides) 캐시가 그 위에 얹어 줘야 관리
-    # 콘솔에서 바꾼 값이 실제 조회에 반영된다. 안 넘기면 화면만 바뀌고 동작은 옛 값이다.
+    # AI 설정의 소비자(`app/ai/runtime.py`)는 이 캐시를 직접 읽는다(D-515) - `Settings` 에 얹지 않는다.
     app.state.settings_cache = SettingsCache(settings)
     try:
         with app.state.session_factory() as _db:
@@ -201,6 +199,14 @@ def create_app(
     from app.ai.gateway.registry import build_gateway
 
     app.state.ai_gateway = build_gateway(settings, outbound=app.state.outbound_client)
+    # 생성은 AI 런타임 하나가 맡는다(D-515). 설정을 들고 있지 않고 호출마다 설정 캐시에서 읽으므로 여기서 만들어도
+    # 관리 화면에서 바꾼 값이 재시작 없이 다음 호출에 쓰인다.
+    from app.ai.runtime import AiRuntime
+
+    app.state.ai_runtime = AiRuntime(
+        settings=settings, outbound=app.state.outbound_client, secrets=app.state.secret_provider,
+        session_factory=app.state.session_factory, settings_cache=app.state.settings_cache, clock=clock,
+    )
 
     # add_middleware: last added runs outermost — RequestContext must wrap everything.
     app.add_middleware(BodySizeLimitMiddleware)
@@ -296,7 +302,7 @@ def create_app(
     # LLM 관리(9-5). 설정 값 자체는 설정 레지스트리를 지나고(검증·감사·버전 이력·되돌리기가
     # 거기 있다), 이 라우터는 레지스트리로 표현할 수 없는 것만 맡는다. 시크릿 파일과 실제
     # 연결 테스트가 그것이다.
-    app.include_router(llm_console_router)
+    app.include_router(ai_console_router)
     app.include_router(admin_router)
     return app
 

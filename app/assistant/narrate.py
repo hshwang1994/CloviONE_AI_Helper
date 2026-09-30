@@ -68,7 +68,7 @@ def _clean(value) -> str | None:
     return text[:MAX_TEXT_CHARS] if text else None
 
 
-def narrate(gateway, settings, *, kind: str, facts: dict, requester: dict, settings_cache=None) -> dict:
+def narrate(runtime, db, settings, *, kind: str, facts: dict, requester: dict, settings_cache=None) -> dict:
     """사실 dict → {"enabled", "text", "error"}. **절대 예외를 던지지 않는다.**
 
     모델에는 이미 계산된 사실만 보낸다 — 원본 티켓 목록 전체나 사용자 식별자를 넘기지
@@ -85,8 +85,10 @@ def narrate(gateway, settings, *, kind: str, facts: dict, requester: dict, setti
         "facts": facts,
     }
     try:
-        result = gateway.generate(
-            task=TASK, data=json.dumps(payload, ensure_ascii=False, default=str)
+        from app.ai.actions import HOME_NARRATIVE
+
+        result = runtime.generate(
+            db, action_key=HOME_NARRATIVE, task=TASK, data=json.dumps(payload, ensure_ascii=False, default=str),
         )
     except Exception:  # noqa: BLE001 — 어떤 실패든 숫자는 살아야 한다(계획서 Phase 5)
         # Gateway 는 실패를 값으로 돌려주는 계약이라 여기 오면 안 된다. 그래도 남겨 둔다 —

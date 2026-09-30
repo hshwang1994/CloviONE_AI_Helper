@@ -65,7 +65,7 @@ export const OBJTYPE_OPTS = [
   ["chat_room", "채팅방"],
   // 시스템·운영
   ["app_setting", "설정"], ["system_setting", "서버 설정"], ["secret", "비밀 값"], ["feature_flag", "기능 플래그"],
-  ["llm_config", "AI 모델 설정"], ["ai_quota", "AI 사용 상한"], ["announcement", "공지 배너"],
+  ["llm_config", "AI 모델 설정(옛 기능)"], ["ai_config", "AI 설정"], ["ai_quota", "AI 사용 상한"], ["announcement", "공지 배너"],
   ["prompts", "프롬프트"], ["policies", "정책"],
   ["schedule", "스케줄"], ["schedule_run", "예약 실행"], ["job", "작업"],
   ["backup", "백업"], ["storage_provider", "파일 저장소"], ["mail_delivery", "메일 발송"],
@@ -226,7 +226,7 @@ export const OBJ_ROUTE = {
      `storage`·`ai` 탭은 `system_admin` 전용이라, 감사자·운영자·일반 관리자가 그 주소로
      가면 「대시보드로 이동」만 있는 거부 화면을 본다. 좁은 것은 화면이 아니라 탭이므로
      아래 `OBJ_ROUTE_ROLES` 에 그 둘을 적는다. */
-  storage_provider: "#/settings?tab=storage", llm_config: "#/settings?tab=ai",
+  storage_provider: "#/settings?tab=storage", llm_config: "#/settings?tab=ai", ai_config: "#/settings?tab=ai",
   mail_delivery: "#/mail", mail_settings: "#/mail",
 };
 // OBJ_ROUTE 대상 화면 중 일부는 App.jsx의 SCREEN_ROLES로 더 좁게 제한된다(예: 사용자·부서·직책은
@@ -249,7 +249,7 @@ export const OBJ_ROUTE = {
 // 같은 막다른 링크다). 서버도 같은 자리에서 좁힌다 — `STORAGE_CONFIGURE` 는
 // `SYSTEM_ADMIN_ONLY` 다(app/authz/permissions.py).
 export const OBJ_ROUTE_ROLES = { user: WRITE_ROLES, department: WRITE_ROLES, job_title: WRITE_ROLES, job: ADMIN_VIEW_ROLES, organization: WRITE_ROLES, offboarding_run: WRITE_ROLES,
-  storage_provider: ["system_admin"], llm_config: ["system_admin"] };
+  storage_provider: ["system_admin"], llm_config: ["system_admin"], ai_config: ["system_admin"] };
 /* 관리 콘솔의 사람 후보 목록 — 승인·위임·감사·대리 보기·AI 상한이 같은 것을 쓴다.
  *
  * 경로가 `/api/admin/people` 인 이유: 그 다섯 화면은 운영자·감사자도 여는데 `/api/admin/users`

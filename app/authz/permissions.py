@@ -200,7 +200,7 @@ PERMISSIONS: tuple[PermissionSpec, ...] = (
     PermissionSpec(AI_USE, "AI 질의와 작업공간 사용", "AI", EVERYONE),
     PermissionSpec(
         AI_CONFIGURE, "모델과 프롬프트, 쿼터 설정", "AI", SYSTEM_ADMIN_ONLY,
-        "현행 app/llm_console 과 같은 집합이다. S9 이 Gateway 로 넓힌다.",
+        "AI 설정 화면(`/api/admin/ai`, D-515)을 여는 권한과 같은 집합이다.",
     ),
     # ── 감사·시스템 ──────────────────────────────────────────────────────────
     PermissionSpec(

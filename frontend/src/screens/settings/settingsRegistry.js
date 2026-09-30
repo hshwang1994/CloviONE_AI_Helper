@@ -32,12 +32,12 @@ export const SETTING_LABELS = {
   // AI 관리(9-5). 이 표에서는 숨기지만(DEDICATED_SCREEN_KEYS) 라벨은 있어야 한다 -
   // 감사 로그와 버전 기록이 이 이름으로 나온다. 노션 데이터베이스 id 세 개가 여기 함께
   // 있었는데, 그 값을 읽는 제품 코드도 그 값을 고치던 화면도 없어져 라벨만 남았었다.
-  llm_enabled: "AI 사용 여부",
-  llm_backend: "AI 백엔드",
-  llm_executable: "AI 실행 파일",
-  llm_model: "AI 모델",
-  llm_timeout_seconds: "AI 제한 시간(초)",
-  llm_max_concurrency: "AI 동시 실행 수",
+  ai_generation_enabled: "AI 답변 생성",
+  ai_provider: "AI 제공자",
+  ai_auth_method: "AI 인증 방식",
+  ai_model: "AI 모델",
+  ai_timeout_seconds: "AI 제한 시간(초)",
+  ai_max_concurrency: "AI 동시 실행 수",
   // AI 기능 스위치 셋(D-507) — 파일 소유에서 DB 설정으로 옮기면서 이 표에 들어왔다.
   chat_enabled: "AI 채팅",
   game_ai_enabled: "게임 퀴즈 AI",
@@ -84,8 +84,8 @@ export const MAINTENANCE_KEYS = ["maintenance_mode", "maintenance_message"];
 // 노션 데이터베이스 id 세 개도 이 목록에 있었다. 그 값들은 registry.py 에서 사라졌고
 // 숨겨 줄 전용 화면도 없어졌으므로 여기서도 뺀다.
 export const DEDICATED_SCREEN_KEYS = [
-  "llm_enabled", "llm_backend", "llm_executable", "llm_model",
-  "llm_timeout_seconds", "llm_max_concurrency",
+  "ai_generation_enabled", "ai_provider", "ai_auth_method", "ai_model",
+  "ai_timeout_seconds", "ai_max_concurrency",
 ];
 // 알림을 메일로도 보내기(계획 3.4)의 두 값은 메일 발송 화면의 「메일로 보내는 알림」이 다룬다. 같은 이유로 이 표에서 숨긴다.
 export const MAIL_SCREEN_KEYS = ["mail_notification_types", "mail_notification_max_age_days"];
