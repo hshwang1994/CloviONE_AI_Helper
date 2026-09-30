@@ -1,4 +1,6 @@
-/* qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 추가의 입구가 페이지 머리에서 부서 판의 「하위 부서 추가」로, 삭제가 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겨 갔다 — 같은 세 문장(추가 · 저장 · 삭제)을 새 입구에서 계속 못박는다.
+/* qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「하위 부서 추가」와 「더 보기」가 상세 판 머리에서 페이지 머리로 옮겨 갔다 — 같은 세 문장(추가 · 저장 · 삭제)을 새 자리에서 계속 못박는다.
+ *
+ * qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 추가의 입구가 페이지 머리에서 부서 판의 「하위 부서 추가」로, 삭제가 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겨 갔다 — 같은 세 문장(추가 · 저장 · 삭제)을 새 입구에서 계속 못박는다.
  *
  * qa-contract-change: 부서 화면이 registry/DataScreen 을 떠나 조직 콘솔의 상세 판과 자체 모달(screens/org/)이 됐다 — /departments 세 케이스를 그 경로(OrgConsole 렌더 + 헤더 부서 추가·상세 판 수정·삭제)로 옮겨 같은 세 문장을 계속 못박는다. */
 import React from "react";
@@ -135,7 +137,8 @@ describe("부서 — 추가·수정·삭제가 전부 문장형이다 (조직 �
     const user = userEvent.setup();
     renderOrgConsoleAt("/departments/d1");
     const panel = await screen.findByTestId("org-console-panel", {}, WAIT_ORG);
-    await user.click(await within(panel).findByRole("button", { name: "하위 부서 추가" }, WAIT_ORG));
+    await within(panel).findByRole("heading", { name: "기존부서" }, WAIT_ORG);
+    await user.click(within(document.querySelector(".k-page-actions")).getByRole("button", { name: "하위 부서 추가" }));
     const dialog = await screen.findByRole("dialog", { name: "기존부서에 하위 부서 추가" });
     await user.type(within(dialog).getByLabelText(/부서 이름/), "새부서");
     await user.click(within(dialog).getByRole("button", { name: "추가" }));
@@ -165,7 +168,8 @@ describe("부서 — 추가·수정·삭제가 전부 문장형이다 (조직 �
     renderOrgConsoleAt("/departments/d1");
     const panel = await screen.findByTestId("org-console-panel", {}, WAIT_ORG);
     // 삭제는 파괴적 동작이라 「더 보기」 메뉴의 항목이다.
-    await user.click(await within(panel).findByRole("button", { name: "기존부서 작업 더 보기" }, WAIT_ORG));
+    await within(panel).findByRole("heading", { name: "기존부서" }, WAIT_ORG);
+    await user.click(within(document.querySelector(".k-page-actions")).getByRole("button", { name: "기존부서 작업 더 보기" }));
     const menu = await screen.findByRole("menu", {}, WAIT_ORG);
     await user.click(within(menu).getByRole("menuitem", { name: "삭제" }));
 

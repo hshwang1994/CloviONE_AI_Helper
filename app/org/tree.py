@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ForbiddenError, ValidationAppError
@@ -32,13 +32,17 @@ PATH_SEP = " › "
 
 
 def _direct_user_counts(db: Session) -> dict[str, int]:
-    """부서별 소속 인원(직접). 보관된 사용자도 센다 — `app/org/service.py::usage_count` 와
-    **같은 규칙**이어야 한다(두 화면이 다른 숫자를 보여 주면 어느 쪽을 믿을지 알 수 없다)."""
+    """부서별 소속 인원(직접) — **지금 일하는 사람**(활성이고 보관되지 않은 계정)만 센다(계획 3.6).
+
+    예전에는 보관 계정까지 셌다. 그러면 트리 줄의 수와 오른쪽 구성원 목록(보관 계정을 뺀다)이 늘 어긋났고,
+    퇴사자가 많은 부서일수록 트리가 부풀었다. 삭제 판정(`app/org/service.py::usage_count`)은 여전히 전부를 센다 -
+    FK 가 보관 계정의 행도 붙잡고 있어서다. 그 차이는 삭제 판정 문장이 「보관된 계정 N명」으로 따로 말한다.
+    """
     from app.users.models import User
 
     rows = db.execute(
         select(User.department_id, func.count())
-        .where(User.department_id.is_not(None))
+        .where(User.department_id.is_not(None), User.active.is_(True), User.archived_at.is_(None))
         .group_by(User.department_id)
     ).all()
     return {dept_id: count for dept_id, count in rows}
@@ -207,11 +211,11 @@ def tree_rows(db: Session, *, active: bool | None = None, scope=None) -> list[di
             "parent_name": None,
             "active": org.status == ORG_ACTIVE,
             # 부서 행의 규칙을 그대로 따른다: user_count 는 '이 층에 직접', subtree 는 '아래 전부'.
-            # 조직에서 '직접'은 **부서가 지정되지 않은 사람**이다 — 그 수가 0 이 아니면 그 자체가
-            # 관리자가 알아야 할 사실이라(어디에도 안 속한 계정) 숨기지 않는다.
-            "user_count": _org_user_count(db, org.id, no_department=True, scope=scope),
+            # 조직에서 '직접'은 **조직 직속**(부서 없이 조직 전체를 보는 자리)이다. 부서도 조직 직속도
+            # 아닌 사람(`unassigned_count`)은 구조 안의 자리가 아니라 정리할 예외라 따로 센다 - 예전에는
+            # 둘을 한 수로 세어 조직 직속이 「부서 미지정」으로 보였다(계획 3.6).
+            **_org_user_counts(db, org.id, scope=scope),
             "child_count": sum(1 for k in kids if k["depth"] == 0),
-            "subtree_user_count": _org_user_count(db, org.id, scope=scope),
             "cycle": False,
             "created_at": org.created_at.isoformat(),
         })
@@ -225,23 +229,40 @@ def tree_rows(db: Session, *, active: bool | None = None, scope=None) -> list[di
     return out
 
 
-def _org_user_count(
-    db: Session, org_id: str, *, no_department: bool = False, scope=None
-) -> int:
-    """이 조직에 속한 사람 수. `no_department=True` 면 부서가 지정되지 않은 사람만.
+def _org_user_counts(db: Session, org_id: str, *, scope=None) -> dict[str, int]:
+    """조직 줄의 수 넷 — 전부 **지금 일하는 사람**(활성이고 보관되지 않은 계정)만 센다(계획 3.6).
+
+      subtree_user_count         이 조직의 전원(부서 · 조직 직속 · 미지정)
+      user_count                 조직 직속 - 부서 없이 조직 전체를 보는 자리
+      organization_direct_count  위와 같은 값의 이름 있는 칸
+      unassigned_count           부서도 조직 직속도 아닌 사람(정합성 화면의 「소속이 지정되지 않은 사용자」와 같은 정의)
 
     사람을 세는 규칙은 사용자 목록과 같아야 한다 — 그래서 `apply_user_scope` 를 그대로
     쓴다. 안 그러면 부서 관리자가 볼 수 있는 사람은 자기 팀뿐인데 머릿수만 전사 인원으로
     보이는, **화면끼리 어긋나는** 숫자가 된다.
     """
     from app.core.scope import apply_user_scope
+    from app.users.models import MEMBERSHIP_ORGANIZATION
+    from app.users.service import unassigned_membership_clause
 
-    stmt = select(func.count()).select_from(User).where(User.org_id == org_id)
-    if no_department:
-        stmt = stmt.where(User.department_id.is_(None))
-    if scope is not None:
-        stmt = apply_user_scope(stmt, scope)
-    return db.execute(stmt).scalar_one()
+    def count(*where) -> int:
+        stmt = select(func.count()).select_from(User).where(
+            User.org_id == org_id, User.active.is_(True), User.archived_at.is_(None), *where,
+        )
+        if scope is not None:
+            stmt = apply_user_scope(stmt, scope)
+        return int(db.execute(stmt).scalar_one())
+
+    direct = count(
+        or_(User.department_id.is_(None), User.department_id == ""),
+        User.membership_kind == MEMBERSHIP_ORGANIZATION,
+    )
+    return {
+        "user_count": direct,
+        "organization_direct_count": direct,
+        "unassigned_count": count(*unassigned_membership_clause(active_only=True)),
+        "subtree_user_count": count(),
+    }
 
 
 def validate_parent(

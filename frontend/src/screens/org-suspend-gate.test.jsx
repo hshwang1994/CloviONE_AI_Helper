@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: 조직 관리 IA 재설계(P6)로 활성화 · 비활성화가 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겨 갔고, 수정 · 상태 변경이 서버가 주는 can_edit 을 따르게 됐다 — 단추를 찾던 단언을 메뉴 항목 단언으로 옮기고 can_edit 의 음성 · 양성 사례를 더했다.
+/* qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「더 보기」와 주 동작(부서 추가 · 하위 부서 추가)이 상세 판 머리에서 페이지 머리로 옮겨 갔다(판 안의 30px 주 동작이 머리의 34px 보조 단추보다 작아 위계가 거꾸로 읽혔다). 판 머리에는 「수정」 하나가 남는다 — 판 안에서 단추를 찾던 단언을 페이지 머리(`.k-page-actions`)로 옮겼다.
+ *
+ * qa-contract-change: 조직 관리 IA 재설계(P6)로 활성화 · 비활성화가 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겨 갔고, 수정 · 상태 변경이 서버가 주는 can_edit 을 따르게 됐다 — 단추를 찾던 단언을 메뉴 항목 단언으로 옮기고 can_edit 의 음성 · 양성 사례를 더했다.
  *
  * **자기 조직 비활성화는 시스템 관리자만 할 수 있다**(org-09).
  *
@@ -98,7 +100,7 @@ async function openOrg(orgId, name, opts) {
 
 /** 「더 보기」 메뉴의 항목 이름. 메뉴를 열고 읽은 뒤 닫는다(열린 메뉴는 판을 가린다). */
 async function menuItems(panel, name) {
-  await userEvent.click(within(panel).getByRole("button", { name: `${name} 작업 더 보기` }));
+  await userEvent.click(within(document.querySelector(".k-page-actions")).getByRole("button", { name: `${name} 작업 더 보기` }));
   const menu = await screen.findByRole("menu", {}, WAIT);
   const names = within(menu).getAllByRole("menuitem").map((m) => m.textContent);
   await userEvent.keyboard("{Escape}");
@@ -154,7 +156,7 @@ describe("조직을 바꾸는 권한 — 서버의 can_edit", () => {
     expect(names).not.toContain("활성화");
     expect(within(panel).getByText("조직 이름과 상태는 전체 관리자만 바꿀 수 있습니다.")).toBeInTheDocument();
     // 부서를 만드는 것은 조직을 바꾸는 일이 아니다 — 그 입구는 그대로 선다.
-    expect(within(panel).getByRole("button", { name: "부서 추가" })).toBeInTheDocument();
+    expect(within(document.querySelector(".k-page-actions")).getByRole("button", { name: "부서 추가" })).toBeInTheDocument();
   });
 
   it("can_edit:false 인 정지 조직도 활성화를 세우지 않는다(음성)", async () => {

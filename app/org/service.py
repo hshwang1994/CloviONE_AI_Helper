@@ -574,6 +574,12 @@ def archived_dependents(db: Session, dept_id: str) -> dict[str, int]:
     return {k: v for k, v in found.items() if v}
 
 
+def _blocked_summary(blocking: dict[str, int]) -> str:
+    """삭제가 막힌 이유의 첫 문장만 - `_blocked_message` 의 앞머리와 같은 말이다."""
+    parts = ", ".join(_counted(k, v) for k, v in blocking.items())
+    return f"이 부서에 {parts}이 연결되어 있어 삭제할 수 없습니다."
+
+
 def _blocked_message(blocking: dict[str, int], archived: dict[str, int]) -> str:
     """삭제가 막힌 이유 한 문장. **409 와 화면의 삭제 안내가 이 문장을 함께 쓴다.**
 
@@ -669,6 +675,8 @@ def delete_precheck(db: Session, dept_id: str) -> dict:
             else detached_message(detachable) if detachable
             else None
         ),
+        # 판에 먼저 서는 한 문장(계획 3.6). 긴 이유(보관 계정 안내 · 대안)는 `reason` 이 들고 화면이 「자세히」로 편다.
+        "summary": _blocked_summary(blocking) if blocking else None,
     }
 
 

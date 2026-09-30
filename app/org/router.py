@@ -317,7 +317,7 @@ def _scope_departments(stmt, scope):
 
 def _scope_users(stmt, scope):
     """인원을 세는 질의에 범위를 건다. 사람을 세는 규칙은 사용자 목록과 같아야 한다 —
-    그래서 `app/org/tree.py::_org_user_count` 와 **같은 함수**(`apply_user_scope`)를 쓴다."""
+    그래서 `app/org/tree.py::_org_user_counts` 와 **같은 함수**(`apply_user_scope`)를 쓴다."""
     from app.core.scope import apply_user_scope
 
     return stmt if scope is None else apply_user_scope(stmt, scope)

@@ -5,13 +5,14 @@ import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { useAuth } from "../../app/auth.jsx";
 import {
-  Badge, Button, Card, DetailGrid, DetailRow, OverflowMenu, Section, TechDetail, useConfirm, useToast,
+  Badge, Button, Callout, Card, DetailGrid, DetailRow, OverflowMenu, Section, TechDetail, useConfirm, useToast,
 } from "../../ui/kit.jsx";
+import { HeaderActions } from "../../ui/HeaderSlot.jsx";
 import { handleApiError } from "../data-screen/apiError.js";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
-import { useInvalidateOrgCaches, useUnassignedPeople } from "./orgQueries.js";
+import { useInvalidateOrgCaches } from "./orgQueries.js";
 import { DeptCreateModal, OrgEditModal } from "./orgModals.jsx";
-import { OrgPeopleSection } from "./OrgPeopleGrid.jsx";
+import { OrgMembersList } from "./OrgMembersList.jsx";
 import { INFO_GRID_SX, INFO_WIDE_ROW, OrgPanelHead } from "./OrgPanelHead.jsx";
 
 /* 조직 상세 판 — 트리에서 조직을 고르면 오른쪽이 이것으로 반응한다. **고른 조직 하나를 관리하는 자리**다.
@@ -22,11 +23,18 @@ import { INFO_GRID_SX, INFO_WIDE_ROW, OrgPanelHead } from "./OrgPanelHead.jsx";
  * 트리를 한 번 더 그린 「부서 N개」 두 줄기 목록을 들었다. 페이지 머리의 요약 타일 넷까지 더하면 한 화면이
  * 부서 수를 다섯 번, 구성원 수를 네 번 말했다. 지금은:
  *
- *   머리        이름 · 조직 · 상태 + 둘째 줄의 식별자 + 동작 묶음 하나
- *   부서 미지정  그런 사람이 있을 때만 「부서 미지정 N명」 절 — 수만이 아니라 그 사람들을 보여 준다
+ *   머리        이름 · 조직 · 상태 + 둘째 줄의 식별자 + 「수정」
+ *   예외        부서도 조직 직속도 아닌 사람이 있을 때만 한 줄 - 「목록 보기」가 구성원 목록을 그 사람들로 바꾼다
+ *   구성원      이 조직의 사람 전부(검색 · 상태 · 소속 종류, 페이지로 받는다 - `OrgMembersList`)
  *   정보        부서 수 · 조직 ID · 삭제 안내 · 비활성화 안내 · 변경 권한 안내
  *
- * 조직 전체의 구성원 수는 트리의 조직 줄이 말한다. 부서 목록은 트리가 그 목록이다.
+ * 부서 목록은 트리가 그 목록이다.
+ *
+ * ## 동작은 페이지 머리에 (계획 3.6, D-510)
+ *
+ * 「더 보기」와 주 동작 「부서 추가」는 페이지 머리의 오른쪽에 선다(`HeaderActions` - 콘솔이 자리를 낸다).
+ * 판 안에서는 30px 이던 주 동작이 머리의 34px 보조 단추(「조직 추가」)보다 작아 위계가 거꾸로 읽혔다.
+ * 판 머리에는 「수정」 하나만 남는다.
  *
  * ## 조직을 바꾸는 권한은 서버가 말한다(`can_edit`)
  *
@@ -37,7 +45,7 @@ import { INFO_GRID_SX, INFO_WIDE_ROW, OrgPanelHead } from "./OrgPanelHead.jsx";
  *
  * 조직에 삭제가 없는 것은 서버 계약이다 — 사용자와 부서가 org_id 로 이 행을 가리키고
  * 있어 지우면 그 참조가 통째로 끊긴다. 대신 「비활성화」가 새 사용을 막는다. */
-export function OrgDetailPanel({ org, treeRow, singleOrg = false, headingRef, onCreated }) {
+export function OrgDetailPanel({ org, treeRow, headingRef, onCreated }) {
   const toast = useToast();
   const confirm = useConfirm();
   const invalidate = useInvalidateOrgCaches();
@@ -56,14 +64,14 @@ export function OrgDetailPanel({ org, treeRow, singleOrg = false, headingRef, on
   });
 
   const active = org.status === "active";
-  /* 조직 줄의 `user_count` 가 곧 부서가 지정되지 않은 사람이다(app/org/tree.py — 보관된 계정 포함). */
-  const unassigned = treeRow ? treeRow.user_count || 0 : 0;
-  /* 부서 미지정 명단은 **조직으로 좁혀지지 않는다**(`useUnassignedPeople`) — 보이는 조직이 하나일 때만
-     받아 그린다. 여럿이면 수와 사용자 화면 링크만 둔다. */
-  const people = useUnassignedPeople({ enabled: singleOrg && unassigned > 0 });
+  /* 부서도 조직 직속도 아닌 사람(정합성 화면의 「소속이 지정되지 않은 사용자」와 같은 정의, 지금 일하는 사람만). */
+  const unassigned = treeRow ? treeRow.unassigned_count || 0 : 0;
+  const [membership, setMembership] = React.useState("");
 
   const actor = auth.data || {};
   const mgmt = actor.management || {};
+  /* 부서 범위 관리자는 미지정 사람을 볼 수 없다(`apply_user_scope`) - 그 수는 언제나 0 이라 0 이 사실인지 말할 수 없다. */
+  const seesUnassigned = !mgmt.kind || mgmt.kind === "global" || mgmt.kind === "org";
   const canEdit = typeof org.can_edit === "boolean" ? org.can_edit : (!mgmt.kind || mgmt.kind === "global");
 
   /* 🔴 **자기 조직 정지는 시스템 관리자만 할 수 있다**(org-09).
@@ -122,32 +130,38 @@ export function OrgDetailPanel({ org, treeRow, singleOrg = false, headingRef, on
           </Typography>
         )}
         actionsLabel={org.name + " 작업"}
-        /* 동작 순서는 제품의 머리 규칙과 같다 — 보조(수정) → 더 보기 → 채움(부서 추가)이 오른쪽 끝이다(D-501). */
-        actions={(
+        actions={canEdit ? <Button size="sm" onClick={() => setEditing(true)}>수정</Button> : null}
+      />
+      {/* 동작 순서는 제품의 머리 규칙과 같다 — 더 보기 → 채움(부서 추가)이 오른쪽 끝이다(D-501). 콘솔 밖에서 이 판만
+          그리면(시험) 판 안에 그대로 선다. */}
+      <HeaderActions
+        fallback={(
           <>
-            {canEdit ? <Button size="sm" onClick={() => setEditing(true)}>수정</Button> : null}
-            <OverflowMenu size="sm" ariaLabel={org.name + " 작업 더 보기"} items={menu} />
-            <Button size="sm" variant="primary" onClick={() => setAdding(true)}>부서 추가</Button>
+            <OverflowMenu ariaLabel={org.name + " 작업 더 보기"} items={menu} />
+            <Button variant="primary" onClick={() => setAdding(true)}>부서 추가</Button>
           </>
         )}
-      />
+      >
+        <OverflowMenu ariaLabel={org.name + " 작업 더 보기"} items={menu} />
+        <Button variant="primary" onClick={() => setAdding(true)}>부서 추가</Button>
+      </HeaderActions>
 
-      {unassigned > 0 ? (
-        <OrgPeopleSection
-          label="부서 미지정"
-          count={unassigned}
-          query={singleOrg ? people : null}
-          recorded={unassigned}
-          /* `department_id=none` 은 서버 센티널이다(P-61) — 사용자 화면이 그 사람들만 거른 목록을 연다. */
-          listHref="#/users?department_id=none"
-          emptyText="지금 쓰는 계정 중에는 부서가 없는 사람이 없습니다."
-          note={(
-            <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-              사용자 화면은 다른 조직에서 부서가 없는 사람도 함께 보여 줍니다.
-            </Typography>
-          )}
-        />
+      {unassigned > 0 && membership !== "unassigned" ? (
+        <Callout
+          tone="warn" compact
+          action={<Button size="sm" onClick={() => setMembership("unassigned")}>목록 보기</Button>}
+        >
+          부서가 지정되지 않은 사람이 {unassigned}명 있습니다.
+        </Callout>
       ) : null}
+
+      <OrgMembersList
+        key={org.id}
+        scope={{ kind: "org", orgId: org.id }}
+        membership={membership}
+        onMembership={setMembership}
+        emptyText="이 조직에 속한 사람이 없습니다."
+      />
 
       <Section title="정보" sx={{ mb: 0 }}>
         <DetailGrid sx={INFO_GRID_SX}>
@@ -169,6 +183,11 @@ export function OrgDetailPanel({ org, treeRow, singleOrg = false, headingRef, on
           {!canEdit ? (
             <DetailRow label="변경 권한" sx={INFO_WIDE_ROW}>
               조직 이름과 상태는 전체 관리자만 바꿀 수 있습니다.
+            </DetailRow>
+          ) : null}
+          {!seesUnassigned ? (
+            <DetailRow label="부서 미지정" sx={INFO_WIDE_ROW}>
+              부서가 지정되지 않은 사람은 전체 또는 조직 관리자만 볼 수 있습니다.
             </DetailRow>
           ) : null}
         </DetailGrid>

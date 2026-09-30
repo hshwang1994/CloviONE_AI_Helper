@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: 조직 관리 IA 재설계(P6)로 판 머리의 동작이 「주 동작(부서 추가 · 하위 부서 추가) · 수정 · 더 보기」 한 묶음이 됐다. 감사 로그 · 사용자 화면 링크와 활성/비활성 · 삭제는 「더 보기」 메뉴 항목으로 옮겼고, 화면의 채움은 페이지 머리 「부서 추가」에서 상세 판의 추가 단추로 옮겼다 — 단추를 찾던 단언을 메뉴 항목 단언으로 바꾸고 채움 단언을 새 자리로 옮겼다.
+/* qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「더 보기」와 주 동작(부서 추가 · 하위 부서 추가)이 상세 판 머리에서 페이지 머리로 옮겨 갔다(판 안의 30px 주 동작이 머리의 34px 보조 단추보다 작아 위계가 거꾸로 읽혔다). 판 머리에는 「수정」 하나가 남는다 — 판 안에서 단추를 찾던 단언을 페이지 머리(`.k-page-actions`)로 옮겼다.
+ *
+ * qa-contract-change: 조직 관리 IA 재설계(P6)로 판 머리의 동작이 「주 동작(부서 추가 · 하위 부서 추가) · 수정 · 더 보기」 한 묶음이 됐다. 감사 로그 · 사용자 화면 링크와 활성/비활성 · 삭제는 「더 보기」 메뉴 항목으로 옮겼고, 화면의 채움은 페이지 머리 「부서 추가」에서 상세 판의 추가 단추로 옮겼다 — 단추를 찾던 단언을 메뉴 항목 단언으로 바꾸고 채움 단언을 새 자리로 옮겼다.
  *
  * qa-contract-change: 부서 삭제 가능 여부의 판정 근거가 화면의 자체 계산(user_count)에서 서버 응답의 delete_precheck 로 옮겨졌다(org-02·xc-01) — 표본에 그 필드를 실어 같은 성질을 새 계약으로 다시 잰다. 단언은 하나도 걷지 않았다.
  *
@@ -108,6 +110,8 @@ function renderAt(path) {
 const WAIT = { timeout: 8000 };
 vi.setConfig({ testTimeout: 20000 });
 const panel = () => screen.getByTestId("org-console-panel");
+/* 고른 대상의 「더 보기」와 주 동작은 페이지 머리에 선다(D-510). */
+const pageActions = () => document.querySelector(".k-page-actions");
 const isContained = (el) => [...el.classList].some((c) => /^MuiButton-contained[A-Z]/.test(c));
 const isOutlined = (el) => [...el.classList].some((c) => /^MuiButton-outlined/.test(c));
 const isText = (el) => [...el.classList].some((c) => /^MuiButton-text/.test(c));
@@ -116,7 +120,7 @@ const isText = (el) => [...el.classList].some((c) => /^MuiButton-text/.test(c));
 async function openMenu(name) {
   const p = await screen.findByTestId("org-console-panel", {}, WAIT);
   await within(p).findByRole("heading", { name }, WAIT);
-  await userEvent.click(within(p).getByRole("button", { name: `${name} 작업 더 보기` }));
+  await userEvent.click(within(pageActions()).getByRole("button", { name: `${name} 작업 더 보기` }));
   return screen.findByRole("menu", {}, WAIT);
 }
 
@@ -214,22 +218,22 @@ describe("부서 액션", () => {
     expect(await screen.findByText(/참조하는 프로젝트 2건/, {}, WAIT)).toBeInTheDocument();
   });
 
-  /* PA-RC-0023 이관(옛 admin-uiux) → UI 3차 조합 계약 C-4 — 화면의 채운(primary) 버튼은 정확히 하나다.
-     예전에는 페이지 머리 「부서 추가」가 그 하나였고 판 머리 동작은 전부 30 보조였다. 지금 그 하나는 **고른 대상의**
-     추가 단추다 — 부서 판에서는 「하위 부서 추가」, 조직 판에서는 「부서 추가」. 페이지 머리에는 채움이 없다. */
-  it("화면의 채움은 부서 판의 「하위 부서 추가」 하나다 — 「수정」은 보조이고 페이지 머리에는 채움이 없다", async () => {
+  /* PA-RC-0023 이관(옛 admin-uiux) → UI 3차 조합 계약 C-4 — 화면의 채운(primary) 버튼은 정확히 하나다. 그 하나는
+     **고른 대상의** 추가 단추다 — 부서를 고르면 「하위 부서 추가」, 조직을 고르면 「부서 추가」. 자리는 페이지 머리다(D-510):
+     판 안에 있던 동안 30px 주 동작이 머리의 34px 보조 단추(「조직 추가」)보다 작아 위계가 거꾸로 읽혔다. */
+  it("화면의 채움은 페이지 머리의 「하위 부서 추가」 하나다 — 판 머리의 「수정」은 보조다", async () => {
     mockApi();
     const { container } = renderAt("/departments/dep-sales");
     const p2 = await screen.findByTestId("org-console-panel", {}, WAIT);
     await within(p2).findByRole("heading", { name: "영업팀" }, WAIT);
     const screenFilled = Array.from(container.querySelectorAll("button, a.MuiButton-root")).filter(isContained);
     expect(screenFilled.map((el) => el.textContent)).toEqual(["하위 부서 추가"]);
-    expect(p2.contains(screenFilled[0])).toBe(true);
+    const head = container.querySelector(".k-page-actions");
+    expect(head.contains(screenFilled[0])).toBe(true);
+    expect(p2.contains(screenFilled[0])).toBe(false);
     const edit = within(p2).getByRole("button", { name: "수정" });
     expect(isContained(edit)).toBe(false);
     expect(isOutlined(edit)).toBe(true);
-    const head = container.querySelector(".k-page-actions");
-    expect(Array.from(head.querySelectorAll("button")).filter(isContained)).toHaveLength(0);
     expect(within(head).getByRole("button", { name: "조직 추가" })).toBeInTheDocument();
   });
 
@@ -243,23 +247,24 @@ describe("부서 액션", () => {
     expect(isOutlined(within(p2).getByRole("button", { name: "수정" }))).toBe(true);
   });
 
-  /* 판 머리의 동작 순서는 페이지 머리 규칙과 같다(D-501) — 보조 → 「더 보기」 → 채움이 오른쪽 끝이다. 화면마다 채움의 자리가
-     다르면 사람은 매번 주 동작을 찾아야 한다. */
-  it("판 머리의 채움은 동작 묶음의 오른쪽 끝이다 — 부서 판 · 조직 판 모두", async () => {
+  /* 페이지 머리의 동작 순서(D-501) — 보조(조직 추가) → 「더 보기」 → 채움이 오른쪽 끝이다. 판 머리에는 「수정」 하나다. */
+  it("페이지 머리의 채움은 동작 묶음의 오른쪽 끝이다 — 부서 판 · 조직 판 모두", async () => {
     mockApi();
-    const orderIn = (panel) => {
-      const group = within(panel).getByRole("group", { name: /작업$/ });
-      return Array.from(group.querySelectorAll("button")).map((el) => (isContained(el) ? "채움" : el.getAttribute("aria-label") ? "더 보기" : el.textContent));
-    };
+    const orderIn = () => Array.from(pageActions().querySelectorAll("button"))
+      .map((el) => (isContained(el) ? "채움" : el.getAttribute("aria-label") ? "더 보기" : el.textContent));
+    const groupIn = (panel) => Array.from(within(panel).getByRole("group", { name: /작업$/ }).querySelectorAll("button"))
+      .map((el) => el.textContent);
     const first = renderAt("/departments/dep-sales");
     const dept = await screen.findByTestId("org-console-panel", {}, WAIT);
     await within(dept).findByRole("heading", { name: "영업팀" }, WAIT);
-    expect(orderIn(dept)).toEqual(["수정", "더 보기", "채움"]);
+    expect(orderIn()).toEqual(["조직 추가", "더 보기", "채움"]);
+    expect(groupIn(dept)).toEqual(["수정"]);
     first.unmount();
     renderAt("/organizations");
     const org = await screen.findByTestId("org-console-panel", {}, WAIT);
     await within(org).findByRole("heading", { name: "클로비원" }, WAIT);
-    expect(orderIn(org)).toEqual(["수정", "더 보기", "채움"]);
+    expect(orderIn()).toEqual(["조직 추가", "더 보기", "채움"]);
+    expect(groupIn(org)).toEqual(["수정"]);
   });
 
   it("판 머리에는 글자 단추가 없다 — 옮겨 가는 링크는 「더 보기」의 항목이다", async () => {

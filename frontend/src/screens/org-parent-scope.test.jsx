@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 추가 창의 조직 칸이 없어졌다 — 조직은 창을 연 자리(조직 판 · 부서 판)가 고정한다. 「조직 칸을 바꾸면 후보가 따라간다」 단언을 「A 조직에서 열면 A 의 부서만, B 조직의 부서에서 열면 B 의 부서만」으로 옮기고, 정지된 조직의 상태 표시(org-17)를 조직 후보 라벨에서 창의 안내로 옮겼다. 미사용 부서를 후보에서 빼는 단언(xb-08)을 더했다.
+/* qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「더 보기」와 주 동작(부서 추가 · 하위 부서 추가)이 상세 판 머리에서 페이지 머리로 옮겨 갔다(판 안의 30px 주 동작이 머리의 34px 보조 단추보다 작아 위계가 거꾸로 읽혔다). 판 머리에는 「수정」 하나가 남는다 — 판 안에서 단추를 찾던 단언을 페이지 머리(`.k-page-actions`)로 옮겼다.
+ *
+ * qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 추가 창의 조직 칸이 없어졌다 — 조직은 창을 연 자리(조직 판 · 부서 판)가 고정한다. 「조직 칸을 바꾸면 후보가 따라간다」 단언을 「A 조직에서 열면 A 의 부서만, B 조직의 부서에서 열면 B 의 부서만」으로 옮기고, 정지된 조직의 상태 표시(org-17)를 조직 후보 라벨에서 창의 안내로 옮겼다. 미사용 부서를 후보에서 빼는 단언(xb-08)을 더했다.
  *
  * 부서 폼의 **상위 부서 후보는 그 부서가 들어갈 조직의 부서뿐이다**(org-03), 그리고
  * **정지된 조직에 부서를 만들 때는 창이 그 상태를 말한다**(org-17).
@@ -127,13 +129,14 @@ async function optionNames(dlg, label) {
   return names;
 }
 
-/** 판(조직 판이면 「부서 추가」, 부서 판이면 「하위 부서 추가」)에서 부서 추가 창을 연다. */
+/** 고른 대상의 주 동작(조직이면 「부서 추가」, 부서면 「하위 부서 추가」)으로 부서 추가 창을 연다. 단추는 페이지
+ * 머리에 선다(D-510). */
 async function openCreate(path, heading, opener, title) {
   mockApi();
   renderAt(path);
   const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
   await within(panel).findByRole("heading", { name: heading }, WAIT);
-  await userEvent.click(within(panel).getByRole("button", { name: opener }));
+  await userEvent.click(within(document.querySelector(".k-page-actions")).getByRole("button", { name: opener }));
   return screen.findByRole("dialog", { name: title }, WAIT);
 }
 

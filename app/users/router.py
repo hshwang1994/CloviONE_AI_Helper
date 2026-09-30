@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.auth.models import UserSession
@@ -15,7 +15,7 @@ from app.core.pagination import PageParams
 from app.core.scope import Principal, apply_user_scope, scope_allows_user
 from app.core.search_text import contains_folded
 from app.mail.models import MAIL_QUEUED
-from app.org.models import Department, JobTitle
+from app.org.models import Department, JobTitle, Organization
 from app.tickets.service import count_open_tickets_held_by
 from app.users import bulk
 from app.users.models import ALL_ROLES, User
@@ -58,6 +58,13 @@ NO_DEPARTMENT = "none"
 _DEPARTMENT_FILTER_DOC = (
     "부서 id 로 거른다. `none` 이면 부서가 지정되지 않은 사용자만 돌려준다."
 )
+
+# 소속 종류 필터(계획 3.6). `unassigned` 는 「부서도 조직 직속도 아니다」이고, 정합성 화면과 조직 트리가 같은
+# 정의를 쓴다(`app/users/service.py::unassigned_membership_clause`). `department=none` 은 부서만 보고 조직 직속까지
+# 함께 담아서, 조직 판의 「부서가 지정되지 않은 사람」과 다른 수를 냈다.
+MEMBERSHIP_FILTERS = ("department", "organization", "unassigned")
+# 상태 필터. 옛 `archived=true` · `active=` 와 함께 쓸 수 있다 - `state` 를 주면 그것이 이긴다.
+STATE_FILTERS = ("active", "inactive", "archived")
 
 
 def _user_row(user: User, now) -> dict:
@@ -103,8 +110,20 @@ def _ensure_known_filter(db, scope, model, item_id: str, label: str) -> None:
         raise ValidationAppError(f"알 수 없는 {label}입니다: {item_id}")
 
 
+def _ensure_known_org(db, scope, org_id: str) -> None:
+    """조직 필터 값이 **이 관리자에게** 실재하는 조직인가. 범위 밖 조직은 없는 조직과 같은 422 다
+    (`_ensure_known_filter` 와 같은 규칙 - 조직 행에는 `org_id` 가 없어 자기 id 로 견준다)."""
+    org = db.get(Organization, org_id)
+    visible = org is not None and (
+        scope is None or getattr(scope, "is_global", True) or getattr(scope, "org_id", None) == org.id
+    )
+    if not visible:
+        raise ValidationAppError(f"알 수 없는 조직입니다: {org_id}")
+
+
 def _filtered_users_stmt(
     db, scope, *, q, role, active, department_id, title_id, archived, locked=None, now=None,
+    org_id=None, membership_kind=None, include_descendants=False, state=None,
 ):
     """목록과 CSV 내보내기가 **같은 문장**을 쓴다.
 
@@ -118,6 +137,13 @@ def _filtered_users_stmt(
     # 보관된 계정은 기본으로 감춘다 — 검색도 목록의 다른 문일 뿐이라 같은 조건을 탄다.
     # archived=true는 '보관함'을 여는 것이다: 복구하려면 볼 수 있어야 하므로 그때만
     # 보관된 계정만 따로 보여 준다.
+    if state is not None and state not in STATE_FILTERS:
+        raise ValidationAppError(f"알 수 없는 상태입니다: {state}")
+    if state == "archived":
+        archived = True
+    elif state in ("active", "inactive"):
+        archived = False
+        active = state == "active"
     stmt = select(User).where(
         User.archived_at.is_not(None) if archived else User.archived_at.is_(None)
     )
@@ -146,7 +172,32 @@ def _filtered_users_stmt(
         stmt = stmt.where(User.department_id.is_(None))
     elif department_id:
         _ensure_known_filter(db, scope, Department, department_id, "부서")
-        stmt = stmt.where(User.department_id == department_id)
+        if include_descendants:
+            # 하위 부서까지(계획 3.6) - 자기와 그 아래 전부다(조상은 아니다). 트리 한 벌에서 편다.
+            from app.core.org_tree import DeptTree
+
+            subtree = DeptTree.load(db).descendants(department_id) or {department_id}
+            stmt = stmt.where(User.department_id.in_(sorted(subtree)))
+        else:
+            stmt = stmt.where(User.department_id == department_id)
+    if org_id:
+        _ensure_known_org(db, scope, org_id)
+        stmt = stmt.where(User.org_id == org_id)
+    if membership_kind is not None:
+        from app.users.models import MEMBERSHIP_ORGANIZATION
+        from app.users.service import unassigned_membership_clause
+
+        if membership_kind not in MEMBERSHIP_FILTERS:
+            raise ValidationAppError(f"알 수 없는 소속 종류입니다: {membership_kind}")
+        if membership_kind == "department":
+            stmt = stmt.where(User.department_id.is_not(None), User.department_id != "")
+        elif membership_kind == "organization":
+            stmt = stmt.where(
+                or_(User.department_id.is_(None), User.department_id == ""),
+                User.membership_kind == MEMBERSHIP_ORGANIZATION,
+            )
+        else:
+            stmt = stmt.where(*unassigned_membership_clause(active_only=False))
     if title_id:
         _ensure_known_filter(db, scope, JobTitle, title_id, "직책")
         stmt = stmt.where(User.title_id == title_id)
@@ -181,6 +232,16 @@ def list_users(
         default=None,
         description="true면 지금 잠긴 계정만, false면 안 잠긴 계정만. 기본(생략)은 안 거른다.",
     ),
+    org_id: str | None = Query(default=None, max_length=36, description="조직 id 로 거른다(범위 밖 조직은 422)."),
+    membership_kind: str | None = Query(
+        default=None, max_length=16, description="department, organization, unassigned 중 하나.",
+    ),
+    include_descendants: bool = Query(
+        default=False, description="true 면 `department_id` 의 하위 부서 사람까지 담는다.",
+    ),
+    state: str | None = Query(
+        default=None, max_length=16, description="active, inactive, archived 중 하나. 주면 `archived` 와 `active` 보다 이긴다.",
+    ),
     sort: str | None = Query(default=None, max_length=32),
     order: str | None = Query(default=None, pattern="^(asc|desc)$"),
 ):
@@ -188,7 +249,8 @@ def list_users(
     stmt = _filtered_users_stmt(
         db, principal.management, q=q, role=role, active=active,
         department_id=department_id, title_id=title_id, archived=archived,
-        locked=locked, now=now,
+        locked=locked, now=now, org_id=org_id, membership_kind=membership_kind,
+        include_descendants=include_descendants, state=state,
     )
 
     total = db.execute(
@@ -265,6 +327,10 @@ def export_users_csv(
     title_id: str | None = Query(default=None, max_length=36),
     archived: bool = Query(default=False),
     locked: bool | None = Query(default=None),
+    org_id: str | None = Query(default=None, max_length=36),
+    membership_kind: str | None = Query(default=None, max_length=16),
+    include_descendants: bool = Query(default=False),
+    state: str | None = Query(default=None, max_length=16),
 ):
     """지금 화면에 걸린 필터 **그대로** 내보낸다(같은 문장을 쓴다 — _filtered_users_stmt).
 
@@ -275,7 +341,8 @@ def export_users_csv(
     stmt = _filtered_users_stmt(
         db, principal.management, q=q, role=role, active=active,
         department_id=department_id, title_id=title_id, archived=archived,
-        locked=locked, now=now,
+        locked=locked, now=now, org_id=org_id, membership_kind=membership_kind,
+        include_descendants=include_descendants, state=state,
     )
     rows = db.execute(stmt.order_by(User.created_at.desc(), User.id.desc())).scalars().all()
     body = bulk.export_csv(list(rows), now=now)

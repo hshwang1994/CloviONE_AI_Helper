@@ -121,7 +121,8 @@ function stateBadges(row, isOrg) {
   if (isOrg) out.push(<Badge key="org" value="조직" kind="info" />);
   if (row.active === false) out.push(<Badge key="inactive" value="미사용" kind="warn" />);
   if (row.cycle) out.push(<Badge key="cycle" value="상위 관계 오류" kind="danger" />);
-  if (isOrg && row.user_count) out.push(<Badge key="unassigned" value="부서 미지정" kind="warn" />);
+  /* 「부서 미지정」 배지는 걷었다(계획 3.6) — 조직 줄의 직접 인원은 조직 직속(정상인 자리)이라 그 배지가 정상을
+     예외로 읽게 했다. 부서도 조직 직속도 아닌 사람은 조직 판의 예외 줄이 말한다. */
   return out;
 }
 

@@ -8,12 +8,13 @@ import {
   Badge, Button, Card, DetailGrid, DetailRow, ErrorState, OverflowMenu, Section, Skeleton, TechDetail,
   useConfirm, useToast,
 } from "../../ui/kit.jsx";
+import { HeaderActions } from "../../ui/HeaderSlot.jsx";
 import { OrgPath, PATH_SEP } from "../../ui/OrgPath.jsx";
 import { handleApiError } from "../data-screen/apiError.js";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
-import { useDepartmentItem, useDepartmentPeople, useInvalidateOrgCaches } from "./orgQueries.js";
+import { useDepartmentItem, useInvalidateOrgCaches } from "./orgQueries.js";
 import { DeptCreateModal, DeptEditModal } from "./orgModals.jsx";
-import { OrgPeopleSection } from "./OrgPeopleGrid.jsx";
+import { OrgMembersList } from "./OrgMembersList.jsx";
 import { INFO_GRID_SX, INFO_WIDE_ROW, OrgPanelHead } from "./OrgPanelHead.jsx";
 
 /* 부서 상세 판 — 트리에서 부서를 고르면 오른쪽이 이것으로 반응한다. **고른 부서 하나를 관리하는 자리**다.
@@ -24,16 +25,17 @@ import { INFO_GRID_SX, INFO_WIDE_ROW, OrgPanelHead } from "./OrgPanelHead.jsx";
  * 부제와 같은 수), 「조직」 · 「전체 경로」 · 「상위 부서」 세 줄(한 경로를 세 번), 그리고 판 폭만큼
  * 늘어난 인원 목록. 지금은:
  *
- *   머리   이름 · 상태 + 둘째 줄의 전체 경로(`OrgPath`) + 동작 묶음 하나
- *   구성원 「구성원 N명」 — 이 부서에 직접 속한 사람(보관 계정 제외). 가지 전체의 수는 트리 줄이 든다.
- *   정보   하위 부서 수 · 부서 ID · 상위 관계 오류 · 미사용 안내 · 삭제 판정
+ *   머리   이름 · 상태 + 둘째 줄의 전체 경로(`OrgPath`) + 「수정」
+ *   구성원 이 부서의 사람(검색 · 상태 · 하위 부서 포함, 페이지로 받는다 - `OrgMembersList`)
+ *   정보   하위 부서 수 · 부서 ID · 상위 관계 오류 · 미사용 안내 · 삭제 판정(한 문장 + 「자세히」)
  *
  * ## 동작은 대상 옆에
  *
  * 「하위 부서 추가」가 이 판의 주 동작이다(화면의 채움은 이것 하나 — 조직 판에서는 「부서 추가」).
  * 창은 이 부서를 상위로, 이 부서의 조직을 고정한 채 열린다. 미사용 부서에서는 숨긴다 — 서버가 미사용
- * 부서를 새 상위로 받지 않는다(xb-08). 「수정」은 30 보조, 나머지(감사 로그 · 사용자 화면 · 활성/비활성 ·
- * 삭제)는 「더 보기」 메뉴에 든다. 파괴적 항목은 메뉴가 실선으로 갈라 둔다. */
+ * 부서를 새 상위로 받지 않는다(xb-08). 주 동작과 「더 보기」(감사 로그 · 사용자 화면 · 활성/비활성 · 삭제)는
+ * 페이지 머리에 선다(`HeaderActions`, 계획 3.6) — 판 안의 30px 주 동작이 머리의 34px 보조 단추보다 작아 위계가
+ * 거꾸로 읽혔다. 판 머리에는 「수정」 하나만 남는다. 파괴적 항목은 메뉴가 실선으로 갈라 둔다. */
 
 /* 막는 갈래 중 **갈 곳이 있는** 것 — 삭제 판정 문장 옆에 그 자리로 가는 링크를 단다. 나머지 갈래
  * (하위 부서 · 프로젝트 · 지식 공간 · 관리 범위)는 이 콘솔 안에 거르는 자리가 없거나(하위 부서는 바로 왼쪽
@@ -70,7 +72,6 @@ export function DeptDetailPanel({ deptId, treeRow, treeRows = [], headingRef, on
   const confirm = useConfirm();
   const invalidate = useInvalidateOrgCaches();
   const item = useDepartmentItem(deptId);
-  const people = useDepartmentPeople(deptId);
   const [editing, setEditing] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
 
@@ -170,11 +171,15 @@ export function DeptDetailPanel({ deptId, treeRow, treeRows = [], headingRef, on
   const ancestors = ancestorsOf(treeRows, deptId);
   const pathLine = [dept.org_name, ...ancestors.map((n) => n.name)].filter(Boolean).join(PATH_SEP);
 
+  /* 판에는 한 문장이 선다(서버의 `summary`). 긴 이유(보관 계정 안내 · 대안)는 「자세히」가 편다 — 막힌 갈래가
+     여럿이면 이유 문장이 네 줄을 넘어 정보 절이 그것으로 찼다. */
   const deleteSentence = deletable
     ? (detachSummary
       ? "이 부서는 지금 삭제할 수 있습니다. 삭제하면 " + detachSummary + "은 부서 연결만 끊고 그대로 남습니다."
       : "이 부서는 지금 삭제할 수 있습니다.")
-    : (precheck && precheck.reason);
+    : ((precheck && (precheck.summary || precheck.reason)) || "");
+  const deleteDetail = !deletable && precheck && precheck.summary && precheck.reason !== precheck.summary
+    ? precheck.reason : null;
 
   return (
     <Card sx={{ display: "grid", gap: 3, alignContent: "start" }}>
@@ -200,23 +205,24 @@ export function DeptDetailPanel({ deptId, treeRow, treeRows = [], headingRef, on
           </Box>
         )}
         actionsLabel={dept.name + " 작업"}
-        /* 동작 순서는 제품의 머리 규칙과 같다 — 보조(수정) → 더 보기 → 채움(하위 부서 추가)이 오른쪽 끝이다(D-501). */
-        actions={(
+        actions={<Button size="sm" onClick={() => setEditing(true)}>수정</Button>}
+      />
+      {/* 동작 순서는 제품의 머리 규칙과 같다 — 더 보기 → 채움(하위 부서 추가)이 오른쪽 끝이다(D-501). */}
+      <HeaderActions
+        fallback={(
           <>
-            <Button size="sm" onClick={() => setEditing(true)}>수정</Button>
-            <OverflowMenu size="sm" ariaLabel={dept.name + " 작업 더 보기"} items={menu} />
-            {dept.active ? (
-              <Button size="sm" variant="primary" onClick={() => setAdding(true)}>하위 부서 추가</Button>
-            ) : null}
+            <OverflowMenu ariaLabel={dept.name + " 작업 더 보기"} items={menu} />
+            {dept.active ? <Button variant="primary" onClick={() => setAdding(true)}>하위 부서 추가</Button> : null}
           </>
         )}
-      />
+      >
+        <OverflowMenu ariaLabel={dept.name + " 작업 더 보기"} items={menu} />
+        {dept.active ? <Button variant="primary" onClick={() => setAdding(true)}>하위 부서 추가</Button> : null}
+      </HeaderActions>
 
-      <OrgPeopleSection
-        label="구성원"
-        query={people}
-        recorded={userCount}
-        listHref={usersHref}
+      <OrgMembersList
+        key={deptId}
+        scope={{ kind: "dept", deptId }}
         emptyText="이 부서에 배치된 사람이 없습니다. 사용자 화면에서 부서를 지정하면 여기에 나타납니다."
       />
 
@@ -243,6 +249,7 @@ export function DeptDetailPanel({ deptId, treeRow, treeRows = [], headingRef, on
           {precheck ? (
             <DetailRow label="삭제" sx={INFO_WIDE_ROW}>
               <Typography variant="body2" component="p" sx={{ m: 0, ...KO_WORD_BREAK }}>{deleteSentence}</Typography>
+              {deleteDetail ? <TechDetail label="자세히" sx={{ mt: 0.5 }}>{deleteDetail}</TechDetail> : null}
               {links.length ? (
                 <Box sx={{ display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.5, mt: 0.75 }}>
                   {links.map((l) => (

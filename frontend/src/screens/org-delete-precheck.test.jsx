@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 삭제가 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겨 갔고, 막힌 이유 문장 옆에 막는 것(소속 사용자 · 보관된 계정)으로 가는 링크가 붙었다 — 단추 단언을 메뉴 항목 단언으로 옮기고 링크 주소 단언을 더했다. 서버 이유 문장은 한 글자도 바뀌지 않는다.
+/* qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「더 보기」와 주 동작(부서 추가 · 하위 부서 추가)이 상세 판 머리에서 페이지 머리로 옮겨 갔다(판 안의 30px 주 동작이 머리의 34px 보조 단추보다 작아 위계가 거꾸로 읽혔다). 판 머리에는 「수정」 하나가 남는다 — 판 안에서 단추를 찾던 단언을 페이지 머리(`.k-page-actions`)로 옮겼다.
+ *
+ * qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 삭제가 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겨 갔고, 막힌 이유 문장 옆에 막는 것(소속 사용자 · 보관된 계정)으로 가는 링크가 붙었다 — 단추 단언을 메뉴 항목 단언으로 옮기고 링크 주소 단언을 더했다. 서버 이유 문장은 한 글자도 바뀌지 않는다.
  *
  * 부서 상세의 **삭제 안내와 확인 문구가 서버 판정과 같은 말을 하는가**(org-02 · xc-01 · xc-04).
  *
@@ -154,6 +156,8 @@ function renderDept(id) {
 const WAIT = { timeout: 8000 };
 vi.setConfig({ testTimeout: 20000 });
 const panel = () => screen.getByTestId("org-console-panel");
+/* 고른 대상의 「더 보기」와 주 동작은 페이지 머리에 선다(D-510). */
+const pageActions = () => document.querySelector(".k-page-actions");
 
 async function openPanel(id, name) {
   mockApi();
@@ -164,7 +168,7 @@ async function openPanel(id, name) {
 
 /** 「더 보기」를 열어 항목 이름을 읽는다. `keepOpen` 이면 열린 메뉴를 돌려준다(항목을 누를 때). */
 async function openMenu(name, { keepOpen = false } = {}) {
-  await userEvent.click(within(panel()).getByRole("button", { name: `${name} 작업 더 보기` }));
+  await userEvent.click(within(pageActions()).getByRole("button", { name: `${name} 작업 더 보기` }));
   const menu = await screen.findByRole("menu", {}, WAIT);
   if (keepOpen) return menu;
   const names = within(menu).getAllByRole("menuitem").map((m) => m.textContent);

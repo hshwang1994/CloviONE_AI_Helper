@@ -7,6 +7,7 @@ import {
   Button, Card, EmptyState, PageHeader, Skeleton,
 } from "../ui/kit.jsx";
 import { FilterBar } from "../ui/FilterBar.jsx";
+import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "../ui/HeaderSlot.jsx";
 import { FilterSelect, SearchBox } from "../ui/filters.jsx";
 import { useOrgTreeQuery, useOrganizations } from "./org/orgQueries.js";
 import { OrgDetailPanel } from "./org/OrgDetailPanel.jsx";
@@ -21,9 +22,10 @@ import { APPBAR_HEIGHT, BREAKPOINTS, STICKY_TOP_VAR } from "../ui/theme.js";
  *
  * 「왼쪽에서 조직 · 부서 계층을 탐색하고, 오른쪽에서 고른 대상 하나를 관리한다.」 셋의 역할이 갈린다:
  *
- *   페이지 머리  제목 · 도움말 + 선택과 무관한 유일한 동작 「조직 추가」(전체 관리자만)
+ *   페이지 머리  제목 · 도움말 + 동작 셋: 「조직 추가」(전체 관리자만) · 고른 대상의 「더 보기」 · 주 동작
+ *                (조직을 고르면 「부서 추가」, 부서를 고르면 「하위 부서 추가」)
  *   왼쪽 레일    탐색 — 판 머리에 검색 · 「사용」 · 조건 줄, 줄마다 이름 · 상태 배지 · 가지 인원 하나
- *   오른쪽 판    관리 — 고른 조직이나 부서의 이름 · 정체 · 동작 묶음, 그 아래 사람과 정보
+ *   오른쪽 판    관리 — 고른 조직이나 부서의 이름 · 정체 · 「수정」, 그 아래 구성원 목록과 정보
  *
  * ## 무엇을 걷었나
  *
@@ -34,9 +36,10 @@ import { APPBAR_HEIGHT, BREAKPOINTS, STICKY_TOP_VAR } from "../ui/theme.js";
  * 트리 줄, 직접 구성원은 부서 판의 「구성원 N명」, 부서 미지정은 조직 판의 「부서 미지정 N명」, 하위 부서 ·
  * 부서 수는 정보 줄, 보관 계정은 사람 목록 아래 한 줄.
  *
- * 「부서 추가」는 페이지 머리에 있어서 어느 조직의 일인지 자리로 드러나지 않았고, 창이 조직을 다시 물었다.
- * 지금은 조직 판의 「부서 추가」와 부서 판의 「하위 부서 추가」가 조직을 고정하고 상위 부서를 미리 채운 채
- * 창을 연다. 이 화면의 채움(주 동작)은 그 단추 하나다.
+ * 주 동작은 **고른 대상의 동작**이라 판이 그리지만, 자리는 페이지 머리다(`HeaderActions`, 계획 3.6 · D-510). 판 안에
+ * 있던 동안 30px 주 동작이 머리의 34px 보조 단추(「조직 추가」)보다 작아 위계가 거꾸로 읽혔다. 무엇에 대한
+ * 동작인지는 이름이 말한다 — 조직을 고르면 「부서 추가」, 부서를 고르면 「하위 부서 추가」이고, 창은 그 조직을
+ * 고정하고 상위 부서를 미리 채운 채 열린다. 이 화면의 채움(주 동작)은 그 단추 하나다.
  *
  * ## 선택은 주소다
  *
@@ -80,7 +83,16 @@ const PANEL_SX = {
 };
 
 export function OrgConsole() {
+  return (
+    <HeaderActionsProvider>
+      <OrgConsoleBody />
+    </HeaderActionsProvider>
+  );
+}
+
+function OrgConsoleBody() {
   const navigate = useNavigate();
+  const slot = useHeaderActionsSlot();
   const location = useLocation();
   const routeParams = useParams();
   const [search, setSearchParams] = useSearchParams();
@@ -135,6 +147,10 @@ export function OrgConsole() {
     ? ((organizations.data && organizations.data.items) || []).find((o) => o.id === selectedOrgId)
     : null;
   const selectedTreeId = deptId || selectedOrgId || null;
+  /* 머리 동작 자리 — 고른 대상이 있으면 판이 그 자리에 「더 보기」와 주 동작을 그린다. 자리를 판이 붙은 **뒤에**
+     내면(HeaderSlot 의 기본 순서, 수동 효과) 판 제목이 먼저 서고 단추는 한 박자 늦게 선다. 고른 대상이 곧 판이
+     설 자리이므로 그때 미리 낸다 — 판이 서는 그 커밋에 단추가 함께 선다. */
+  const panelActions = Boolean(selectedTreeId) || !!(slot && slot.count > 0);
 
   const goTo = (target, { reveal = false } = {}) => {
     const qs = new URLSearchParams();
@@ -233,12 +249,15 @@ export function OrgConsole() {
         help={(
           <>
             왼쪽 조직도에서 조직이나 부서를 고르면 오른쪽 판에서 그 대상을 관리합니다. 조직도 줄의 수는 그 조직이나
-            부서에 속한 사람을 하위 부서까지 모두 센 수이고, 보관된 계정도 함께 셉니다. 부서가 지정되지 않은 사람이
-            있는 조직에는 ‘부서 미지정’ 표시가 붙습니다. 부서는 고른 조직이나 부서의 판에서 추가합니다.
+            부서에서 지금 일하는 사람을 하위 부서까지 모두 센 수이고, 비활성 계정과 보관된 계정은 세지 않습니다.
+            부서는 고른 조직이나 부서에서 머리의 추가 단추로 만듭니다.
           </>
         )}
-        actions={isGlobalAdmin ? (
-          <Button onClick={() => setOrgForm(true)}>조직 추가</Button>
+        actions={isGlobalAdmin || panelActions ? (
+          <>
+            {isGlobalAdmin ? <Button onClick={() => setOrgForm(true)}>조직 추가</Button> : null}
+            {panelActions ? <HeaderActionsHost /> : null}
+          </>
         ) : null}
       />
 
@@ -279,8 +298,6 @@ export function OrgConsole() {
                 key={selectedOrgId}
                 org={selectedOrg}
                 treeRow={orgRows.find((r) => r.id === selectedOrgId) || null}
-                /* 부서 미지정 명단은 조직으로 안 좁혀진다 — 보이는 조직이 하나일 때만 명단을 그린다. */
-                singleOrg={orgRows.length === 1}
                 headingRef={headingRef}
                 onCreated={openCreated("department")}
               />

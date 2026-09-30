@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: 조직 관리 IA 재설계(P6)로 페이지 요약 타일 넷과 상세 판 요약 타일 셋을 걷고 수를 한 곳에만 세웠다. 검색 · 사용 필터는 트리 판 안으로, 부서 추가는 상세 판의 동작 묶음으로 옮겼다 — 요약 타일 단언을 「수는 한 곳」 단언으로 바꾸고, 필터 · 생성 입구 단언을 새 자리(트리 판 · 상세 판)로 옮겨 적었다.
+/* qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 구성원이 8명 미리보기에서 검색 · 상태 · 소속 조건이 있는 페이지 목록(`OrgMembersList`)이 됐고, 수는 목록 제목 옆 칩이 말한다. 조직 줄의 「부서 미지정」 배지와 절을 걷고 조직 판의 한 줄 예외(「목록 보기」)로 옮겼다. 고른 대상의 「더 보기」와 주 동작은 페이지 머리에 선다 — 절 제목 「구성원 N명」 단언을 제목 「구성원」 + 칩으로, 부서 미지정 절 단언을 예외 줄 · 조직으로 좁힌 요청 단언으로, 판 안 「부서 추가」 단언을 페이지 머리로 옮겼다.
+ *
+ * qa-contract-change: 조직 관리 IA 재설계(P6)로 페이지 요약 타일 넷과 상세 판 요약 타일 셋을 걷고 수를 한 곳에만 세웠다. 검색 · 사용 필터는 트리 판 안으로, 부서 추가는 상세 판의 동작 묶음으로 옮겼다 — 요약 타일 단언을 「수는 한 곳」 단언으로 바꾸고, 필터 · 생성 입구 단언을 새 자리(트리 판 · 상세 판)로 옮겨 적었다.
  *
  * qa-contract-change: 오른쪽 판이 전체 표(DataScreen)에서 선택 반응형 상세 판으로 재설계됐고 검색·사용 필터는 페이지 상단 탐색 줄로 올라갔다 — 조작기 이름과 자리가 전부 바뀌어 단언을 새 구조로 옮겨 적었다.
  *
@@ -44,8 +46,8 @@ const AT = "2026-01-02T03:04:05Z";
  * 일부러 다르다 — 「수는 한 곳」 시험이 둘을 가를 수 있어야 한다. */
 const TREE = [
   { id: "org-1", kind: "organization", name: "클로비원", slug: "clovirone", depth: 0, path: "클로비원",
-    parent_id: null, parent_name: null, active: true, user_count: 1, child_count: 2,
-    subtree_user_count: 9, cycle: false, created_at: AT },
+    parent_id: null, parent_name: null, active: true, user_count: 0, organization_direct_count: 0,
+    unassigned_count: 1, child_count: 2, subtree_user_count: 9, cycle: false, created_at: AT },
   { id: "dep-sales", kind: "department", name: "영업팀", depth: 1, path: "클로비원 › 영업팀",
     parent_id: null, parent_name: null, org_id: "org-1", active: true, user_count: 4,
     child_count: 1, subtree_user_count: 6, cycle: false, created_at: AT },
@@ -107,8 +109,13 @@ function mockApi({ tree = TREE } = {}) {
     if (single) return Promise.resolve({ department: DEPT_ITEMS[single[1]] || null });
     if (u.startsWith("/api/admin/departments")) return Promise.resolve({ items: DEPTS });
     if (u.startsWith("/api/admin/users")) {
-      const dept = new URLSearchParams(u.split("?")[1] || "").get("department_id");
-      return Promise.resolve(PEOPLE[dept] || { items: [], total: 0 });
+      const q = new URLSearchParams(u.split("?")[1] || "");
+      const dept = q.get("department_id");
+      if (dept) return Promise.resolve(PEOPLE[dept] || { items: [], total: 0 });
+      // 조직 판의 목록 — 소속 조건이 미지정이면 그 사람들, 아니면 조직 전원이다.
+      if (q.get("membership_kind") === "unassigned") return Promise.resolve(PEOPLE.none);
+      const all = [].concat(PEOPLE["dep-sales"].items, PEOPLE["dep-dev"].items, PEOPLE.none.items);
+      return Promise.resolve({ items: all, total: 9 });
     }
     return Promise.resolve({ items: [] });
   });
@@ -149,8 +156,12 @@ const tree = () => screen.getByTestId("org-console-tree");
 const panel = () => screen.getByTestId("org-console-panel");
 const where = () => screen.getByTestId("location-probe").textContent;
 const node = (name) => screen.findByRole("treeitem", { name }, WAIT);
-const usersCalls = (dept) => apiMock.mock.calls.filter(([p]) =>
-  String(p) === "/api/admin/users?department_id=" + dept);
+/* 사용자 목록 요청의 조건들. `dept` 를 주면 그 부서의 요청만 준다. */
+const usersCalls = (dept) => apiMock.mock.calls
+  .map(([p]) => String(p))
+  .filter((p) => p.startsWith("/api/admin/users?"))
+  .map((p) => new URLSearchParams(p.split("?")[1]))
+  .filter((q) => !dept || q.get("department_id") === dept);
 
 beforeEach(() => {
   apiMock.mockReset();
@@ -253,8 +264,9 @@ describe("트리 선택 → 상세 판", () => {
     expect(where()).toBe("/departments/dep-sales");
     // 단건 GET 이 실제로 나갔다 — 트리 행 재활용이 아니라 상세 자료다.
     expect(apiMock.mock.calls.some(([p]) => String(p) === "/api/admin/departments/dep-sales")).toBe(true);
-    // 구성원이 상세 판 **안**에 있다 — 옛 셋째 판은 1920 미만에서 통째로 사라졌다.
-    expect(await within(panel()).findByRole("heading", { name: "구성원 4명" }, WAIT)).toBeInTheDocument();
+    // 구성원이 상세 판 **안**에 있다 — 옛 셋째 판은 1920 미만에서 통째로 사라졌다. 수는 제목 옆 칩이다.
+    expect(await within(panel()).findByRole("heading", { name: "구성원" }, WAIT)).toBeInTheDocument();
+    expect(await within(panel()).findByText("4명", {}, WAIT)).toBeInTheDocument();
     expect(await within(panel()).findByText("김영업", {}, WAIT)).toBeInTheDocument();
     // 직급은 배지가 아니라 이름 뒤의 글자다.
     expect(within(panel()).getByText("과장").closest(".k-badge")).toBeNull();
@@ -321,14 +333,14 @@ describe("수는 한 곳에만", () => {
     await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT);
     expect(screen.queryByRole("group", { name: "조직 요약" })).toBeNull();
     expect(screen.queryByRole("group", { name: /요약/ })).toBeNull();
-    // 요약 타일이 쓰던 낱말(「구성원」 타일)이 트리 밖에 따로 서지 않는다 — 트리 줄의 「구성원 N명」 설명
-    // (스크린리더 전용 머리말)만 남는다.
+    // 트리 밖에 선 「구성원」은 판의 구성원 목록 절 제목 하나뿐이다 — 요약 타일로 따로 서지 않는다.
     const outsideTree = screen.queryAllByText("구성원").filter((el) => !tree().contains(el));
-    expect(outsideTree).toEqual([]);
-    expect(within(panel()).queryByText("사용자")).toBeNull();
+    expect(outsideTree).toHaveLength(1);
+    expect(outsideTree[0].tagName).toBe("H3");
+    expect(within(panel()).queryByRole("group", { name: /사용자/ })).toBeNull();
   });
 
-  it("가지 인원은 그 트리 줄에만 선다 — 상세 판은 같은 수를 되풀이하지 않는다", async () => {
+  it("가지 인원은 그 트리 줄에만 선다 — 부서 판의 수는 목록(직접 구성원)의 수다", async () => {
     mockApi();
     renderConsole();
     const org = await node("클로비원");
@@ -337,77 +349,66 @@ describe("수는 한 곳에만", () => {
     expect(org).toHaveAccessibleName("클로비원");
     expect(org).toHaveAccessibleDescription(/구성원 9명/);
     expect(within(tree()).getByText("9명")).toBeInTheDocument();
-    expect(panel().textContent).not.toMatch(/9명/);
 
     const sales = await node("영업팀");
     expect(sales).toHaveAccessibleDescription("구성원 6명");
     await userEvent.click(sales);
-    // 부서 판의 수는 **직접** 구성원이다(4) — 가지 인원(6)은 트리 줄에만 있다.
-    expect(await within(panel()).findByRole("heading", { name: "구성원 4명" }, WAIT)).toBeInTheDocument();
+    // 부서 판의 수는 목록 제목 옆 칩이고 **직접** 구성원이다(4) — 가지 인원(6)은 트리 줄에만 있다.
+    const heading = await within(panel()).findByRole("heading", { name: "구성원" }, WAIT);
+    const section = heading.closest("section");
+    expect(await within(section).findByText("4명", {}, WAIT)).toBeInTheDocument();
     expect(panel().textContent).not.toMatch(/6명/);
   });
 
-  it("「부서 미지정」은 판에 한 번 — 수를 단 절 제목이고, 트리에는 수 없는 경고 배지로만 선다", async () => {
+  it("부서도 조직 직속도 아닌 사람은 조직 판의 한 줄 예외로 서고, 트리에는 배지가 없다", async () => {
     mockApi();
     renderConsole("/organizations");
     await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT);
-    const inPanel = within(panel()).getAllByText(/부서 미지정/);
-    expect(inPanel).toHaveLength(1);
-    expect(inPanel[0]).toHaveTextContent("부서 미지정 1명");
-    expect(within(panel()).getByRole("heading", { name: "부서 미지정 1명" })).toBeInTheDocument();
-    // 트리에서는 그 조직 줄의 배지 하나다 — 수를 달지 않는다.
-    const inTree = within(tree()).getAllByText(/부서 미지정/);
-    expect(inTree).toHaveLength(1);
-    expect(inTree[0].textContent).toBe("부서 미지정");
+    expect(within(panel()).getByText("부서가 지정되지 않은 사람이 1명 있습니다.")).toBeInTheDocument();
+    // 조직 줄의 직접 인원은 조직 직속(정상 자리)이라 「부서 미지정」 배지가 정상을 예외로 읽게 했다.
+    expect(within(tree()).queryByText(/부서 미지정/)).toBeNull();
   });
 
-  it("트리 줄에 부제가 없다 — 소속 · 하위 부서 · 하위 포함 · 부서 수를 적지 않는다", async () => {
-    mockApi();
-    renderConsole();
-    await node("국내영업");
-    expect(tree().textContent).not.toMatch(/소속|하위 부서|하위 포함|부서 \d+개|구성원 \d+명, /);
-    // 수는 줄마다 하나다 — 네 줄에 넷이다.
-    expect(within(tree()).getAllByText(/^\d+명$/)).toHaveLength(4);
-  });
-
-  it("기록된 인원이 목록보다 많으면 보관된 계정의 차이를 목록 아래 한 줄이 말한다", async () => {
+  it("보관된 계정은 목록의 상태 조건 「보관」으로 본다 — 요청에 state=archived 가 실린다", async () => {
     mockApi();
     renderConsole("/departments/dep-dev");
-    expect(await within(panel()).findByRole("heading", { name: "구성원 2명" }, WAIT)).toBeInTheDocument();
-    expect(await within(panel()).findByText("보관된 계정 1명은 이 목록에 없습니다.", {}, WAIT)).toBeInTheDocument();
+    const heading = await within(panel()).findByRole("heading", { name: "구성원" }, WAIT);
+    const section = heading.closest("section");
+    expect(await within(section).findByText("박개발", {}, WAIT)).toBeInTheDocument();
     // 직급이 없는 사람은 역할 키를 대신 적지 않는다.
-    expect(within(panel()).getByText("박개발")).toBeInTheDocument();
-    expect(within(panel()).queryByText("admin")).toBeNull();
+    expect(within(section).queryByText("admin")).toBeNull();
+    // 기본 조건은 지금 일하는 사람이다(트리 줄과 같은 규칙).
+    expect(usersCalls("dep-dev")[0].get("state")).toBe("active");
+    await userEvent.click(within(section).getByRole("combobox", { name: /상태/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "보관" }, WAIT));
+    await waitFor(() => expect(usersCalls("dep-dev").some((q) => q.get("state") === "archived")).toBe(true), WAIT);
   });
 
-  it("보이는 조직이 하나면 부서 미지정 사람들을 보여 주고, 링크는 그 사람들만 거른 사용자 화면으로 간다 (P-61)", async () => {
-    /* 조직 마디의 `user_count` 가 곧 부서 없는 인원이다(클로비원: 1). 링크가 필터 없는
-       `#/users` 로 가면 숫자만 말하고 그 사람들을 못 찾는다 — 서버 센티널 `none` 을 싣는다. */
+  it("「목록 보기」가 구성원 목록을 그 사람들로 바꾼다 — 요청에 그 조직과 미지정이 함께 실린다", async () => {
     mockApi();
     renderConsole("/organizations");
-    const section = (await within(panel()).findByRole("heading", { name: "부서 미지정 1명" }, WAIT))
-      .closest("section");
-    expect(await within(section).findByText("무소속", {}, WAIT)).toBeInTheDocument();
-    expect(usersCalls("none").length).toBeGreaterThan(0);
-    const link = within(section).getByRole("link", { name: "사용자 화면에서 보기" });
-    expect(link.getAttribute("href")).toBe("#/users?department_id=none");
+    await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT);
+    await userEvent.click(within(panel()).getByRole("button", { name: "목록 보기" }));
+    expect(await within(panel()).findByText("무소속", {}, WAIT)).toBeInTheDocument();
+    const call = usersCalls().find((q) => q.get("membership_kind") === "unassigned");
+    expect(call, "미지정 목록을 조직으로 좁혀 받지 않았다").toBeTruthy();
+    expect(call.get("org_id")).toBe("org-1");
+    // 예외 줄은 목록이 그 사람들을 보이는 동안 다시 서지 않는다.
+    expect(within(panel()).queryByText("부서가 지정되지 않은 사람이 1명 있습니다.")).toBeNull();
   });
 
-  it("보이는 조직이 둘 이상이면 명단을 받지 않는다 — 부서 미지정 명단은 조직으로 안 좁혀진다", async () => {
+  it("조직이 둘이어도 명단은 고른 조직으로 좁혀 받는다", async () => {
     mockApi({
       tree: TREE.concat([
         { id: "org-2", kind: "organization", name: "묵은회사", slug: "old-co", depth: 0, path: "묵은회사",
-          active: false, user_count: 0, child_count: 0, subtree_user_count: 0, created_at: AT },
+          active: false, user_count: 0, organization_direct_count: 0, unassigned_count: 0, child_count: 0,
+          subtree_user_count: 0, created_at: AT },
       ]),
     });
     renderConsole("/organizations?org=org-1");
-    const section = (await within(panel()).findByRole("heading", { name: "부서 미지정 1명" }, WAIT))
-      .closest("section");
-    expect(section.textContent).toContain("사용자 화면은 다른 조직에서 부서가 없는 사람도 함께 보여 줍니다.");
-    expect(within(section).getByRole("link", { name: "사용자 화면에서 보기" }).getAttribute("href"))
-      .toBe("#/users?department_id=none");
-    expect(usersCalls("none")).toHaveLength(0);
-    expect(within(section).queryByText("무소속")).toBeNull();
+    await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT);
+    await waitFor(() => expect(usersCalls().some((q) => q.get("org_id") === "org-1")).toBe(true), WAIT);
+    expect(usersCalls().every((q) => q.get("org_id") !== "org-2")).toBe(true);
   });
 });
 
@@ -473,15 +474,16 @@ function cssOf(el) {
 /* ── 5. 레일 = 탐색 — 검색과 「사용」은 트리 판 안에 있다 ─────────────────── */
 
 describe("레일 판 머리의 검색과 「사용」", () => {
-  it("검색 상자와 「사용」은 트리 판 안에 있고, 상세 판에는 검색이 없다", async () => {
+  it("조직도 검색과 「사용」은 트리 판 안에 있고, 상세 판의 검색은 구성원 검색 하나다", async () => {
     mockApi();
     renderConsole();
     await node("클로비원");
+    await within(panel()).findByRole("heading", { name: "구성원" }, WAIT);
     expect(within(tree()).getByRole("searchbox", { name: "조직도 검색" })).toBeInTheDocument();
     expect(within(tree()).getByRole("combobox", { name: /사용/ })).toBeInTheDocument();
-    expect(within(panel()).queryByRole("searchbox")).toBeNull();
-    // 트리 판 밖(페이지 전폭)에 따로 선 필터 줄은 없다 — 화면의 필터 바는 판 안의 하나다.
-    expect(document.querySelectorAll("[data-filter-bar]")).toHaveLength(1);
+    expect(within(panel()).getAllByRole("searchbox").map((b) => b.getAttribute("aria-label"))).toEqual(["구성원 검색"]);
+    // 페이지 전폭에 따로 선 필터 줄은 없다 — 필터 바는 트리 판 하나와 구성원 목록 하나다.
+    expect(document.querySelectorAll("[data-filter-bar]")).toHaveLength(2);
     expect(tree().querySelector("[data-filter-bar]")).not.toBeNull();
   });
 
@@ -523,20 +525,21 @@ describe("레일 판 머리의 검색과 「사용」", () => {
 /* ── 6. 부서는 고른 자리에서 만든다 ──────────────────────────────────────── */
 
 describe("부서 추가 — 고른 조직 · 부서의 판에서", () => {
-  it("페이지 머리에는 선택과 무관한 「조직 추가」 하나뿐이고, 「부서 추가」는 조직 판에 있다", async () => {
+  it("페이지 머리에 「조직 추가」 · 고른 조직의 「더 보기」 · 「부서 추가」가 서고, 판 머리에는 「수정」만 있다", async () => {
     mockApi();
     const { container } = renderConsole();
     await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT);
     const head = container.querySelector(".k-page-actions");
-    expect(within(head).getAllByRole("button").map((b) => b.textContent)).toEqual(["조직 추가"]);
-    expect(within(head).queryByRole("button", { name: "부서 추가" })).toBeNull();
-    expect(within(panel()).getByRole("button", { name: "부서 추가" })).toBeInTheDocument();
+    expect(within(head).getAllByRole("button").map((b) => b.textContent || b.getAttribute("aria-label")))
+      .toEqual(["조직 추가", "클로비원 작업 더 보기", "부서 추가"]);
+    expect(within(panel()).queryByRole("button", { name: "부서 추가" })).toBeNull();
   });
 
   it("조직 판의 「부서 추가」는 그 조직을 고정해 열고 조직을 다시 묻지 않는다 — 만들면 새 부서로 간다", async () => {
     mockApi();
     renderConsole();
-    await userEvent.click(await within(panel()).findByRole("button", { name: "부서 추가" }, WAIT));
+    await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT);
+    await userEvent.click(within(document.querySelector(".k-page-actions")).getByRole("button", { name: "부서 추가" }));
     const dlg = await screen.findByRole("dialog", { name: "클로비원에 부서 추가" }, WAIT);
     expect(within(dlg).getByLabelText(/부서 이름/)).toBeInTheDocument();
     expect(within(dlg).getByLabelText(/상위 부서/)).toHaveTextContent("(최상위)");
@@ -556,7 +559,8 @@ describe("부서 추가 — 고른 조직 · 부서의 판에서", () => {
   it("부서 판의 「하위 부서 추가」는 그 부서를 상위로 미리 채우고, 요청에 상위 부서와 조직이 함께 실린다", async () => {
     mockApi();
     renderConsole("/departments/dep-sales");
-    await userEvent.click(await within(panel()).findByRole("button", { name: "하위 부서 추가" }, WAIT));
+    await within(panel()).findByRole("heading", { name: "영업팀" }, WAIT);
+    await userEvent.click(within(document.querySelector(".k-page-actions")).getByRole("button", { name: "하위 부서 추가" }));
     const dlg = await screen.findByRole("dialog", { name: "영업팀에 하위 부서 추가" }, WAIT);
     await waitFor(() => expect(within(dlg).getByLabelText(/상위 부서/)).toHaveTextContent("영업팀"), WAIT);
     expect(within(dlg).queryByLabelText(/^조직/)).toBeNull();
@@ -578,7 +582,8 @@ describe("부서 추가 — 고른 조직 · 부서의 판에서", () => {
       String(p).startsWith("/api/admin/departments/tree")).length;
     const before = treeCalls();
 
-    await userEvent.click(await within(panel()).findByRole("button", { name: "부서 추가" }, WAIT));
+    await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT);
+    await userEvent.click(within(document.querySelector(".k-page-actions")).getByRole("button", { name: "부서 추가" }));
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     await userEvent.type(within(dlg).getByLabelText(/부서 이름/), "품질팀");
     await userEvent.click(within(dlg).getByRole("button", { name: "추가" }));
