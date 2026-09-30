@@ -593,6 +593,26 @@ stage_0_preflight() {
   fi
   [ -f "$SRC_DIR/requirements.txt" ] || \
     fail "소스가 아닌 자리에서 실행됐습니다($SRC_DIR)" "저장소 clone 안의 deploy/install.sh 를 실행하십시오" 15 || return $?
+  # 오프라인 번들은 전개하기 전에 번들이 든 목록(MANIFEST.sha256)으로 모든 파일을 확인한다(D-522). 예전 문서는 그렇게
+  # 한다고 적었지만 설치는 목록을 읽지 않았다.
+  if [ "$SOURCE_KIND" = bundle ]; then
+    local bundle_root; bundle_root="$(cd "$SRC_DIR/.." && pwd)"
+    [ -f "$bundle_root/MANIFEST.sha256" ] \
+      || fail "번들에 MANIFEST.sha256 이 없습니다($bundle_root)" "scripts/build-bundle.sh 가 만든 번들을 그대로 푸십시오" 15 || return $?
+    ( cd "$bundle_root" && sha256sum -c --quiet --strict MANIFEST.sha256 ) >>"$LOG" 2>&1 \
+      || fail "번들 파일이 목록(MANIFEST.sha256)과 다릅니다" "번들이 깨졌거나 바뀌었습니다. 아무것도 전개하지 않았습니다. 번들을 다시 옮기십시오" 15 || return $?
+    [ -n "$WHEELHOUSE" ] || WHEELHOUSE="$bundle_root/wheels"
+    note "번들 파일을 목록과 맞춰 확인했습니다"
+  fi
+  # 오프라인 wheelhouse 는 x86_64 용으로 만든다(scripts/build-bundle.sh). 다른 아키텍처에서 그것으로 설치하면 Stage 4 가
+  # 한참 뒤에 이해하기 어려운 pip 오류로 멈춘다.
+  if [ -n "$WHEELHOUSE" ] && [ -d "$WHEELHOUSE" ]; then
+    case "$arch" in
+      arm64|aarch64)
+        ls "$WHEELHOUSE" 2>/dev/null | grep -q 'aarch64' \
+          || fail "wheelhouse 에 arm64 용 wheel 이 없습니다" "오프라인 번들은 x86_64 서버용입니다. x86_64 서버에 설치하거나 온라인으로 설치하십시오" 13 || return $? ;;
+    esac
+  fi
   # clone 을 설치 대상 안에 두면 rsync 가 자기 자신을 --delete 하며 덮어쓴다.
   case "$SRC_DIR" in
     "$APP_DIR"/*) fail "소스가 $APP_DIR 안에 있습니다($SRC_DIR)" "설치가 자기 자신을 덮어씁니다. 다른 곳에 두십시오" 15 || return $? ;;

@@ -10,19 +10,27 @@ LXD 리허설과 실 재부팅으로 확인했다. 아래에서 **실제와 달�
 
 ---
 
-## 1. Clean Ubuntu Server 24.04 에서 실행하는 최초 3줄
+## 1. Clean Ubuntu Server 24.04 에서 실행하는 설치 명령
+
+**최종 사용자 경로(Release, D-522).** Release 페이지에서 `install.sh` 하나를 받아 실행한다. 스크립트는 같은 Release 의
+제품 묶음과 `SHA256SUMS` 를 받아 **체크섬이 맞을 때만** 풀고 나머지 Stage 를 지난다. Release 에 올린 사본은 그 Release
+의 태그를 기본값으로 들고 있어 `--release` 를 따로 주지 않아도 자기 버전을 설치한다.
+
+```bash
+curl -fsSLO https://github.com/hshwang1994/clovirassist/releases/download/v<VERSION>/install.sh
+sudo bash install.sh install --dns-name <host> --bind-ip <IP>
+```
+
+**개발자 경로(git).** 저장소를 설치 자리에 받고 그 안의 스크립트를 실행한다.
 
 ```bash
 sudo apt-get update && sudo apt-get install -y git ca-certificates
-sudo git clone --branch v<VERSION> https://gitlab.<사내>/clovir/clovirassist.git /opt/clovirassist
-sudo /opt/clovirassist/deploy/install.sh install \
-     --dns-name clovirassist.gooddi.lab --bind-ip <IP>
+sudo git clone --branch v<VERSION> https://github.com/hshwang1994/clovirassist.git /opt/clovirassist
+sudo /opt/clovirassist/deploy/install.sh install --dns-name <host> --bind-ip <IP>
 ```
 
-바깥으로 나가는 호출(AI 제공자, 메일 외의 HTTPS)이 사내 프록시를 거쳐야 하면 설치 뒤 **시스템 설정 → 프록시**에서 주소와
-예외 목록을 넣고 서비스를 다시 시작한다. 그 값은 웹, 배치 워커, 대화형 워커, 스케줄러 유닛의 드롭인이 되고 앱의 바깥 호출
-문(`OutboundClient`)이 명시적으로 읽는다(D-516). 허용 목록은 그대로 목적지에 걸린다. 인증이 필요한 프록시는 아직 지원하지
-않는다(BACKLOG P-112).
+폐쇄망은 §3.1 의 오프라인 번들로 설치한다. 어느 길로 설치해도 설치가 끝나면 첫 관리자 설정 코드가 콘솔에 한 번 나오고
+(§11), `/usr/local/bin/clovirassist` 명령이 생긴다(§4).
 
 설치처 앞에 역방향 프록시(로드밸런서 · 사내 게이트웨이)가 있으면 그 주소를 `--upstream-proxy <ip[,cidr…]>` 로 함께 준다.
 안 주면 nginx 의 속도 제한이 그 프록시 주소 하나에 걸려 **사용자 전원이 한 예산을 나눈다**(근거와 실측은
@@ -32,9 +40,9 @@ sudo /opt/clovirassist/deploy/install.sh install \
 만들고, 그 안의 `deploy/install.sh` 가 나머지 전부(`/etc/clovirassist` · `/var/lib/clovirassist` ·
 `/var/backups/clovirassist` · venv · systemd · nginx · TLS)를 만든다.
 
-> `sudo /opt/clovirassist/deploy/install.sh` 를 **최초 Entry Point 로 쓸 수 없다** — Clean Ubuntu 에
-> 그 파일이 아직 없기 때문이다. 그래서 Source 확보(①②) 단계부터 사양에 넣는다.
-> Ubuntu Server 24.04 최소 설치에는 `git` 이 없다.
+> git 경로에서 `sudo /opt/clovirassist/deploy/install.sh` 를 **최초 Entry Point 로 쓸 수 없다** — Clean Ubuntu 에
+> 그 파일이 아직 없기 때문이다. 그래서 Source 확보 단계부터 사양에 넣는다. Ubuntu Server 24.04 최소 설치에는 `git` 이
+> 없다. Release 경로는 `curl`(최소 설치에 있다)로 스크립트 하나를 받는 것이 Source 확보다.
 
 ---
 
@@ -49,62 +57,70 @@ sudo /opt/clovirassist/deploy/install.sh install \
 - `git clone` 은 **Source 확보 · 무결성(object hash) · Version 고정(tag)** 을 한 번에 준다
 - clone 뒤에는 installer 가 **자기 Source 위치를 안다**(`git -C /opt/clovirassist rev-parse HEAD`).
   upgrade/rollback 이 같은 경로 위에서 이어진다 — 옛 `update-from-git.sh` 가 이미 쓰던 모델이고, S4 가 그것을 `deploy/install.sh` 안으로 옮겼다(S14 가 옛 스크립트를 지웠다)
+- **Release 경로도 파이프 실행이 아니다(D-522).** 스크립트는 파일로 받아 읽은 뒤 실행하고, 그 체크섬은 Release 의
+  `SHA256SUMS` 에 있다. 스크립트는 제품 묶음을 받은 뒤 **자기 줄을 글자 그대로 골라** 맞춰 보고, 맞을 때만 푼다.
+  확인은 Stage 0 안에서 끝나므로 틀린 묶음은 서버에 아무 흔적도 남기지 않는다
 
 ---
 
 ## 3. Source 설정과 인증
 
 ```
-GIT_REMOTE   https://gitlab.<사내>/clovir/clovirassist.git   # 제품 기준 Source
-GIT_REF      v<VERSION>                                      # tag 고정. 브랜치 추적 금지
-인증          GitLab deploy token (대화식 입력) 또는 SSH deploy key
+Release      https://github.com/hshwang1994/clovirassist/releases/download/v<VERSION>/   # 기본
+             --release-base <url> 로 사내 미러를 가리킬 수 있다
+GIT_REMOTE   https://github.com/hshwang1994/clovirassist.git                            # git 경로
+GIT_REF      v<VERSION>                                                                 # tag 고정. 브랜치 추적 금지
 ```
 
-- **토큰을 URL·명령행·환경변수에 넣지 않는다.** 비대화식 자동화가 필요하면
-  `/etc/clovirassist/secrets/gitlab.token`(0600)을 **installer 가 만들어 주고**,
-  `git -c credential.helper='!f(){ …; }'` 로 그 파일만 읽는다
+- Installer 는 **Remote 중립**이다. 사내 미러를 쓰면 `--git-remote <url>` 이나 `--release-base <url>` 만 바꾼다.
+  한 번 준 remote 는 manifest 가 기억한다
+- **토큰을 URL·명령행·환경변수에 넣지 않는다.** 비공개 미러에 인증이 필요하면 git 의 자격 증명 도우미를 쓴다
 - 사내 CA 를 쓰면 `ca-certificates` 갱신을 Preflight 가 확인한다
-- 느린 회선이면 `--depth 1` 사용 가능. 단 이후 upgrade 가
-  `git fetch --depth 1 origin refs/tags/<new>` 를 써야 하므로 installer 가 그 모드를 manifest 에 기록한다
 
-**현 origin 이 GitHub(`hshwang1994/CloviONE_AI_Helper`)라는 사실은 제품 배포 Source 를 GitLab 으로
-두는 요구를 축소하지 않는다.** Installer 는 **Remote 중립**으로 만들고 제품 문서/기본값은 GitLab 을
-기준으로 한다. GitLab 주소가 정해지면 **설정만** 바꾼다 (R16).
-
-### 3.1 폐쇄망 / GitLab 미도달 환경 — 오프라인 Bundle 경로 (계속 지원)
+### 3.1 폐쇄망 — 오프라인 Bundle 경로 (계속 지원)
 
 ```bash
-# 통제 장비에서 번들 생성 → scp 로 전달
-scp clovirassist-bundle-v<VERSION>.tar.gz  <server>:/tmp/
-sudo tar -xzf /tmp/clovirassist-bundle-v<VERSION>.tar.gz -C /opt
-sudo /opt/clovirassist/deploy/install.sh install --source bundle \
-     --dns-name clovirassist.gooddi.lab --bind-ip <IP>
+# 통제 장비에서 번들 생성(bash scripts/build-bundle.sh) → scp 로 전달
+scp dist/clovirassist-bundle.tar.gz <server>:/var/tmp/
+sudo tar -xzf /var/tmp/clovirassist-bundle.tar.gz -C /var/tmp
+sudo /var/tmp/stage/app-src/deploy/install.sh install --source bundle --offline \
+     --dns-name <host> --bind-ip <IP>
 ```
 
-번들은 `MANIFEST.sha256` + wheelhouse 를 포함하고 installer 가 **전개 전에 checksum 을 검증**한다.
-`build-bundle.sh` 를 승계한다.
+번들은 `MANIFEST.sha256` + wheelhouse 를 포함하고, installer 가 Stage 0 에서 **전개 전에 모든 파일을 그 목록으로
+확인한다**(D-522. 예전 문서는 그렇게 적었지만 설치가 목록을 읽지 않았다). wheelhouse 는 번들 안의 `wheels/` 가 기본이다.
+**wheelhouse 는 x86_64 용이다.** arm64 서버에서 번들로 설치하려 하면 Stage 0 이 멈춘다.
 
-설치본에는 `installed_manifest.json`(source kind · git remote · ref · commit · VERSION ·
+설치본에는 `installed_manifest.json`(source kind · git remote · ref · commit · Release 태그 · VERSION ·
 alembic head · PG/extension 버전 · DNS 이름 · 바인드 주소 · 앞단 프록시 목록 · 설치 시각 · Stage 결과)을 남긴다.
 
 ---
 
 ## 4. Entry Point — 설치 이후의 단일 명령
 
+설치가 `/usr/local/bin/clovirassist` 를 깐다(Stage 13, D-522). 설치 뒤의 운영은 이 명령 하나로 한다.
+
 ```bash
-sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
+sudo clovirassist <명령> [options]
 ```
 
-서브커맨드: `install` · `upgrade` · `rollback` · `uninstall` · `verify` · `version` ·
-`preflight` · `storage`(Stage 11 만) · `ai`(Stage 12 만).
+| 명령 | 하는 일 |
+|---|---|
+| `install` · `upgrade` · `rollback` · `uninstall` · `verify` · `version` · `preflight` · `storage` · `ai` | 설치본의 `deploy/install.sh` 의 같은 서브커맨드다 |
+| `first-admin-code` | 사용자가 아직 없을 때 첫 관리자 설정 코드를 새로 만든다(§11) |
+| `user` · `migrate` · `storage-cli` · `ai-cli` | 제품 도구다. 서비스 계정과 설치 환경으로 돈다(`install.sh app-cli`) |
 
-**AI 는 기본이 꺼짐이다**(D-259). 켜려면 설치 때 `--ai-model-dir <모델 디렉터리>` 를 주거나,
-모델 파일을 나중에 서버에 넣고 `sudo deploy/install.sh ai --ai-model-dir <디렉터리>` 를 돌린다.
-**모델을 네트워크로 받지 않는다** — 폐쇄망이 기본 전제이고, 설치 중에 바깥 호스트를 새로
-여는 것은 그 전제와 정반대다.
+`sudo /opt/clovirassist/deploy/install.sh <subcommand>` 도 그대로 된다 — `clovirassist` 는 그 앞면이다.
 
-`upgrade` 는 `installed_manifest.json` 의 remote 를 읽어 스스로 `git fetch` → 원하는 tag checkout →
-재설치한다. **사용자가 Source 위치를 다시 알려 줄 필요가 없다.**
+**AI 는 기본이 꺼짐이다**(D-259). 켜려면 설치 때 `--with-ai` 와 함께 `--download-model`(설치가 모델을 받는다) 이나
+`--ai-model-dir <모델 디렉터리>`(폐쇄망) 를 주거나, 나중에 `sudo clovirassist ai --download-model` 을 돌린다.
+**모델을 받는 것은 부탁했을 때만이다(D-522).** 받는 것은 설치 셸이고, 주소, revision(커밋 해시), 파일마다의 크기와
+sha256 은 제품 카탈로그(`app/ai/catalog.py`)가 고정한다. 받은 파일이 그 값과 다르면 캐시에 놓지 않는다. 제품(웹, 워커)은
+모델 호스트로 나가지 않는다 — 바깥 허용 목록에 그 호스트가 없다.
+
+`upgrade` 는 git 설치면 `installed_manifest.json` 의 remote 를 읽어 스스로 `git fetch` → 원하는 tag checkout → 재설치하고
+(`--ref v<다음>`), Release 설치면 다음 Release 를 받아 확인한 뒤 재설치한다(`--release v<다음>`). **사용자가 Source 위치를
+다시 알려 줄 필요가 없다.** Release 설치에 다음 버전을 주지 않은 업그레이드는 거절한다.
 
 ---
 
@@ -112,20 +128,20 @@ sudo /opt/clovirassist/deploy/install.sh <subcommand> [options]
 
 | # | Stage | 내용 | 실패 시 |
 |---|---|---|---|
-| 0 | **Preflight** | OS 24.04 확인 · 아키텍처 · 디스크/RAM · 포트 충돌 · DNS 해석 · 시간동기 · 필수 인자 · 기존 설치 감지 · 네트워크(또는 오프라인 모드) | **아무것도 바꾸기 전에** 중단 |
+| 0 | **Preflight** | **Ubuntu 24.04 만**(다른 버전은 멈춘다, D-522) · 아키텍처 · 디스크/RAM · 포트 충돌 · DNS 해석 · 시간동기 · 필수 인자 · 기존 설치 감지 · 네트워크(또는 오프라인 모드) · **Release 받기와 체크섬 확인**, 번들의 `MANIFEST.sha256` 확인 | **아무것도 바꾸기 전에** 중단 |
 | 1 | apt dependency | `postgresql-16` `postgresql-16-pgvector` `postgresql-contrib` `nginx` `python3.12-venv` `rsync` `openssl` `nfs-common` `cifs-utils` (+ Storage 사용 시) | 패키지명·원인 표시 |
 | 2 | 계정·디렉터리 | `clovirassist` 시스템 계정 · `/opt` `/etc` `/var/lib` `/var/backups` 권한 | |
-| 3 | Source 배치 | git clone/checkout 또는 bundle 전개 (`rsync --delete`) | |
+| 3 | Source 배치 | git clone/checkout, 확인한 Release 트리, bundle 전개 (`rsync --delete`) | |
 | 4 | Python Runtime | venv + wheelhouse 우선 `pip install`. **폐쇄망은 wheelhouse 에 `Pillow` 가 있어야 한다** — 프로필 사진을 서버가 디코드해서 다시 그린다(D-350). 없으면 아바타 업로드만 거절되고 나머지 제품은 그대로 돈다 | |
 | 5 | Frontend Artifact | **커밋된 빌드 산출물(`app/static/react/`) 사용이 기본.** `check_bundle_fresh.py` 로 신선도 검증. Node 가 있으면 소스 빌드 옵션. 기본 아바타(DiceBear)는 이 산출물 안에 이미 들어 있다 — **설치 시점에 npm 도 인터넷도 필요 없다**(D-350) | 번들 stale 이면 중단 |
 | 6 | **PostgreSQL 설치·초기화** | cluster 확인 · `clovirassist` role/DB 생성 · locale/encoding(UTF-8) · `pg_hba` 최소 권한 · listen 127.0.0.1 · 접속 검증 · **`PG_BIN_DIR` 를 `web.env` 에 쓴다**(비우면 `PATH` 의 낮은 버전 `pg_dump` 를 집어 백업이 조용히 실패한다 — S2) · **`max_connections` ≥ 워커수 ×(pool 5 + overflow 10)** | |
 | 7 | **Extension** | `CREATE EXTENSION vector; CREATE EXTENSION pg_trgm;` + 버전 기록 | 미설치 원인 표시 |
-| 8 | Configuration/Secret 분리 | `/etc/clovirassist/clovirassist.env`(0640) + `/etc/clovirassist/secrets/`(**0750** — 소유 `root`, 그룹이 서비스 계정이다. `0700` 이면 제품이 자기 비밀을 못 읽는다. S14 가 실측으로 고쳤다). **DB 비밀번호는 DSN 이 아니라 `.pgpass`/파일 참조** | |
+| 8 | Configuration/Secret 분리 | `/etc/clovirassist/clovirassist.env`(0640) + `/etc/clovirassist/secrets/`(**0750** — 소유 `root`, 그룹이 서비스 계정이다. `0700` 이면 제품이 자기 비밀을 못 읽는다. S14 가 실측으로 고쳤다). **DB 비밀번호는 DSN 이 아니라 `.pgpass`/파일 참조**. 허용 목록은 **새 기본 호스트만 더한다**(`deploy/merge_allowlist.py`, 운영자가 지운 기본 항목은 되살리지 않는다, D-522). 옛 `LLM_*` 키를 지우고 옛 API 키 파일을 `ai.anthropic.api_key` 로 옮긴다 | |
 | 9 | **DB Migration** | `alembic upgrade head`. 실행 전 현재 revision 과 목표 revision 출력 | revision 위치 표시 |
-| 10 | Seed/부트스트랩 | 최초 관리자 · 기본 Role/Permission · 기본 Storage Provider(Local) | |
+| 10 | Seed/부트스트랩 | 기본 Role/Permission. 사용자가 0명이면 **첫 관리자 설정 코드**를 만든다(해시만 저장, 원문은 설치가 끝난 뒤 콘솔에만, §11) | |
 | 11 | **File Storage 준비** ✅ | 디렉터리 생성/권한 · 기본 LOCAL Provider 부트스트랩 · **마운트 유닛과 `RequiresMountsFor=` drop-in 을 제품이 만들어 설치** · `systemctl enable --now` · **제품 코드로 `st_dev` 마운트 검증**(`storage_cli status` 의 종료코드가 계약이다) | 미마운트면 **쓰기를 거부하는 상태**라고 표시하고 멈춘다. 붙일 유닛 이름을 함께 낸다 |
-| 12 | **AI Component** ✅ | 모델 캐시 디렉터리 · (`--with-ai` 일 때) `requirements-ai.txt` 설치 · 모델 파일 배치(**오프라인만** — 네트워크로 안 받는다) · **제품 CLI 로 로드 검증**(`ai_cli status` 의 종료코드가 계약이고, `ai_cli selftest` 가 실제로 벡터를 만들어 길이까지 본다). AI 를 끄고 설치하면 캐시 자리만 만들고 **OK** 다 (D-259) | 켰는데 못 쓰면 **멈춘다**. 어느 파일이 없는지는 로그가 말한다 |
-| 13 | systemd unit 생성/설치 | **지금 여섯**: `clovirassist-web` · `-worker` · `-worker-conversational` · `-scheduler` · `-index` · `-privhelper`. `-index` 는 S9 이 넣었다(P-18 · D-257). 소스에 레인이 있는데 유닛이 없으면 이 Stage 가 막는다 | |
+| 12 | **AI Component** ✅ | 모델 캐시 디렉터리 · (`--with-ai` 일 때) `requirements-ai.txt` 설치 · 모델 파일 배치(`--ai-model-dir` 나 번들, 또는 `--download-model` 이면 카탈로그가 고정한 체크섬으로 받아 확인) · **제품 CLI 로 로드 검증**(`ai_cli status` 의 종료코드가 계약이고, `ai_cli selftest` 가 실제로 벡터를 만들어 길이까지 본다). AI 를 끄고 설치하면 캐시 자리만 만들고 **OK** 다 (D-259) | 켰는데 못 쓰면 **멈춘다**. 어느 파일이 없거나 틀렸는지는 로그가 말한다 |
+| 13 | systemd unit 생성/설치 | **지금 여섯**: `clovirassist-web` · `-worker` · `-worker-conversational` · `-scheduler` · `-index` · `-privhelper`. `-index` 는 S9 이 넣었다(P-18 · D-257). 소스에 레인이 있는데 유닛이 없으면 이 Stage 가 막는다. 운영 명령 `/usr/local/bin/clovirassist` 도 여기서 깐다 | |
 | 14 | `systemctl enable` + 의존 순서 | §6 | |
 | 15 | **TLS** | 인증서 존재 확인 또는 자체 서명 생성. **CN/SAN = `--dns-name`**. 있으면 SAN 이 그 이름을 담는지까지 본다(있다 ≠ 맞다) | |
 | 16 | nginx | 템플릿 치환 + **미치환 플레이스홀더 거부** + 앞단 프록시 신뢰 목록(`/etc/clovirassist/nginx/realip.conf`, `--upstream-proxy`) + `nginx -t` + `server_name` 중복 검사 | 목록을 줬는데 nginx 에 realip 모듈이 없으면 멈춘다 |
@@ -268,7 +284,7 @@ Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다�
 
 ## 8. 최종 Acceptance 시나리오 (S22 에서 실행)
 
-**Clean Ubuntu Server 24.04 에서 §1 의 세 줄로 시작한다. 다른 문서를 참조하지 않는다.**
+**Clean Ubuntu Server 24.04 에서 §1 의 설치 명령으로 시작한다. 다른 문서를 참조하지 않는다.**
 
 | # | 단계 | 확인 |
 |---|---|---|
@@ -276,16 +292,16 @@ Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다�
 | 2 | DB 준비 / Migration | `install.sh version` 의 alembic head == 코드 head |
 | 3 | 서비스 자동 등록 | `systemctl is-enabled` 전 유닛 `enabled` |
 | 4 | Health PASS | `/healthz` `/readyz` 200 + DB·Storage·AI probe |
-| 5 | Login / Smoke PASS | 로그인 → 사용자 콘솔 → 관리자 콘솔 → 대표 데이터 |
+| 5 | Login / Smoke PASS | 설치 콘솔의 설정 코드로 첫 관리자 만들기(§11) → 로그인 → 사용자 콘솔 → 관리자 콘솔 → 대표 데이터 |
 | 6 | **Server Reboot** | `sudo reboot` |
 | 7 | 전체 서비스 자동 복구 | **수동 명령 0회.** `systemctl is-active` 전 유닛 + `postgresql` + `nginx` |
 | 8 | Health PASS | 동일 |
 | 9 | 기존 데이터 정상 | 재부팅 전 데이터가 그대로 조회됨 |
-| 10 | Upgrade 검증 | `install.sh upgrade --ref v<VERSION+1>` → Health PASS. 실패 주입 시 `rollback` 으로 원복 |
+| 10 | Upgrade 검증 | `clovirassist upgrade --release v<VERSION+1>`(git 설치는 `--ref`) → Health PASS. 실패 주입 시 `rollback` 으로 원복 |
 
 **부가 검증**
 
-1. 3번째 명령 **재실행(idempotent)** — 데이터·설정 무손상
+1. 설치 명령 **재실행(idempotent)** — 데이터·설정 무손상
 2. `uninstall` 후 **재설치**
 3. 의도적 Stage 실패 주입 시 **어느 Stage 에서 왜 멈췄는지 표준 출력만으로 판별되는지**
 4. 오프라인 Bundle 경로로도 동일 시나리오 1회
@@ -318,7 +334,6 @@ Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다�
 
 | 아직 없는 것 | 소유 |
 |---|---|
-| GitLab 기준 Source 주소(Installer 는 Remote 중립이라 주소만 넣으면 된다) | 외부 입력 (R16) |
 | Storage 준비 실체(NFS/SMB Provider · 마운트 유닛 · `st_dev` 가드) — Stage 11 은 `SKIP` 이다 | S8 (P-17) |
 | ~~AI Component(모델 배치 · ONNX Runtime)~~ | ~~S9 (P-18)~~ — **완료 (2026-08-23)**. 실검증 원장은 [`EVIDENCE/S9/`](EVIDENCE/S9/README.md) |
 | ~~`clovirassist-index.service`~~ | ~~S9 (P-18)~~ — **완료 (2026-08-23)** |
@@ -347,3 +362,44 @@ Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다�
 찾아 멈추고 스냅샷에 담아 이전한다)와 `deploy/00-precheck.sh` 의 재실행 감지다.
 그 밖의 곳에 옛 이름을 다시 적지 않는다 — 그러면 걷어낸 정체성이 제품에 되살아난다
 (CLAUDE.md §0).
+
+---
+
+## 11. 첫 관리자 계정 (D-522)
+
+설치는 계정을 만들지 않는다. 만들면 누군가 비밀번호를 정해야 하고, 그 값이 콘솔이나 설치 로그에 남는다. 대신 사용자가
+0명이면 Stage 10 이 **일회용 설정 코드**를 만들고, 모든 Stage 가 끝난 뒤 콘솔에 한 번 보인다.
+
+```
+=== 첫 관리자 계정 ===
+아직 계정이 없습니다. 브라우저에서 https://<host>/setup/first-admin 을 열고 아래 설정 코드를 넣어
+시스템 관리자 계정을 만드세요. 코드는 한 번만 쓸 수 있고 설치 로그에는 남지 않습니다.
+
+  설정 코드: XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX
+```
+
+- 코드는 128비트 무작위 값이다. 서버에는 sha256 해시, 만료 시각(24시간), 실패 횟수만 `/var/lib/clovirassist/first-admin.json`
+  에 남는다.
+- `/setup/first-admin` 은 스크립트 없는 서버 렌더 폼이다. 코드, 이메일, 이름, 비밀번호를 받아 시스템 관리자를 만들고
+  코드를 지운다. **사용자가 한 명이라도 있으면 이 경로는 404 다.**
+- 틀린 코드가 다섯 번 들어오면 코드를 폐기한다. 비밀번호 정책에 걸린 것은 실패로 세지 않는다.
+- 코드를 잃어버렸거나 만료됐으면 `sudo clovirassist first-admin-code` 로 새로 만든다(옛 코드는 무효가 된다).
+
+## 12. 설치 뒤 설정
+
+필수 설정(관리자 계정, 조직과 부서, TLS)은 설치와 §11 이 끝낸다. 관리자로 로그인하면 **설정 > 초기 설정** 화면이 남은
+항목을 보인다. 메일과 AI 는 **선택**이다. 쓰지 않으면 그 화면에서 「사용하지 않음」으로 표시한다(D-520).
+
+- **비밀 값은 설치 명령에 넣지 않는다.** 메일 비밀번호와 AI 키는 웹 화면에서 넣고, 특권 도우미가
+  `/etc/clovirassist/secrets/` 에 쓴다(값을 돌려주는 API 는 없다, D-503).
+- **메일**: 설정 > 설정에서 SMTP 서버와 비밀번호를 넣고, 운영 > 메일 발송에서 「연결 확인」을 누른다. 확인이 성공해야
+  메일 상태가 정상이 된다.
+- **AI**: 설정 > 설정의 AI 탭에서 제공자와 인증 방식을 고른다. Anthropic 은 API 키로만, OpenAI 는 API 키나 ChatGPT 계정
+  (Sign in with ChatGPT)으로 연결한다. ChatGPT 계정 연결은 관리자 PC 에서 도는 연결 도우미가 브라우저의 콜백을 받아 서버에
+  넘긴다(D-516). 사용자가 여럿인 설치는 조직 API 키를 권한다 — ChatGPT 요금제의 사용량은 연결한 계정 한 명의 것이다.
+- **바깥 프록시**: AI 제공자 호출이 사내 프록시를 거쳐야 하면 설정 > 설정의 OS와 서비스 동작 탭에서 프록시 주소와 예외
+  목록을 넣고 서비스를 다시 시작한다. 그 값은 웹, 배치 워커, 대화형 워커, 스케줄러 유닛의 드롭인이 되고 앱의 바깥 호출
+  문(`OutboundClient`)이 명시적으로 읽는다(D-516). 허용 목록은 그대로 목적지에 걸린다. 인증이 필요한 프록시는 아직 지원하지
+  않는다(BACKLOG P-112).
+- **TLS**: 설치가 `--dns-name` 으로 자체 서명 인증서를 만든다. 브라우저 경고를 없애려면 설정 > 설정의 OS와 서비스 동작
+  탭에서 신뢰된 인증서와 개인키로 바꾼다(키와 인증서가 한 쌍인지 확인한 뒤에만 바꾼다).

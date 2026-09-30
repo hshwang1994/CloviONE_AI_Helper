@@ -41,8 +41,6 @@ from app.core.errors import AppError
 
 __all__ = ["ConfluenceSourceError", "ConfluenceStats", "ConfluenceSource"]
 
-_API = "https://goodmit.atlassian.net"
-
 #: 한 번에 받는 개수. v2 는 커서 페이징이라 상한이 곧 요청 수를 정한다.
 _PAGE_SIZE = 250
 #: 안전 상한. 실측은 CMP 312 + ClovirONE 212 = 524 쪽이다.
@@ -109,12 +107,16 @@ class ConfluenceSource:
         *,
         secret_ref: str,
         cache_dir: str | Path,
-        api_base: str = _API,
+        api_base: str,
         throttle_seconds: float = 0.12,
         sleep=None,
     ) -> None:
         self._outbound = outbound
         self._secret_ref = secret_ref
+        # 사이트 주소는 설치처가 준다(`migrate import-confluence --site`). 한 고객사의 사이트를 기본값으로 박아 두면 다른
+        # 설치에서 남의 사이트로 나간다 - 허용 목록이 막아도 「왜 안 되는지」가 설정 실수처럼 보인다(D-523).
+        if not str(api_base or "").startswith("https://"):
+            raise ConfluenceSourceError("Confluence 사이트 주소는 https:// 로 시작해야 합니다(예: https://example.atlassian.net).")
         self._api_base = api_base.rstrip("/")
         # Notion(0.34초)보다 여유롭다 — Atlassian 의 제한이 훨씬 느슨하다. 그래도 0 은
         # 아니다: 524쪽 × (본문+첨부+댓글) 이면 1,600 요청이고, 제한에 걸린 뒤 기다리는

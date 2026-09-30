@@ -211,6 +211,7 @@ def cmd_import_confluence(args) -> int:
     )
     source = ConfluenceSource(
         outbound,
+        api_base=args.site,
         secret_ref=args.secret_ref,
         cache_dir=args.cache,
         throttle_seconds=args.throttle,
@@ -227,7 +228,7 @@ def cmd_import_confluence(args) -> int:
             source=source,
             actor=actor,
             fallback_author=fallback,
-            space_keys=(args.space or ["CMP", "ClovirONE"]),
+            space_keys=args.space,
             settings=settings,
             with_files=not args.no_files,
             with_comments=not args.no_comments,
@@ -479,12 +480,16 @@ def build_parser() -> argparse.ArgumentParser:
     node.set_defaults(func=cmd_reimport_bodies)
 
     node = sub.add_parser("import-confluence")
+    node.add_argument(
+        "--site", required=True,
+        help="Confluence 사이트 주소(예: https://example.atlassian.net). 이관 허용 목록에도 그 호스트를 더한다",
+    )
     node.add_argument("--cache", default="var/migration-cache")
     node.add_argument("--secret-ref", default="confluence_token", dest="secret_ref")
     node.add_argument("--throttle", type=float, default=0.12)
     node.add_argument(
-        "--space", action="append", default=None,
-        help="Space key. 여러 번 줄 수 있다 (기본: CMP 와 ClovirONE)",
+        "--space", action="append", required=True,
+        help="가져올 Space key. 여러 번 줄 수 있다",
     )
     node.add_argument("--actor", default="", help="가져온 사람으로 적을 계정 이메일")
     node.add_argument(

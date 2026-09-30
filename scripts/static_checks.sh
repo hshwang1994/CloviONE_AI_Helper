@@ -346,6 +346,15 @@ else
   echo "$TENANT"; fail "소스 기본값·설치 스크립트에 고객사 고유 식별자가 남아 있다"
 fi
 
+step "Install docs use only commands and options the installer takes"
+# README 와 설치 상세 문서의 명령은 사람이 그대로 복사해 실행한다. 스크립트에서 옵션 이름이 바뀌었는데 문서가 옛 이름을
+# 들고 있으면 설치하는 사람은 첫 명령에서 멈춘다(D-523). 검사기가 스스로 맞는 문장과 틀린 문장을 가르는지도 함께 본다.
+if INSTDOCS="$("$PY" scripts/check_install_docs.py --selftest 2>&1 && "$PY" scripts/check_install_docs.py 2>&1)"; then
+  ok "$(echo "$INSTDOCS" | tail -1)"
+else
+  echo "$INSTDOCS"; fail "설치 문서의 명령이 설치 스크립트와 다르다"
+fi
+
 step "Form labels stay above the input"
 # 계약 시험은 `FormField` 하나만 렌더한다 — 이미 지키는 컴포넌트 위에서만 초록이다(F-W5D-133).
 # 브라우저 프로브도 «그려진 것» 만 본다(모달 안·권한 없는 폼·조건부 필드는 못 본다).

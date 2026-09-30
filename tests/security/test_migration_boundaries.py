@@ -3,7 +3,10 @@
 이관은 한 번 쓰고 버리는 도구다. 그런 도구가 런타임의 보안 경계를 넓혀 놓고 사라지면,
 넓어진 채로 남는 것은 제품이다.
 
-qa-contract-change: 런타임 허용 목록이 Anthropic 하나에서 AI 제공자 세 호스트(api.anthropic.com, api.openai.com,
+qa-contract-change: 이관 허용 목록의 기본값에서 한 고객사의 Confluence 사이트를 뺐다(D-523). 사이트는 설치처마다 달라
+설치본에 운영자가 더하고, 이관 도구는 --site 로 같은 주소를 받는다. 목록을 집합으로 적는 방식과 나머지 세 호스트의 이유는
+그대로다.
+그 전 변경: 런타임 허용 목록이 Anthropic 하나에서 AI 제공자 세 호스트(api.anthropic.com, api.openai.com,
 auth.openai.com)가 됐다(계획 3.14, 3.16). OpenAI 는 API 키와 ChatGPT 계정 연결을 공식으로 지원하고, 계정 연결은 토큰
 교환과 갱신에 auth.openai.com 을 쓴다. 이관용 호스트(S3, 노션)는 여전히 이 목록에 없다 - 그것이 이 시험이 지키는 경계다.
 """
@@ -52,19 +55,18 @@ def test_the_migration_allowlist_is_a_separate_narrow_list():
 
     - `api.notion.com` · S3 — Notion 이관(S13). 본문과 속성은 API 에서, 첨부 바이트는
       Notion 이 내주는 임시 S3 주소에서 온다.
-    - `goodmit.atlassian.net` — Confluence 한 번 가져오기(문서 개편 14~20번).
-    - `api.media.atlassian.com` — 그 첨부의 **바이트**가 실제로 오는 곳. Confluence 의
+    - Confluence 사이트(`<site>.atlassian.net`) — 설치처마다 달라 기본 목록에 없다. 운영자가 설치본에 더한다(D-523).
+    - `api.media.atlassian.com` — Confluence 첨부의 **바이트**가 실제로 오는 곳. Confluence 의
       download 주소는 302 로 이 CDN 을 가리킨다. 실측에서 이 호스트가 없어 첨부 1,458개가
       0바이트로 들어왔고, 회차는 초록이었다.
 
-    셋 다 **런타임 목록에는 없다**(위 시험이 그것을 잰다). 한 번 쓰고 버리는 도구가
+    어느 것도 **런타임 목록에는 없다**(위 시험이 그것을 잰다). 한 번 쓰고 버리는 도구가
     제품의 경계를 넓혀 놓고 사라지면, 넓어진 채로 남는 것은 제품이다.
     """
     migration = _hosts("migration")
     assert migration == {
         "api.notion.com:443",
         "prod-files-secure.s3.us-west-2.amazonaws.com:443",
-        "goodmit.atlassian.net:443",
         "api.media.atlassian.com:443",
     }, f"이관 허용 목록이 바뀌었다: {sorted(migration)}"
 

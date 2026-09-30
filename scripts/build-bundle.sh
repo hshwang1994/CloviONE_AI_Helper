@@ -2,6 +2,13 @@
 # Build the deployment bundle (D2): LF-normalized source tree + offline wheelhouse
 # + sha256 manifest. Run from the repo root on the control machine (Git Bash).
 #   PY=py bash scripts/build-bundle.sh
+#
+# GitHub Release 자산(계획 3.17, D-522):
+#   bash scripts/build-bundle.sh --release v1.2.0 [--ref <커밋이나 태그>]
+# dist/release/ 에 세 파일을 만든다.
+#   clovirassist-<버전>.tar.gz  제품 트리(clovirassist-<버전>/ 한 디렉터리). 커밋된 파일만 담는다(git archive)
+#   install.sh                  deploy/install.sh 사본. 이 Release 의 태그를 기본값으로 적는다
+#   SHA256SUMS                  위 두 파일의 sha256. 설치가 묶음을 풀기 전에 이 목록으로 확인한다
 set -euo pipefail
 export LC_ALL=C.UTF-8
 
@@ -10,6 +17,16 @@ STAGE="$OUT/stage"
 PY="${PY:-python}"
 command -v "$PY" >/dev/null 2>&1 || PY=python3
 [ -x ".venv/Scripts/python.exe" ] && PY=".venv/Scripts/python.exe"
+
+RELEASE_TAG=""
+RELEASE_REF="HEAD"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --release) RELEASE_TAG="${2:-}"; shift 2 ;;
+    --ref) RELEASE_REF="${2:-}"; shift 2 ;;
+    *) echo "모르는 인자: $1 (--release v<버전> [--ref <커밋>])" >&2; exit 2 ;;
+  esac
+done
 
 echo "== bundle freshness gate (frontend/src vs app/static/react) =="
 # 이 스크립트는 지금 워킹트리의 app/static/react 를 그대로 패키징한다 - 프런트를 다시
@@ -23,6 +40,47 @@ if ! "$PY" scripts/check_bundle_fresh.py; then
   echo "[FAIL] app/static/react 가 frontend/src 보다 낡았다 - 이 상태로 패키징하면 옛 화면이 배포된다." >&2
   echo "        고치는 법: cd frontend && npm run build && cd .. && $PY scripts/check_bundle_fresh.py --write" >&2
   exit 1
+fi
+
+# ── Release 자산 ─────────────────────────────────────────────────────────────
+# 오프라인 번들과 다른 점: wheelhouse 가 없다(설치가 PyPI 에서 받는다). 트리는 워킹 트리가 아니라 **커밋**에서 만든다 -
+# 커밋하지 않은 파일이나 에이전트 작업 사본이 공개 자산에 섞이면 안 된다.
+if [ -n "$RELEASE_TAG" ]; then
+  case "$RELEASE_TAG" in
+    v[0-9]*) ;;
+    *) echo "[FAIL] Release 태그는 v 로 시작합니다: $RELEASE_TAG" >&2; exit 2 ;;
+  esac
+  case "$RELEASE_TAG" in
+    *[!A-Za-z0-9._-]*) echo "[FAIL] Release 태그에 쓸 수 없는 글자가 있습니다: $RELEASE_TAG" >&2; exit 2 ;;
+  esac
+  ver="${RELEASE_TAG#v}"
+  REL="$OUT/release"
+  TREE="$REL/tree/clovirassist-$ver"
+  rm -rf "$REL"
+  mkdir -p "$TREE"
+  echo "== release tree ($RELEASE_REF → clovirassist-$ver/) =="
+  # 설치가 쓰지 않는 것은 뺀다: 시험, 문서, 프런트 소스(빌드된 번들 app/static/react 가 들어간다), 에이전트 작업 파일.
+  git archive --format=tar "$RELEASE_REF" -- . \
+      ':(exclude)tests' ':(exclude)docs' ':(exclude)frontend' ':(exclude).claude' ':(exclude)CLAUDE.md' \
+      ':(exclude).github' ':(exclude)design_handoff_clovirassist_ui' \
+    | tar -x -C "$TREE"
+  printf '%s\n' "$ver" >"$TREE/VERSION"
+  find "$TREE" -name '*.sh' -exec sed -i 's/\r$//' {} +
+  [ -f "$TREE/requirements.txt" ] && [ -f "$TREE/deploy/install.sh" ] && [ -f "$TREE/app/static/react/index.html" ] \
+    || { echo "[FAIL] Release 트리에 제품 파일이 빠졌습니다" >&2; exit 1; }
+  [ ! -e "$TREE/.claude" ] || { echo "[FAIL] Release 트리에 .claude 가 들어갔습니다" >&2; exit 1; }
+  tar -czf "$REL/clovirassist-$ver.tar.gz" -C "$REL/tree" "clovirassist-$ver"
+  rm -rf "$REL/tree"
+
+  echo "== standalone install.sh =="
+  sed "s/^RELEASE_TAG_DEFAULT=\"\"$/RELEASE_TAG_DEFAULT=\"$RELEASE_TAG\"/" deploy/install.sh | sed 's/\r$//' >"$REL/install.sh"
+  grep -qx "RELEASE_TAG_DEFAULT=\"$RELEASE_TAG\"" "$REL/install.sh" \
+    || { echo "[FAIL] 단독 install.sh 에 태그를 적지 못했습니다(RELEASE_TAG_DEFAULT 줄을 확인하십시오)" >&2; exit 1; }
+
+  ( cd "$REL" && sha256sum "clovirassist-$ver.tar.gz" install.sh >SHA256SUMS )
+  echo "RELEASE_OK $REL"
+  cat "$REL/SHA256SUMS"
+  exit 0
 fi
 
 rm -rf "$STAGE"

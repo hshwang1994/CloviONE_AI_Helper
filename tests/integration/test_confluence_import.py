@@ -437,7 +437,7 @@ class _RecordingOutbound:
 def _source(outbound, tmp_path):
     from app.migration.source_confluence import ConfluenceSource
 
-    return ConfluenceSource(outbound, secret_ref="confluence_token",
+    return ConfluenceSource(outbound, api_base="https://example.atlassian.net", secret_ref="confluence_token",
                             cache_dir=str(tmp_path), throttle_seconds=0, sleep=lambda _s: None)
 
 

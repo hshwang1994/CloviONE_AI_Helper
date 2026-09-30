@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Read-only pre-check (spec §4). Emits a masked markdown report and a JSON
-# inventory to /home/cloviradmin/, and exits:
+# inventory to $PRECHECK_OUT (default: the current directory), and exits:
 #   0  = proceed
 #   10 = proceed with warnings
 #   20 = STOP (reasons printed as "STOP: <reason>" lines)
@@ -14,8 +14,10 @@ case "$(head -c 200 "$0" 2>/dev/null)" in
 # 이 제품의 slug. `deploy/install.sh` 의 `SLUG` 와 같은 값이어야 한다 — 사전 점검이
 # 다른 이름을 보면 「설치돼 있지 않다」고 말하면서 실제로는 도는 설치를 못 본다.
 SLUG=clovirassist
-REPORT=/home/cloviradmin/$SLUG-precheck.md
-INVENTORY=/home/cloviradmin/$SLUG-system-inventory.json
+# 결과를 둘 자리. 한 설치처의 계정 홈을 박아 두면 다른 서버에서는 없는 디렉터리에 쓰려다 실패한다(D-523).
+PRECHECK_OUT="${PRECHECK_OUT:-$PWD}"
+REPORT="$PRECHECK_OUT/$SLUG-precheck.md"
+INVENTORY="$PRECHECK_OUT/$SLUG-system-inventory.json"
 # 설치처 고유값. 기본값을 두지 않는다(설치 스크립트와 같은 이유: 저장소에 한 고객사의
 # 호스트명·IP 를 박아 두면 다른 곳에서 남의 주소를 점검하고 통과해 버린다).
 # 이 스크립트는 읽기 전용 사전 점검이라 값이 없다고 멈추지는 않지만, **확인하지 않았다는
