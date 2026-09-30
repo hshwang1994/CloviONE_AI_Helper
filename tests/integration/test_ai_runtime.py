@@ -62,7 +62,7 @@ def _runtime(app):
 
 def _generate(app, *, action="chat.answer", data="질문입니다."):
     with app.state.session_factory() as db:
-        result = _runtime(app).generate(db, action_key=action, task="짧게 답하세요.", data=data)
+        result = _runtime(app).generate(db, action_key=action, data=data)
         db.commit()
     return result
 
@@ -248,7 +248,7 @@ def test_all_slots_busy_is_a_value_not_a_hang(app, settings, fake_http):
         lock_factory=lambda config: _Busy(),
     )
     with app.state.session_factory() as db:
-        result = runtime.generate(db, action_key="chat.answer", task="짧게", data="질문")
+        result = runtime.generate(db, action_key="chat.answer", data="질문")
     assert result.status == contract.STATUS_BUSY
     assert _messages_calls(fake_http) == []
 

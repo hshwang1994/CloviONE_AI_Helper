@@ -462,6 +462,9 @@ class AiUsageRecord(Base):
     prompt_slot: Mapped[str | None] = mapped_column(String(64))
     prompt_version: Mapped[int | None] = mapped_column(Integer)
     prompt_source: Mapped[str | None] = mapped_column(String(16))
+    # 관리자가 발행한 프롬프트면 그 행의 id(0040). 이름이 다른 두 프롬프트가 같은 버전 번호를 가질 수 있어
+    # (사용처, 버전)만으로는 어느 프롬프트였는지 가를 수 없다. 기본 제공이면 비어 있다.
+    prompt_id: Mapped[str | None] = mapped_column(String(36))
     policy_ids_json: Mapped[str | None] = mapped_column(Text)
     truncated_input: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     truncated_output: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))

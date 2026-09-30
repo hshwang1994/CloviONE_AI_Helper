@@ -26,7 +26,8 @@ def _h(csrf):
 def _create(client, csrf, name="부분수정 프롬프트", content="원본 지시문", purpose="처음 용도"):
     r = client.post(
         "/api/admin/prompts",
-        json={"name": name, "content": content, "purpose": purpose},
+        # 발행하려면 사용처가 있어야 한다(D-518).
+        json={"name": name, "content": content, "purpose": purpose, "slot": "answer"},
         headers=_h(csrf),
     )
     assert r.status_code == 201, r.text
@@ -117,7 +118,7 @@ def test_empty_patch_body_changes_nothing(client, admin_csrf):
 def test_partial_patch_still_refuses_a_published_row(client, admin_csrf):
     """반례: 부분 갱신이 되더라도 발행된 버전은 여전히 못 고친다(초안에서만 고친다)."""
     item = _create(client, admin_csrf)
-    for step in ("test", "review", "published"):
+    for step in ("published",):
         r = client.post(
             f"/api/admin/prompts/{item['id']}/transition",
             json={"status": step},

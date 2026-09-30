@@ -272,21 +272,22 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     expect(sent.body.reason).toBe("문의 재현");
   });
 
-  it("프롬프트 사용 통계: 쓰이지 않는 것을 표시한다", async () => {
+  it("프롬프트 사용 통계: 사용처마다 지금 쓰는 지시문과 호출 수를 보인다", async () => {
+    // 예전에는 스케줄 참조를 세서 언제나 「쓰이지 않음」이었다. 이제 호출 기록에서 사용처별로 센다(D-518).
     apiMock.mockImplementation(() => Promise.resolve({
       items: [
-        { name: "주간 보고", versions: 3, published_version: 2, latest_version: 3, latest_status: "draft",
-          template_refs: 1, template_names: ["주간 템플릿"], schedule_refs: 0, schedule_names: [],
-          document_runs: 12, unused: false, last_published_at: "2026-07-01T00:00:00" },
-        { name: "쓰다 만 것", versions: 1, published_version: null, latest_version: 1, latest_status: "draft",
-          template_refs: 0, template_names: [], schedule_refs: 0, schedule_names: [],
-          document_runs: 0, unused: true, last_published_at: null },
+        { slot: "answer", label: "질문 답변", description: "질문에 답합니다.", editable: true, current_source: "admin",
+          current_id: "p-1", current_name: "답변 지시", current_version: 2, calls: 12, errors: 3, failure_rate: 25,
+          last_used_at: "2026-07-01T00:00:00" },
+        { slot: "draft", label: "문서 초안", description: "초안을 씁니다.", editable: true, current_source: "builtin",
+          current_id: "builtin:draft", current_name: null, current_version: null, calls: 0, errors: 0,
+          failure_rate: null, last_used_at: null },
       ],
       kind: "prompts",
     }));
     renderScreen("prompt-usage");
-    expect(await screen.findByText("쓰이지 않음")).toBeInTheDocument();
-    expect(screen.getByText("쓰이는 중")).toBeInTheDocument();
+    expect(await screen.findByText("답변 지시 v2")).toBeInTheDocument();
+    expect(screen.getByText("기본 제공")).toBeInTheDocument();
   });
 });
 

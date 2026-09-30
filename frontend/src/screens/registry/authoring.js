@@ -1,6 +1,6 @@
 /* AI 저작물 — 프롬프트·정책과 그 사용 통계.
  *
- * 버전을 만들고(초안 → 테스트 → 검토 → 발행) 되돌리는 세 화면이 같은 액션 묶음을 공유한다.
+ * 버전을 만들고(초안 → 발행 → 보관, D-518) 되돌리는 화면들이 같은 액션 묶음을 공유한다.
  * 사용 통계 두 화면은 그 저작물이 실제로 어디서 쓰였는지를 보는 반대편 창이라 함께 둔다.
  *
  * registry.js 를 쪼갠 조각이다 (E-10). 쪼갠 축은 '줄 수'가 아니라 **관리자가 한 번에
@@ -17,99 +17,84 @@ import { nameVersionsAction } from "./actions.js";
 // 호출 기록의 결과 배지(D-517). 막힘은 실패와 다른 사실이다 - 제공자에 닿지 않았다.
 const USAGE_STATUS_KIND = { ok: "ok", error: "danger", blocked_quota: "warn", blocked_policy: "warn" };
 
+/* 프롬프트 한 줄의 상태 배지(D-518). 발행은 「이 사용처에서 지금 쓴다」는 뜻이라 「사용 중」으로 읽힌다. 기본 제공
+   행은 같은 사용처에 발행본이 있으면 쉬고 있다(「대체됨」). */
+const PROMPT_STATUS = {
+  draft: ["초안", "neutral"], published: ["사용 중", "ok"], archived: ["보관", "neutral"],
+};
+function promptStatus(r) {
+  if (r.status === "builtin") return r.in_use ? ["사용 중", "ok"] : ["대체됨", "neutral"];
+  return PROMPT_STATUS[r.status] || [r.status, "neutral"];
+}
+const PROMPT_SOURCE = { builtin: "기본 제공", admin: "관리자 작성" };
+const isBuiltinRow = (r) => r.source === "builtin";
+const promptPath = (r) => "/api/admin/prompts/" + r.id;
+
 export const AUTHORING_SCREENS = {
   prompts: {
     smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "prompts", area: "AI", title: "프롬프트", endpoint: "/api/admin/prompts",
-    // 상태 전이 버튼이 내용 검증을 뜻하지 않는다는 점을 밝힌다(전이는 순수 상태 기록일
-    // 뿐 — app/prompts/service.py).
-    help: "AI에게 주는 지시문을 버전으로 관리합니다. ‘테스트로’, ‘검토로’, ‘발행’은 상태만 바꿀 뿐, 실제로 실행하거나 내용을 검증하지 않습니다. 내용 검증은 화면 밖에서 직접 확인하세요.",
-    emptyTitle: "추가된 프롬프트가 없습니다",
-    // 읽기 전용 역할(operator/auditor)에는 렌더되지 않는 '추가' 버튼을 누르라고 안내하지 않는다.
-    // 안내 문구의 생명주기는 실제 강제되는 전이(draft→test→review→published)에 맞춘다('테스트' 단계 포함).
-    emptyHelp: writerEmptyHelp("‘+ 프롬프트 추가’로 AI에게 줄 지시문을 넣고, 초안→테스트→검토→발행 순으로 올리세요.", "프롬프트는 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
-    // 다른 온보딩 화면(연동/러너)처럼 단계별 안내를 준다(생명주기: 초안→테스트→검토→발행).
-    emptySituation: "AI에게 줄 지시문(프롬프트)이 아직 하나도 없습니다.",
-    emptySteps: ["‘+ 프롬프트 추가’로 초안을 추가합니다.", "‘테스트로 → 검토로’ 순으로 상태를 올립니다.", "‘발행’하면 그 시점부터 이 이름의 발행본이 이 버전이 됩니다."],
-    emptyExpected: "발행된 버전이 실제 사용되며, 같은 이름의 이전 발행본은 자동으로 보관됩니다.",
+    /* 런타임이 실제로 읽는다(D-518) - 예전 도움말은 「상태만 바꿀 뿐」이라고 적었다. 목록 첫머리가 사용처마다
+       기본 제공 지시문이고, 같은 사용처에 발행한 프롬프트가 있으면 다음 호출부터 그것을 쓴다. */
+    help: "AI가 기능마다 따르는 지시문입니다. 사용처마다 기본 제공 지시문이 있고, 같은 사용처에 프롬프트를 발행하면 다음 AI 호출부터 발행한 지시문을 씁니다. 안전 규칙과 출력 형식은 따로 붙으므로 바꿀 수 없습니다.",
+    emptyTitle: "조건에 맞는 프롬프트가 없습니다",
+    emptyHelp: "조건을 지우면 사용처마다 기본 제공 지시문이 보입니다.",
     createLabel: "프롬프트 추가",
-    // 다른 화면이 ?id=로 넘겨주는 딥링크를 소비해 그 프롬프트의 상세 드로어를
-    // 곧바로 연다(단건 GET). 이 라우터의 GET /{row_id}는 {"item":...} 모양으로 응답한다
-    // (app/prompts/router.py get_one) — job 과 selectKey 가 다르다.
+    // 다른 화면이 ?id=로 넘겨주는 딥링크를 소비해 그 프롬프트의 상세 드로어를 곧바로 연다(단건 GET).
+    // 기본 제공 행의 id(`builtin:answer`)도 같은 문으로 연다(app/prompts/router.py get_one).
     onQuery: (p) => p.id ? { open: "select", id: p.id } : null,
     selectKey: "item",
-    // 백엔드 list_all은 page/page_size 파라미터를 받아 실제로 페이지네이션한다(app/prompts/router.py) —
-    // 예전엔 registry.js가 이걸 전혀 안 써서 500건 상한 경고에만 의존했다. paginated:true로 실제
-    // '다음' 컨트롤을 켠다(total이 없는 응답이라도 DataScreen 페이저가 pageSize 가득 찬 페이지면
-    // '다음'을 계속 켜 둔다) — capWarning은 그래도 남겨 500건 상한 자체는 계속 알린다.
-    paginated: true,
+    // 사용처 수만큼의 기본 제공 행과 관리자가 쓴 버전들이다 - 한 번에 받는다(서버 기본 500건, 그 상한을 알린다).
     capWarning: 500,
-    // 이름으로 좁혀 한 프롬프트의 버전들만 모아 본다(백엔드 ?name= 정확 일치 필터). 상태로도 좁힐 수
-    // 있게 한다(백엔드가 지원 — app/prompts/router.py) — 목록이 모든 버전을 다 보여주므로 이름 없이
-    // '지금 발행된 것만'·'검토 대기만' 같은 질문에 답할 방법이 없었다.
-    // status 기본값을 'published'로 스코프한다(정책 화면과 동일 — 여전히 '전체'로 바꿀 수 있다).
-    // 기본값이 없으면 첫 방문마다 초안/테스트/검토/발행/보관 버전이 모두 뒤섞여, '지금 실제로 쓰이는
-    // 것'을 알아보려면 매번 손으로 필터를 걸어야 했다.
-    //
-    // 🔴 이름 후보는 **지금 화면에 받아 둔 행에서 뽑지 않는다.** 예전에는
-    // `datalistFrom: (items) => items.map(r => r.name)` 이었는데, 이 화면은 서버가 목록을
-    // 자르므로 그 제안은 언제나 「지금 받아 둔 것 안에 있는 이름」뿐이었다 — 서버 필터는
-    // **정확 일치**(`app/prompts/router.py` 의 `model.name == name`)라 후보를 못 보면
-    // 사실상 못 쓰는 필터다.
-    //
-    // 후보 목록은 이미 서버에 있다: `/usage/stats` 가 **이름당 한 행**을 무페이징으로 주고
-    // 게이트가 이 목록과 같다(`CONSOLE_READ_ROLES`) — 새 권한 표면이 0이다. 그리고 이름은
-    // 사람이 짓는 식별자이고 `uq_prompts_name_version` 이 유일성을 강제하는 **통제 어휘**라
-    // D-355(통제 어휘가 아닌 값을 셀렉트로 승격하지 않는다)와 어긋나지 않는다.
-    refLists: [{ key: "promptNames", endpoint: "/api/admin/prompts/usage/stats", valueKey: "name", labelKey: "name" }],
-    filters: [{ key: "name", type: "select", kind: "entity", label: "이름", optionsFromRefList: "promptNames" },
-      { key: "status", type: "select", label: "상태", value: "published", options: opt([["draft", "초안"], ["test", "테스트"], ["review", "검토"], ["published", "발행됨"], ["archived", "보관됨"]]) }],
-    // 용도(purpose)를 목록 열로 노출 — _prompt_view가 이미 돌려주는데도 상세에만 있어 여러 버전이
-    // 쌓인 목록에서 각 프롬프트가 '무엇을 위한 것인지' 행마다 열어보지 않고는 알 수 없었다.
-    // purpose는 최대 2000자에 create/edit 폼도 여러 줄 textarea라 자르지 않으면 표가 옆으로 밀린다
-    // (list_field 상세는 여전히 truncateCol의 title 속성으로 전체 확인 가능 — 오류 열과 동일 패턴).
-    columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 60),
-      col("version", "버전", "code"), badgeCol("status", "상태"), dateCol("created_at", "생성 일자")],
-    // 상세에서 실제 지시문(발행본 포함)을 읽을 수 있게 — 편집은 초안만이라 그 외엔 읽기 전용으로 노출.
-    // purpose는 이제 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
-    detailFields: [field("id", "프롬프트 ID"),
-      { key: "created_by", label: "작성자", render: (r) => r.created_by_name || r.created_by_email || r.created_by || "-" },
-      // 초안이 아니면 '수정' 버튼이 통째로 사라진다(editWhen 아래) — policies와 동일한 이유로 편집
-      // 안내를 남긴다(registry.js policies의 _edit_note와 동일 패턴).
-      { key: "_edit_note", label: "수정 안내", render: (r) => r.status !== "draft" ? "이 버전은 초안이 아니라 수정할 수 없습니다. 아래 ‘새 버전’으로 수정 가능한 초안을 추가하세요." : "-" },
-      dateCol("published_at", "발행 시각"), jsonField("content", "프롬프트 내용")],
-    // purpose는 서버에서 최대 2000자까지 허용한다(app/prompts/router.py) — 한 줄 text 입력은 좁아서
-    // textarea로(워크플로의 purpose 필드와 동일한 대우).
-    /* 프롬프트는 부서로 나뉘는 자원이 아니다 — 같은 이름의 발행본 하나를 전 부서가 참조하고
-       스케줄이 그 이름을 가리킨다. 서버가 생성·수정·상태 전이·새 버전·롤백 전부를 전역 범위
-       관리자로 한정한다(`app/prompts/router.py::_require_global`). 읽기는 좁히지 않는다. */
+    refLists: [{ key: "promptSlots", endpoint: "/api/admin/prompts/slots", valueKey: "key", labelKey: "label" }],
+    filters: [
+      { key: "slot", type: "select", label: "사용처", optionsFromRefList: "promptSlots" },
+      { key: "source", type: "select", label: "출처", options: opt([["builtin", "기본 제공"], ["admin", "관리자 작성"]]) },
+      { key: "status", type: "select", label: "상태", options: opt([["draft", "초안"], ["published", "사용 중"], ["archived", "보관"]]) },
+    ],
+    columns: [
+      { ...col("name", "이름", "title"), rowName: (r) => r.name + (r.version ? " v" + r.version : "") },
+      { key: "slot_label", label: "사용처", type: "enum", render: (r) => r.slot_label || "정하지 않음" },
+      { key: "source", label: "출처", type: "enum", render: (r) => PROMPT_SOURCE[r.source] || r.source },
+      { key: "version", label: "버전", type: "code", render: (r) => (r.version == null ? "-" : "v" + r.version) },
+      { key: "status", label: "상태", type: "status", render: (r) => { const [value, kind] = promptStatus(r); return React.createElement(Badge, { value, kind }); } },
+      { key: "calls_30d", label: "30일 호출", type: "count" },
+      dateCol("last_used_at", "마지막 사용"),
+    ],
+    // 상세에서 지시문과 사용처가 고정한 틀을 함께 읽는다 - 관리자가 바꾸는 것은 지시문 하나다.
+    detailFields: [
+      field("purpose", "설명"),
+      { key: "content", label: "지시문", render: (r) => r.content || "-" },
+      { key: "_frame_role", label: "역할 문장(고정)", render: (r) => (r.frame ? r.frame.role : "사용처를 고르면 보입니다.") },
+      { key: "_frame_format", label: "출력 형식(고정)", render: (r) => (r.frame ? r.frame.format_line : "사용처를 고르면 보입니다.") },
+      { key: "created_by", label: "작성자", render: (r) => (isBuiltinRow(r) ? "기본 제공" : (r.created_by_name || r.created_by_email || r.created_by || "-")) },
+      { key: "_edit_note", label: "수정 안내", render: (r) => (isBuiltinRow(r) ? "기본 제공 지시문은 고칠 수 없습니다. ‘복제해서 수정’으로 초안을 만드세요." : (r.status !== "draft" ? "이 버전은 초안이 아니라 고칠 수 없습니다. ‘새 버전’으로 초안을 만드세요." : "-")) },
+      dateCol("published_at", "발행 시각"),
+      field("id", "프롬프트 ID"),
+    ],
+    /* 프롬프트는 부서로 나뉘는 자원이 아니다 — 사용처 하나의 발행본을 전 부서가 함께 쓴다. 서버가 생성·수정·발행·
+       새 버전·롤백·복제를 전부 전역 범위 관리자로 한정한다(`app/prompts/router.py::_require_global`). */
     create: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
       { name: "name", label: "이름", type: "text", required: true },
-      { name: "purpose", label: "용도", type: "textarea" },
-      { name: "content", label: "프롬프트 내용", type: "textarea", required: true, help: "AI에게 주는 지시문입니다. 무엇을, 어떤 형식으로 만들지 구체적으로 적으세요. 예: ‘아래 티켓 목록을 프로젝트별로 묶어 주간 보고서를 마크다운 표로 요약해줘. 완료, 지연 건수를 강조할 것.’ 발행하면 이 이름의 발행본이 그 시점부터 쓰입니다." },
+      { name: "slot", label: "사용처", type: "select", required: true, optionsFromRefList: "promptSlots", help: "이 지시문을 쓸 기능입니다. 연결 확인은 고를 수 없습니다." },
+      { name: "purpose", label: "설명", type: "textarea" },
+      { name: "content", label: "지시문", type: "textarea", required: true, help: "모델에게 주는 지시입니다. 기본 제공 지시문에서 시작하려면 목록의 기본 제공 행에서 ‘복제해서 수정’을 누르세요. 안전 규칙과 출력 형식은 따로 붙습니다." },
     ] },
-    // 수정은 ContentUpdateRequest(PATCH) 계약: 내용·용도만(이름은 새 버전으로만 바뀜). 초안일 때만 편집 가능(그 외 409).
-    editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
-      { name: "content", label: "프롬프트 내용", type: "textarea", required: true, help: "AI에게 주는 지시문입니다. 무엇을, 어떤 형식으로 만들지 구체적으로 적으세요. 예: ‘아래 티켓 목록을 프로젝트별로 묶어 주간 보고서를 마크다운 표로 요약해줘. 완료, 지연 건수를 강조할 것.’ 발행하면 이 이름의 발행본이 그 시점부터 쓰입니다." },
-      { name: "purpose", label: "용도", type: "textarea" },
+    // 수정은 초안일 때만 된다(그 밖은 409). 사용처도 초안에서 바꿀 수 있다.
+    editMethod: "PATCH", editWhen: (r) => !isBuiltinRow(r) && r.status === "draft", edit: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
+      { name: "content", label: "지시문", type: "textarea", required: true },
+      { name: "slot", label: "사용처", type: "select", required: true, optionsFromRefList: "promptSlots" },
+      { name: "purpose", label: "설명", type: "textarea" },
     ] },
     actions: [
-      { label: "테스트로", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "draft", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용이 검증되지는 않습니다." },
-      { label: "검토로", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "test", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "review" }, confirm: "이 버전을 검토 단계로 옮길까요? 상태만 바뀔 뿐 내용이 검증되지는 않습니다." },
-      { label: "초안으로 되돌리기", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "test" || r.status === "review", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "draft" }, confirm: "이 버전을 초안으로 되돌려 다시 수정할까요?" },
-      { label: "발행", variant: "primary", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "review", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 발행되면 실제 사용되며, 현재 발행 중인 같은 이름의 버전은 자동으로 보관(archive)됩니다." },
-      // 새 버전은 백엔드가 어떤 상태에서든 새 초안으로 분기한다(발행본에만 국한하지 않음).
-      // keepSelection — 새 버전을 만드는 목적이 '바로 이어서 편집'이므로, 드로어를 닫고 목록으로
-      // 튕겨 내지 않고 응답이 돌려준 새 초안(item)으로 드로어를 갱신해 이어서 '수정'을 누를 수 있게 한다.
-      { label: "새 버전", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status !== "draft", path: (r) => "/api/admin/prompts/" + r.id + "/new-version", keepSelection: true },
-      // 버전 목록 + 행에서 롤백·비교(diff). 상태와 무관하게 노출(발행본이 없어도 이력·복원 가능).
-      nameVersionsAction("/api/admin/prompts", "프롬프트 버전 기록"),
-      { label: "보관", variant: "danger", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status !== "archived", path: (r) => "/api/admin/prompts/" + r.id + "/transition", body: { status: "archived" }, confirm: "이 버전을 보관할까요? 보관하면 더 이상 발행, 사용되지 않지만 이력으로는 목록에 남습니다." },
-      // prompts는 감사 로그의 유효한 object_type이고(router.py: action=f"{kind}.create" 등, kind="prompts")
-      // 모든 쓰기가 이 타입으로 기록된다 — 구조적으로 동일한 policies에 이미 있는 딥링크와 맞춘다.
-      // operator는 프롬프트 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx
-      // SCREEN_ROLES) — approvals.registry.js:990과 동일한 이유로 admin/system_admin/auditor에만 노출한다.
-      { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=prompts&object_id=" + r.id },
+      { label: "복제해서 수정", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => isBuiltinRow(r) && r.editable !== false, path: (r) => "/api/admin/prompts/builtin/" + r.slot + "/copy", keepSelection: true },
+      { label: "발행", variant: "primary", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => !isBuiltinRow(r) && r.status === "draft", path: (r) => promptPath(r) + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 다음 AI 호출부터 이 사용처는 이 지시문을 쓰고, 지금 쓰는 발행본은 보관됩니다." },
+      // 새 버전은 어떤 상태에서든 새 초안으로 갈라진다. 드로어를 새 초안으로 바꿔 곧바로 고칠 수 있게 한다.
+      { label: "새 버전", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => !isBuiltinRow(r) && r.status !== "draft", path: (r) => promptPath(r) + "/new-version", keepSelection: true },
+      { ...nameVersionsAction("/api/admin/prompts", "프롬프트 버전 기록"), when: (r) => !isBuiltinRow(r) },
+      { label: "보관", variant: "danger", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => !isBuiltinRow(r) && r.status !== "archived", path: (r) => promptPath(r) + "/transition", body: { status: "archived" }, confirm: "이 버전을 보관할까요? 사용 중이던 버전이면 다음 AI 호출부터 기본 제공 지시문을 씁니다." },
+      // operator는 프롬프트 화면엔 들어오지만 /audit 화면엔 못 들어간다 — admin/system_admin/auditor에만 노출한다.
+      { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], when: (r) => !isBuiltinRow(r), navigate: (r) => "#/audit?object_type=prompts&object_id=" + r.id },
     ],
   },
   policies: {
@@ -119,9 +104,8 @@ export const AUTHORING_SCREENS = {
        탐색이 반복되지 않는다. 그래서 저장된 뷰를 그리지 않는다 — 기능이 아니라 소음이다. */
     smallSet: true,
     key: "policies", area: "AI", title: "정책", endpoint: "/api/admin/policies",
-    // '테스트로'·'검토로'·'발행'·'보관'은 상태만 바꿀 뿐 JSON 내용을 검증하지 않는다
-    // (프롬프트와 동일).
-    help: "업무 규칙(정책)을 관리합니다. ‘테스트로’, ‘검토로’, ‘발행’, ‘보관’은 상태만 바꿀 뿐, 내용(JSON)을 검증하지 않습니다. 내용 검증은 화면 밖에서 직접 확인하세요. 발행하면 그 시점부터 이 이름의 발행본이 새 버전이 됩니다.",
+    // 생명주기는 초안 → 발행 → 보관이다(D-518). 발행은 JSON 모양만 검사한다.
+    help: "업무 규칙(정책)을 버전으로 관리합니다. 발행하면 이 이름의 발행본이 새 버전으로 바뀌고, 발행할 때는 JSON 모양만 검사합니다.",
     // 발행은 그 순간부터 이 이름의 발행본을 바꾼다 — 프롬프트보다 파급이 크다는 판단은
     // 그대로다. 배너를 일반 안내와 같은 톤으로 두면 그 경고가 안 읽힌다.
     helpTone: "warn",
@@ -129,7 +113,7 @@ export const AUTHORING_SCREENS = {
     // 정책도 프롬프트와 동일하게 4단계 생명주기(초안→테스트→검토→발행)를 강제한다 — '등록하고
     // 발행하세요'는 마치 한 단계로 끝나는 것처럼 읽혀, 새 관리자가 초안 행에서 비활성 '발행' 버튼을
     // 만나고 이유를 못 찾았다(프롬프트 registry.js:404와 동일 문구로 맞춘다).
-    emptyHelp: writerEmptyHelp("‘+ 정책 추가’로 업무 규칙(JSON)을 넣고, 초안→테스트→검토→발행 순으로 올리세요.", "정책은 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
+    emptyHelp: writerEmptyHelp("‘+ 정책 추가’로 업무 규칙(JSON)을 넣고 초안에서 발행하세요.", "정책은 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
     createLabel: "정책 추가",
     // 다른 화면이 ?id=로 넘겨주는 딥링크를 소비해 그 정책의 상세 드로어를 곧바로
     // 연다(단건 GET). 이 라우터의 GET /{row_id}는 {"item":...} 모양으로
@@ -152,7 +136,7 @@ export const AUTHORING_SCREENS = {
     // 필터이고, `/usage/stats` 가 이름당 한 행을 같은 게이트로 무페이징 제공한다).
     refLists: [{ key: "policyNames", endpoint: "/api/admin/policies/usage/stats", valueKey: "name", labelKey: "name" }],
     filters: [{ key: "name", type: "select", kind: "entity", label: "이름", optionsFromRefList: "policyNames" },
-      { key: "status", type: "select", label: "상태", value: "published", options: opt([["draft", "초안"], ["test", "테스트"], ["review", "검토"], ["published", "발행됨"], ["archived", "보관됨"]]) }],
+      { key: "status", type: "select", label: "상태", value: "published", options: opt([["draft", "초안"], ["published", "발행됨"], ["archived", "보관됨"]]) }],
     // WF1 단독 결함 — purpose는 이제 Policy에도 있다(app/prompts/models.py::Policy.purpose,
     // 마이그레이션 0058). 프롬프트와 동일하게 목록 열로 노출한다 — 여러 버전이 쌓인 목록에서
     // 각 정책이 '무엇을 강제하는지' 행마다 열어보지 않고는 알 수 없었다. purpose는 최대 2000자라
@@ -185,10 +169,7 @@ export const AUTHORING_SCREENS = {
       { name: "purpose", label: "용도", type: "textarea" },
     ] },
     actions: [
-      { label: "테스트로", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "draft", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "test" }, confirm: "이 버전을 테스트 단계로 옮길까요? 상태만 바뀔 뿐, 러너로 실제 실행되거나 내용(JSON)이 검증되지는 않습니다." },
-      { label: "검토로", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "test", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "review" }, confirm: "이 버전을 검토 단계로 옮길까요? 상태만 바뀔 뿐 내용(JSON)은 검증되지 않습니다." },
-      { label: "초안으로 되돌리기", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "test" || r.status === "review", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "draft" }, confirm: "이 버전을 초안으로 되돌려 다시 수정할까요?" },
-      { label: "발행", variant: "primary", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "review", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 발행되면 실제 사용되며, 현재 발행 중인 같은 이름의 버전은 자동으로 보관(archive)됩니다." },
+      { label: "발행", variant: "primary", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "draft", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 같은 이름으로 발행돼 있던 버전은 보관됩니다." },
       // keepSelection — 새 버전을 만드는 목적이 '바로 이어서 편집'이므로(내용은 초안일 때만 편집
       // 가능), 프롬프트의 '새 버전'과 동일하게 드로어를 닫지 않고 새 초안으로 갱신한다.
       { label: "새 버전", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status !== "draft", path: (r) => "/api/admin/policies/" + r.id + "/new-version", keepSelection: true },
@@ -203,38 +184,25 @@ export const AUTHORING_SCREENS = {
     ],
   },
   "prompt-usage": {
-    smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
+    smallSet: true, // 사용처 수만큼의 줄이라 저장된 뷰가 소음이다(D-506)
     key: "prompt-usage", area: "AI", title: "프롬프트 사용 통계",
     endpoint: "/api/admin/prompts/usage/stats",
-    help: "프롬프트가 실제로 쓰이고 있는지 이름별로 봅니다. ‘쓰이지 않음’은 이 이름을 참조하는 스케줄이 없다는 뜻입니다. 정리 대상을 고를 때 씁니다. 버전 비교와 되돌리기는 ‘프롬프트’ 화면의 ‘버전 기록’에서 합니다.",
-    emptyTitle: "추가된 프롬프트가 없습니다",
-    emptyHelp: "‘프롬프트’ 화면에서 프롬프트를 추가하면 사용 현황이 여기에 표시됩니다.",
-    emptyRelatedLink: { href: "#/prompts", label: "프롬프트 화면으로 이동" },
-    searchFields: ["name"],
-    searchPlaceholder: "프롬프트 이름으로 검색",
-    filters: [{ key: "unused", type: "select", label: "사용 여부", clientFilter: true, options: opt([["true", "쓰이지 않음"], ["false", "쓰이는 중"]]) }],
-    // 열을 접지 않는다 — 접을 이유가 실측으로 확인되지 않았다. 900px 아래에서는 DataTable이
-    // 표가 아니라 카드 목록으로 그린다(kit.jsx TABLE_CARD_BREAKPOINT) — 좁은 화면에서 잘리는
-    // 게 아니라 라벨과 값이 세로로 쌓인다. 그 위 폭에서는 TableContainer가 스스로 가로
-    // 스크롤하므로 페이지에 가로 스크롤이 생기지도 않는다.
+    /* 예전에는 「이 이름을 참조하는 스케줄이 있는가」를 셌고 언제나 「쓰이지 않음」이었다. 이제 AI 호출 기록에서
+       사용처마다 최근 30일을 센다(D-518). */
+    help: "사용처마다 지금 쓰는 지시문과 최근 30일의 AI 호출 수, 실패율, 마지막 사용을 봅니다. 수는 AI 호출 기록에서 셉니다.",
+    emptyTitle: "사용처가 없습니다",
+    emptyHelp: "프롬프트 사용처는 제품이 정합니다. 목록이 비었다면 서버 응답을 확인하세요.",
     columns: [
-      { ...col("name", "이름"), identifier: true },
-      { key: "unused", label: "사용", type: "count", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
-      { key: "versions", label: "버전 수", type: "count" },
-      { key: "published_version", label: "발행 버전", type: "count", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },
-      { key: "schedule_refs", label: "스케줄", type: "count" },
+      { key: "label", label: "사용처", type: "title" },
+      { key: "current_name", label: "지금 쓰는 지시문", type: "name", render: (r) => (r.current_source === "admin" ? r.current_name + " v" + r.current_version : "기본 제공") },
+      { key: "calls", label: "30일 호출", type: "count" },
+      { key: "failure_rate", label: "실패율", type: "percent", render: (r) => (r.failure_rate == null ? "-" : r.failure_rate + "%") },
+      dateCol("last_used_at", "마지막 사용"),
     ],
-    detailFields: [
-      { key: "schedule_names", label: "참조하는 스케줄", render: (r) => (r.schedule_names || []).join(", ") || "없음" },
-      { key: "latest_version", label: "최신 버전" },
-      badgeCol("latest_status", "최신 상태"),
-      dateCol("last_published_at", "마지막 발행"),
-    ],
+    detailFields: [field("description", "설명"), field("errors", "실패 호출"), field("slot", "사용처 키")],
     actions: [
-      { label: "이 프롬프트 버전 보기", navigate: (r) => "#/prompts?name=" + encodeURIComponent(r.name) },
+      { label: "지금 쓰는 지시문 보기", navigate: (r) => "#/prompts?id=" + encodeURIComponent(r.current_id) },
     ],
-    /* 「정책 사용 통계」 머리 단추를 걷었다(D-501) — 이 화면은 언제나 「AI 사용 통계」 그릇의 탭이라 바로 옆
-       「정책」 탭이 같은 곳으로 간다. */
   },
   "policy-usage": {
     smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)

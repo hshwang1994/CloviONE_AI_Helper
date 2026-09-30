@@ -107,8 +107,8 @@ def _department_name(db: Session, department_id: str | None) -> str | None:
 
 def record(session_factory, *, actor: Actor, action_key: str, status: str, now: datetime, provider=None,
            auth_method=None, model=None, error_code=None, input_tokens=None, output_tokens=None, latency_ms=None,
-           prompt_slot=None, prompt_version=None, prompt_source=None, policy_ids=None, truncated_input=False,
-           truncated_output=False, request_id=None, job_id=None) -> None:
+           prompt_slot=None, prompt_version=None, prompt_source=None, prompt_id=None, policy_ids=None,
+           truncated_input=False, truncated_output=False, request_id=None, job_id=None) -> None:
     """한 행을 제 세션으로 적고 커밋한다. 성공한 사람의 호출이면 한도를 다 썼는지 그 자리에서 본다. 예외를 올리지 않는다."""
     if session_factory is None:
         return
@@ -125,6 +125,7 @@ def record(session_factory, *, actor: Actor, action_key: str, status: str, now: 
                 status=status, error_code=_clip(error_code, 64), input_tokens=input_tokens,
                 output_tokens=output_tokens, latency_ms=latency_ms, prompt_slot=_clip(prompt_slot, 64),
                 prompt_version=prompt_version, prompt_source=_clip(prompt_source, 16),
+                prompt_id=_clip(prompt_id, 36),
                 policy_ids_json=json.dumps(sorted(policy_ids)) if policy_ids else None,
                 truncated_input=bool(truncated_input), truncated_output=bool(truncated_output),
                 request_id=_clip(request_id, 64), job_id=_clip(job_id, 36),
@@ -336,3 +337,50 @@ def purge_old(db: Session, *, now: datetime, retention_days: int = RETENTION_DAY
 
     result = db.execute(delete(AiUsageRecord).where(AiUsageRecord.created_at < now - timedelta(days=retention_days)))
     return int(result.rowcount or 0)
+
+
+# ── 프롬프트가 얼마나 쓰였나 (D-518) ─────────────────────────────────────────
+
+
+def _counts(rows) -> dict:
+    return {"calls": int(rows.calls or 0), "errors": int(rows.errors or 0),
+            "last_at": rows.last_at.isoformat() if rows.last_at else None}
+
+
+def prompt_usage(db: Session, *, since: datetime) -> tuple[dict[str, dict], dict[str, dict]]:
+    """(발행본 id → 수, 사용처 → 기본 제공 지시문의 수). 제공자까지 간 호출만 센다 - 막힌 호출은 지시문을 쓰지 않았다."""
+    from app.ai.models import USAGE_ERROR, AiUsageRecord as R
+
+    errors = func.sum(case((R.status == USAGE_ERROR, 1), else_=0)).label("errors")
+    by_prompt = {
+        row.prompt_id: _counts(row)
+        for row in db.execute(
+            select(R.prompt_id, func.count().label("calls"), errors, func.max(R.created_at).label("last_at"))
+            .where(R.created_at >= since, R.prompt_id.is_not(None))
+            .group_by(R.prompt_id)
+        ).all()
+    }
+    by_builtin = {
+        row.prompt_slot: _counts(row)
+        for row in db.execute(
+            select(R.prompt_slot, func.count().label("calls"), errors, func.max(R.created_at).label("last_at"))
+            .where(R.created_at >= since, R.prompt_source == "builtin", R.prompt_slot.is_not(None))
+            .group_by(R.prompt_slot)
+        ).all()
+    }
+    return by_prompt, by_builtin
+
+
+def slot_usage(db: Session, *, since: datetime) -> dict[str, dict]:
+    """사용처 → 그 기간의 호출 수, 실패 수, 마지막 사용(기본 제공과 발행본을 합친다)."""
+    from app.ai.models import USAGE_ERROR, AiUsageRecord as R
+
+    errors = func.sum(case((R.status == USAGE_ERROR, 1), else_=0)).label("errors")
+    return {
+        row.prompt_slot: _counts(row)
+        for row in db.execute(
+            select(R.prompt_slot, func.count().label("calls"), errors, func.max(R.created_at).label("last_at"))
+            .where(R.created_at >= since, R.prompt_slot.is_not(None))
+            .group_by(R.prompt_slot)
+        ).all()
+    }

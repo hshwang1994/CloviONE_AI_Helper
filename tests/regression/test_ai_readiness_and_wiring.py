@@ -185,7 +185,7 @@ def test_an_unconfigured_model_is_refused_not_defaulted():
     from tests.fakes.ai import ScriptedAdapter, offline_runtime
 
     adapter = ScriptedAdapter()
-    result = offline_runtime(adapter, model="").generate(None, action_key="chat.answer", task="t", data="d")
+    result = offline_runtime(adapter, model="").generate(None, action_key="chat.answer", data="d")
     assert result.status == contract.STATUS_UNCONFIGURED
     assert adapter.calls == [], "모델 없이 제공자를 불렀다"
 

@@ -64,7 +64,6 @@ def handle_project_weekly_summary(db: Session, job: Job, ctx: WorkerContext) -> 
 
     from app.ai.actions import WEEKLY_SUMMARY
     from app.ai.runtime import runtime_for_worker
-    from app.llm.prompt import TASK_WEEKLY
 
     runtime = runtime_for_worker(ctx)
     # DBTX: 아웃바운드(제공자) 호출 직전 커밋 — 위 db.get()/project_weekly_report()의 읽기가
@@ -76,8 +75,7 @@ def handle_project_weekly_summary(db: Session, job: Job, ctx: WorkerContext) -> 
     from app.users.models import User
 
     requester = db.get(User, job.user_id) if job.user_id else None
-    result = runtime.generate(db, action_key=WEEKLY_SUMMARY, task=TASK_WEEKLY, data=body, actor=requester,
-                              job_id=job.id)
+    result = runtime.generate(db, action_key=WEEKLY_SUMMARY, data=body, actor=requester, job_id=job.id)
     if not result.ok:
         logger.warning(
             "프로젝트 %s %s주 AI 요약 실패: %s", project_id, week_of, result.status

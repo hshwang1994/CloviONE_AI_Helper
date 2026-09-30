@@ -4,5 +4,5 @@
     fusion.py    RRF — 순위 셋을 점수 하나로. Re-rank 는 없다 (D-212 · D-255)
     citation.py  앵커 → 사람이 읽는 인용과 눌러서 갈 수 있는 자리
     service.py   권한 → 후보 → 세 레인 → 융합 → 인용
-    answer.py    Context 조립 → `Gateway.generate(task=, data=)`
+    answer.py    Context 조립 → `AiRuntime.generate(action_key=, data=)` (지시문은 사용처가 고른다, D-518)
 """

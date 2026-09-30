@@ -19,13 +19,8 @@ from app.ai.gateway import contract
 from app.core.errors import ValidationAppError
 from app.games.schemas import _clean_questions
 
-#: **우리가 쓴 문장만 여기 있다.** 주제는 `data` 로 따로 간다.
-TASK = "\n".join([
-    "아래 주제로 한국어 객관식 퀴즈를 만들어 주세요.",
-    "답은 JSON 배열 하나로만 쓰고, 배열 앞뒤에 다른 글을 붙이지 마세요.",
-    '각 항목은 {"q": 문제, "options": [보기, ...], "answer": 정답 보기의 0부터 세는 번호} 입니다.',
-    "보기는 서로 다르게 쓰고, 정답 번호는 반드시 보기 범위 안에 있어야 합니다.",
-])
+#: 지시문과 JSON 형식은 「게임 퀴즈 만들기」 사용처에 있다(`app/ai/prompts/catalog.py`, D-518). 형식은 이 파일의
+#: 파서가 기대는 모양이라 관리자가 바꿀 수 없는 칸에 둔다. 주제는 `data` 로 따로 간다.
 
 #: 모델이 ```json 울타리를 붙여 답하는 경우가 흔하다. 울타리는 내용이 아니므로 걷어낸다.
 _FENCE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
@@ -71,8 +66,7 @@ def generate_quiz(runtime, db, *, topic: str, count: int, num_options: int, acto
     }
     from app.ai.actions import GAME_QUIZ
 
-    result = runtime.generate(db, action_key=GAME_QUIZ, task=TASK, data=json.dumps(request, ensure_ascii=False),
-                              actor=actor)
+    result = runtime.generate(db, action_key=GAME_QUIZ, data=json.dumps(request, ensure_ascii=False), actor=actor)
     if not result.ok:
         if result.status in (contract.STATUS_UNCONFIGURED, contract.STATUS_DISABLED,
                              contract.STATUS_CREDENTIAL_ERROR):

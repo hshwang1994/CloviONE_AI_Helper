@@ -152,6 +152,6 @@ def test_an_unwritable_slot_directory_is_a_failed_result_not_a_crash():
 
     adapter = ScriptedAdapter()
     runtime = offline_runtime(adapter, lock_factory=lambda config: _Broken())
-    result = runtime.generate(None, action_key="chat.answer", task="t", data="d")
+    result = runtime.generate(None, action_key="chat.answer", data="d")
     assert result.status == contract.STATUS_FAILED and result.error_code == "slot_unavailable"
     assert adapter.calls == []

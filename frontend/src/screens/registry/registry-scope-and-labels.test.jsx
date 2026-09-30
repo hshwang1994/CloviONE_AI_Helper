@@ -173,10 +173,13 @@ describe("전역 자원의 쓰기 선언이 서버 게이트와 같다 (xa-07)",
       const cfg = AUTHORING_SCREENS[key];
       expect(cfg.create.requiresGlobalScope).toBe(true);
       expect(cfg.edit.requiresGlobalScope).toBe(true);
-      for (const label of ["테스트로", "검토로", "초안으로 되돌리기", "발행", "새 버전", "보관"]) {
+      // 생명주기는 초안 → 발행 → 보관이다(D-518) - 「테스트로」 · 「검토로」 · 「초안으로 되돌리기」는 없다.
+      for (const label of ["발행", "새 버전", "보관"]) {
         expect(actionByLabel(cfg, label).requiresGlobalScope).toBe(true);
       }
     }
+    // 기본 제공 지시문을 초안으로 옮기는 것도 전사 지시문을 바꾸는 첫걸음이라 같은 문을 지난다.
+    expect(actionByLabel(AUTHORING_SCREENS.prompts, "복제해서 수정").requiresGlobalScope).toBe(true);
   });
 
   it("AI 상한은 **행마다** 다르다 — 전역 행만 가리고 사용자 행은 그대로 둔다", () => {

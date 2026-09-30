@@ -65,7 +65,7 @@ from app.observability.router import router as system_status_router
 from app.profiles.router import router as profiles_router
 from app.projects.router import router as projects_router
 from app.quotas.router import router as ai_quotas_router
-from app.prompts.router import policies_router, prompts_router
+from app.prompts.router import policies_router, prompt_slots_router, prompts_router
 from app.reports.router import router as reports_router
 from app.search.reindex_router import router as search_reindex_router
 from app.search.router import router as search_router
@@ -245,6 +245,8 @@ def create_app(
     app.include_router(audit_router)
     app.include_router(integrations_router)
     app.include_router(jobs_router)
+    # 사용처 경로(`/slots`)가 `/{row_id}` 보다 먼저 잡혀야 한다(D-518).
+    app.include_router(prompt_slots_router)
     app.include_router(prompts_router)
     app.include_router(policies_router)
     app.include_router(schedules_router)

@@ -15,6 +15,8 @@
   json_output       JSON 을 돌려받는 액션. **자르지 않는다** - 자른 JSON 은 쓸 수 없으니 넘으면 실패다
   max_output_tokens Provider 에 넘기는 출력 한도(요금제 연결처럼 넘길 수 없는 경로는 무시된다)
   supports_approval 정책이 승인을 요구할 수 있는 쓰기(3.9)
+  prompt_slot       지시문을 고르는 사용처(`app/ai/prompts/catalog.py`, D-518). 채팅과 작업 공간의 질문은 같은
+                    「질문 답변」 지시문을 쓴다
 """
 
 from __future__ import annotations
@@ -43,18 +45,20 @@ class AiAction:
     max_output_tokens: int
     json_output: bool = False
     supports_approval: bool = False
+    prompt_slot: str = ""
 
 
 ACTIONS: dict[str, AiAction] = {
     a.key: a
     for a in (
-        AiAction(CHAT_ANSWER, "채팅 답변", KIND_READ, True, 4000, 1500),
-        AiAction(WORKSPACE_ASK, "작업 공간 질문", KIND_READ, True, 4000, 1500),
-        AiAction(WORKSPACE_DRAFT, "작업 공간 문서 초안", KIND_WRITE, True, 12000, 4000, supports_approval=True),
-        AiAction(WEEKLY_SUMMARY, "프로젝트 주간 요약", KIND_WRITE, True, 2000, 800),
-        AiAction(HOME_NARRATIVE, "홈 문장 요약", KIND_READ, True, 1200, 600),
-        AiAction(GAME_QUIZ, "게임 퀴즈 만들기", KIND_READ, True, 8000, 2000, json_output=True),
-        AiAction(CONNECTION_TEST, "연결 확인", KIND_READ, False, 200, 32),
+        AiAction(CHAT_ANSWER, "채팅 답변", KIND_READ, True, 4000, 1500, prompt_slot="answer"),
+        AiAction(WORKSPACE_ASK, "작업 공간 질문", KIND_READ, True, 4000, 1500, prompt_slot="answer"),
+        AiAction(WORKSPACE_DRAFT, "작업 공간 문서 초안", KIND_WRITE, True, 12000, 4000, supports_approval=True,
+                 prompt_slot="draft"),
+        AiAction(WEEKLY_SUMMARY, "프로젝트 주간 요약", KIND_WRITE, True, 2000, 800, prompt_slot="weekly_summary"),
+        AiAction(HOME_NARRATIVE, "홈 문장 요약", KIND_READ, True, 1200, 600, prompt_slot="narrative"),
+        AiAction(GAME_QUIZ, "게임 퀴즈 만들기", KIND_READ, True, 8000, 2000, json_output=True, prompt_slot="quiz"),
+        AiAction(CONNECTION_TEST, "연결 확인", KIND_READ, False, 200, 32, prompt_slot="connection_test"),
     )
 }
 

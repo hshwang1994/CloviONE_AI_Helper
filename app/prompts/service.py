@@ -90,6 +90,7 @@ def update_draft(
     *,
     content: str | _Unset = UNSET,
     purpose: str | None | _Unset = UNSET,
+    slot: str | None | _Unset = UNSET,
 ) -> VersionedModel:
     """초안에서 **보낸 칸만** 고친다.
 
@@ -108,8 +109,25 @@ def update_draft(
         _set_content(row, content)
     if not isinstance(purpose, _Unset):
         row.purpose = purpose
+    if not isinstance(slot, _Unset) and isinstance(row, Prompt):
+        row.slot = slot or None
     db.flush()
     return row
+
+
+def _published_to_replace(db: Session, row: VersionedModel) -> list[VersionedModel]:
+    """이 행을 발행하면 내려가야 하는 발행본들. 이름마다 하나, 그리고 프롬프트는 사용처마다 하나다(D-518)."""
+    model = type(row)
+    found = {}
+    current = get_published(db, model, row.name)
+    if current is not None and current.id != row.id:
+        found[current.id] = current
+    if isinstance(row, Prompt) and row.slot:
+        for other in db.execute(
+            select(Prompt).where(Prompt.slot == row.slot, Prompt.status == STATUS_PUBLISHED, Prompt.id != row.id)
+        ).scalars():
+            found[other.id] = other
+    return list(found.values())
 
 
 def transition(
@@ -118,6 +136,11 @@ def transition(
     allowed = VALID_TRANSITIONS.get(row.status)
     if allowed is None or new_status not in allowed:
         raise ConflictError(f"{row.status} → {new_status} 전환은 허용되지 않습니다.")
+    if new_status == STATUS_PUBLISHED and isinstance(row, Prompt):
+        # 발행은 「이 사용처에서 다음 호출부터 쓴다」는 뜻이다. 사용처와 지시문을 여기서 본다(D-518).
+        from app.ai.prompts.service import validate_for_publish
+
+        validate_for_publish(row.slot, row.content)
     # UB-04: 이 읽기~쓰기 사이는 잠기지 않는다(커밋은 요청 끝에 한 번). 두 관리자가 같은
     # 이름의 서로 다른 버전을 거의 동시에 발행하면 둘 다 "기존 발행본 없음/다름"을 보고
     # 각자 자기 행을 published로 만들 수 있다 — 그러면 이후 그 이름의 모든 조회가
@@ -129,11 +152,12 @@ def transition(
     try:
         with db.begin_nested():
             if new_status == STATUS_PUBLISHED:
-                # Only one published version per name — the previous one is
-                # archived, never overwritten (spec §17.1).
-                current = get_published(db, type(row), row.name)
-                if current is not None and current.id != row.id:
+                # 이름마다, 그리고 프롬프트는 사용처마다 발행본이 하나다 — 앞의 것은 보관하고 덮어쓰지 않는다
+                # (spec §17.1, D-518).
+                replaced = _published_to_replace(db, row)
+                for current in replaced:
                     current.status = STATUS_ARCHIVED
+                if replaced:
                     # 이 행을 먼저(별도로) 내보낸다 — 옛 발행본을 archived로 내리는
                     # UPDATE와 새 행을 published로 올리는 UPDATE가 **같은 flush**에
                     # 섞이면, SQLAlchemy가 두 문장을 내보내는 순서에 따라 "새 행
@@ -173,6 +197,7 @@ def new_version_from(
     # Policy.purpose, 마이그레이션 0058) 새 버전에도 그대로 이어간다. 러너 참조는
     # 여전히 Prompt 전용이다.
     purpose = row.purpose
+    slot = row.slot if is_prompt else None
     source_content = content if content is not None else _model_content(row)
     # UB-21: 같은 이름에 "새 버전" 요청 두 개가 거의 동시에 오면(연타·재제출) 둘 다 같은
     # next_version()을 읽어 같은 버전 번호로 삽입을 시도할 수 있다 - uq_{prompts,policies}
@@ -194,6 +219,7 @@ def new_version_from(
                 purpose=purpose,
                 version=version,
                 content=source_content,
+                slot=slot,
                 status=STATUS_DRAFT,
                 created_by=created_by,
             )
@@ -273,12 +299,10 @@ def rollback_to_version(
     created_by: str | None,
     now: datetime,
 ) -> VersionedModel:
-    """Republish an old version's content as a NEW published version."""
+    """옛 버전의 내용을 **새 버전으로** 다시 발행한다. 되돌리기는 관리자가 명시한 동작이라 초안에서 곧바로 발행한다."""
     source = get_version_row(db, model, name, version)
     copy = new_version_from(db, source, created_by=created_by)
-    # Fast-track through the lifecycle — rollback is an explicit admin action.
-    for step in ("test", "review", "published"):
-        transition(db, copy, step, now=now)
+    transition(db, copy, STATUS_PUBLISHED, now=now)
     return copy
 
 

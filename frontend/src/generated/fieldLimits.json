@@ -101,11 +101,13 @@
     "create": {
       "content": 100000,
       "name": 120,
-      "purpose": 2000
+      "purpose": 2000,
+      "slot": 32
     },
     "edit": {
       "content": 100000,
-      "purpose": 2000
+      "purpose": 2000,
+      "slot": 32
     }
   },
   "schedules": {

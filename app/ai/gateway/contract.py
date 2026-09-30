@@ -203,6 +203,11 @@ class GenerateResult:
     #: 입력(검색된 문맥)을 한도에 맞춰 잘랐는가, 출력을 액션의 길이로 잘랐는가. 사용 기록이 따로 남긴다(D-517).
     input_truncated: bool = False
     output_truncated: bool = False
+    #: 이 호출이 쓴 지시문의 사용처와 출처(기본 제공이거나 관리자가 발행한 버전, D-518). 사용 기록이 남긴다.
+    prompt_slot: str | None = None
+    prompt_source: str | None = None
+    prompt_version: int | None = None
+    prompt_id: str | None = None
 
     @property
     def ok(self) -> bool:

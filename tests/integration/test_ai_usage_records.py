@@ -43,7 +43,7 @@ def _cap(db, user_id: str, *, max_calls: int, now) -> None:
 def test_a_successful_call_leaves_one_row_with_who_what_and_how(app, db, two_orgs):
     person, team = two_orgs.user_a, two_orgs.dept_a
     runtime = install_runtime(app, ScriptedAdapter([base.success("답", input_tokens=120, output_tokens=30)]))
-    result = runtime.generate(None, action_key="workspace.ask", task="답하라", data="질문과 근거", actor=person,
+    result = runtime.generate(None, action_key="workspace.ask", data="질문과 근거", actor=person,
                               request_id="req-1")
     assert result.ok
     [row] = _rows(db)
@@ -56,12 +56,12 @@ def test_a_successful_call_leaves_one_row_with_who_what_and_how(app, db, two_org
 
 def test_failures_are_recorded_and_idle_calls_are_not(app, db):
     runtime = install_runtime(app, ScriptedAdapter([timeout_failure()]))
-    assert not runtime.generate(None, action_key="chat.answer", task="t", data="d").ok
+    assert not runtime.generate(None, action_key="chat.answer", data="d").ok
     [row] = _rows(db)
     assert (row.status, row.error_code, row.actor_kind) == ("error", "timeout", "system")
 
     install_runtime(app, ScriptedAdapter(), enabled=False)
-    app.state.ai_runtime.generate(None, action_key="chat.answer", task="t", data="d")
+    app.state.ai_runtime.generate(None, action_key="chat.answer", data="d")
     assert len(_rows(db)) == 1, "생성이 꺼져 있어 아무것도 시도하지 않은 호출이 기록됐다"
 
 

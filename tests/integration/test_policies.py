@@ -111,7 +111,7 @@ def test_empty_patch_body_changes_nothing(client, admin_csrf):
 def test_partial_patch_still_refuses_a_published_row(client, admin_csrf):
     """반례: 발행된 정책은 여전히 못 고친다(초안에서만 고친다)."""
     item = _create(client, admin_csrf)
-    for step in ("test", "review", "published"):
+    for step in ("published",):
         r = client.post(
             f"/api/admin/policies/{item['id']}/transition",
             json={"status": step},

@@ -1,3 +1,8 @@
+"""프롬프트와 정책 관리 API.
+
+qa-contract-change: 생명주기가 초안 → 발행 → 보관 셋이 됐다(D-518). 「테스트」와 「검토」는 상태 글자만 바꿀 뿐 아무것도 하지 않았다. 그래서 「초안에서 곧바로 발행하면 거절된다」는 단언은 「발행본을 초안으로 되돌리면 거절된다」로 바뀌었다. 프롬프트는 발행하려면 사용처가 있어야 하므로 이 파일의 프롬프트는 「질문 답변」 사용처로 만든다.
+"""
+
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -12,10 +17,10 @@ def _headers(csrf):
     return {"X-CSRF-Token": csrf}
 
 
-def _create_prompt(client, csrf, name="티켓 요약 프롬프트", content="v1 내용"):
+def _create_prompt(client, csrf, name="티켓 요약 프롬프트", content="v1 내용", slot="answer"):
     r = client.post(
         "/api/admin/prompts",
-        json={"name": name, "content": content, "purpose": "테스트"},
+        json={"name": name, "content": content, "purpose": "테스트", "slot": slot},
         headers=_headers(csrf),
     )
     assert r.status_code == 201, r.text
@@ -64,7 +69,7 @@ def _transition(client, csrf, row_id, status):
 
 def test_lifecycle_happy_path(client, admin_csrf):
     item = _create_prompt(client, admin_csrf)
-    for step in ["test", "review", "published"]:
+    for step in ["published"]:
         r = _transition(client, admin_csrf, item["id"], step)
         assert r.status_code == 200, r.text
     assert r.json()["item"]["published_at"] is not None
@@ -72,13 +77,14 @@ def test_lifecycle_happy_path(client, admin_csrf):
 
 def test_invalid_transition_rejected(client, admin_csrf):
     item = _create_prompt(client, admin_csrf)
-    r = _transition(client, admin_csrf, item["id"], "published")  # draft → published
+    assert _transition(client, admin_csrf, item["id"], "published").status_code == 200
+    r = _transition(client, admin_csrf, item["id"], "draft")  # published → draft
     assert r.status_code == 409
 
 
 def test_content_editable_only_in_draft(client, admin_csrf):
     item = _create_prompt(client, admin_csrf)
-    _transition(client, admin_csrf, item["id"], "test")
+    _transition(client, admin_csrf, item["id"], "published")
     r = client.patch(
         f"/api/admin/prompts/{item['id']}",
         json={"content": "수정 시도"},
@@ -155,7 +161,7 @@ def test_policy_purpose_carries_to_new_version(client, admin_csrf):
 
 def test_publish_archives_previous_published(client, admin_csrf):
     v1 = _create_prompt(client, admin_csrf)
-    for step in ["test", "review", "published"]:
+    for step in ["published"]:
         _transition(client, admin_csrf, v1["id"], step)
 
     v2 = client.post(
@@ -168,7 +174,7 @@ def test_publish_archives_previous_published(client, admin_csrf):
         json={"content": "v2 내용"},
         headers=_headers(admin_csrf),
     )
-    for step in ["test", "review", "published"]:
+    for step in ["published"]:
         _transition(client, admin_csrf, v2["id"], step)
 
     listing = client.get(
@@ -199,7 +205,7 @@ def test_diff_between_versions(client, admin_csrf):
 
 def test_rollback_republishes_old_content_as_new_version(client, admin_csrf):
     v1 = _create_prompt(client, admin_csrf, content="v1 내용")
-    for step in ["test", "review", "published"]:
+    for step in ["published"]:
         _transition(client, admin_csrf, v1["id"], step)
     v2 = client.post(
         f"/api/admin/prompts/{v1['id']}/new-version", headers=_headers(admin_csrf)
@@ -207,7 +213,7 @@ def test_rollback_republishes_old_content_as_new_version(client, admin_csrf):
     client.patch(
         f"/api/admin/prompts/{v2['id']}", json={"content": "나쁜 v2"}, headers=_headers(admin_csrf)
     )
-    for step in ["test", "review", "published"]:
+    for step in ["published"]:
         _transition(client, admin_csrf, v2["id"], step)
 
     r = client.post(

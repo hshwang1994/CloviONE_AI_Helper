@@ -1,7 +1,7 @@
-"""사실 → 문장. **모델로 가는 문은 Gateway 하나다** (S11 · D-201 · D-202).
+"""사실 → 문장. **모델로 가는 문은 AI 런타임 하나다** (S11 · D-201 · D-202 · D-515).
 
 예전에는 이 파일이 러너(`127.0.0.1:8789/v1/assistant/summarize`)를 직접 불렀다. S11 이
-그 러너를 걷어내면서 `Gateway.generate(task=, data=)` 로 옮겼다 — 저장소에 생성 경로를
+그 러너를 걷어내면서 생성 문 하나로 옮겼고, 지금 그 문은 `AiRuntime.generate(action_key=, data=)` 다 — 저장소에 생성 경로를
 두 벌 두지 않는다는 D-201 의 결론 그대로다. 부수 효과가 하나 있고 그것이 이 이전의 값이다:
 사실 dict 가 `data` 로 넘어가므로 **난스 구분자 안에 갇히고 구분자 흉내가 걷어내진다**
 (D-202). 러너 시절에는 그 방어가 이 경로에 안 걸려 있었다.
@@ -35,14 +35,8 @@ FLAG = "assistant_narrative_enabled"
 # 사람이 화면 상단에서 한눈에 읽는 분량. 모델이 장문을 보내도 여기서 자른다.
 MAX_TEXT_CHARS = 1200
 
-#: **우리가 쓴 문장만 여기 있다.** 사실 dict 는 `data` 로 따로 간다 — 섞는 순간 그 값이
-#: 지시가 된다(D-202).
-TASK = "\n".join([
-    "아래는 화면에 이미 표시된 숫자입니다.",
-    "이 숫자만 근거로 오늘 무엇을 먼저 보면 되는지 한국어로 세 문장 이내로 알려 주세요.",
-    "숫자를 새로 계산하거나 없는 값을 만들지 마세요.",
-    "제목이나 목록 없이 문장으로만 씁니다.",
-])
+#: 지시문은 「홈 문장 요약」 사용처에서 런타임이 고른다(`app/ai/prompts/catalog.py`, D-518). 사실 dict 는 `data` 로
+#: 따로 간다 - 지시문에 섞는 순간 그 값이 지시가 된다(D-202).
 
 # 실패 사유는 사용자에게 보여줄 수 있는 짧은 한국어로만 나간다.
 _ERR_DISABLED = "요약 문장 생성이 꺼져 있습니다(숫자는 그대로 표시됩니다)."
@@ -88,7 +82,7 @@ def narrate(runtime, db, settings, *, kind: str, facts: dict, requester: dict, s
         from app.ai.actions import HOME_NARRATIVE
 
         result = runtime.generate(
-            db, action_key=HOME_NARRATIVE, task=TASK, data=json.dumps(payload, ensure_ascii=False, default=str),
+            db, action_key=HOME_NARRATIVE, data=json.dumps(payload, ensure_ascii=False, default=str),
         )
     except Exception:  # noqa: BLE001 — 어떤 실패든 숫자는 살아야 한다(계획서 Phase 5)
         # Gateway 는 실패를 값으로 돌려주는 계약이라 여기 오면 안 된다. 그래도 남겨 둔다 —

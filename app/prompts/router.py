@@ -28,18 +28,26 @@ from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
 from app.core.db import is_insert_race
 from app.core.deps import get_db, get_principal, require_csrf, require_roles
-from app.core.errors import ConflictError, ValidationAppError
+from app.ai.prompts import catalog as prompt_catalog
+from app.ai.prompts import service as prompt_slots
+from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.core.scope import Principal, require_global_management
 from app.prompts.models import STATUS_DRAFT, STATUS_PUBLISHED, Policy, Prompt
 from app.prompts.service import (
     diff_versions,
     get_or_404,
     new_version_from,
+    next_version,
     rollback_to_version,
     transition,
     update_draft,
     validate_policy_content,
 )
+
+# 기본 제공 행의 id 머리(D-518). 표에 없는 가상 행이라 이 머리로만 알아본다.
+BUILTIN_PREFIX = "builtin:"
+STATUS_BUILTIN = "builtin"
+USAGE_WINDOW_DAYS = 30
 
 
 # 화면에 그대로 나가는 주어다 — `require_global_management` 가 받침을 보고 조사를 붙인다
@@ -61,12 +69,24 @@ def _clean_name(value: str) -> str:
     return cleaned
 
 
+def _clean_slot(value: str | None) -> str | None:
+    """사용처는 목록에 있는 값이어야 하고 바꿀 수 있는 사용처여야 한다. 비우면 「아직 정하지 않음」이다."""
+    cleaned = (value or "").strip() or None
+    problem = prompt_slots.slot_problem(cleaned)
+    if problem:
+        raise ValueError(problem)
+    return cleaned
+
+
 class PromptCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     purpose: str | None = Field(default=None, max_length=2000)
     content: str = Field(default="", max_length=100000)
+    # 사용처(D-518). 초안은 비워 둘 수 있고 발행할 때 반드시 있어야 한다.
+    slot: str | None = Field(default=None, max_length=32)
 
     _normalize_name = field_validator("name")(_clean_name)
+    _check_slot = field_validator("slot")(_clean_slot)
 
 
 class PolicyCreateRequest(BaseModel):
@@ -94,6 +114,9 @@ class PolicyCreateRequest(BaseModel):
 class PromptContentUpdateRequest(BaseModel):
     content: str = Field(default="", max_length=100000)
     purpose: str | None = Field(default=None, max_length=2000)
+    slot: str | None = Field(default=None, max_length=32)
+
+    _check_slot = field_validator("slot")(_clean_slot)
 
 
 class PolicyContentUpdateRequest(BaseModel):
@@ -112,7 +135,7 @@ def _sent_changes(payload: BaseModel) -> dict:
     뜻으로 받는다 — 안 보낸 것과 다른 사실이다.
     """
     sent = payload.model_fields_set
-    return {field: getattr(payload, field) for field in ("content", "purpose") if field in sent}
+    return {field: getattr(payload, field) for field in ("content", "purpose", "slot") if field in sent}
 
 
 class TransitionRequest(BaseModel):
@@ -140,7 +163,20 @@ def _creator_fields(created_by: str | None, names: dict) -> dict:
     }
 
 
-def _prompt_view(row: Prompt, names: dict | None = None) -> dict:
+def _frame(slot) -> dict | None:
+    """사용처가 코드에 고정한 틀 - 관리자가 바꿀 수 없는 역할 문장과 출력 형식(화면이 읽기 전용으로 보인다)."""
+    if slot is None:
+        return None
+    return {"role": slot.role, "format_line": slot.format_line, "grounding": slot.grounding}
+
+
+def _usage_fields(usage: dict | None) -> dict:
+    usage = usage or {}
+    return {"calls_30d": int(usage.get("calls", 0)), "last_used_at": usage.get("last_at")}
+
+
+def _prompt_view(row: Prompt, names: dict | None = None, usage: dict | None = None) -> dict:
+    slot = prompt_catalog.SLOTS.get(row.slot) if row.slot else None
     return {
         "id": row.id,
         "name": row.name,
@@ -148,10 +184,54 @@ def _prompt_view(row: Prompt, names: dict | None = None) -> dict:
         "version": row.version,
         "content": row.content,
         "status": row.status,
+        "slot": row.slot,
+        "slot_label": slot.label if slot else None,
+        "source": prompt_slots.SOURCE_ADMIN,
+        # 발행은 「이 사용처에서 다음 호출부터 쓴다」는 뜻이다(사용처마다 하나, D-518).
+        "in_use": row.status == STATUS_PUBLISHED and slot is not None and slot.editable,
+        "frame": _frame(slot),
         **_creator_fields(row.created_by, names or {}),
         "created_at": row.created_at.isoformat(),
         "published_at": row.published_at.isoformat() if row.published_at else None,
+        **_usage_fields(usage),
     }
+
+
+def _builtin_view(slot, *, in_use: bool, usage: dict | None = None) -> dict:
+    """기본 제공 지시문 한 줄. 표에 없는 가상 행이다 - 고칠 수 없고 「복제해서 수정」으로 초안을 만든다."""
+    return {
+        "id": BUILTIN_PREFIX + slot.key,
+        "name": slot.label,
+        "purpose": slot.description,
+        "version": None,
+        "content": slot.instruction,
+        "status": STATUS_BUILTIN,
+        "slot": slot.key,
+        "slot_label": slot.label,
+        "source": prompt_slots.SOURCE_BUILTIN,
+        "in_use": in_use,
+        "editable": slot.editable,
+        "frame": _frame(slot),
+        "created_by": None,
+        "created_by_name": None,
+        "created_by_email": None,
+        "created_at": None,
+        "published_at": None,
+        **_usage_fields(usage),
+    }
+
+
+def _published_slots(db: Session) -> dict[str, Prompt]:
+    rows = db.execute(
+        select(Prompt).where(Prompt.status == STATUS_PUBLISHED, Prompt.slot.is_not(None))
+    ).scalars().all()
+    return {row.slot: row for row in rows}
+
+
+def _usage_since(request: Request):
+    from datetime import timedelta
+
+    return request.app.state.clock.now() - timedelta(days=USAGE_WINDOW_DAYS)
 
 
 def _policy_view(row: Policy, names: dict | None = None) -> dict:
@@ -184,6 +264,70 @@ def _resolve_creator_names(db: Session, ids) -> dict:
     return result
 
 
+# ── 프롬프트에만 있는 경로 (D-518) ──────────────────────────────────────────────
+#
+# 사용처 목록과 「복제해서 수정」. 공장 함수(`_build_router`) 밖의 맨 위 수준 라우터에 둔다. 앱이 이 라우터를
+# `prompts_router` 보다 **먼저** 건다(`app/main.py`) - 한 토막짜리 경로(`/slots`)가 뒤에 오면 `/{row_id}` 가
+# `row_id="slots"` 로 먼저 잡는다.
+prompt_slots_router = APIRouter(
+    prefix="/api/admin/prompts",
+    tags=["admin-prompts"],
+    dependencies=[Depends(require_csrf)],
+)
+
+
+@prompt_slots_router.get("/slots", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+def prompt_slots_list(db: Session = Depends(get_db)):
+    """사용처 목록. 화면의 사용처 고르기와 기본 문구 보기가 이 값을 쓴다 - 이름을 화면이 지어내지 않는다."""
+    published = _published_slots(db)
+    items = []
+    for entry in prompt_catalog.SLOTS.values():
+        current = published.get(entry.key) if entry.editable else None
+        items.append({
+            "key": entry.key, "label": entry.label, "description": entry.description,
+            "instruction": entry.instruction, "editable": entry.editable, "frame": _frame(entry),
+            "published": {"id": current.id, "name": current.name, "version": current.version} if current else None,
+        })
+    return {"items": items}
+
+
+@prompt_slots_router.post("/builtin/{slot_key}/copy", status_code=201,
+                          dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def copy_builtin_prompt(
+    request: Request,
+    slot_key: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """기본 제공 지시문을 초안으로 옮긴다. 같은 이름이 이미 있으면 그 이름의 새 버전이 된다."""
+    require_global_management(principal, _GLOBAL_SUBJECT["prompts"])
+    entry = prompt_catalog.SLOTS.get(slot_key)
+    if entry is None:
+        raise NotFoundError("알 수 없는 사용처입니다.")
+    problem = prompt_slots.slot_problem(slot_key)
+    if problem:
+        raise ValidationAppError(problem)
+    name = f"{entry.label} 지시문"
+    try:
+        with db.begin_nested():
+            row = Prompt(
+                name=name, purpose=entry.description, version=next_version(db, Prompt, name),
+                content=entry.instruction, slot=entry.key, status=STATUS_DRAFT,
+                created_by=request.state.user.id,
+            )
+            db.add(row)
+            db.flush()
+    except (IntegrityError, OperationalError) as exc:
+        if not is_insert_race(exc):
+            raise
+        raise ConflictError("같은 이름의 버전을 거의 동시에 만들었습니다. 목록을 다시 불러오세요.") from exc
+    record_audit_from_request(
+        request, db, action="prompts.create", object_type="prompts", object_id=row.id,
+        after={"name": row.name, "version": row.version, "slot": row.slot, "from": "builtin"},
+    )
+    return {"item": _prompt_view(row, _resolve_creator_names(db, {row.created_by}))}
+
+
 def _build_router(kind: str, model, view, create_schema, content_update_schema):
     router = APIRouter(
         prefix=f"/api/admin/{kind}",
@@ -197,9 +341,13 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
 
     @router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
     def list_all(
+        request: Request,
         db: Session = Depends(get_db),
         name: str | None = Query(default=None, max_length=120),
         status: str | None = Query(default=None, max_length=16),
+        # 프롬프트만 쓴다(D-518): 사용처와 출처(기본 제공 · 관리자 작성). 정책 목록은 두 값을 보지 않는다.
+        slot: str | None = Query(default=None, max_length=32),
+        source: str | None = Query(default=None, max_length=16),
         page: int = Query(default=1, ge=1),
         # Default kept at the old hardcoded .limit(500) so existing callers
         # (registry.js does not yet set paginated:true / pass page params —
@@ -209,11 +357,19 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         # caller that needs more can page explicitly.
         page_size: int = Query(default=500, ge=1, le=500),
     ):
+        is_prompt = model is Prompt
+        want_builtin = is_prompt and not name and source in (None, "", prompt_slots.SOURCE_BUILTIN) \
+            and status in (None, "", STATUS_BUILTIN)
+        want_rows = not (is_prompt and (source == prompt_slots.SOURCE_BUILTIN or status == STATUS_BUILTIN))
         stmt = select(model)
         if name:
             stmt = stmt.where(model.name == name)
-        if status:
+        if status and status != STATUS_BUILTIN:
             stmt = stmt.where(model.status == status)
+        if is_prompt and slot:
+            stmt = stmt.where(Prompt.slot == slot)
+        if not want_rows:
+            stmt = stmt.where(False)
         total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
         rows = (
             db.execute(
@@ -229,12 +385,25 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             .all()
         )
         names = _resolve_creator_names(db, {r.created_by for r in rows if r.created_by})
-        return {
-            "items": [view(r, names) for r in rows],
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-        }
+        if not is_prompt:
+            return {"items": [view(r, names) for r in rows], "total": total, "page": page, "page_size": page_size}
+
+        # 프롬프트: 사용처마다 기본 제공 행을 앞에 둔다(첫 쪽에만). 발행본이 있는 사용처의 기본 제공 행은 쉬고 있다.
+        from app.ai import usage as usage_mod
+
+        by_prompt, by_builtin = usage_mod.prompt_usage(db, since=_usage_since(request))
+        builtin_items = []
+        if want_builtin:
+            published = _published_slots(db)
+            for entry in prompt_catalog.SLOTS.values():
+                if slot and entry.key != slot:
+                    continue
+                builtin_items.append(_builtin_view(
+                    entry, in_use=not (entry.editable and entry.key in published),
+                    usage=by_builtin.get(entry.key),
+                ))
+        items = (builtin_items if page == 1 else []) + [view(r, names, by_prompt.get(r.id)) for r in rows]
+        return {"items": items, "total": total + len(builtin_items), "page": page, "page_size": page_size}
 
     def _require_global(principal: Principal) -> None:
         """프롬프트와 정책은 **포탈 전체**가 함께 쓰는 자원이라 전역 관리자만 바꾼다.
@@ -276,7 +445,7 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         else:
             row = Prompt(
                 name=payload.name, purpose=payload.purpose, version=1,
-                content=content, status=STATUS_DRAFT,
+                content=content, slot=payload.slot, status=STATUS_DRAFT,
                 created_by=request.state.user.id,
             )
         # UB-21: 위 존재 확인~삽입 사이는 잠기지 않는다(커밋은 요청 끝에 한 번). 같은
@@ -306,7 +475,16 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         return {"item": _view_single(db, row)}
 
     @router.get("/{row_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
-    def get_one(row_id: str, db: Session = Depends(get_db)):
+    def get_one(row_id: str, request: Request, db: Session = Depends(get_db)):
+        if model is Prompt and row_id.startswith(BUILTIN_PREFIX):
+            entry = prompt_catalog.SLOTS.get(row_id[len(BUILTIN_PREFIX):])
+            if entry is None:
+                raise NotFoundError("대상 버전을 찾을 수 없습니다.")
+            from app.ai import usage as usage_mod
+
+            _, by_builtin = usage_mod.prompt_usage(db, since=_usage_since(request))
+            in_use = not (entry.editable and entry.key in _published_slots(db))
+            return {"item": _builtin_view(entry, in_use=in_use, usage=by_builtin.get(entry.key))}
         return {"item": _view_single(db, get_or_404(db, model, row_id))}
 
     @router.patch("/{row_id}", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
@@ -367,35 +545,50 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         return {"item": _view_single(db, copy)}
 
     @router.get("/usage/stats", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
-    def usage_stats(db: Session = Depends(get_db)):
-        """이름별 사용 통계 (0033, PLAN Phase 6).
+    def usage_stats(request: Request, db: Session = Depends(get_db)):
+        """사용 통계.
 
-        **무엇을 세는가**: 버전 수·발행 버전·마지막 발행 시각은 이 표 자체에서 나오고,
-        "실제로 쓰이는가"는 **그것을 가리키는 것**에서 나온다 — 스케줄이 이 이름의 어느
-        버전을 참조하는지다. 템플릿과 문서 생성 회차는 S11 이 n8n 과 함께 걷어냈다.
+        프롬프트는 **사용처마다 한 줄**이다(D-518): 지금 쓰는 지시문(기본 제공이거나 발행본), 최근 30일의 호출 수,
+        실패율, 마지막 사용. 수는 AI 호출 기록(`ai_usage_records`)에서 센다 - 예전에는 스케줄이 이름을 참조하는가를
+        셌는데 스케줄은 프롬프트를 가리킬 수 없게 된 지 오래라 언제나 「쓰이지 않음」이었다.
 
-        추측하지 않는다: 참조가 0이면 0으로 보여 준다. "쓰이지 않는 프롬프트"를 알아보는
-        것이 이 화면의 목적이므로, 애매하게 감추면 목적이 사라진다.
+        정책은 아직 이름별 버전 개요다(A6 이 정책을 AI 호출에 붙이면서 호출 기록으로 바꾼다).
         """
-        from app.schedules.models import Schedule
+        if model is Prompt:
+            from app.ai import usage as usage_mod
+
+            by_slot = usage_mod.slot_usage(db, since=_usage_since(request))
+            published = _published_slots(db)
+            items = []
+            for entry in prompt_catalog.SLOTS.values():
+                current = published.get(entry.key) if entry.editable else None
+                counts = by_slot.get(entry.key, {})
+                calls, errors = int(counts.get("calls", 0)), int(counts.get("errors", 0))
+                items.append({
+                    "slot": entry.key,
+                    "label": entry.label,
+                    "description": entry.description,
+                    "editable": entry.editable,
+                    "current_source": prompt_slots.SOURCE_ADMIN if current else prompt_slots.SOURCE_BUILTIN,
+                    "current_id": current.id if current else BUILTIN_PREFIX + entry.key,
+                    "current_name": current.name if current else None,
+                    "current_version": current.version if current else None,
+                    "calls": calls,
+                    "errors": errors,
+                    "failure_rate": usage_mod.percent(errors, calls),
+                    "last_used_at": counts.get("last_at"),
+                })
+            return {"items": items, "kind": kind, "days": USAGE_WINDOW_DAYS}
 
         rows = db.execute(select(model).order_by(model.name, model.version)).scalars().all()
         by_name: dict[str, list] = {}
         for row in rows:
             by_name.setdefault(row.name, []).append(row)
 
-        schedule_refs = (
-            db.execute(
-                select(Schedule.prompt_id, Schedule.name).where(Schedule.prompt_id.is_not(None))
-            ).all()
-            if kind == "prompts"
-            else []
-        )
         items = []
         for name, versions in by_name.items():
-            ids = {v.id for v in versions}
             published = [v for v in versions if v.status == STATUS_PUBLISHED]
-            schedules_using = sorted({n for vid, n in schedule_refs if vid in ids})
+            schedules_using: list[str] = []
             items.append({
                 "name": name,
                 "versions": len(versions),

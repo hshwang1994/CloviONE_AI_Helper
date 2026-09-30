@@ -41,7 +41,6 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     target_type: Mapped[str] = mapped_column(String(16), nullable=False)
     target_ref: Mapped[str] = mapped_column(String(64), nullable=False)
     payload_template_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
-    prompt_id: Mapped[str | None] = mapped_column(String(36))
     approval_policy_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     retry_policy_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     misfire_policy: Mapped[str] = mapped_column(

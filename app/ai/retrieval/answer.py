@@ -2,7 +2,7 @@
 
 ## 🔴 생성 경로를 새로 만들지 않는다
 
-`AiRuntime.generate(action_key=, task=, data=)` 가 유일한 문이다(`app/ai/runtime.py`, D-515). `data` 로 넘어간
+`AiRuntime.generate(action_key=, data=)` 가 유일한 문이다(`app/ai/runtime.py`, D-515). `data` 로 넘어간
 것은 난스 구분자 안에 갇히고 구분자 흉내는 걷어내진다 — **제공자는 원문을 못 본다.** 그래서 새 제공자를 붙이는
 사람이 방어를 빠뜨릴 자리 자체가 없다. 검색(임베딩)은 여전히 Gateway 가 한다.
 
@@ -36,22 +36,9 @@ __all__ = ["Answer", "answer", "draft_document"]
 
 # ── 지시문 ───────────────────────────────────────────────────────────────────
 #
-# **우리가 쓴 문장만 여기 있다.** 사용자·문서에서 온 글은 한 글자도 안 섞인다 —
-# 섞이는 순간 그 글이 지시가 된다.
-
-TASK_ANSWER = "\n".join([
-    "아래 사내 문서 발췌만 근거로 질문에 답해 주세요.",
-    "발췌에 없는 사실은 만들지 말고, 근거가 없으면 없다고 적어 주세요.",
-    "근거로 쓴 발췌의 번호를 문장 끝에 [1] 처럼 붙여 주세요.",
-    "한국어로 다섯 문장 이내로 답해 주세요.",
-])
-
-TASK_DRAFT = "\n".join([
-    "아래 사내 문서 발췌만 근거로 요청한 문서의 초안을 써 주세요.",
-    "발췌에 없는 사실은 만들지 말고, 근거가 없는 항목은 비워 두세요.",
-    "제목 없이 본문만 쓰고, 문단은 빈 줄로 나눠 주세요.",
-    "한국어로 씁니다.",
-])
+# 지시문은 여기 없다. 액션의 사용처(질문 답변, 문서 초안)에서 런타임이 고른다 - 기본 제공 지시문은
+# `app/ai/prompts/catalog.py` 에 있고 관리자가 발행본으로 바꿀 수 있다(D-518). 사용자와 문서에서 온 글은 `data` 로만
+# 간다 - 지시문에 섞이는 순간 그 글이 지시가 된다.
 
 #: 질문과 Context 를 나누는 말. 둘 다 `data` 안에 있으므로 **둘 다 데이터**다 —
 #: 이 줄은 모델이 무엇을 무엇으로 읽을지 알려 주는 표지이지 지시가 아니다.
@@ -99,9 +86,9 @@ def _payload(question: str, retrieval: retrieval_service.RetrievalResult) -> str
     ])
 
 
-def _generate(db: Session, runtime, *, action_key: str, task: str, question: str, retrieval, actor,
+def _generate(db: Session, runtime, *, action_key: str, question: str, retrieval, actor,
               job_id: str | None = None) -> Answer:
-    result = runtime.generate(db, action_key=action_key, task=task, data=_payload(question, retrieval), actor=actor,
+    result = runtime.generate(db, action_key=action_key, data=_payload(question, retrieval), actor=actor,
                               job_id=job_id)
     return Answer(
         retrieval=retrieval,
@@ -136,8 +123,8 @@ def answer(
         # 근거가 없으면 부르지 않는다. 빈 Context 로 부르면 모델은 무언가를 지어내고,
         # 그 문장에는 인용이 하나도 안 붙는다 — 사람은 그것을 답으로 읽는다.
         return Answer(retrieval=retrieval, status=contract.STATUS_EMPTY)
-    return _generate(db, runtime, action_key=action_key, task=TASK_ANSWER, question=retrieval.query,
-                     retrieval=retrieval, actor=user, job_id=job_id)
+    return _generate(db, runtime, action_key=action_key, question=retrieval.query, retrieval=retrieval, actor=user,
+                     job_id=job_id)
 
 
 def draft_document(
@@ -149,7 +136,7 @@ def draft_document(
     runtime,
     top_k: int = retrieval_service.TOP_K,
 ) -> Answer:
-    """문서 초안. 답변과 **같은 문**을 지나고 지시문만 다르다.
+    """문서 초안. 답변과 **같은 문**을 지나고 사용처(지시문)만 다르다.
 
     지시문을 바꾼다고 새 생성 경로를 만들지 않는다 — 그렇게 늘어난 두 번째 경로가
     방어를 한쪽에만 걸리게 만드는 그 자리다(D-202 가 지적한 상태).
@@ -159,5 +146,5 @@ def draft_document(
     )
     if retrieval.empty:
         return Answer(retrieval=retrieval, status=contract.STATUS_EMPTY)
-    return _generate(db, runtime, action_key=actions.WORKSPACE_DRAFT, task=TASK_DRAFT, question=retrieval.query,
-                     retrieval=retrieval, actor=user)
+    return _generate(db, runtime, action_key=actions.WORKSPACE_DRAFT, question=retrieval.query, retrieval=retrieval,
+                     actor=user)

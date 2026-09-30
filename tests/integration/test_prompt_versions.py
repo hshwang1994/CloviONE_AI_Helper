@@ -63,10 +63,11 @@ def published_prompt(client, global_csrf):
     """전사 발행본 하나 — 부서 관리자가 건드리면 안 되는 대상이다."""
     item = client.post(
         "/api/admin/prompts",
-        json={"name": "티켓 요약", "content": "다음 내용을 세 문장으로 요약해 주세요.", "purpose": "요약"},
+        json={"name": "티켓 요약", "content": "다음 내용을 세 문장으로 요약해 주세요.", "purpose": "요약",
+              "slot": "weekly_summary"},
         headers=_h(global_csrf),
     ).json()["item"]
-    for step in ("test", "review", "published"):
+    for step in ("published",):
         r = client.post(
             f"/api/admin/prompts/{item['id']}/transition",
             json={"status": step},
@@ -182,7 +183,7 @@ def test_a_global_admin_still_runs_the_whole_lifecycle(client, global_csrf, publ
     )
     assert r.status_code == 200, r.text
 
-    for step in ("test", "review", "published"):
+    for step in ("published",):
         r = client.post(
             f"/api/admin/prompts/{v2['id']}/transition",
             json={"status": step},
