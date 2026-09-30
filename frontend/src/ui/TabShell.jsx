@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import { useAuth } from "../app/auth.jsx";
-import { Button, Card, EmptyState, ErrorState, PageHeader, Skeleton } from "./kit.jsx";
+import { Button, Card, CountChip, EmptyState, ErrorState, PageHeader, Skeleton } from "./kit.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "./HeaderSlot.jsx";
 
@@ -41,6 +41,9 @@ import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "
  *    `defaultTab` 이 정하고, 탭 줄은 언제나 정의 순서다. 예전에는 옛 주소(`/restore-drills`)로 들어오면
  *    그 탭을 앞으로 옮겨 기본 탭으로 삼았다 — 같은 그릇이 들어온 길에 따라 [복구 리허설|백업]과
  *    [백업|복구 리허설]로 서서, 사람은 탭의 자리로 화면을 기억할 수 없었다.
+ * 8. **탭의 건수는 라벨 옆 칩이다** (계획 3.2 · 3.18). 탭 정의의 `count`(숫자)가 라벨 오른쪽에
+ *    `CountChip` 으로 선다. 괄호 숫자(「사람 (3)」)는 쓰지 않는다 - 제목 옆 건수와 같은 부품이어야
+ *    한 화면이 건수를 한 가지 모양으로 말한다. `count` 를 안 주면 칩이 없다(참고 탭은 셀 것이 없다).
  *
  * ## 쓰는 법
  *
@@ -56,6 +59,16 @@ import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "
  * `datascreen-view.js::withHashQuery` 가 **자기 키만** 갈아치우도록 고쳐 둬서 `?tab=` 이
  * 살아남는다. 그 보증이 없으면 필터를 한 칸 건드리는 순간 첫 탭으로 튕긴다.
  */
+function tabLabel(t) {
+  if (typeof t.count !== "number") return t.label;
+  return (
+    <Box component="span" data-tab-count="" sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
+      {t.label}
+      <CountChip value={t.count} compact ariaLabel={`${t.count}건`} />
+    </Box>
+  );
+}
+
 export function TabShell(props) {
   return (
     <HeaderActionsProvider>
@@ -132,7 +145,7 @@ function TabShellBody({
             aria-label={ariaLabel || `${title} 탭`}
           >
             {visible.map((t) => (
-              <Tab key={t.key} value={t.key} label={t.label} id={tabId(t.key)} aria-controls={panelId(t.key)} />
+              <Tab key={t.key} value={t.key} label={tabLabel(t)} id={tabId(t.key)} aria-controls={panelId(t.key)} />
             ))}
           </Tabs>
         </Box>

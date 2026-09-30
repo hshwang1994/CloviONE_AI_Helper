@@ -19,8 +19,12 @@
 | F1 비밀 입력 경로(헬퍼 secret.write, /api/admin/secrets, SecretField) | `5deb94ef` | D-503 |
 | B1 + F2 프로젝트 진행률 · Health(커밋 직전 계산, 0031, 휴지통 공용 절) | `5f15c465` | D-504 |
 | B2 월간 리포트(사람 id, 일곱 칸, 완료일 축, 0032) | `dfb85ec7` | D-505 |
+| F3 공통 UI 규칙(의미 기반 정렬, 조건 요약 문장, 저장된 뷰 기준) | `dff6b097` | D-506 |
+| F4 AI 기능 플래그 셋 DB 소유 | `6147a0b9` | D-507 |
+| U1 + B3 조직 정합성(탭 · 전량 목록 · 일괄 작업, 0033, 원인 차단) | 이 커밋 | D-508 |
 
-- 다음: F3(공통 UI 규칙: 폭 · 필터 문구 · 의미 기반 정렬) → F4(AI 기능 플래그 DB) → B3 → B4 → U1 → U2 → M1 ~ M4 → A1 ~ A6 → U3 · U4 → I1 ~ I3.
+- 다음: B4(메일 큐) → U2(조직 관리) → M1 ~ M4 → A1 ~ A6 → U3 · U4 → I1 ~ I3.
+  U3 에서 `READ_COLUMN` 상수를 지우고 `check_composition.py` 의 `page-max-width` · `tab-count-chip` 규칙을 더한다.
 - 번들(`app/static/react`)은 화면 Packet 이 모인 뒤 한 번에 다시 빌드한다(아직 안 했다).
 
 ## CHECKPOINT

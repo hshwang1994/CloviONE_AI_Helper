@@ -24,6 +24,10 @@ from app.core.ownership import (
 from app.knowledge.models import DREL_KINDS, SOURCE_TYPES
 
 _OWNER_KINDS = (OWNER_PROJECT, OWNER_DEPARTMENT, OWNER_ORGANIZATION, OWNER_UNSET)
+# 새 공간은 **소유를 정해서** 만든다(계획 3.2). 소유 없는 공간은 전체 관리자 말고는 아무도 못 보는
+# 닫힌 공간이라 만들 이유가 없고, 만들어지면 정합성 화면의 「소속이 지정되지 않은 지식 공간」에 오른다.
+# 수정(`SpaceUpdate`)은 `unset` 을 받는다 - 소유를 넘길 곳이 없어진 공간을 명시적으로 닫는 길이다.
+_CREATE_OWNER_KINDS = (OWNER_PROJECT, OWNER_DEPARTMENT, OWNER_ORGANIZATION)
 _SLUG = r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$"
 
 
@@ -33,7 +37,7 @@ class SpaceCreate(BaseModel):
     # 여러 주소로 불리고, 그중 하나만 링크로 돌아다닌다.
     slug: str = Field(pattern=_SLUG, max_length=64)
     description: str = Field(default="", max_length=2000)
-    owner_kind: str = Field(pattern="^(" + "|".join(_OWNER_KINDS) + ")$")
+    owner_kind: str = Field(pattern="^(" + "|".join(_CREATE_OWNER_KINDS) + ")$")
     owner_dept_id: str | None = Field(default=None, max_length=36)
     owner_project_id: str | None = Field(default=None, max_length=36)
     confidential: bool = False

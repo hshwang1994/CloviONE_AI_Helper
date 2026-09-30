@@ -152,6 +152,15 @@ EXEMPT: dict[str, str] = {
     # 권한 이름을 범위 게이트로 인정하기 시작하면 "권한만 있고 범위는 없는" 경로가 통과한다.
     "app/integrity/router.py::assign_membership":
         "전역 관리 범위만 통과한다(`_require_global`) — 좁힐 범위가 없다.",
+    "app/integrity/router.py::fix_check_items":
+        "전역 관리 범위만 통과한다(`_require_global`) — 좁힐 범위가 없다. 항목마다 부르는 원래 "
+        "수정 함수(티켓 · 프로젝트 · 공간 · 회차)가 자기 범위 판정을 한 번 더 지난다.",
+    # `{key}` 는 자원 id 가 아니라 서버가 정한 **검사 이름**이다(`app/integrity/service.py::CHECKS`,
+    # 고정 목록 · 모르는 이름은 404). 읽기 판정은 요약(`GET /api/admin/integrity`)과 같다 — 콘솔 읽기
+    # 역할이고, 이 모듈의 읽기는 범위로 좁히지 않는다(라우터 머리말: 감사가 봐야 한다). 부서 범위
+    # 관리자에게 전사 항목이 보이는 것을 좁힐지는 BACKLOG 의 정합성 읽기 범위 항목이 다룬다.
+    "app/integrity/router.py::integrity_check_items":
+        "`{key}` 는 자원 id 가 아니라 고정된 검사 이름이다. 읽기는 요약과 같은 콘솔 읽기 판정이다.",
     "app/profiles/router.py::revoke_one_session":
         "자기 세션만 다룬다 — 조회가 `user_id == me.id` 로 시작한다.",
     "app/profiles/router.py::delete_saved_view":

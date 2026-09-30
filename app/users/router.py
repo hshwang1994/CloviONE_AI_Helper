@@ -16,6 +16,7 @@ from app.core.scope import Principal, apply_user_scope, scope_allows_user
 from app.core.search_text import contains_folded
 from app.mail.models import MAIL_QUEUED
 from app.org.models import Department, JobTitle
+from app.tickets.service import count_open_tickets_held_by
 from app.users import bulk
 from app.users.models import ALL_ROLES, User
 from app.users.schemas import (
@@ -596,7 +597,8 @@ def disable_user(
         request, db, action="user.disable", object_type="user",
         object_id=user.id, before=before, after=user_snapshot(user),
     )
-    return {"ok": True}
+    # 닫은 계정이 담당인 남은 일은 어느 대기열에도 안 보인다 - 화면이 오프보딩을 권할 수 있게 센다.
+    return {"ok": True, "open_ticket_count": count_open_tickets_held_by(db, user)}
 
 
 @router.post("/{user_id}/archive")
@@ -621,7 +623,7 @@ def archive(
         request, db, action="user.archive", object_type="user",
         object_id=user.id, before=before, after=user_snapshot(user),
     )
-    return {"ok": True}
+    return {"ok": True, "open_ticket_count": count_open_tickets_held_by(db, user)}
 
 
 @router.post("/{user_id}/unarchive")

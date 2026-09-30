@@ -235,8 +235,10 @@ describe("설정성 화면의 판 짝은 한 부품에서 나온다 (D-457)", ()
  * 따로 정본이라(`FORM_FIELD_GAP_REM`) 반례로 함께 잰다.
  */
 describe("판을 쌓는 화면은 정본 간격을 쓴다", () => {
+  /* 조직 정합성(`Integrity.jsx`)은 빠졌다 — 판을 쌓던 화면이 탭 목록 화면이 됐다(D-508). 목록 조합의 간격은
+     필터 바와 목록 판 사이의 정본(`rowGap: 2`)을 따른다(`screens/dev/KitGallery.jsx` 목록 조합 견본). */
   const PANEL_STACK_SCREENS = [
-    "screens/Profile.jsx", "screens/Ticket.jsx", "screens/Integrity.jsx",
+    "screens/Profile.jsx", "screens/Ticket.jsx",
     "screens/MyStats.jsx", "screens/Project.jsx", "screens/KnowledgeDoc.jsx",
   ];
 

@@ -109,6 +109,30 @@ def assignee_token(db: Session, user: User) -> str:
     return my_notion_id(db, user) or user.id
 
 
+def count_open_tickets_held_by(db: Session, user: User) -> int:
+    """이 사람이 담당인 **남은 일**의 수 (계획 3.2).
+
+    계정을 비활성으로 바꾸거나 보관할 때 응답에 싣는다. 닫힌 계정의 티켓은 어느 대기열에도 안
+    보이므로(정합성 화면의 「닫힌 계정이 담당인 티켓」), 닫는 순간 넘길 일이 있다고 말해 주지 않으면
+    인수인계가 빠진다. 「남은 일」은 그 검사와 같은 정의다: 완료 시각이 없고 상태가 완료 · 취소가
+    아니다(상태가 비어 있으면 남은 일로 센다). 휴지통과 옛 소스에서 사라진 행은 뺀다.
+    """
+    from sqlalchemy import func, or_
+
+    from app.tickets.models import TicketCache
+    from app.tickets.query import not_trashed_clause, token
+
+    return int(db.execute(
+        select(func.count()).select_from(TicketCache).where(
+            TicketCache.assignee_notion_ids.contains(token(assignee_token(db, user)), autoescape=True),
+            TicketCache.notion_missing_at.is_(None),
+            TicketCache.completed_at.is_(None),
+            or_(TicketCache.status.is_(None), TicketCache.status.not_in(tuple(sorted(_TERMINAL)))),
+            not_trashed_clause(),
+        )
+    ).scalar_one())
+
+
 def _assignee_id_to_user(db: Session) -> dict[str, str]:
     """담당자 토큰 → 앱 user_id. 담당자 편집(해석/보존/역표시)에 쓴다.
 

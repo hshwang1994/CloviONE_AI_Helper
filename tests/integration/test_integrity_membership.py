@@ -133,7 +133,7 @@ def test_a_user_who_already_has_a_department_is_skipped_with_a_reason(
     skipped = response.json()["skipped"]
     assert len(skipped) == 1
     assert skipped[0]["user_id"] == settled_id
-    assert "이미 소속이 지정된 계정입니다." in skipped[0]["reason"]
+    assert "이미 활성 부서에 속한 계정입니다." in skipped[0]["reason"]
     db.expire_all()
     assert db.get(User, settled_id).department_id == depts["live"], "다른 부서로 덮어썼다"
 

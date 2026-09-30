@@ -161,6 +161,22 @@ def ensure_dept_in_scope(db: Session, principal: Principal, dept_id: str | None)
         raise NotFoundError(NOT_FOUND_MESSAGE)
 
 
+def ensure_dept_assignable(db: Session, dept_id: str | None, *, current: str | None = None) -> None:
+    """비활성 부서는 **새로** 고를 수 없다 - 사용자 편집과 같은 함수, 같은 문구다(계획 3.2).
+
+    예전에는 프로젝트만 이 규칙이 없어서, 조직 개편으로 닫은 부서에 프로젝트가 새로 들어갔고
+    정합성 화면의 「비활성 부서의 프로젝트」가 줄지 않았다. 이미 그 부서에 있는 프로젝트(`current`)는
+    그대로 저장할 수 있다 - 다른 칸만 고치는 저장이 막히면 안 된다. 범위 판정은 앞의
+    `ensure_dept_in_scope` 가 먼저 한다(없는 부서는 거기서 404 다).
+    """
+    from app.org.models import Department
+    from app.org.service import resolve_assignable
+
+    if dept_id is None:
+        return
+    resolve_assignable(db, Department, dept_id, allow_current=current)
+
+
 def create_project(
     db: Session, payload: ProjectCreate, principal: Principal, *, now: datetime
 ) -> Project:
@@ -172,6 +188,10 @@ def create_project(
     """
     dept_id = payload.dept_id if payload.dept_id else principal.department_id
     ensure_dept_in_scope(db, principal, dept_id)
+    if payload.dept_id:
+        # 사람이 고른 부서만 본다. 비워 두면 만든 사람의 부서가 되는데, 그 사람의 소속이 비활성
+        # 부서라는 사실은 사람 탭의 정합성 문제이지 이 저장이 막을 일이 아니다.
+        ensure_dept_assignable(db, payload.dept_id)
     org_id = principal.org_id or DEFAULT_ORG_ID
 
     project = Project(
@@ -278,6 +298,7 @@ def update_project(
     if "dept_id" in given:
         # 남의 팀으로 옮기면 그 행은 내 범위에서 사라진다 — 되돌릴 수도 없다.
         ensure_dept_in_scope(db, principal, payload.dept_id)
+        ensure_dept_assignable(db, payload.dept_id, current=project.dept_id)
         if payload.dept_id != project.dept_id:
             _ensure_no_open_sprint_membership(db, project, new_dept_id=payload.dept_id)
     # `code` 는 요청 스키마에 아예 없다 (D-282). 실려 오면 `extra="forbid"` 가 422 로

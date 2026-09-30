@@ -160,9 +160,10 @@ Stage 9 가 `0029` 를 지날 때 **데이터가 스스로 정하지 못하는 �
   않는다.** 자동으로 닫거나 합치거나 이름을 바꾸지 않는다 — 나열된 회차를 옛 앱에서 닫거나
   이름을 고친 뒤 `deploy-upgrade.sh` 를 다시 돌린다.
 - **채우지 못한 회차**는 팀 미정(`department_id NULL`)으로 남고 `RAISE NOTICE '0029 sprints:
-  assigned[…] unassigned=N mixed_team=M'` 이 개수를 말한다. 배포 뒤 `/api/admin/integrity` 의
-  `sprints_without_team` 이 그 목록이다 — 관리자가 작업 보드의 「회차 수정」에서 팀을 정하거나,
-  닫힌 회차는 기록이라 그대로 둔다. 열린 회차의 팀 어긋난 티켓은 `open_sprint_tickets_off_team` 이 센다.
+  assigned[…] unassigned=N mixed_team=M'` 이 개수를 말한다. 배포 뒤 조직 정합성 화면의 「회차」 탭이
+  그 목록이다(`sprints_without_team`, 열린 회차만) — 관리자가 그 탭에서 팀을 지정한다. 닫힌 회차는
+  기록이라 그대로 두고 참고 건수로만 보인다. 열린 회차의 팀 어긋난 티켓은 「티켓」 탭의
+  `open_sprint_tickets_off_team` 이 세고, 같은 자리에서 회차에서 뺄 수 있다.
 - **되돌리기**: `alembic downgrade 0028_document_legacy_author`. `project_id` 칼럼·FK·인덱스는
   0029 가 지우지 않고 값도 그대로라, 옛 인덱스 둘을 복원하고 `department_id` 를 지우면 이전
   앱이 그대로 돈다. `project_id` 는 다음 릴리스의 `0031` 이 걷는다(BACKLOG P-94) — 그 전까지는

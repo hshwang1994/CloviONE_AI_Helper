@@ -89,14 +89,16 @@ def _finding(db, key):
     return next(f for f in report["findings"] if f["key"] == key)
 
 
-def test_sprints_without_a_team_are_listed_whatever_their_state(db, world):
-    finding = _finding(db, "sprints_without_team")
+def test_only_open_sprints_without_a_team_are_something_to_fix(db, world):
+    """닫힌 회차는 팀을 고칠 수 없다(`update_sprint` 가 막는다). 세면 이 건수는 어떤 조치로도 0 이
+    되지 않는다 - 그래서 열린 회차만 세고, 닫힌 회차 수는 참고로 따로 준다(계획 3.2)."""
+    report = integrity.report(db)
+    finding = next(f for f in report["findings"] if f["key"] == "sprints_without_team")
     ids = {i["id"] for i in finding["items"]}
-    assert ids == {world["unassigned"].id, world["unassigned_closed"].id}, finding
-    assert finding["count"] == 2
-    assert finding["fixable_here"] is False
-    states = {i["id"]: i["state"] for i in finding["items"]}
-    assert states[world["unassigned_closed"].id] == "closed"
+    assert ids == {world["unassigned"].id}, finding
+    assert finding["count"] == 1
+    assert finding["fixable_here"] is True and finding["fixes"] == ["sprint_team"]
+    assert report["notes"]["closed_sprints_without_team"] == 1
 
 
 def test_off_team_tickets_are_counted_only_in_open_sprints(db, world):

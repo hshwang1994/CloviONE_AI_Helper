@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,7 @@ from app.users.models import (
     ALL_MEMBERSHIP_KINDS,
     ALL_ROLES,
     MEMBERSHIP_DEPARTMENT,
+    MEMBERSHIP_ORGANIZATION,
     MEMBERSHIP_UNASSIGNED,
     ROLE_SYSTEM_ADMIN,
     User,
@@ -141,6 +142,22 @@ def _resolved_membership(department_id: str | None, membership_kind: str | None)
             raise ValidationAppError("부서 소속으로 두려면 부서를 함께 지정해야 합니다.")
         return membership_kind
     return MEMBERSHIP_UNASSIGNED
+
+
+def unassigned_membership_clause(*, active_only: bool = True) -> tuple:
+    """「소속이 지정되지 않은 사용자」의 정의 하나 (계획 2.7, 3.6).
+
+    부서가 없고 조직 직속도 아니면 미지정이다. 정합성 진단, 조직 트리의 미지정 수, 사용자 목록
+    필터가 이 절 하나를 쓴다 - 각자 적으면 화면마다 다른 수가 나온다(실제로 세 벌이 갈라져 있었다).
+    `active_only` 면 활성이고 보관되지 않은 계정만 센다. 닫힌 계정은 볼 것이 없어 정리 대상이 아니다.
+    """
+    clause = (
+        or_(User.department_id.is_(None), User.department_id == ""),
+        User.membership_kind != MEMBERSHIP_ORGANIZATION,
+    )
+    if active_only:
+        return (User.active.is_(True), User.archived_at.is_(None), *clause)
+    return clause
 
 
 def create_user(
