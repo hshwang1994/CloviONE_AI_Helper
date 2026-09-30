@@ -1,7 +1,7 @@
 """In-app notification provider (spec §7.3 initial implementation, §13.5).
 
-Future Email/Teams providers implement the same notify() shape and get
-fanned out alongside (spec §13.5 마지막 문단).
+메일 채널은 `notify_user` 가 알림 행을 만든 뒤 `app/notifications/mail.py::fan_out_mail` 로 붙인다(계획 3.4,
+D-514). 받는 사람이 메일 알림을 켜 둔 유형만 메일이 되고, 메일이 실패해도 화면 알림은 남는다.
 """
 
 from __future__ import annotations
@@ -70,12 +70,16 @@ def notify_user(
     now: datetime,
     audience: str = AUDIENCE_USER,
     recipient_role: str | None = None,
+    context: dict | None = None,
 ) -> Notification:
     """알림 한 건. **어느 콘솔의 것인가는 여기 한 곳에서 정한다** (0060).
 
     호출부가 audience 를 신경 쓰지 않아도 되도록, 유형과 **수신자의 역할**로 판정한다
     (`audience_for`). 역할을 안 넘기면 여기서 한 번 읽는다 — 팬아웃 호출부는 이미 User
     객체를 들고 있으므로 그때는 넘겨서 조회를 아낀다.
+
+    ``context`` 는 메일로도 보낼 때 보내기 직전의 유효성 재검사가 쓰는 참조다(티켓의 새 상태, 댓글 id).
+    화면 알림 행에는 들어가지 않는다.
     """
     if recipient_role is None:
         recipient = db.get(User, user_id)
@@ -92,7 +96,27 @@ def notify_user(
     )
     db.add(row)
     db.flush()
+    _fan_out_mail(db, row, now=now, context=context)
     return row
+
+
+def _fan_out_mail(db: Session, row: Notification, *, now: datetime, context: dict | None) -> None:
+    """메일로도 보낸다(계획 3.4). **실패해도 화면 알림과 본 작업은 남는다.**
+
+    저장점 안에서 한다. 메일 쪽 질의 하나가 실패해도 바깥 트랜잭션이 깨지지 않는다 - 깨지면 이 알림을 만든 티켓
+    저장이 함께 실패한다.
+    """
+    from app.profiles.prefs import MAILABLE_TYPES
+
+    if row.type not in MAILABLE_TYPES:
+        return
+    try:
+        from app.notifications.mail import fan_out_mail
+
+        with db.begin_nested():
+            fan_out_mail(db, row, now=now, context=context)
+    except Exception:  # noqa: BLE001 - 메일이 알림과 본 작업을 막으면 안 된다
+        logger.exception("알림 메일을 큐에 넣지 못했다 (notification=%s)", row.id)
 
 
 def _related_user(db: Session, related: tuple[str, str] | None) -> User | None:

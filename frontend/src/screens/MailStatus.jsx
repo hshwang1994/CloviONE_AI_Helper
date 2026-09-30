@@ -1,12 +1,15 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
+import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import {
-  Badge, Button, Callout, DataTable, EmptyState, ErrorState, MetaBar, Section, Skeleton, TechDetail, useConfirm, useToast,
+  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, MetaBar, Section, Segmented, Skeleton, TechDetail,
+  useConfirm, useToast,
 } from "../ui/kit.jsx";
+import { SettingRow } from "../ui/adminKit.jsx";
 import { HeaderActions } from "../ui/HeaderSlot.jsx";
 import { TabShell } from "../ui/TabShell.jsx";
 import { DataScreen } from "./DataScreen.jsx";
@@ -395,7 +398,78 @@ function MailStatusPanel() {
           <EmptyState art="success" title="최근 실패한 메일이 없습니다" />
         )}
       </Section>
+
+      <NotificationMailSection info={data.notification_mail} canWrite={canWrite} />
     </Box>
+  );
+}
+
+/* 오래된 메일의 기준으로 고를 수 있는 날 수. 지금 값이 이 안에 없으면(설정 API 로 바꾼 값) 그 값도 함께 보인다. */
+const AGE_CHOICES = [1, 3, 7, 14, 30];
+
+/* 메일로 보내는 알림(계획 3.4) — 사용자가 메일로 받을 수 있는 알림의 허용 목록과 오래된 메일의 기준.
+ *
+ * 목록은 **서버가 준다**(`notification_mail.catalog` — 메일로 보낼 수 있는 유형 전부). 저장은 설정 API 하나로 하고
+ * (`mail_notification_types`, `mail_notification_max_age_days`), 그 두 값은 설정 표에서 숨긴다 — 같은 값을 두 화면이
+ * 서로 다른 방식으로 다루지 않게(`settingsRegistry.js::MAIL_SCREEN_KEYS`). */
+function NotificationMailSection({ info, canWrite }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const save = useMutation({
+    mutationFn: ({ key, value }) => api("/api/admin/settings/" + key, { method: "PUT", body: { value } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["mail-status"] });
+      toast("알림 메일 설정을 저장했습니다.", "success");
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+  if (!info) return null;
+  const catalog = info.catalog || [];
+  const allowed = new Set(info.allowed || []);
+  const toggle = (key) => {
+    const next = new Set(allowed);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    save.mutate({ key: "mail_notification_types", value: catalog.map((row) => row.key).filter((k) => next.has(k)) });
+  };
+  const days = info.max_age_days;
+  const ages = AGE_CHOICES.includes(days) ? AGE_CHOICES : [...AGE_CHOICES, days].sort((a, b) => a - b);
+  return (
+    <Section
+      titleAs="h2" title="메일로 보내는 알림" sx={{ mt: 3, mb: 0 }}
+      help="여기서 허용한 알림만 사용자가 메일로 받을 수 있습니다. 사용자는 내 프로필에서 메일 알림을 켜고 받을 알림을 고릅니다."
+    >
+      <Card>
+        <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, columnWidth: "20rem", columnGap: 3 }}>
+          {catalog.map((row) => (
+            <Box component="li" key={row.key} sx={{ breakInside: "avoid" }}>
+              <SettingRow
+                compact label={row.label} description={row.help}
+                action={(
+                  <Switch
+                    checked={allowed.has(row.key)}
+                    disabled={!canWrite || save.isPending}
+                    onChange={() => toggle(row.key)}
+                    slotProps={{ input: { "aria-label": `${row.label} 메일 허용` } }}
+                  />
+                )}
+              />
+            </Box>
+          ))}
+        </Box>
+        <SettingRow
+          compact label="오래된 메일"
+          description="메일 서버가 멈춘 동안 쌓인 메일은 이 기간이 지나면 보내지 않습니다."
+          action={canWrite ? (
+            <Segmented
+              ariaLabel="오래된 메일의 기준"
+              value={String(days)}
+              onChange={(v) => save.mutate({ key: "mail_notification_max_age_days", value: Number(v) })}
+              options={ages.map((d) => ({ value: String(d), label: d + "일" }))}
+            />
+          ) : <Typography component="span">{days}일</Typography>}
+        />
+      </Card>
+    </Section>
   );
 }
 

@@ -37,6 +37,7 @@ from app.core.scope import Principal, require_global_management
 from app.core.sort import SortParams
 from app.mail.config import config_from_cache, config_from_db, mail_status
 from app.mail.renderers import KIND_TEST
+from app.notifications.mail import admin_catalog as notification_mail_catalog
 from app.mail.service import (
     cancel_delivery,
     delivery_detail,
@@ -86,6 +87,8 @@ def status(request: Request, db: Session = Depends(get_db)):
         "recent_failures": [delivery_view(r) for r in recent_failures(db)],
         # 설정 전에 쌓여 설정 뒤 다시 보낼 수 있는 메일(초대 등, 최근 7일). 화면이 그 단추 옆에 건수를 말한다.
         "pending_unconfigured_count": pending_unconfigured_count(db, now=request.app.state.clock.now()),
+        # 알림을 메일로도 보내기(계획 3.4) - 관리자가 허용한 유형과 고를 수 있는 유형 전부, 오래된 메일의 기준.
+        "notification_mail": notification_mail_catalog(db),
     }
 
 

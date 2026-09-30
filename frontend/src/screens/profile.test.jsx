@@ -216,3 +216,58 @@ describe("내 프로필", () => {
     expect(await screen.findByRole("tooltip")).toHaveTextContent(longUA);
   });
 });
+
+describe("메일로도 받기", () => {
+  const MAIL = {
+    enabled: false,
+    types: ["ticket_assigned", "ticket_status_changed"],
+    catalog: [
+      { key: "ticket_assigned", label: "티켓 배정", help: "누군가 나를 티켓 담당자로 지정했을 때" },
+      { key: "ticket_status_changed", label: "티켓 상태 변경", help: "지켜보거나 맡은 티켓의 상태가 바뀌었을 때" },
+    ],
+    delivery: { state: "ok", message: null },
+  };
+
+  function withMail(mail) {
+    apiMock.mockImplementation((path, options) => {
+      if (path === "/api/me/preferences" && !(options && options.method === "PATCH")) {
+        return Promise.resolve(prefs({ mail }));
+      }
+      if (path === "/api/me/preferences") return Promise.resolve(prefs({ mail: { ...mail, enabled: true } }));
+      return route(path, options);
+    });
+  }
+
+  it("큰 스위치는 켜짐 하나만 보내고, 꺼져 있으면 유형 스위치는 누를 수 없다", async () => {
+    withMail(MAIL);
+    renderProfile();
+    const typeSwitch = await screen.findByRole("switch", { name: "티켓 배정 메일로 받기" });
+    expect(typeSwitch).toBeDisabled();
+    await userEvent.click(screen.getByRole("switch", { name: "알림을 메일로도 받기" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/me/preferences", {
+      method: "PATCH", body: { mail_enabled: true },
+    }));
+  });
+
+  it("유형 스위치는 받을 유형 전체를 보낸다", async () => {
+    withMail({ ...MAIL, enabled: true });
+    renderProfile();
+    await userEvent.click(await screen.findByRole("switch", { name: "티켓 배정 메일로 받기" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/me/preferences", {
+      method: "PATCH", body: { mail_types: ["ticket_status_changed"] },
+    }));
+  });
+
+  it("메일 발송이 정상이 아니면 그 까닭을 한 문장으로 먼저 말한다", async () => {
+    withMail({ ...MAIL, delivery: { state: "unconfigured", message: "관리자가 메일 발송을 설정하지 않아 지금은 메일 알림이 나가지 않습니다." } });
+    renderProfile();
+    expect(await screen.findByText(/메일 발송을 설정하지 않아/)).toBeInTheDocument();
+  });
+
+  it("반례: 관리자가 허용한 유형이 없으면 스위치 대신 그 사실을 말한다", async () => {
+    withMail({ ...MAIL, catalog: [], types: [] });
+    renderProfile();
+    expect(await screen.findByText(/메일로 보낼 알림을 아직 정하지 않았습니다/)).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "알림을 메일로도 받기" })).toBeNull();
+  });
+});

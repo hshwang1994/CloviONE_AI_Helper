@@ -42,6 +42,9 @@ export const SETTING_LABELS = {
   chat_enabled: "AI 채팅",
   game_ai_enabled: "게임 퀴즈 AI",
   assistant_narrative_enabled: "홈 AI 문장 요약",
+  // 알림을 메일로도 보내기(계획 3.4). 메일 발송 화면에서 다룬다(MAIL_SCREEN_KEYS). 라벨은 감사와 버전 기록에 쓰인다.
+  mail_notification_types: "메일로 보내는 알림",
+  mail_notification_max_age_days: "오래된 메일 기준(일)",
 };
 export const settingLabel = (k) => SETTING_LABELS[k] || k;
 
@@ -63,6 +66,7 @@ export const OBJECT_SCHEMA_HELP = {
   // 백엔드(_backup_schedule)가 **저장 시점에** cron·타임존을 검증한다 — 여기 예시는 그것과
   // 같은 모양이라야 한다(틀린 예시를 그대로 붙여 넣으면 저장이 거부된다).
   backup_schedule: 'JSON 예: {"enabled": true, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14, "keep_days": 7}, cron 은 분 시 일 월 요일(0 3 * * * = 매일 새벽 3시), keep 은 남길 백업 개수(1~365), keep_days 는 개수를 넘어도 남기는 기간(0~365일).',
+  mail_notification_types: 'JSON 예: ["ticket_assigned", "ticket_status_changed", "ticket_resolved"], 메일 발송 화면의 「메일로 보내는 알림」에서 고르는 것이 편합니다.',
 };
 // 값의 정본은 서버(app/core/authz.py)이고, 화면 쪽 사본은 lib/roles.js 한 곳이다(지시 21).
 export const WRITE_ROLES = CONSOLE_WRITE_ROLES;
@@ -83,6 +87,8 @@ export const DEDICATED_SCREEN_KEYS = [
   "llm_enabled", "llm_backend", "llm_executable", "llm_model",
   "llm_timeout_seconds", "llm_max_concurrency",
 ];
+// 알림을 메일로도 보내기(계획 3.4)의 두 값은 메일 발송 화면의 「메일로 보내는 알림」이 다룬다. 같은 이유로 이 표에서 숨긴다.
+export const MAIL_SCREEN_KEYS = ["mail_notification_types", "mail_notification_max_age_days"];
 // 이 object 설정들은 정해진 스키마가 있어 타입에 맞는 입력(숫자·분/시간·칩 목록)으로 편집할 수 있다.
 // 비개발자 관리자가 raw JSON을 손으로 추측하지 않게 하려는 목적(registry.py 주석과 동일 취지) —
 // 그 외 미지의 object 키는 여전히 JSON 텍스트로만 편집한다(스키마가 없으므로).

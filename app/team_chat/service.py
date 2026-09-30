@@ -297,6 +297,8 @@ def notify_mentions(db: Session, room: ChatRoom, sender: User, msg: ChatMessage,
             # 목적지는 서버 표(app/notifications/destinations.py)가 계산한다 — 프런트에 if 를 늘리지 않는다.
             related=(RELATED_CHAT_MENTION, room.id),
             now=now,
+            # 메시지가 지워지면 늦게 나갈 메일도 보내지 않는다(계획 3.4).
+            context={"message_id": msg.id},
         )
     return targets
 

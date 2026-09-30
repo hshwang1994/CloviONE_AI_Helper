@@ -26,6 +26,9 @@ class PreferenceUpdate(BaseModel):
     # 고른 기본 아바타. 빈 문자열은 「고르지 않음」으로 되돌린다 — 그러면 사용자 id 로
     # 다시 안정 배정된다. 사진과 다른 축이라 사진을 지우지 않는다.
     avatar_default_key: str | None = Field(default=None, max_length=32)
+    # 알림을 메일로도 받기(계획 3.4). 스위치 하나와 받을 유형 목록이다. 유형은 관리자가 허용한 것 안에서만 고른다.
+    mail_enabled: bool | None = None
+    mail_types: list[str] | None = Field(default=None, max_length=32)
 
 
 class TourUpdate(BaseModel):

@@ -250,6 +250,27 @@ def profile(
 
 # ── 설정(알림·방해금지·투어) ─────────────────────────────────────────────────
 
+
+def _mail_delivery_state(request: Request, db: Session) -> str | None:
+    """메일 발송의 건강 상태(`app/mail/health.py`) - 저장된 값만 읽고 메일 서버에 붙지 않는다."""
+    from app.mail.config import config_from_db
+    from app.mail.health import health_state
+
+    try:
+        return health_state(
+            db, config_from_db(db), getattr(request.app.state, "secret_provider", None),
+        ).get("state")
+    except Exception:  # noqa: BLE001 - 상태를 못 읽어도 내 설정 화면은 열린다
+        return None
+
+
+def _preferences(request: Request, db: Session, user: User, pref, *, now, tz) -> dict:
+    """세 경로(조회 · 수정 · 둘러보기)가 같은 모양을 돌려준다 - 한쪽만 `mail` 을 빠뜨리면 화면 캐시가 그 칸을 잃는다."""
+    return service.preference_view(
+        pref, now=now, timezone_name=tz, avatar_url=_avatar_url(pref, user.id),
+        mail=service.mail_view(db, pref, delivery_state=_mail_delivery_state(request, db)),
+    )
+
 @router.get("/api/me/preferences")
 def get_preferences(
     request: Request,
@@ -266,9 +287,7 @@ def get_preferences(
     tz = request.app.state.settings.timezone
     state = service.quiet_state(pref, now=now, timezone_name=tz)
     service.clear_expired_dnd(db, pref, state, now=now)
-    return service.preference_view(
-        pref, now=now, timezone_name=tz, avatar_url=_avatar_url(pref, user.id)
-    )
+    return _preferences(request, db, user, pref, now=now, tz=tz)
 
 
 @router.patch("/api/me/preferences")
@@ -294,9 +313,7 @@ def update_preferences(
         request, db, action="profile.preferences.update", object_type="user",
         object_id=user.id, after=after,
     )
-    return service.preference_view(
-        pref, now=now, timezone_name=tz, avatar_url=_avatar_url(pref, user.id)
-    )
+    return _preferences(request, db, user, pref, now=now, tz=tz)
 
 
 @router.post("/api/me/tour")
@@ -325,9 +342,7 @@ def update_tour(
         service.reset_tour(db, pref, now=now)
     else:
         service.mark_tour_seen(db, pref, skipped=(action == "skip"), now=now)
-    return service.preference_view(
-        pref, now=now, timezone_name=tz, avatar_url=_avatar_url(pref, user.id),
-    )
+    return _preferences(request, db, user, pref, now=now, tz=tz)
 
 
 # ── 아바타 ───────────────────────────────────────────────────────────────────

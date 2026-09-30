@@ -35,6 +35,8 @@ KIND_INVITE = "invite"
 KIND_BACKUP_FAILED = "backup_failed"
 KIND_APPROVAL_REQUESTED = "approval_requested"
 KIND_TEST = "test"
+# 화면 알림을 메일로도 보낸 것(계획 3.4, D-514). 본문은 그 알림의 제목과 내용, 그리고 바로 가는 주소다.
+KIND_NOTIFICATION = "notification"
 
 # 화면이 `backup_failed` 를 그대로 보여 주면 그건 메일 종류의 이름이 아니라 우리 내부
 # 코드다(지시 36 · 40). 상태값을 서버가 이름 지어 주는 것과 같은 이유로 종류도 여기서
@@ -46,6 +48,7 @@ MAIL_KIND_LABELS: dict[str, str] = {
     KIND_BACKUP_FAILED: "백업 실패 알림",
     KIND_APPROVAL_REQUESTED: "결재 요청 알림",
     KIND_TEST: "발송 시험",
+    KIND_NOTIFICATION: "알림 메일",
 }
 
 
@@ -148,6 +151,33 @@ def _render_test(db: Session, delivery: MailDelivery, ctx) -> str:
     )
 
 
+def _notification_link(ctx, params: dict) -> str:
+    """알림이 가리키는 화면. 관리자 알림은 관리 콘솔(`/admin`)에서, 나머지는 사용자 콘솔에서 연다."""
+    base = _base_url(ctx)
+    admin = params.get("audience") == "admin"
+    route = str(params.get("route") or "") or ("/admin-notifications" if admin else "/notifications")
+    return f"{base}/admin#{route}" if admin else f"{base}/#{route}"
+
+
+def _render_notification(db: Session, delivery: MailDelivery, ctx) -> str:
+    """알림 한 건을 메일로 옮긴다. 받는 사람 사정과 사건의 유효성은 보내기 전에 이미 다시 봤다(`mail_send`)."""
+    params = _params(delivery)
+    user = _require_user(db, params)
+    lines = [f"{user.display_name}님, {params.get('title') or '새 알림이 있습니다'}", ""]
+    if params.get("type") == "ticket_assigned" and params.get("first_assignment"):
+        lines += ["새 티켓이 배정되었습니다.", ""]
+    body = str(params.get("body") or "").strip()
+    if body:
+        lines += [body, ""]
+    lines += [
+        f"바로 가기: {_notification_link(ctx, params)}",
+        "",
+        "이 메일은 알림을 메일로도 받도록 설정하셔서 보냈습니다. "
+        "내 프로필의 알림 설정에서 메일 알림을 끌 수 있습니다.",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 # kind 하나에 렌더러 하나. 여기 없는 kind 는 발송 자체가 거부된다 - 오타 난 kind 가
 # 조용히 빈 메일로 나가는 것보다, 잡이 영구 실패로 남아 눈에 띄는 편이 낫다.
 RENDERERS = {
@@ -156,6 +186,7 @@ RENDERERS = {
     KIND_BACKUP_FAILED: _render_backup_failed,
     KIND_APPROVAL_REQUESTED: _render_approval_requested,
     KIND_TEST: _render_test,
+    KIND_NOTIFICATION: _render_notification,
 }
 
 MAIL_KINDS = frozenset(RENDERERS)

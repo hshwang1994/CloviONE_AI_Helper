@@ -72,6 +72,25 @@ NOTIFICATION_TYPES: dict[str, tuple[str, str]] = {
     "ticket_resolved": ("요청한 티켓 결과", "내가 요청한 티켓이 완료되거나 취소되었을 때"),
 }
 
+# ── 메일로도 받을 수 있는 유형 (계획 3.4, D-514) ─────────────────────────────
+#
+# 사람 한 명에게 일어난 협업 사건만 메일로 보낼 수 있다. 전용 메일이 따로 있는 유형(승인 요청, 백업 실패,
+# 초대)과 모두에게 가는 방송(유지보수 공지)은 여기 없다 - 같은 사건이 메일 두 통이 되거나 전 직원에게 메일이
+# 쏟아진다. 나열 순서가 화면 순서다.
+MAILABLE_TYPES: tuple[str, ...] = (
+    "ticket_assigned",
+    "ticket_status_changed",
+    "ticket_resolved",
+    "ticket_comment",
+    "document_comment",
+    "chat_mentioned",
+    "approval_decided",
+)
+# 관리자가 따로 정하지 않았을 때 메일로 보낼 수 있는 유형. 티켓의 흐름을 알리는 셋이다.
+DEFAULT_MAIL_NOTIFICATION_TYPES: tuple[str, ...] = (
+    "ticket_assigned", "ticket_status_changed", "ticket_resolved",
+)
+
 # 뮤트할 수 없는 유형 — 계정 보안에 관한 알림이다. 끌 수 있게 만들면 침해를 알리는
 # 유일한 신호를 사용자가 스스로 끌 수 있게 된다.
 UNMUTABLE_TYPES = frozenset({"account_locked", "password_change_required"})
@@ -115,6 +134,40 @@ def validate_muted(keys) -> tuple[list[str], list[str]]:
     for raw in keys or []:
         key = str(raw).strip()
         if not _TYPE_KEY_RE.match(key) or key not in NOTIFICATION_TYPES:
+            rejected.append(key)
+        elif key not in valid:
+            valid.append(key)
+    return valid, rejected
+
+
+def parse_mail_types(raw: str | None) -> list[str] | None:
+    """저장 문자열 → 메일로 받을 유형. **None 은 「아직 고르지 않음」이다** - 그때는 관리자가 허용한 유형을 전부 받는다.
+
+    빈 문자열은 「하나도 안 받음」이라는 선택이다. 둘을 같게 보면 유형을 전부 끈 사람이 다음 날 관리자가 허용한
+    유형을 다시 받기 시작한다.
+    """
+    if raw is None:
+        return None
+    seen: list[str] = []
+    for part in raw.split(","):
+        key = part.strip()
+        if key in MAILABLE_TYPES and key not in seen:
+            seen.append(key)
+    return seen
+
+
+def serialize_mail_types(keys) -> str:
+    return ",".join(k for k in MAILABLE_TYPES if k in {str(x).strip() for x in (keys or [])})
+
+
+def validate_mail_types(keys, allowed) -> tuple[list[str], list[str]]:
+    """(받을 유형, 거부된 유형). 관리자가 허용하지 않은 유형은 고를 수 없다 - 라우터가 422 로 알린다."""
+    allowed_set = set(allowed)
+    valid: list[str] = []
+    rejected: list[str] = []
+    for raw in keys or []:
+        key = str(raw).strip()
+        if key not in allowed_set:
             rejected.append(key)
         elif key not in valid:
             valid.append(key)

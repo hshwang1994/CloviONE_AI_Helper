@@ -1104,6 +1104,8 @@ def _notify_assignees_added(
                 title=f"{label} 담당자로 지정: {actor.display_name}",
                 body=(title or "")[:200],
                 related=("ticket", page_id), now=now,
+                # 담당자가 아무도 없던 티켓이면 메일 본문이 「새 티켓」이라고 쓴다(계획 3.4).
+                context={"first_assignment": not before},
             )
     except Exception:  # noqa: BLE001 — 알림이 티켓 편집을 막으면 안 된다
         logger.exception("티켓 배정 알림에 실패했다 (page_id=%s)", page_id)
@@ -1852,14 +1854,16 @@ def add_ticket_comment(
     created = comments.create_comment(
         db, ticket_uid=uid, author=user, body=body, now=stamp
     )
-    _notify_ticket_comment(db, page_id=page_id, uid=uid, author=user, now=stamp)
+    _notify_ticket_comment(db, page_id=page_id, uid=uid, author=user, now=stamp, comment_id=created.id)
     return {
         "comment_id": created.id,
         **comments.list_comments(db, ticket_uid=uid, me=user),
     }
 
 
-def _notify_ticket_comment(db: Session, *, page_id: str, uid: str, author: User, now) -> None:
+def _notify_ticket_comment(
+    db: Session, *, page_id: str, uid: str, author: User, now, comment_id: str | None = None,
+) -> None:
     """내 티켓에 댓글이 달리면 알린다 (N2).
 
     `app/tickets/` 와 `app/board/` 전체에 `notify` 문자열이 **0건**이었다. 만들어지는 알림
@@ -1899,6 +1903,8 @@ def _notify_ticket_comment(db: Session, *, page_id: str, uid: str, author: User,
                 title=f"{label}에 새 댓글: {author.display_name}",
                 body=(row.title or "")[:200],
                 related=("ticket", page_id), now=now,
+                # 댓글이 지워지면 늦게 나갈 메일도 보내지 않는다(계획 3.4).
+                context={"comment_id": comment_id} if comment_id else None,
             )
     except Exception:  # noqa: BLE001 — 알림이 댓글 저장을 막으면 안 된다
         logger.exception("티켓 댓글 알림에 실패했다 (page_id=%s)", page_id)

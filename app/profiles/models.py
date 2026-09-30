@@ -100,6 +100,14 @@ class UserPreference(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Text, nullable=False, default="", server_default=""
     )
 
+    # ── 메일로도 받기 (계획 3.4, D-514) ────────────────────────────────────────
+    # 기본은 꺼짐이다(스스로 켜야 받는다). `mail_types` 가 NULL 이면 아직 유형을 고르지 않은 것이고, 그때는 관리자가
+    # 허용한 유형을 전부 받는다. 방해금지와 배지 끄기는 메일에 영향을 주지 않는다 - 둘은 화면 알림의 규칙이다.
+    mail_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    mail_types: Mapped[str | None] = mapped_column(Text)
+
     # ── 방해금지 ──────────────────────────────────────────────────────────────
     dnd_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0"

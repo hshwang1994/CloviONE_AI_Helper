@@ -56,6 +56,12 @@ const PREFS = {
     ],
     unmutable: ["account_locked"],
   },
+  // 메일로도 받기(계획 3.4)는 같은 판 안의 아래 구획이다 - 이 구획이 있어도 왼쪽 열은 판 하나여야 한다.
+  mail: {
+    enabled: true, types: ["ticket_assigned"],
+    catalog: [{ key: "ticket_assigned", label: "티켓 배정", help: "누군가 나를 티켓 담당자로 지정했을 때" }],
+    delivery: { state: "failing", message: "메일 발송이 지금 실패하고 있어 메일 알림이 늦게 도착할 수 있습니다." },
+  },
   dnd: {
     enabled: false, until: null, quiet_hours_enabled: false,
     quiet_start: "22:00", quiet_end: "08:00", quiet_now: false, reason: null, max_minutes: 1440,

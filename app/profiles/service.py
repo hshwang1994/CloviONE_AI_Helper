@@ -75,8 +75,29 @@ def clear_expired_dnd(db: Session, pref: UserPreference | None, state, *, now: d
     db.flush()
 
 
+# 메일 발송 상태별로 내 설정 화면이 말하는 한 문장(계획 3.4). 정상이면 말하지 않는다.
+MAIL_DELIVERY_NOTICES: dict[str, str] = {
+    "unconfigured": "관리자가 메일 발송을 설정하지 않아 지금은 메일 알림이 나가지 않습니다.",
+    "unverified": "관리자가 메일 발송을 아직 확인하지 않아 메일 알림이 도착하지 않을 수 있습니다.",
+    "failing": "메일 발송이 지금 실패하고 있어 메일 알림이 늦게 도착할 수 있습니다. 복구되면 밀린 메일을 다시 보냅니다.",
+}
+
+
+def mail_view(db: Session, pref: UserPreference | None, *, delivery_state: str | None) -> dict:
+    """「메일로도 받기」 한 벌 - 켜짐, 받는 유형, 고를 수 있는 유형, 메일 발송 상태의 한 문장."""
+    from app.notifications.mail import recipient_view
+
+    view = recipient_view(db, pref)
+    view["delivery"] = {
+        "state": delivery_state,
+        "message": MAIL_DELIVERY_NOTICES.get(delivery_state or ""),
+    }
+    return view
+
+
 def preference_view(
-    pref: UserPreference | None, *, now: datetime, timezone_name: str, avatar_url: str | None
+    pref: UserPreference | None, *, now: datetime, timezone_name: str, avatar_url: str | None,
+    mail: dict | None = None,
 ) -> dict:
     """설정 화면과 셸이 함께 쓰는 응답 모양. 설정이 없어도 **기본값으로 온전한 모양**을 낸다."""
     state = quiet_state(pref, now=now, timezone_name=timezone_name)
@@ -97,6 +118,8 @@ def preference_view(
             "catalog": prefs.notification_type_catalog(),
             "unmutable": sorted(prefs.UNMUTABLE_TYPES),
         },
+        # 알림을 메일로도 받기(계획 3.4). 라우터가 DB 와 메일 상태를 읽어 채운다.
+        "mail": mail,
         "dnd": {
             # 사용자가 켜 둔 상태(설정) — 지금 조용한지(quiet)와 다르다. 조용시간은
             # 켜 두었어도 낮에는 조용하지 않다.
@@ -176,6 +199,22 @@ def apply_preference_changes(
             raise ValidationAppError("시간은 'HH:MM' 형식이어야 합니다(예: 22:00).")
         setattr(pref, key, value)
         after[key] = value
+
+    if "mail_enabled" in changes and changes["mail_enabled"] is not None:
+        pref.mail_enabled = bool(changes["mail_enabled"])
+        after["mail_enabled"] = pref.mail_enabled
+
+    if "mail_types" in changes and changes["mail_types"] is not None:
+        from app.notifications.mail import allowed_types
+
+        valid, rejected = prefs.validate_mail_types(changes["mail_types"], allowed_types(db))
+        if rejected:
+            # 관리자가 허용하지 않은 유형이다. 조용히 버리면 사람은 켰는데 메일이 안 온다고 느낀다.
+            raise ValidationAppError(
+                "메일로 받을 수 없는 알림 유형입니다: " + ", ".join(sorted(set(rejected)))
+            )
+        pref.mail_types = prefs.serialize_mail_types(valid)
+        after["mail_types"] = valid
 
     if "avatar_default_key" in changes and changes["avatar_default_key"] is not None:
         key = (changes["avatar_default_key"] or "").strip()

@@ -71,9 +71,10 @@ def notify_status_changed(
         )
         for uid, type_ in recipients.items():
             heading = f"{name} 처리 결과: {label}" if type_ == TYPE_RESOLVED else f"{name} 상태 변경: {label}"
+            # 새 상태는 메일의 유효성 재검사가 쓴다 - 장애 뒤에 보낼 때 티켓이 이미 다른 상태면 보내지 않는다(D-514).
             notify_user(
                 db, uid, type_=type_, title=heading, body=(title or "")[:200],
-                related=("ticket", page_id), now=now,
+                related=("ticket", page_id), now=now, context={"to_status": to_status},
             )
         return len(recipients)
     except Exception:  # noqa: BLE001 - 알림이 상태 변경을 막으면 안 된다

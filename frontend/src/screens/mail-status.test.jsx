@@ -5,6 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
+/* qa-contract-change: 메일 화면의 상태 탭 끝에 「메일로 보내는 알림」 구획이 섰다(계획 3.4, D-514) — 허용 목록 스위치와 오래된 메일 기준을 저장하는 단언과, 쓰기 역할이 아니면 바꿀 수 없다는 반례를 더했다.
+ */
 /* qa-contract-change: 메일 화면이 탭 그릇(상태 · 발송 기록)이 됐고 설정 완성 문장이 건강 상태(미설정 · 확인 전 · 정상 · 발송 실패, 계획 3.3 · D-512)로 바뀌었다 — 「설정이 완성돼 있습니다」를 기다리던 단언을 건강 문장으로, 「다시 보내지 않습니다」 각주를 「저절로 다시 보내지 않고 연결 확인 뒤 보낼 수 있다」로 옮기고, 연결 확인 · 쌓인 메일 보내기 단언을 더했다.
  */
 /* FN-01 + 지시 35 · 36 · 40: 메일 발송 화면.
@@ -451,5 +453,44 @@ describe("메일 건강 상태와 연결 확인", () => {
     await user.click(await screen.findByRole("tab", { name: "발송 기록" }));
     await waitFor(() => expect(apiMock.mock.calls.some(([p]) =>
       String(p).startsWith("/api/admin/mail/deliveries?"))).toBe(true));
+  });
+
+  it("메일로 보내는 알림: 스위치 하나가 허용 목록 전체를 설정 API 로 저장한다", async () => {
+    const user = userEvent.setup();
+    withHealth(CONFIGURED.health, {
+      notification_mail: {
+        allowed: ["ticket_assigned", "ticket_status_changed"],
+        catalog: [
+          { key: "ticket_assigned", label: "티켓 배정", help: "누군가 나를 티켓 담당자로 지정했을 때" },
+          { key: "ticket_status_changed", label: "티켓 상태 변경", help: "지켜보거나 맡은 티켓의 상태가 바뀌었을 때" },
+          { key: "ticket_resolved", label: "요청한 티켓 결과", help: "요청한 티켓이 끝났을 때" },
+        ],
+        max_age_days: 7,
+      },
+    });
+    renderScreen();
+    await user.click(await screen.findByRole("switch", { name: "요청한 티켓 결과 메일 허용" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/settings/mail_notification_types", {
+      method: "PUT", body: { value: ["ticket_assigned", "ticket_status_changed", "ticket_resolved"] },
+    }));
+    await user.click(screen.getByRole("tab", { name: "3일" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/settings/mail_notification_max_age_days", {
+      method: "PUT", body: { value: 3 },
+    }));
+  });
+
+  it("반례: 쓰기 역할이 아니면 허용 목록을 바꿀 수 없다", async () => {
+    authRole = "auditor";
+    withHealth(CONFIGURED.health, {
+      notification_mail: {
+        allowed: ["ticket_assigned"],
+        catalog: [{ key: "ticket_assigned", label: "티켓 배정", help: "누군가 나를 티켓 담당자로 지정했을 때" }],
+        max_age_days: 7,
+      },
+    });
+    renderScreen();
+    expect(await screen.findByRole("switch", { name: "티켓 배정 메일 허용" })).toBeDisabled();
+    expect(screen.queryByRole("tab", { name: "3일" })).toBeNull();
+    expect(screen.getByText("7일")).toBeInTheDocument();
   });
 });

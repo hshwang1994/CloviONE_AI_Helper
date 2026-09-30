@@ -49,7 +49,7 @@ from app.mail.models import (
 )
 from app.mail import health
 from app.mail.relevance import still_relevant
-from app.mail.renderers import render_body
+from app.mail.renderers import KIND_NOTIFICATION, render_body
 from app.mail.service import record_failure, record_sent, record_skipped, retry_delay_for, summarize_failure
 
 logger = logging.getLogger("app.handlers.mail_send")
@@ -86,6 +86,16 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
         return
 
     now = ctx.clock.now()
+    if delivery.kind == KIND_NOTIFICATION:
+        # 알림 메일은 받는 사람 쪽 사정을 먼저 다시 본다(계획 3.4) - 큐에 들어간 뒤 메일 알림을 끄거나 계정이
+        # 보관됐으면 보내지 않는다. 보내도 되면 받는 주소가 지금 계정의 이메일로 고쳐진다.
+        from app.notifications.mail import recheck_recipient
+
+        blocked = recheck_recipient(db, delivery)
+        if blocked:
+            record_skipped(db, delivery, status=MAIL_CANCELLED, reason=blocked, now=now)
+            logger.info("mail %s 는 받는 사람 사정으로 보내지 않는다 (%s)", delivery.id, blocked)
+            return
     # 보내기 직전에 아직 의미가 있는가(계획 3.3 · 3.4). 장애가 길었으면 그 사이 초대받은 사람이 로그인했거나 승인이
     # 끝났을 수 있다 - 그런 메일은 보내지 않고 까닭과 함께 끝낸다. 재시도할 때마다 다시 본다.
     relevant, reason = still_relevant(db, delivery, now)

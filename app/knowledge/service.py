@@ -1543,7 +1543,7 @@ def add_comment(db: Session, user: User, document_id: str, *, body: str, now) ->
     created = doc_comments.create_comment(
         db, document_id=document.id, author=user, body=body, now=now
     )
-    _notify_comment(db, document=document, author=user, now=now)
+    _notify_comment(db, document=document, author=user, now=now, comment_id=created.id)
     return {
         "comment_id": created.id,
         **doc_comments.list_comments(db, document_id=document.id, me=user),
@@ -1569,7 +1569,9 @@ def delete_comment(db: Session, user: User, comment_id: str, *, now) -> dict:
     return doc_comments.list_comments(db, document_id=comment.document_id, me=user)
 
 
-def _notify_comment(db: Session, *, document: Document, author: User, now) -> None:
+def _notify_comment(
+    db: Session, *, document: Document, author: User, now, comment_id: str | None = None,
+) -> None:
     """내 문서에 댓글이 달리면 알린다 (티켓 댓글과 같은 규약).
 
     받는 사람은 문서를 만든 사람이고, 자기 글에 자기가 단 댓글은 알리지 않는다 — 그러면
@@ -1587,6 +1589,8 @@ def _notify_comment(db: Session, *, document: Document, author: User, now) -> No
             title=f"문서에 새 댓글: {author.display_name}",
             body=(document.title or "")[:200],
             related=("document", document.id), now=now,
+            # 댓글이 지워지면 늦게 나갈 메일도 보내지 않는다(계획 3.4).
+            context={"comment_id": comment_id} if comment_id else None,
         )
     except Exception:  # noqa: BLE001 — 알림이 댓글 저장을 막으면 안 된다
         import logging

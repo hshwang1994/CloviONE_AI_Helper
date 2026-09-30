@@ -17,7 +17,7 @@ import { invalidateNotifications } from "../app/notification-keys.js";
 import { invalidatePersonFaces } from "./ticket-views.js";
 import {
   FIELD_ROWS,
-  Badge, Button, Callout, Card, EmptyState, ErrorState, FieldLabel, PageHeader, SectionTitle, Skeleton,
+  Badge, Button, Callout, Card, EmptyState, ErrorState, FieldLabel, PageHeader, SectionTitle, Skeleton, SubGroup,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
@@ -359,7 +359,70 @@ function NotificationCard({ prefs, save, saving }) {
       <Note sx={{ mt: 0 }}>
         계정 잠금처럼 보안에 관한 알림은 끌 수 없습니다. 침해를 알리는 유일한 신호이기 때문입니다.
       </Note>
+      <MailSection mail={prefs.mail} save={save} saving={saving} />
     </Card>
+  );
+}
+
+/* 메일로도 받기(계획 3.4) — 같은 판 안의 아래 구획이다. 왼쪽 열은 판 하나로 둔다(`profile-column-seam.test.jsx`).
+ *
+ * 고를 수 있는 유형은 **서버가 준다**(`mail.catalog` — 관리자가 허용한 유형). 스위치 하나는 한 가지만 보낸다: 큰
+ * 스위치는 `{mail_enabled}`, 유형 스위치는 받을 유형 전체 `{mail_types}`. 메일 발송이 정상이 아니면 그 사실을 한
+ * 문장으로 먼저 말한다 — 켰는데 메일이 안 오는 까닭을 사람이 찾지 않게. */
+function MailSection({ mail, save, saving }) {
+  if (!mail) return null;
+  const catalog = mail.catalog || [];
+  const chosen = new Set(mail.types || []);
+  const toggleType = (key) => {
+    const next = new Set(chosen);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    save({ mail_types: catalog.map((row) => row.key).filter((k) => next.has(k)) });
+  };
+  const notice = mail.delivery && mail.delivery.message;
+  return (
+    <SubGroup
+      title="메일로도 받기"
+      help="켜 두면 고른 알림을 내 계정 이메일로도 보냅니다. 방해금지와 배지 끄기는 메일에 영향을 주지 않습니다."
+      sx={{ mt: 0.5 }}
+    >
+      {notice ? (
+        <Callout tone={mail.delivery.state === "unverified" ? "info" : "warn"} compact sx={{ mb: 1 }}>{notice}</Callout>
+      ) : null}
+      {catalog.length ? (
+        <>
+          <SettingRow
+            compact label="메일로도 받기" description="아래에서 고른 알림을 이메일로도 받습니다."
+            action={(
+              <Switch
+                checked={!!mail.enabled}
+                disabled={saving}
+                onChange={() => save({ mail_enabled: !mail.enabled })}
+                slotProps={{ input: { "aria-label": "알림을 메일로도 받기" } }}
+              />
+            )}
+          />
+          <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, columnWidth: "20rem", columnGap: GRID_GAP }}>
+            {catalog.map((row) => (
+              <Box component="li" key={row.key} sx={{ breakInside: "avoid" }}>
+                <SettingRow
+                  compact label={row.label} description={row.help}
+                  action={(
+                    <Switch
+                      checked={chosen.has(row.key)}
+                      disabled={saving || !mail.enabled}
+                      onChange={() => toggleType(row.key)}
+                      slotProps={{ input: { "aria-label": `${row.label} 메일로 받기` } }}
+                    />
+                  )}
+                />
+              </Box>
+            ))}
+          </Box>
+        </>
+      ) : (
+        <Note sx={{ mt: 0 }}>관리자가 메일로 보낼 알림을 아직 정하지 않았습니다.</Note>
+      )}
+    </SubGroup>
   );
 }
 

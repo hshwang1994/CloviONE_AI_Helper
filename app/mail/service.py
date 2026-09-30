@@ -57,6 +57,7 @@ from app.mail.models import (
 )
 from app.mail.renderers import (
     KIND_INVITE,
+    KIND_NOTIFICATION,
     KIND_PASSWORD_RESET,
     KIND_TEST,
     MAIL_KIND_LABELS,
@@ -75,8 +76,9 @@ RETRY_DELAYS_BY_KIND: dict[str, tuple[int, ...]] = {
 # 사람이 다시 보낼 수 없는 종류. 재설정 메일은 보낼 때 새 토큰을 만들어 오래된 요청을 되살리고, 시험 메일은
 # 새로 보내면 된다.
 NOT_RESENDABLE_KINDS = frozenset({KIND_PASSWORD_RESET, KIND_TEST})
-# 설정 전에 쌓인 메일 중 설정 뒤에 다시 보낼 수 있는 종류와 기간. 알림 메일(계획 3.4)이 여기에 더해진다.
-RESENDABLE_UNCONFIGURED_KINDS = frozenset({KIND_INVITE})
+# 설정 전에 쌓인 메일 중 설정 뒤에 다시 보낼 수 있는 종류와 기간. 사람이 누를 때만 보내고, 보내기 직전에 아직
+# 의미가 있는지와 받는 사람이 여전히 원하는지를 다시 본다(계획 3.4).
+RESENDABLE_UNCONFIGURED_KINDS = frozenset({KIND_INVITE, KIND_NOTIFICATION})
 UNCONFIGURED_RESEND_WINDOW_DAYS = 7
 
 

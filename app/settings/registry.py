@@ -218,6 +218,19 @@ def _smtp_ca(value: dict, security: str) -> None:
 
 
 # LLM 설정(9-5). 빈 값 = '안 정함'(환경변수를 따른다)이라는 규약을 세 검증기가 공유한다.
+def _mail_notification_types(value: Any) -> None:
+    """메일로도 보낼 수 있는 알림 유형(계획 3.4). 메일로 보낼 수 있는 유형 밖의 값은 받지 않는다."""
+    from app.profiles.prefs import MAILABLE_TYPES
+
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise ValidationAppError("알림 유형 목록이어야 합니다.")
+    unknown = sorted({v for v in value if v not in MAILABLE_TYPES})
+    if unknown:
+        raise ValidationAppError("메일로 보낼 수 없는 알림 유형입니다: " + ", ".join(unknown))
+    if len(set(value)) != len(value):
+        raise ValidationAppError("같은 알림 유형이 두 번 들어 있습니다.")
+
+
 _LLM_ENABLED_CHOICES = ("", "on", "off")
 _LLM_BACKEND_CHOICES = ("", "cli", "api")
 
@@ -377,6 +390,15 @@ REGISTRY: dict[str, SettingSpec] = {
                     "메일 발송에 쓸 서버 정보. 비밀번호 자체는 저장하지 않고 서버에 따로 둔 "
                     "값을 가리키기만 합니다",
                     _smtp),
+        # 알림을 메일로도 보내기(계획 3.4, D-514). 사용자는 이 목록 안에서 받을 유형을 고른다. 관리자가 목록에서
+        # 빼면 그 유형은 켜 둔 사람에게도 나가지 않는다. 소비자는 `app/notifications/mail.py` 다.
+        SettingSpec("mail_notification_types", "object",
+                    ["ticket_assigned", "ticket_status_changed", "ticket_resolved"], False,
+                    "메일로도 보낼 수 있는 알림 유형입니다. 사용자는 이 안에서 메일로 받을 알림을 고릅니다",
+                    _mail_notification_types),
+        SettingSpec("mail_notification_max_age_days", "int", 7, False,
+                    "메일 서버가 멈춘 동안 쌓인 메일은 이 기간(일)이 지나면 보내지 않습니다",
+                    _positive_int(30)),
         # 노션 데이터베이스 id 셋(9-4)이 여기 있었다. 티켓 목록과 문서 목록이 그 값을
         # 읽어 노션을 조회했기 때문이다. 지금은 셋 다 자체 데이터베이스에서 나오므로
         # 관리자가 정할 것이 없다. 옛 데이터를 한 번 읽어 오는 이관 CLI 는 데이터베이스를
