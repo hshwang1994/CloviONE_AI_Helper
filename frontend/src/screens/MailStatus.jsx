@@ -120,7 +120,8 @@ const FAILURE_COLUMNS = [
   { key: "subject", label: "제목", type: "title", minWidth: "12rem" },
   {
     key: "status_label", label: "상태", type: "status", minWidth: "10.5rem",
-    render: (r) => <Badge value={r.status_label} kind={r.status === "unconfigured" ? "warn" : "danger"} />,
+    /* 끝난 실패만 danger 다. 설정 없음과 다시 보내는 중은 아직 고치면 나갈 메일이라 warn 이다. */
+    render: (r) => <Badge value={r.status_label} kind={r.status === "failed" ? "danger" : "warn"} />,
   },
   { key: "attempt_count", label: "시도", type: "count", hideNarrow: true, render: (r) => <NumberCell value={r.attempt_count} unit="회" /> },
   /* 산문이라 `text` 다. 타입이 없으면 말줄임이 안 걸려 실패 사유가 여러 줄로 접히고,
@@ -128,6 +129,38 @@ const FAILURE_COLUMNS = [
   { key: "reason", label: "원인", type: "text", grow: true, render: (r) => <FailureReason row={r} /> },
   { key: "created_at", label: "발생", type: "datetime", render: (r) => <DateCell value={r.created_at} /> },
 ];
+
+/* 시험 메일의 결과를 기다리는 방법 (계획 3.3).
+ *
+ * `POST /test` 는 메일을 **큐에 넣고** 돌아온다(`queued`). 예전 화면은 그 응답의 상태가 `sent` 가 아니면 실패로
+ * 읽어서, 워커가 곧 보낼 시험 메일도 「보내지 못했습니다」였고 성공 토스트는 닿을 수 없는 코드였다. 이제 한 통의
+ * 상세(`GET /deliveries/{id}`)를 끝난 상태가 될 때까지 읽는다. 90초 안에 안 끝나면 워커가 멈춘 것이라 그렇게 말한다. */
+const TEST_DONE = ["sent", "failed", "unconfigured", "cancelled", "superseded"];
+const TEST_POLL_MS = 1500;
+const TEST_WAIT_LIMIT_MS = 90000;
+
+function useTestMailWatch() {
+  const [delivery, setDelivery] = React.useState(null);
+  const [timedOut, setTimedOut] = React.useState(false);
+  const id = delivery && !TEST_DONE.includes(delivery.status) ? delivery.id : null;
+  const poll = useQuery({
+    queryKey: ["mail-delivery", id],
+    queryFn: () => api(`/api/admin/mail/deliveries/${id}`),
+    enabled: !!id && !timedOut,
+    refetchInterval: TEST_POLL_MS,
+  });
+  React.useEffect(() => {
+    const next = poll.data && poll.data.delivery;
+    if (next && next.id === id && TEST_DONE.includes(next.status)) setDelivery(next);
+  }, [poll.data, id]);
+  React.useEffect(() => {
+    if (!id) return undefined;
+    const timer = setTimeout(() => setTimedOut(true), TEST_WAIT_LIMIT_MS);
+    return () => clearTimeout(timer);
+  }, [id]);
+  const start = React.useCallback((row) => { setTimedOut(false); setDelivery(row || null); }, []);
+  return { delivery, waiting: !!id && !timedOut, timedOut: !!id && timedOut, start };
+}
 
 export function MailStatus() {
   const qc = useQueryClient();
@@ -142,20 +175,29 @@ export function MailStatus() {
     queryFn: () => api("/api/admin/mail/status"),
   });
 
+  const watch = useTestMailWatch();
   const test = useMutation({
     mutationFn: () => api("/api/admin/mail/test", { method: "POST" }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["mail-status"] });
-      const d = data && data.delivery;
-      if (d && d.status === "sent") toast("시험 메일을 보냈습니다. 받은 편지함을 확인하세요.", "success");
-      /* 못 보낸 사실은 머리 바로 아래 메시지 박스가 말한다(`testNotice`). 실패 원문은 붙이지 않는다 —
-         결과 행은 아래 `최근 실패` 표에 남고 원문은 그 행의 기술 정보에 있다. */
+      watch.start(data && data.delivery);
     },
   });
-  /* 시험 발송의 결과 중 남아야 하는 것 — 요청 실패와 「못 보냈다」. 다시 보내면 걷힌다. */
+  const outcome = watch.delivery && TEST_DONE.includes(watch.delivery.status) ? watch.delivery : null;
+  const announced = React.useRef(null);
+  React.useEffect(() => {
+    if (!outcome || announced.current === outcome.id) return;
+    announced.current = outcome.id;
+    qc.invalidateQueries({ queryKey: ["mail-status"] });
+    if (outcome.status === "sent") toast("시험 메일을 보냈습니다. 받은 편지함을 확인하세요.", "success");
+  }, [outcome, qc, toast]);
+  /* 시험 발송의 결과 중 남아야 하는 것 — 요청 실패, 「못 보냈다」, 워커가 응답하지 않음. 다시 보내면 걷힌다.
+     못 보낸 까닭은 서버가 고른 한 문장(`error_summary`)이다. 원문은 아래 `최근 실패` 행의 기술 정보에 있다. */
   const testNotice = failureText([test, "요청을 보내지 못했습니다. 잠시 후 다시 시도해 주세요."])
-    || (test.isSuccess && !(test.data && test.data.delivery && test.data.delivery.status === "sent")
-      ? "시험 메일을 보내지 못했습니다. 아래 최근 실패에서 원인을 확인하세요." : null);
+    || (outcome && outcome.status !== "sent"
+      ? ["시험 메일을 보내지 못했습니다.", outcome.error_summary || "아래 최근 실패에서 원인을 확인하세요."].join(" ")
+      : null)
+    || (watch.timedOut ? "워커가 응답하지 않아 시험 메일이 아직 나가지 않았습니다. 워커 서비스가 실행 중인지 확인하세요." : null);
 
   if (query.isLoading) return <Box className="c-screen"><PageHeader area="운영" title="메일 발송" help={HELP} /><Skeleton lines={6} /></Box>;
   if (query.isError) return <Box className="c-screen"><PageHeader area="운영" title="메일 발송" help={HELP} /><ErrorState error={query.error} onRetry={query.refetch} /></Box>;
@@ -168,7 +210,9 @@ export function MailStatus() {
   /* 설정 문제가 남아 있으면 시험 발송은 성공할 수 없다 — 서버는 그 요청을 「발송 못 함」 한 줄로 남기고 끝낸다
      (`app/mail/service.py::queue_mail`). 단추는 숨기지 않고 꺼 두며, 이유는 바로 아래 목록이 말한다(`aria-describedby`). */
   const blocked = !!(mail.problems && mail.problems.length);
-  const total = (counts.failed || 0) + (counts.queued || 0) + (counts.sent || 0) + (counts.unconfigured || 0);
+  const skipped = (counts.cancelled || 0) + (counts.superseded || 0);
+  const total = (counts.failed || 0) + (counts.retrying || 0) + (counts.queued || 0) + (counts.sent || 0)
+    + (counts.unconfigured || 0) + skipped;
 
   async function sendTest() {
     if (!(await confirm(
@@ -183,7 +227,7 @@ export function MailStatus() {
       <PageHeader
         area="운영" title="메일 발송" help={HELP}
         actions={canWrite ? (
-          <Button variant="primary" loading={test.isPending} disabled={blocked} onClick={sendTest}
+          <Button variant="primary" loading={test.isPending || watch.waiting} disabled={blocked} onClick={sendTest}
             aria-describedby={blocked ? PROBLEMS_ID : undefined}>
             시험 메일 보내기
           </Button>
@@ -219,9 +263,11 @@ export function MailStatus() {
         total={total}
         items={[
           { key: "failed", label: "발송 실패", value: counts.failed || 0, kind: "danger" },
+          { key: "retrying", label: "다시 보내는 중", value: counts.retrying || 0, kind: "warn" },
           { key: "queued", label: "발송 대기", value: counts.queued || 0, kind: "info" },
           { key: "sent", label: "발송됨", value: counts.sent || 0, kind: "ok" },
           { key: "blocked", label: "발송 못 함", value: counts.unconfigured || 0, kind: "warn" },
+          { key: "skipped", label: "보내지 않음", value: skipped, kind: "primary" },
         ]}
         /* MAIL-03: 이 건수는 설정을 나중에 고쳐도 저절로 줄지 않는다(queue_mail 이 설정 문제를 만나면
            재시도 잡 자체를 안 만든다). 그 사실을 별도 상자가 아니라 그 숫자의 정의로 둔다 — 어느 숫자를

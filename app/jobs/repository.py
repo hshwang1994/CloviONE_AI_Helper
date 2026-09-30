@@ -217,14 +217,23 @@ def fail(
     error: str,
     now: datetime,
     permanent: bool = False,
+    delay_seconds: float | None = None,
 ) -> None:
+    """실패를 적는다. 재시도가 남았으면 다시 대기열에 넣는다.
+
+    `delay_seconds` 는 핸들러가 정한 다음 시도까지의 간격이다(메일의 종류별 재시도 일정, 계획 3.3).
+    주지 않으면 기본 지수 백오프(5 · 10 · 20 … 초)다.
+    """
     job.last_error = (error or "")[:2000]
     if permanent or job.attempt_count >= job.max_attempts:
         job.status = STATUS_FAILED
         job.finished_at = now
     else:
         job.status = STATUS_QUEUED
-        delay = BACKOFF_BASE_SECONDS * (2 ** (job.attempt_count - 1))
+        delay = (
+            float(delay_seconds) if delay_seconds is not None
+            else BACKOFF_BASE_SECONDS * (2 ** (job.attempt_count - 1))
+        )
         job.available_at = now + timedelta(seconds=delay)
         job.started_at = None
     db.flush()

@@ -190,7 +190,12 @@ def test_the_mail_handler_is_registered_on_the_worker():
 
 
 def test_a_failed_send_is_recorded_not_swallowed(client, app, settings, fake_clock, make_user):
-    from app.mail.models import MAIL_FAILED, MailDelivery
+    """일시 실패는 재시도 일정대로 다시 보내고, 마지막 시도가 실패할 때만 `failed` 다 (계획 3.3).
+
+    비밀번호 재설정은 세 번(1분, 5분 뒤)이다. 예전에는 첫 실패부터 `failed` 로 적었다.
+    """
+    from app.jobs.models import Job
+    from app.mail.models import FAILURE_UNKNOWN, MAIL_FAILED, MAIL_RETRYING, MailDelivery
 
     configure_smtp(app)
     make_user("doomed@goodmit.co.kr")
@@ -198,12 +203,89 @@ def test_a_failed_send_is_recorded_not_swallowed(client, app, settings, fake_clo
 
     transport = FakeSmtp(fail=True)
     drain_worker(app, settings, fake_clock, transport)
+    with app.state.session_factory() as db:
+        delivery = db.query(MailDelivery).one()
+        assert delivery.status == MAIL_RETRYING, "재시도가 남았는데 실패로 끝냈다"
+        assert delivery.attempt_count == 1
+        assert delivery.failure_kind == FAILURE_UNKNOWN
+        assert delivery.last_error, "왜 실패했는지 아무 데도 안 남았다"
+        job = db.get(Job, delivery.job_id)
+        assert job.status == "queued" and job.max_attempts == 3
+        assert (job.available_at - fake_clock.now()).total_seconds() == 60, "재설정 메일의 첫 재시도는 1분 뒤다"
 
+    fake_clock.advance(60)
+    drain_worker(app, settings, fake_clock, transport)
+    fake_clock.advance(300)
+    drain_worker(app, settings, fake_clock, transport)
     with app.state.session_factory() as db:
         delivery = db.query(MailDelivery).one()
         assert delivery.status == MAIL_FAILED
-        assert delivery.attempt_count >= 1
-        assert delivery.last_error, "왜 실패했는지 아무 데도 안 남았다"
+        assert delivery.attempt_count == 3
+        assert db.get(Job, delivery.job_id).status == "failed"
+
+
+def test_a_transient_failure_then_success_ends_sent(client, app, settings, fake_clock, make_user):
+    """메일 서버가 잠깐 멈춰도 메일은 사라지지 않는다 - 복구되면 다음 시도가 보낸다."""
+    from app.mail.models import MAIL_SENT, MailDelivery
+
+    configure_smtp(app)
+    make_user("later@goodmit.co.kr")
+    client.post("/forgot-password", json={"email": "later@goodmit.co.kr"})
+    drain_worker(app, settings, fake_clock, FakeSmtp(fail=True))
+    fake_clock.advance(60)
+    healed = FakeSmtp()
+    drain_worker(app, settings, fake_clock, healed)
+    assert len(healed.sent) == 1
+    with app.state.session_factory() as db:
+        row = db.query(MailDelivery).one()
+        assert row.status == MAIL_SENT and row.failure_kind is None
+
+
+def test_a_permanent_failure_ends_at_once(client, app, settings, fake_clock, make_user):
+    """로그인 거부는 다시 보내도 같다 - 재시도 일정을 태우지 않고 즉시 끝낸다."""
+    from app.jobs.models import Job
+    from app.mail.models import FAILURE_AUTH, MAIL_FAILED, MailDelivery
+    from app.mail.transport import MailTransportError
+
+    class Refusing(FakeSmtp):
+        def send(self, *args, **kwargs):
+            raise MailTransportError("SMTPAuthenticationError: (535, b'bad')", kind=FAILURE_AUTH, permanent=True)
+
+    configure_smtp(app)
+    make_user("refused@goodmit.co.kr")
+    client.post("/forgot-password", json={"email": "refused@goodmit.co.kr"})
+    drain_worker(app, settings, fake_clock, Refusing())
+    with app.state.session_factory() as db:
+        row = db.query(MailDelivery).one()
+        assert row.status == MAIL_FAILED and row.failure_kind == FAILURE_AUTH
+        assert db.get(Job, row.job_id).status == "failed"
+
+
+def test_the_retry_schedule_depends_on_the_kind():
+    """알림 · 초대는 하루 남짓 여덟 번, 재설정은 몇 분 안에 세 번, 시험 메일은 한 번이다."""
+    from app.mail.service import max_attempts_for, retry_delays
+
+    assert max_attempts_for("invite") == 8
+    assert sum(retry_delays("invite")) >= 24 * 3600, "하루짜리 메일 서버 장애를 못 견딘다"
+    assert max_attempts_for("password_reset") == 3
+    assert sum(retry_delays("password_reset")) < 3600, "재설정 링크가 만료된 뒤까지 재시도한다"
+    assert max_attempts_for("test") == 1
+
+
+def test_an_idempotency_key_makes_one_mail(app):
+    """같은 사건이 두 번 팬아웃돼도 메일은 한 통이다."""
+    from app.mail.models import MailDelivery
+    from app.mail.service import queue_mail
+
+    configure_smtp(app)
+    with app.state.session_factory() as db:
+        first = queue_mail(db, kind="invite", to_email="a@goodmit.co.kr", subject="초대",
+                           params={}, now=app.state.clock.now(), idempotency_key="notification:1")
+        again = queue_mail(db, kind="invite", to_email="a@goodmit.co.kr", subject="초대",
+                           params={}, now=app.state.clock.now(), idempotency_key="notification:1")
+        db.commit()
+        assert first.id == again.id
+        assert db.query(MailDelivery).count() == 1
 
 
 def test_a_render_failure_is_recorded_not_left_queued_forever(app, settings, fake_clock):
@@ -251,8 +333,10 @@ def test_failures_surface_on_the_admin_status_screen(
     drain_worker(app, settings, fake_clock, FakeSmtp(fail=True))
 
     body = client.get("/api/admin/mail/status", headers={"X-CSRF-Token": csrf}).json()
-    assert body["counts"]["failed"] >= 1
+    # 재설정 메일은 재시도가 남아 아직 끝난 실패가 아니다. 그래도 실패 목록에는 선다.
+    assert body["counts"]["retrying"] >= 1
     assert body["recent_failures"], "실패가 화면에 안 보이면 삼킨 것과 같다"
+    assert body["recent_failures"][0]["status_label"] == "다시 보내는 중"
 
 
 def test_the_screen_gets_a_summary_not_just_the_raw_exception(

@@ -118,7 +118,10 @@ class Worker:
             except Exception as exc:
                 db.rollback()
                 job = db.get(Job, job_id)
-                repository.fail(db, job, error=f"{type(exc).__name__}: {exc}", now=self._clock.now())
+                repository.fail(
+                    db, job, error=f"{type(exc).__name__}: {exc}", now=self._clock.now(),
+                    delay_seconds=_retry_delay(handler, job),
+                )
                 db.commit()
                 logger.warning(
                     "job %s attempt %s failed (%s), status=%s",
@@ -303,6 +306,22 @@ class Worker:
             # 불러 in_flight의 모든 future가 끝난 뒤에야 아래 줄로 진행한다 — run_forever의
             # "진행 중인 잡은 끝내고 종료" 규약과 같다.
         logger.info("conversational worker stopped gracefully")
+
+
+def _retry_delay(handler: JobHandler, job: Job) -> float | None:
+    """핸들러가 자기 재시도 일정을 가졌으면 그 간격을 묻는다(`retry_delay(job) -> 초 | None`).
+
+    메일은 종류마다 일정이 다르다(알림은 하루 남짓, 비밀번호 재설정은 몇 분, 시험 메일은 한 번). 일정을
+    묻다가 핸들러가 실패하면 기본 백오프로 돌아간다 - 재시도 자체를 잃지 않는다.
+    """
+    fn = getattr(handler, "retry_delay", None)
+    if fn is None:
+        return None
+    try:
+        return fn(job)
+    except Exception:
+        logger.exception("retry_delay for job %s crashed; falling back to backoff", job.id)
+        return None
 
 
 def parse_payload(job: Job) -> dict:

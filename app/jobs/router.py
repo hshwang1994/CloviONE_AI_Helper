@@ -284,3 +284,11 @@ def _terminalize_linked_record(db: Session, job: Job, now) -> None:
             msg.processing_status = PROC_FAILED
             msg.error_code = "cancelled"
             db.flush()
+    elif job.job_type == "mail_send":
+        # 잡을 취소하면 메일 행도 끝난다. 안 그러면 행이 「발송 대기」로 영원히 남는다(계획 3.3).
+        from app.mail.models import MAIL_CANCELLED, PENDING_MAIL_STATUSES, MailDelivery
+        from app.mail.service import record_skipped
+
+        delivery = db.get(MailDelivery, payload.get("delivery_id", ""))
+        if delivery is not None and delivery.status in PENDING_MAIL_STATUSES:
+            record_skipped(db, delivery, status=MAIL_CANCELLED, reason="cancelled_by_operator", now=now)

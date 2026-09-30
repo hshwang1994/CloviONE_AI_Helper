@@ -8,6 +8,13 @@
 
 시험 발송은 자기 자신에게만 보낸다. 임의의 주소로 보낼 수 있게 하면 이 앱이 스팸
 발송기가 된다(설정된 SMTP 계정의 평판까지 같이 태운다).
+
+## 한 통을 보고, 다시 보내고, 취소한다 (계획 3.3)
+
+`GET /deliveries/{id}` 는 한 통의 상태와 잡의 다음 시도 시각을 준다 - 시험 메일을 보낸 화면이 이것을 끝날
+때까지 읽는다(예전에는 `queued` 응답을 실패로 읽어 성공한 시험 메일도 「보내지 못했습니다」였다).
+다시 보내기와 취소, 설정 전에 쌓인 메일 보내기는 시험 발송과 같은 판정(전역 관리 범위)을 지난다 - 설치 한
+벌의 SMTP 계정으로 나가는 동작이다.
 """
 
 from __future__ import annotations
@@ -29,10 +36,15 @@ from app.core.scope import Principal, require_global_management
 from app.mail.config import config_from_cache, mail_status
 from app.mail.renderers import KIND_TEST
 from app.mail.service import (
+    cancel_delivery,
+    delivery_detail,
     delivery_view,
+    pending_unconfigured_count,
     queue_counts,
     queue_mail,
     recent_failures,
+    resend_delivery,
+    resend_unconfigured,
 )
 
 router = APIRouter(
@@ -56,7 +68,81 @@ def status(request: Request, db: Session = Depends(get_db)):
         "mail": current_mail_status(request),
         "counts": queue_counts(db),
         "recent_failures": [delivery_view(r) for r in recent_failures(db)],
+        # 설정 전에 쌓여 설정 뒤 다시 보낼 수 있는 메일(초대 등, 최근 7일). 화면이 그 단추 옆에 건수를 말한다.
+        "pending_unconfigured_count": pending_unconfigured_count(db, now=request.app.state.clock.now()),
     }
+
+
+@router.get("/deliveries/{delivery_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+def delivery(delivery_id: str, db: Session = Depends(get_db)):
+    """한 통의 상세. 메일 기록은 조직 범위가 없는 설치 전체의 발송함이라 콘솔 읽기 역할이 본다."""
+    return {"delivery": delivery_detail(db, delivery_id)}
+
+
+def _require_mail_operator(request: Request, db: Session, principal: Principal, what: str, verb: str) -> None:
+    """설치 한 벌의 SMTP 계정으로 나가는 동작은 전역 관리 범위만 한다(`send_test` 와 같은 판정)."""
+    try:
+        require_global_management(principal, what, verb=verb)
+    except ForbiddenError:
+        audit_forbidden_write(request, db, request.state.user)
+        raise
+
+
+@router.post("/deliveries/{delivery_id}/resend", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def resend(
+    delivery_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """실패 · 설정 없음 · 취소로 끝난 메일을 다시 보낸다. 비밀번호 재설정과 시험 메일은 409 다."""
+    _require_mail_operator(request, db, principal, "메일", "다시 보낼")
+    row = resend_delivery(
+        db, delivery_id, now=request.app.state.clock.now(),
+        secret_provider=getattr(request.app.state, "secret_provider", None),
+    )
+    record_audit_from_request(
+        request, db, action="mail.resend", object_type="mail_delivery", object_id=row.id,
+        after={"status": row.status, "kind": row.kind},
+    )
+    return {"delivery": delivery_view(row)}
+
+
+@router.post("/deliveries/{delivery_id}/cancel", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def cancel(
+    delivery_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """보내기를 기다리는 메일을 취소한다. 워커가 이미 보내는 중이면 409 다."""
+    _require_mail_operator(request, db, principal, "메일", "취소할")
+    row = cancel_delivery(db, delivery_id, now=request.app.state.clock.now())
+    record_audit_from_request(
+        request, db, action="mail.cancel", object_type="mail_delivery", object_id=row.id,
+        after={"status": row.status, "kind": row.kind},
+    )
+    return {"delivery": delivery_view(row)}
+
+
+@router.post("/resend-unconfigured", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def send_unconfigured(
+    request: Request,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """설정 전에 쌓인 메일(초대 등, 최근 7일)을 보낸다. **사람이 누를 때만** 돈다 - 오래된 메일을 예고 없이
+    뿌리지 않는다."""
+    _require_mail_operator(request, db, principal, "쌓인 메일", "보낼")
+    count = resend_unconfigured(
+        db, now=request.app.state.clock.now(),
+        secret_provider=getattr(request.app.state, "secret_provider", None),
+    )
+    record_audit_from_request(
+        request, db, action="mail.requeue_unconfigured", object_type="mail_delivery", object_id=None,
+        after={"count": count},
+    )
+    return {"queued": count}
 
 
 @router.post("/test", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])

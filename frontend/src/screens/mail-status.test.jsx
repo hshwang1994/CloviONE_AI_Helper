@@ -173,6 +173,55 @@ describe("메일 발송 화면", () => {
     await screen.findByText(/시험 메일을 보냈습니다/);
   });
 
+  /* 계획 3.3 — 서버는 시험 메일을 큐에 넣고(`queued`) 돌아온다. 예전 화면은 그 응답을 실패로 읽어 성공한 시험
+     메일도 「보내지 못했습니다」였다. 이제 한 통의 상세를 끝날 때까지 읽는다. */
+  function sendTestWith(detailReply) {
+    apiMock.mockImplementation((path, opt) => {
+      if (String(path).startsWith("/api/admin/mail/status")) return Promise.resolve(CONFIGURED);
+      if (String(path) === "/api/admin/mail/test" && opt && opt.method === "POST") {
+        return Promise.resolve({ delivery: { id: "d-3", status: "queued" }, mail: CONFIGURED.mail });
+      }
+      if (String(path) === "/api/admin/mail/deliveries/d-3") return Promise.resolve({ delivery: detailReply });
+      return Promise.resolve({});
+    });
+  }
+
+  it("🔴 대기 중으로 돌아온 시험 메일을 실패로 읽지 않고, 보내진 뒤에 성공을 말한다", async () => {
+    const user = userEvent.setup();
+    withStatus(CONFIGURED);
+    renderScreen();
+    await screen.findByText(/메일 발송 설정이 완성돼 있습니다/);
+    sendTestWith({ id: "d-3", status: "sent", error_summary: null });
+
+    await user.click(screen.getByRole("button", { name: "시험 메일 보내기" }));
+    await user.click(await screen.findByRole("button", { name: "시험 발송" }));
+
+    await screen.findByText(/시험 메일을 보냈습니다/);
+    expect(screen.queryByText(/시험 메일을 보내지 못했습니다/)).toBeNull();
+    expect(apiMock.mock.calls.some(([p]) => p === "/api/admin/mail/deliveries/d-3")).toBe(true);
+  });
+
+  it("보내지 못했으면 서버가 고른 까닭 한 문장을 함께 말한다", async () => {
+    const user = userEvent.setup();
+    withStatus(CONFIGURED);
+    renderScreen();
+    await screen.findByText(/메일 발송 설정이 완성돼 있습니다/);
+    sendTestWith({ id: "d-3", status: "failed", error_summary: "메일 서버가 로그인을 거부했습니다. 사용자 이름과 비밀번호를 확인하세요." });
+
+    await user.click(screen.getByRole("button", { name: "시험 메일 보내기" }));
+    await user.click(await screen.findByRole("button", { name: "시험 발송" }));
+
+    expect(await screen.findByText(/시험 메일을 보내지 못했습니다\. 메일 서버가 로그인을 거부했습니다/)).toBeInTheDocument();
+    expect(screen.queryByText(/시험 메일을 보냈습니다/)).toBeNull();
+  });
+
+  it("다시 보내는 중인 메일이 발송 현황에 따로 선다", async () => {
+    withStatus({ counts: { queued: 0, retrying: 2, sent: 3, failed: 1, unconfigured: 0 } });
+    renderScreen();
+    const metrics = await screen.findByLabelText("발송 현황");
+    expect(within(metrics).getAllByText(/다시 보내는 중/).length).toBeGreaterThan(0);
+  });
+
   it("쓰기 권한이 없는 역할(operator)에게는 시험 발송 버튼이 안 보인다", async () => {
     authRole = "operator";
     renderScreen();

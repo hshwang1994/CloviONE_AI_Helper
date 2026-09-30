@@ -215,17 +215,17 @@ def strip_stale_job_attachments(db: Session, *, now: datetime, max_age_hours: in
 def purge_mail_history(db: Session, *, now: datetime, retention_days: int = 90) -> int:
     """끝난 메일 발송 기록을 정리한다 (9-9 P4).
 
-    ``queued`` 는 절대 건드리지 않는다 - 워커가 아직 집지 않았을 뿐 살아 있는 작업이다.
-    보낸 것과 실패한 것만 지운다. 실패 기록까지 지우는 것이 아깝게 느껴질 수 있지만, 그건
+    ``queued`` 와 ``retrying`` 은 절대 건드리지 않는다 - 워커가 아직 집지 않았거나 다시 보낼 차례를
+    기다리는 살아 있는 작업이다. 끝난 것(보냄 · 실패 · 설정 없음 · 취소 · 의미 없어짐)만 지운다. 실패 기록까지 지우는 것이 아깝게 느껴질 수 있지만, 그건
     "왜 안 왔나" 를 묻는 창(기본 90일)을 지나면 아무도 다시 보지 않는 값이고, 그대로 두면
     이 표만 무한히 자란다(`purge_old_jobs` 와 같은 판단).
     """
-    from app.mail.models import MAIL_FAILED, MAIL_SENT, MAIL_UNCONFIGURED, MailDelivery
+    from app.mail.models import TERMINAL_MAIL_STATUSES, MailDelivery
 
     cutoff = now - timedelta(days=retention_days)
     result = db.execute(
         delete(MailDelivery).where(
-            MailDelivery.status.in_([MAIL_SENT, MAIL_FAILED, MAIL_UNCONFIGURED]),
+            MailDelivery.status.in_(sorted(TERMINAL_MAIL_STATUSES)),
             MailDelivery.created_at < cutoff,
         )
     )

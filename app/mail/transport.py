@@ -12,21 +12,86 @@
 DB 에는 이름(``password_ref``)만 있고 값은 ``SECRETS_DIR/<ref>`` 파일이다(불변 §3).
 ``SecretValue`` 는 repr/str 이 ``***`` 라 로그나 예외 메시지에 실수로 섞여도 새지 않는다.
 그래서 ``.reveal()`` 은 ``login()`` 인자로 넘기는 그 한 줄에서만 부른다.
+
+## 실패를 종류로 나눈다 (계획 3.3)
+
+다시 보내면 될 실패(연결 실패, 시간 초과, 4xx 임시 거절, 연결 끊김)와 다시 보내도 같은 결과인 실패(로그인
+거부, 보안 연결, 보내는 사람과 받는 사람 거부, 그 밖의 5xx)는 처리가 다르다. 앞의 것은 큐가 재시도 일정대로
+다시 보내고, 뒤의 것은 즉시 끝내고 사람이 고친다. 그 판정은 SMTP 응답 코드와 예외를 아는 이 파일만 할 수 있다.
 """
 
 from __future__ import annotations
 
 import logging
 import smtplib
+import ssl
 from email.message import EmailMessage
 
 from app.mail.config import SECURITY_SSL, SECURITY_STARTTLS, MailConfig
+from app.mail.models import (
+    FAILURE_AUTH,
+    FAILURE_CONNECT,
+    FAILURE_DISCONNECTED,
+    FAILURE_RECIPIENT,
+    FAILURE_REJECTED,
+    FAILURE_SENDER,
+    FAILURE_TEMPORARY,
+    FAILURE_TLS,
+    FAILURE_UNKNOWN,
+)
 
 logger = logging.getLogger("app.mail.transport")
 
 
 class MailTransportError(Exception):
-    """발송 실패. 원인 문자열에 비밀이 섞이지 않게 호출부가 그대로 기록한다."""
+    """발송 실패. 원인 문자열에 비밀이 섞이지 않게 호출부가 그대로 기록한다.
+
+    `kind` 는 실패의 종류(`app/mail/models.py::FAILURE_*`), `permanent` 는 다시 보내도 같은 결과인가다.
+    """
+
+    def __init__(self, message: str, *, kind: str = FAILURE_UNKNOWN, permanent: bool = False) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.permanent = permanent
+
+
+def _by_code(code, kind: str) -> tuple[str, bool]:
+    """SMTP 응답 코드로 영구와 일시를 가른다. 4xx 는 임시 거절이라 같은 종류여도 다시 보낸다."""
+    try:
+        value = int(code)
+    except (TypeError, ValueError):
+        return kind, True
+    if 400 <= value < 500:
+        return FAILURE_TEMPORARY, False
+    return kind, True
+
+
+def classify(exc: BaseException) -> tuple[str, bool]:
+    """예외 하나를 `(종류, 영구인가)` 로 나눈다. 모르는 것은 일시 실패로 본다 - 한 번 더 보내 보는 쪽이
+    조용히 버리는 쪽보다 낫고, 재시도 횟수에 끝이 있다."""
+    if isinstance(exc, smtplib.SMTPAuthenticationError):
+        return _by_code(exc.smtp_code, FAILURE_AUTH)
+    if isinstance(exc, smtplib.SMTPSenderRefused):
+        return _by_code(exc.smtp_code, FAILURE_SENDER)
+    if isinstance(exc, smtplib.SMTPRecipientsRefused):
+        codes = [c for c, _msg in (exc.recipients or {}).values()]
+        if codes and all(400 <= int(c) < 500 for c in codes):
+            return FAILURE_TEMPORARY, False
+        return FAILURE_RECIPIENT, True
+    if isinstance(exc, smtplib.SMTPNotSupportedError):
+        # STARTTLS 나 AUTH 를 서버가 모른다 - 설정(보안 방식, 포트)을 고쳐야 한다.
+        return FAILURE_TLS, True
+    if isinstance(exc, smtplib.SMTPServerDisconnected):
+        return FAILURE_DISCONNECTED, False
+    if isinstance(exc, smtplib.SMTPConnectError):
+        return _by_code(exc.smtp_code, FAILURE_CONNECT) if exc.smtp_code >= 500 else (FAILURE_CONNECT, False)
+    if isinstance(exc, smtplib.SMTPResponseException):
+        return _by_code(exc.smtp_code, FAILURE_REJECTED)
+    if isinstance(exc, ssl.SSLError):
+        return FAILURE_TLS, True
+    if isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+        return FAILURE_CONNECT, False
+    return FAILURE_UNKNOWN, False
 
 
 def build_message(config: MailConfig, *, to_email: str, subject: str, body: str) -> EmailMessage:
@@ -70,8 +135,9 @@ class SmtpTransport:
                     # reveal() 은 여기 한 줄에서만. 위로도 아래로도 새지 않는다.
                     server.login(config.username, secret.reveal())
                 server.send_message(message)
-        except smtplib.SMTPException as exc:
-            raise MailTransportError(f"{type(exc).__name__}: {exc}") from exc
-        except OSError as exc:
-            # 연결 거부, DNS 실패, 타임아웃. SMTPException 이 아니라 OSError 로 온다.
-            raise MailTransportError(f"{type(exc).__name__}: {exc}") from exc
+        except (smtplib.SMTPException, OSError) as exc:
+            # 연결 거부, DNS 실패, 타임아웃, 인증서 오류는 SMTPException 이 아니라 OSError 로 온다.
+            kind, permanent = classify(exc)
+            raise MailTransportError(
+                f"{type(exc).__name__}: {exc}", kind=kind, permanent=permanent,
+            ) from exc

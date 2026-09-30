@@ -10,7 +10,14 @@
   * ``failed``       - 보내려다 실패했다. ``last_error`` 에 이유가 있다.
   * ``unconfigured`` - **보내려는 시도조차 못 했다.** SMTP 설정이 없다.
 
-넷째가 이 표에서 가장 중요하다. 설정이 없을 때 잡을 만들어 두면 큐가 영원히 재시도하고,
+  * ``retrying``     - 보내다 일시적으로 실패해 **다시 보낼 차례를 기다린다**(계획 3.3). 재시도가 남아
+                        있는 동안은 ``failed`` 가 아니다 - 예전에는 첫 실패부터 ``failed`` 로 적어서
+                        다음 재시도가 성공할 메일도 실패로 세었다.
+  * ``cancelled``    - 사람이 취소했거나, 보내기 직전에 받을 사람이 받을 수 없게 됐다.
+  * ``superseded``   - 보내기 직전에 다시 보니 **의미가 없어졌다**(더 새로운 상태 변경이 있다 등).
+                        ``skip_reason`` 에 무엇 때문인지 남는다.
+
+넷째(unconfigured)가 이 표에서 가장 중요하다. 설정이 없을 때 잡을 만들어 두면 큐가 영원히 재시도하고,
 나중에 설정을 켜는 날 몇 달 전 토큰 메일이 한꺼번에 나간다. 그렇다고 아무것도 안 남기면
 "관리자에게 알렸어야 할 일" 이 통째로 증발한다. 그래서 잡 없이 행만 남긴다.
 
@@ -26,34 +33,60 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Index, Integer, String, Text
+from sqlalchemy import DateTime, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import Base, JsonText, TimestampMixin, UUIDPrimaryKeyMixin
 
 MAIL_QUEUED = "queued"
+MAIL_RETRYING = "retrying"
 MAIL_SENT = "sent"
 MAIL_FAILED = "failed"
 MAIL_UNCONFIGURED = "unconfigured"
+MAIL_CANCELLED = "cancelled"
+MAIL_SUPERSEDED = "superseded"
 
 ALL_MAIL_STATUSES = frozenset(
-    {MAIL_QUEUED, MAIL_SENT, MAIL_FAILED, MAIL_UNCONFIGURED}
+    {MAIL_QUEUED, MAIL_RETRYING, MAIL_SENT, MAIL_FAILED, MAIL_UNCONFIGURED, MAIL_CANCELLED, MAIL_SUPERSEDED}
 )
+# 아직 끝나지 않은 상태. 보존 정리는 이 둘을 절대 지우지 않고, 취소는 이 둘에서만 된다.
+PENDING_MAIL_STATUSES = frozenset({MAIL_QUEUED, MAIL_RETRYING})
+# 끝난 상태. 보존 정리 대상이다.
+TERMINAL_MAIL_STATUSES = ALL_MAIL_STATUSES - PENDING_MAIL_STATUSES
 
 # 화면이 상태 값을 받아 이름을 스스로 붙이면, 상태가 하나 늘 때 raw 값이 노출된다
 # (app/core/authz.py 의 ROLE_LABELS 와 같은 이유).
 MAIL_STATUS_LABELS: dict[str, str] = {
     MAIL_QUEUED: "발송 대기",
+    MAIL_RETRYING: "다시 보내는 중",
     MAIL_SENT: "발송됨",
     MAIL_FAILED: "발송 실패",
     MAIL_UNCONFIGURED: "발송 불가(설정 없음)",
+    MAIL_CANCELLED: "보내지 않음(취소)",
+    MAIL_SUPERSEDED: "의미가 없어져 보내지 않음",
 }
+
+# 실패의 종류(`failure_kind`). 전송기가 SMTP 응답과 예외를 이 어휘로 나눈다(`app/mail/transport.py`).
+# 영구 실패는 다시 보내도 같은 결과라 즉시 끝내고, 일시 실패는 재시도 일정대로 다시 보낸다.
+FAILURE_AUTH = "auth"            # 로그인 거부
+FAILURE_TLS = "tls"              # 인증서 · 보안 연결
+FAILURE_SENDER = "sender"        # 보내는 사람 거부
+FAILURE_RECIPIENT = "recipient"  # 받는 사람 거부
+FAILURE_REJECTED = "rejected"    # 그 밖의 5xx
+FAILURE_CONNECT = "connect"      # 연결 실패 · 시간 초과
+FAILURE_TEMPORARY = "temporary"  # 4xx 임시 거절
+FAILURE_DISCONNECTED = "disconnected"
+FAILURE_RENDER = "render"        # 본문을 만들지 못했다(대상 계정이 사라짐 등)
+FAILURE_CONFIG = "config"        # 설정이 없어졌다
+FAILURE_UNKNOWN = "unknown"
 
 
 class MailDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "mail_deliveries"
     __table_args__ = (
         Index("ix_mail_deliveries_created_at", "created_at"),
+        Index("ix_mail_deliveries_status_created", "status", "created_at"),
+        UniqueConstraint("idempotency_key", name="uq_mail_deliveries_idempotency_key"),
     )
 
     kind: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -65,3 +98,10 @@ class MailDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     params_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
     job_id: Mapped[str | None] = mapped_column(String(36))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # 같은 사건이 메일을 두 번 만들지 않게 하는 열쇠(예: `notification:<알림 id>`). 있으면 유일하다.
+    idempotency_key: Mapped[str | None] = mapped_column(String(200))
+    # 보낸 메일의 `Message-ID`. 상대 서버 로그에서 이 메일을 찾는 단서다.
+    message_id: Mapped[str | None] = mapped_column(String(300))
+    failure_kind: Mapped[str | None] = mapped_column(String(32))
+    # 보내지 않은 까닭(`cancelled` · `superseded`). 예: `newer_status_event`, `cancelled_by_operator`.
+    skip_reason: Mapped[str | None] = mapped_column(String(64))
