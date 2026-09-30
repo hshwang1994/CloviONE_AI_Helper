@@ -533,7 +533,7 @@ def test_approval_mail_reaches_delegates_not_just_admins(app, db, make_user):
             if r.kind == KIND_APPROVAL_REQUESTED
         }
         assert "delegate@goodmit.co.kr" in recipients, (
-            "피위임자가 메일을 못 받는다 - notify_approvers 가 이미 고친 결함을 되풀이한다"
+            "피위임자가 메일을 못 받는다 - 화면 알림이 이미 고친 결함을 되풀이한다"
         )
         assert "boss3@goodmit.co.kr" in recipients
     finally:

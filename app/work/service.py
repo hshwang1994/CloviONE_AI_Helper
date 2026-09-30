@@ -64,7 +64,6 @@ from app.work import activity, numbering, rank as rank_mod, relations, workflow
 from app.work.models import (
     ACT_RANK,
     ACT_SPRINT,
-    ACT_STATUS,
     SPRINT_ACTIVE,
     SPRINT_CLOSED,
     SPRINT_PLANNED,
@@ -1097,28 +1096,6 @@ def _ensure_version(ticket: Ticket, base_version: int | None) -> None:
         raise ConflictError(TICKET_MOVED_MEANWHILE)
 
 
-def _notify_move(
-    db: Session, ticket: Ticket, *, actor: User, to_status: str, now: datetime
-) -> None:
-    """관찰자에게 알린다. **실패해도 이동은 남는다** — 배정 알림과 같은 규약."""
-    try:
-        from app.notifications.service import notify_user
-
-        watchers = db.execute(
-            select(TicketWatcher.user_id).where(TicketWatcher.ticket_id == ticket.id)
-        ).scalars().all()
-        label = display_key(ticket) or "티켓"
-        for uid in {u for u in watchers if u and u != actor.id}:
-            notify_user(
-                db, uid, type_="ticket_status_changed",
-                title=f"{label} 상태 변경: {to_status}",
-                body=(ticket.title or "")[:200],
-                related=("ticket", api_page_id(ticket)), now=now,
-            )
-    except Exception:  # noqa: BLE001 — 알림이 이동을 막으면 안 된다
-        logger.exception("티켓 상태 알림에 실패했다 (ticket_id=%s)", ticket.id)
-
-
 def move(
     db: Session,
     outbound,
@@ -1171,16 +1148,14 @@ def move(
         if target != from_status:
             # 소스까지 반영하는 유일한 경로. 범위·편집 권한 판정도 여기 한 곳이다
             # (닫힌 회차의 티켓은 그 안에서 422 로 막힌다).
+            # 상태 활동과 상태 알림은 `update_ticket` 이 남긴다(계획 3.4). 여기서 한 번 더 적으면 카드 이동만
+            # 활동이 두 줄이었고, 알림은 이 경로에서만 관찰자에게 갔다.
             tickets_service.update_ticket(
                 db, outbound, settings, user,
                 page_id=api_page_id(ticket), changes={"status": target},
                 now=stamp, repo=repo,
             )
             db.refresh(ticket)
-            activity.record(
-                db, ticket_id=ticket.id, kind=ACT_STATUS, actor_id=user.id,
-                field="status", from_value=from_status, to_value=target, now=stamp,
-            )
             changed = True
 
     if set_sprint:
@@ -1269,9 +1244,6 @@ def move(
                 "version": int(ticket.version),
             },
         )
-
-    if to_status and to_status != from_status:
-        _notify_move(db, ticket, actor=user, to_status=to_status, now=stamp)
 
     return {"ticket": _card(ticket)}
 

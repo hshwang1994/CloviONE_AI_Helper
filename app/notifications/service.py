@@ -230,34 +230,6 @@ def approver_user_ids(db: Session, *, now: datetime) -> list[str]:
     return admin_ids + extra
 
 
-def notify_approvers(
-    db: Session,
-    *,
-    type_: str,
-    title: str,
-    body: str | None = None,
-    related: tuple[str, str] | None = None,
-    now: datetime,
-) -> int:
-    """결재할 수 있는 사람 전원에게 화면 알림. 대상 정의는 `approver_user_ids` 한 곳이다.
-
-    audience는 **수신자마다 다르다**(0060). 결재자는 관리자일 수도, 활성 위임을 받은 일반
-    사용자일 수도 있다. 관리자에게는 관리 콘솔의 승인 큐가 목적지이고, 일반 사용자에게는
-    개인 결재함(`/my-approvals`)이 목적지다 — 후자를 관리자 알림으로 보내면 그 사람은
-    관리자 콘솔이 없어서 **그 알림을 어디서도 볼 수 없다**(예전에 정확히 그랬다).
-    """
-    recipients = approver_user_ids(db, now=now)
-    roles = dict(
-        db.execute(select(User.id, User.role).where(User.id.in_(recipients))).all()
-    ) if recipients else {}
-    for uid in recipients:
-        notify_user(
-            db, uid, type_=type_, title=title, body=body, related=related, now=now,
-            recipient_role=roles.get(uid),
-        )
-    return len(recipients)
-
-
 def notify_active_users(
     db: Session,
     *,

@@ -83,6 +83,12 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # 같은 계약(단건 GET, `?id=` 쿼리, 실패 시 이유 안내)을 직접 만들었다 — 그 전까지는
     # Users.jsx 자체에 id 딥링크가 없어서 이 표에 넣어도 무의미했다(아래 참고에서 옮겨옴).
     "user": "/users?id={id}",
+    # 승인 위임(approval_delegated) - 위임받은 사람의 **개인 결재함**으로 보낸다(계획 3.4).
+    # 이 유형만 첫 번째 규칙의 예외다. 알림이 알리는 것은 위임 한 건이 아니라 「이제 대신
+    # 결재할 수 있다」는 능력이고, 그 능력을 쓰는 자리가 결재함이다. 위임 목록(`/approval-
+    # delegations`)은 관리 콘솔 화면이라 위임받은 일반 사용자는 열 수 없다. 예전에는 표에 칸이
+    # 없어서 이 알림만 눌러도 아무 데도 가지 않았다.
+    "approval_delegation": "/my-approvals",
 }
 
 # 아직 표에 없는 관련 유형(schedule_run)은 **일부러** 비워 둔다. '#/schedules'로 보내도
@@ -94,7 +100,7 @@ RELATED_DESTINATIONS: dict[str, str] = {
 # ⚠️ 이 표에 유형을 추가할 때 role도 함께 확인한다 — 대상 화면이 role 제한이 있으면(예:
 # /jobs·/approvals·/users는 CONSOLE_READ_ROLES 이상만) 그 알림의 실제 수신자가 항상 그
 # role 이상인지 확인해야 한다. job_failed(작업 소유자, 어떤 role이든 가능)·approval_decided
-# (요청자, notify_approvers 문서에 위임받은 일반 사용자도 포함될 수 있다고 적혀 있다)처럼
+# (요청자, 위임받은 일반 사용자도 결재자가 될 수 있다)처럼
 # 수신자가 낮은 role일 수 있는 유형은 프런트가 role 게이트를 따로 건다(NotificationBell.jsx의
 # ROUTE_ROLES, registry/notifications.js의 reachableAdminTarget) — 이 서버 표 자체는
 # "경로는 권한과 무관하다"(위 docstring)는 원칙대로 role을 안 따진다.

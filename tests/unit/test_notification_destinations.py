@@ -41,6 +41,8 @@ pytestmark = pytest.mark.unit
         # 가는 리다이렉트가 됐다). 알림이 옛 주소를 가리키면 한 번 더 튕겨야 열린다.
         ("document", "d-1", "/knowledge/d-1"),
         ("board_post", "b-1", "/board/b-1"),
+        # 위임 알림은 id 를 쓰지 않는 유일한 목적지다. 위임받은 사람이 할 일은 결재함에 있다.
+        ("approval_delegation", "dl-1", "/my-approvals"),
     ],
 )
 def test_known_types_resolve_to_their_screens_deep_link(object_type, object_id, expected):

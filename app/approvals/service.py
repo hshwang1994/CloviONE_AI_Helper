@@ -262,10 +262,10 @@ def notify_deciders(
 ) -> int:
     """`deciders_for` 에게만 화면 알림. audience 판정은 `notify_user` 한 곳에 그대로 맡긴다.
 
-    `notifications.notify_approvers` 를 부르지 않는 이유는 하나다 — 그쪽은 승인 한 건을
-    모르므로(요청자가 없으므로) 범위를 잴 수 없다. 「누가 결재할 수 있는가」의 정의는 여전히
-    `approver_user_ids` 한 곳이고, 이 함수는 거기에 이 저장소가 이미 쓰는 범위 조건을
-    곱할 뿐이다.
+    결재자 전원에게 보내는 범용 함수(옛 `notifications.notify_approvers`)는 승인 한 건을
+    몰라서(요청자가 없어서) 범위를 잴 수 없었고, 호출처가 없어 걷었다(계획 3.4). 「누가 결재할
+    수 있는가」의 정의는 여전히 `approver_user_ids` 한 곳이고, 이 함수는 거기에 이 저장소가
+    이미 쓰는 범위 조건을 곱할 뿐이다.
     """
     recipients = deciders_for(db, row, now=now)
     if not recipients:

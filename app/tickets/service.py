@@ -1158,6 +1158,15 @@ def update_ticket(
     stamp = now or utcnow()
     updated = r.update(db, page_id=page_id, changes=repo_changes, now=stamp)
     _record_edit_activity(db, user, before=current, after=updated, now=stamp)
+    if current.status != updated.status:
+        # 상태를 바꾸는 모든 길(목록 · 상세 · 작업 보드)이 여기를 지난다 - 알림도 여기서 한 번 나간다(계획 3.4).
+        from app.tickets.notify import notify_status_changed
+
+        notify_status_changed(
+            db, ticket_uid=getattr(updated, "uid", None), page_id=page_id, key=updated.key, title=updated.title,
+            assignee_user_ids=resolve_assignee_user_ids(db, updated.assignee_ids), actor=user,
+            from_status=current.status, to_status=updated.status, now=stamp,
+        )
     if "assignee_notion_ids" in repo_changes:
         # 담당자를 건드린 편집에서만 본다. 마감일만 고친 저장이 배정 알림을 만들면 안 된다.
         _notify_assignees_added(
@@ -1607,6 +1616,7 @@ def create_ticket(
     )
     stamp = now or utcnow()
     created = _repo(settings, outbound, repo).create(db, draft=draft, now=stamp)
+    _record_requester(db, ticket_uid=created.uid, user=user)
     # 번호는 **로컬 행이 생긴 뒤에** 붙인다 (S6 · D-196). 저장소가 캐시 행을 써 넣은
     # 다음이라야 그 행에 `seq` 를 줄 수 있고, 채번과 티켓 삽입이 같은 트랜잭션에 있어야
     # 롤백될 때 번호도 함께 돌아간다.
@@ -1621,6 +1631,17 @@ def create_ticket(
         after=resolve_assignee_user_ids(db, created.assignee_ids), now=stamp,
     )
     return {"ticket": ticket_views(db, [created])[0], "after": snapshot(created)}
+
+
+def _record_requester(db: Session, *, ticket_uid: str | None, user: User) -> None:
+    """만든 사람을 요청자로 적는다(계획 3.4). 티켓이 끝나면 이 사람이 결과 알림을 받는다."""
+    if not ticket_uid:
+        return
+    from app.tickets.models import Ticket
+
+    row = db.get(Ticket, ticket_uid)
+    if row is not None and row.requester_user_id is None:
+        row.requester_user_id = user.id
 
 
 def _place_in_sprint(

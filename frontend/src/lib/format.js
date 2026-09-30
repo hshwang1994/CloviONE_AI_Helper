@@ -320,6 +320,11 @@ export const TYPE_KO = {
   // 담당자로 **새로** 지정된 사람에게 간다(app/tickets/service.py의 _notify_assignees_added).
   // related=("ticket", page_id)이고 경로 계산은 서버 표(destinations.py)가 한다.
   ticket_assigned: "티켓 배정",
+  // 지켜보거나 맡은 티켓의 상태가 바뀌었을 때(app/tickets/notify.py). 이 표에 빠져 있어 알림 목록에 키가
+  // 그대로 보였다(계획 3.4).
+  ticket_status_changed: "티켓 상태 변경",
+  // 내가 요청한(만든) 티켓이 완료나 취소로 끝났을 때 한 통(app/tickets/notify.py).
+  ticket_resolved: "요청한 티켓 결과",
   // 큐를 거쳐 만들어진 문서가 준비됐을 때 요청자에게(app/jobs/handlers/document_generate.py).
   document_ready: "문서 생성 완료",
   // 퇴사자의 티켓·방을 넘겨받은 후임에게 **요약 한 건**(app/offboarding/service.py).

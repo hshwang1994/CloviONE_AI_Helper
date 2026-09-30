@@ -268,6 +268,13 @@ class Ticket(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     # 그 값이 움직여서 번다운의 「그날 끝난 일」이 뒤로 밀린다.
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
 
+    # 누가 이 일을 요청했는가(계획 3.4). 티켓이 끝나면 이 사람이 결과 알림(`ticket_resolved`)을 받는다.
+    # 제품에서 만든 티켓은 만든 사람이다. 옛 소스에서 옮겨 온 티켓은 그 정보가 없어서 비어 있다(`0035` 가
+    # 생성 활동과 감사 기록에서만 되채운다 - 지어내지 않는다). 계정이 지워지면 비운다.
+    requester_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+
     __table_args__ = (
         CheckConstraint("seq IS NULL OR seq > 0", name="ck_tickets_seq_positive"),
         # **번호와 표시 이름은 함께 있거나 함께 없다.** 그리고 번호가 있으면 소속

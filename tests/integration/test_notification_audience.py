@@ -4,7 +4,7 @@
 
 `Notification` 모델에는 자유 텍스트 `type` 컬럼만 있고, 이벤트가 **누구를 위한 것인지**
 (관리자가 처리해야 할 운영 알림인가, 그 사용자 개인의 알림인가)를 저장하는 컬럼이 없었다.
-`notify_user`/`notify_admins`/`notify_approvers`/`notify_active_users` 는 수신자를 다르게
+`notify_user`/`notify_admins`/`notify_active_users` 는 수신자를 다르게
 고르면서도 그 "채널"을 기록하지 않아, 벨/목록 화면은 한 사람이 관리자이자 사용자일 때
 자기 개인 알림(티켓 배정 등)과 관리자용 알림(백업 실패, 러너 장애 등)을 구분할 방법이 없었다.
 

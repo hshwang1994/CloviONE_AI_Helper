@@ -141,8 +141,8 @@ def test_catalog_covers_every_mutable_type():
 # 정정, 이 낡은 기록만 안 갱신됨), 같은 클래스의 결함이 실제로 여섯 건 더 있었다:
 # approval_delegated/approval_overdue/board_comment/document_comment/idea_status_changed/
 # ticket_comment가 실제로 알림을 만드는데 레지스트리엔 없어 사용자가 절대 끌 수 없었다.
-# 한 번 고치고 끝나는 게 아니라 **재발을 막아야** 한다 — 실제 `notify_user`/`notify_admins`/
-# `notify_approvers` 호출부의 `type_=`을 전부 스캔해 NOTIFICATION_TYPES(뮤트 가능) ∪
+# 한 번 고치고 끝나는 게 아니라 **재발을 막아야** 한다 — 실제 `notify_user`/`notify_admins`
+# 호출부의 `type_=`을 전부 스캔해 NOTIFICATION_TYPES(뮤트 가능) ∪
 # UNMUTABLE_TYPES(의도적으로 뮤트 불가) 밖에 있는 유형이 있으면 잡는다.
 def _all_notify_type_call_sites() -> set[str]:
     """app/ 전체에서 실제로 쓰이는 `type_="literal"` 값을 정적으로 모은다.
