@@ -604,7 +604,7 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         실패율, 마지막 사용. 수는 AI 호출 기록(`ai_usage_records`)에서 센다 - 예전에는 스케줄이 이름을 참조하는가를
         셌는데 스케줄은 프롬프트를 가리킬 수 없게 된 지 오래라 언제나 「쓰이지 않음」이었다.
 
-        정책은 아직 이름별 버전 개요다(A6 이 정책을 AI 호출에 붙이면서 호출 기록으로 바꾼다).
+        정책은 이름마다 한 줄이다(D-519): 지금 걸리는 버전, 종류, 적용 대상, 그 정책이 걸린 호출 수와 마지막 적용.
         """
         if model is Prompt:
             from app.ai import usage as usage_mod

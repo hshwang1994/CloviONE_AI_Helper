@@ -8,6 +8,8 @@ app/org/schemas.py, app/templates/router.py) — 스키마가 바뀌면 이 테�
 
 from __future__ import annotations
 
+"""qa-contract-change: 프롬프트가 사용처(slot, 32자)를 갖고 정책이 종류(kind, 24자)를 갖게 됐다(D-518, D-519). 두 칸 모두 스키마가 실제로 거절하는 상한이라 이 표에 그대로 더했다. 정책 종류는 만든 뒤 바꿀 수 없어 수정 폼에는 없다 - 그 사실도 이 표가 못박는다."""
+
 """qa-contract-change: 일정 스키마에 낙관적 잠금 토큰(base_version, 64자)이 생겨 이 표에 한 칸이 늘었다. 계약이 약해진 것이 아니라 스키마가 실제로 거절하는 값이 하나 더 생긴 것이고, 그 사실을 이 시험이 계속 못박는다 — 토큰이 사라지면 다시 실패한다."""
 
 """qa-contract-change: 폼 필드 상한을 스키마에서 그대로 읽는다는 계약의 화면이 셋 줄었다(runners·workflows·templates). 남은 연동 쪽 단언은 그대로이고, 그 자리에 **반대 방향 단언**을 넣었다 — 사라진 세 화면이 결과에 되살아나면 실패한다. 화면 없는 상한이 생기는 것을 그것이 막는다."""
@@ -34,9 +36,9 @@ def test_optional_and_required_fields_both_surface_their_max_length():
 
 def test_prompts_and_policies_limits_match_the_schema_declarations():
     limits = all_field_limits()
-    assert limits["prompts"]["create"] == {"name": 120, "purpose": 2000, "content": 100000}
-    assert limits["prompts"]["edit"] == {"content": 100000, "purpose": 2000}
-    assert limits["policies"]["create"] == {"name": 120, "purpose": 2000, "content": 100000}
+    assert limits["prompts"]["create"] == {"name": 120, "purpose": 2000, "content": 100000, "slot": 32}
+    assert limits["prompts"]["edit"] == {"content": 100000, "purpose": 2000, "slot": 32}
+    assert limits["policies"]["create"] == {"name": 120, "purpose": 2000, "content": 100000, "kind": 24}
     assert limits["policies"]["edit"] == {"content": 100000, "purpose": 2000}
 
 

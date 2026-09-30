@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from app.core.authz import ROLE_AUDITOR, ROLE_ORDER
 from app.core.errors import ValidationAppError
 
 KIND_APPROVAL = "approval"
@@ -36,8 +37,9 @@ ALL_ACTIONS = "*"
 # 응답 제한의 글자 수 바닥. 이보다 짧으면 어떤 기능도 쓸 만한 답을 못 낸다.
 MIN_OUTPUT_CHARS = 100
 
-# 승인 없이 저장할 수 있는 역할로 고를 수 있는 값. 감사자는 쓰기를 하지 않는다.
-APPROVABLE_ROLES = ("system_admin", "admin", "operator", "user")
+# 승인 없이 저장할 수 있는 역할로 고를 수 있는 값이다. 감사자는 쓰기를 하지 않으므로 빼고, 높은 역할부터 적는다.
+# 역할 이름은 authz 의 순서표에서 가져온다(사본을 만들지 않는다).
+APPROVABLE_ROLES = tuple(role for role in reversed(ROLE_ORDER) if role != ROLE_AUDITOR)
 
 
 class _Rules(BaseModel):

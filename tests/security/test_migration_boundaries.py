@@ -2,6 +2,10 @@
 
 이관은 한 번 쓰고 버리는 도구다. 그런 도구가 런타임의 보안 경계를 넓혀 놓고 사라지면,
 넓어진 채로 남는 것은 제품이다.
+
+qa-contract-change: 런타임 허용 목록이 Anthropic 하나에서 AI 제공자 세 호스트(api.anthropic.com, api.openai.com,
+auth.openai.com)가 됐다(계획 3.14, 3.16). OpenAI 는 API 키와 ChatGPT 계정 연결을 공식으로 지원하고, 계정 연결은 토큰
+교환과 갱신에 auth.openai.com 을 쓴다. 이관용 호스트(S3, 노션)는 여전히 이 목록에 없다 - 그것이 이 시험이 지키는 경계다.
 """
 
 from __future__ import annotations
@@ -35,7 +39,7 @@ def test_the_runtime_allowlist_did_not_grow_for_the_migration():
     설정으로 껐는데도 환경 파일이 이겨서 미러가 계속 돌던 사고가 그것이었다.
     """
     runtime = _hosts("services")
-    assert runtime == {"api.anthropic.com:443"}, (
+    assert runtime == {"api.anthropic.com:443", "api.openai.com:443", "auth.openai.com:443"}, (
         f"런타임 허용 목록이 바뀌었다: {sorted(runtime)}"
     )
 

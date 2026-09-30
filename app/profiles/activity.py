@@ -115,13 +115,13 @@ OBJECT_LABELS: dict[str, str] = {
     "session": "세션",
     # 아래는 라우터가 변수로 넘기는 값들이다(문자열 리터럴 grep 만으로는 안 보인다):
     #   app/org/router.py    audit_type="department" / "job_title"
-    #   app/prompts/router.py object_type=kind → "prompt" | "policy"
+    #   app/prompts/router.py object_type=kind → "prompts" | "policies" (라우터를 만드는 이름이 복수형이다)
     #   app/settings/service.py OBJECT_TYPE = "app_setting"
     #   app/workflows/service.py OBJECT_TYPE = "workflow"
     "department": "부서",
     "job_title": "직책",
-    "prompt": "프롬프트",
-    "policy": "정책",
+    "prompts": "프롬프트",
+    "policies": "정책",
     "app_setting": "설정",
     "workflow": "워크플로",
     #   app/sysops/router.py OBJECT_TYPE = "system_setting" (타임존·DNS·인증서 등 서버 설정)
@@ -130,7 +130,7 @@ OBJECT_LABELS: dict[str, str] = {
     "secret": "비밀 값",
     # 관리자 백로그 잔여(0033, PLAN Phase 6).
     "announcement": "공지",
-    "ai_quota": "AI 쿼터",
+    "ai_quota": "AI 사용 한도",
     "approval_delegation": "승인 위임",
     "feature_flag": "기능 플래그",
     "restore_rehearsal": "복구 리허설",
@@ -141,6 +141,8 @@ OBJECT_LABELS: dict[str, str] = {
     "llm_config": "AI 설정",
     # AI 설정 화면(D-515). 설정 저장과 연결 확인이 이 이름으로 감사에 남는다.
     "ai_config": "AI 설정",
+    # 승인을 기다리는 AI 문서 초안(D-519). 승인 요청과 실행이 이 이름으로 감사에 남는다.
+    "ai_action_request": "AI 초안",
 }
 
 # 액션 문자열의 **마지막 조각** → 한국어 동사. 'ticket.body.update' 처럼 조각이 셋이어도

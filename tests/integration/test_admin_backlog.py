@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+"""qa-contract-change: 프롬프트 사용 통계가 이름별 「스케줄 참조 수와 쓰이지 않음」에서 사용처별 호출 기록(ai_usage_records)으로 바뀌었다(D-518). 스케줄은 프롬프트를 가리킬 수 없어 옛 값은 언제나 「쓰이지 않음」이었다. 그 자리의 시험은 새 계약을 잰다: 초안은 지금 쓰는 지시문을 바꾸지 않고, 호출이 없으면 0건이며, 옛 두 칸은 응답에 다시 나오지 않는다."""
+
 """qa-contract-change: S11 이 문서 자동 생성을 걷어내 그 엔드포인트로 쿼터 상한을 재던 시험과, document_generations 행으로 「쓰이는 중」을 만들던 프롬프트 표본 시험이 재현 불가능해졌다. 쿼터 계약은 채팅 경로가 새로 진다(test_chat_answers_from_retrieval.py::test_quota_counts_only_a_real_answer) — 같은 것을 다른 소비자로 지킨다."""
 
 """qa-contract-change: 겹침 409 문구가 저장된 naive UTC 를 그대로 찍어 관리자가 실제와 9시간 다른 창을 보고 있었다(perm-04). 서버가 만드는 완성된 문장은 KST 로 말한다(§불변 9) — 이 시험의 기대값도 같은 축으로 옮기고, 옛 UTC 표기가 다시 새지 않는지까지 함께 못박는다."""
@@ -890,18 +892,19 @@ def test_disabled_schedule_never_runs(db):
 # ── 프롬프트 사용 통계 ───────────────────────────────────────────────────────
 
 
-def test_prompt_usage_stats_marks_unused(client, login_as):
+def test_prompt_usage_stats_count_calls_per_slot_not_schedule_refs(client, login_as):
     csrf = login_as("system_admin")
     created = client.post(
         "/api/admin/prompts",
-        json={"name": "안 쓰이는 프롬프트", "content": "hello", "purpose": "테스트"},
+        json={"name": "답변 초안", "content": "hello", "purpose": "테스트", "slot": "answer"},
         headers=_h(csrf),
     )
     assert created.status_code == 201, created.text
     stats = client.get("/api/admin/prompts/usage/stats").json()["items"]
-    row = [i for i in stats if i["name"] == "안 쓰이는 프롬프트"][0]
-    assert row["versions"] == 1
-    assert row["schedule_refs"] == 0
-    assert row["unused"] is True
+    row = [i for i in stats if i["slot"] == "answer"][0]
+    # 발행하지 않은 초안은 지금 쓰는 지시문을 바꾸지 않는다.
+    assert row["current_source"] == "builtin" and row["current_id"] == "builtin:answer"
+    assert (row["calls"], row["errors"], row["last_used_at"]) == (0, 0, None)
+    assert "schedule_refs" not in row and "unused" not in row
 
 

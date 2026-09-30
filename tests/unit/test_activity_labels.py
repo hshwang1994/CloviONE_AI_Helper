@@ -8,6 +8,10 @@
 않는 변수 형태(`object_type=kind`, `OBJECT_TYPE = "..."`)는 그 값의 출처를 아래에 적어 두고
 함께 검사한다 — 새 변수가 생기면 이 목록도 함께 늘려야 한다는 뜻이고, 그 사실 자체가
 `describe_action` 의 계약이다.
+
+qa-contract-change: 프롬프트와 정책 라우터는 `object_type=kind` 로 복수형("prompts", "policies")을 남기는데 이 목록은
+단수형을 적고 있었다. 그래서 표의 단수형 키와 목록이 서로를 맞춰 주며 통과했고, 실제 활동 피드에서는 두 유형의 명사가
+비었다. 기본 제공 프롬프트 복사 경로가 같은 값을 리터럴로 쓰면서 드러났다. 목록을 실제 값으로 고친다.
 """
 
 from __future__ import annotations
@@ -32,8 +36,8 @@ AUDIT_CALLS = ("record_audit", "record_audit_from_request")
 DYNAMIC_OBJECT_TYPES = {
     "department": "app/org/router.py audit_type=",
     "job_title": "app/org/router.py audit_type=",
-    "prompt": "app/prompts/router.py object_type=kind",
-    "policy": "app/prompts/router.py object_type=kind",
+    "prompts": "app/prompts/router.py object_type=kind",
+    "policies": "app/prompts/router.py object_type=kind",
     "app_setting": "app/settings/service.py OBJECT_TYPE",
     "integration": "app/integrations/service.py OBJECT_TYPE",
     # app/trash/router.py 는 f"notion_{item_type}" 로 만든다(notion_task / notion_document).
