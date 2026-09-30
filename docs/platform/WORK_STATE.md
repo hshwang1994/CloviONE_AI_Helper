@@ -7,7 +7,7 @@
 > 큰 작업 단위는 [`BACKLOG.md`](BACKLOG.md), 설치 사양은 [`INSTALLATION.md`](INSTALLATION.md),
 > 실측 목록은 [`INVENTORY/`](INVENTORY/README.md), 결정은 [`../DECISIONS.md`](../DECISIONS.md) D-187~.
 
-## 진행 중 — 관리자 · 사용자 화면 전반 개선 회차 (2026-09-30 ~)
+## 끝남 — 관리자 · 사용자 화면 전반 개선 회차 (2026-09-30, 사람의 자격이 필요한 측정만 남았다)
 
 - 계획 정본: `C:/Users/hshwa/.claude/plans/pasted-content-id-c5c6-clovirassist-vivid-flask.md`(사용자 승인, 2차 보완 반영).
   구현 순서는 그 문서 §5 다(F 기반 → B 버그 → U 화면 → M 메일 → A AI → I 설치). 결정은 D-503 부터.
@@ -37,16 +37,21 @@
 | U4 AI 화면 문구를 시험으로 고정 · 네 AI 화면의 저장된 뷰 없음(호출 기록은 D-506 기준) | `9533667b` | D-521 |
 | I1 Release 설치(받아서 확인한 뒤 풀기) · 24.04 만 · 첫 관리자 설정 코드와 /setup/first-admin · clovirassist 명령 · 허용 목록 병합 · 옛 LLM 키 정리 · 모델 받기 | `1e246db9` | D-522 |
 | I2 README · INSTALLATION 공개 기준 재작성 · 문서 대조 검사 · Release 자산 빌드 · 번들 목록 확인 · 설치처 값(Confluence 사이트 등) 걷기 | `f1feedc6` | D-523 |
+| 번들 재빌드(화면 Packet 이 모인 뒤 한 번) | `56637a79` | - |
+| I3 Release 리허설(LXD 24.04, 39항목) · 되돌리기가 sysops/ 를 고르던 결함 · 연결 확인이 낡은 설정 캐시를 읽던 결함 | `6fab9a77` | D-524 |
+| 최종 캡처와 리허설이 찾은 어긋남(웹 프로세스 캐시, 사용 한도 칸, 정책 종류 칸, 메일 설명) · 번들 | `a4bcad38` | D-524 |
+| 전량 회귀가 잡은 감사 대상 선택지 누락(`setup`) · 번들 · 회차 마감 문서 | 이 커밋 | D-524 |
 
-- 다음: I3(랩 실측: Release 자산으로 설치, 첫 관리자, 연결 확인, 업그레이드와 되돌리기) → 최종 E2E와 전량 회귀.
+- 남은 일(사람이 할 것): BACKLOG P-116 - 실제 Anthropic · OpenAI 키로 연결 확인과 채팅 한 번, 실제 ChatGPT 계정으로 연결
+  도우미 → 승인 → 연결됨과 토큰 만료 시각, 공개 저장소에 Release 를 올린 뒤 GitHub 에서 받아 설치. 랩의 운영 설치(`f0232c51`)에
+  이 회차를 배포하는 것은 따로 정할 일이다(0031 ~ 0041 마이그레이션이 실데이터에 돈다). 다음 Acceptance 회차는 P-115 부터다.
+  ChatGPT 요금제 연결은 그 계정 한 명의 사용량이라, 여러 사람이 쓰는 설치는 조직 API 키를 권한다(INSTALLATION §12. 화면에는 아직 그 문장이 없다).
   계획의 A3(AI 설정 화면)는 A1(Anthropic)과 A2(OpenAI, ChatGPT 계정 연결)가 나눠 맡아 끝났다(D-515 · D-516).
-  ChatGPT 계정 연결의 실측(실제 계정으로 도우미 → 승인 → 연결됨 → 갱신)은 I3 랩 실측에서 한다.
-- 전량 회귀(`verify.py --full`, A6 커밋 `5ec538c1`): A4 ~ A6 이 남긴 누락 5건을 다음 커밋이 고쳤다 - 정책의 역할 목록을
-  authz 밖에서 다시 적음, 런타임 허용 목록 시험이 OpenAI 두 호스트를 모름(A2), 프롬프트 · 정책 감사 대상 이름이 복수형인데
-  활동 피드 표와 시험 목록이 단수형이라 서로를 맞춰 주며 통과하던 것, 필드 한도 표의 slot · kind, 옛 「쓰이지 않음」 통계
-  시험. 나머지는 통과했다(regression · integration 3묶음, vitest 464/464 파일 3,929건). 정적 전량의 실패는 커밋된 번들이
-  소스보다 오래된 것 하나이고, 번들은 화면 Packet 이 모인 뒤 한 번에 다시 빌드한다(아래 줄).
-- 번들(`app/static/react`)은 화면 Packet 이 모두 끝난 뒤 `f1feedc6` 원천으로 다시 빌드했다(다음 커밋).
+- 전량 회귀(`verify.py --full`, 마지막 커밋 `a4bcad38`): 정적 전량 통과(번들 신선도 포함), 백엔드 unit · regression · security · integration 4묶음 전부 통과, vitest 465파일 중 464파일(3,936/3,937건) 통과. 남은 1건은 I1 이 더한 감사 대상 `setup` 이 감사 로그 대상 필터 선택지에 없던 것이라 다음 커밋이 고쳤고, 그 파일과 같은 선택지를 쓰는 22파일(189건)을 다시 돌려 통과했다.
+- Release 리허설(`scripts/release_rehearsal.sh`, 랩 LXD): 네 번째 실행 39/39 통과(`v0.1.0-rc.5` → `rc.6`, 5분). 개발자 경로
+  리허설(`scripts/lxd_rehearsal.sh`)도 35/35 통과했다(`a4bcad38`). 최종 캡처
+  `dist/ui-qa/admin-round-final`(19화면 × 1200 · 1366 · 1600 · 1920, 밝은 테마)의 프로브 표시는 스크린샷으로 확인했다 - 짧은
+  목록 아래 빈 자리, 고정 선택지 드롭다운, 옆 카드 높이에 맞춘 판은 위양성이고, 잘리던 두 칸은 고쳤다.
 
 ## CHECKPOINT
 

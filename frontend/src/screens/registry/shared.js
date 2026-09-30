@@ -71,6 +71,8 @@ export const OBJTYPE_OPTS = [
   ["backup", "백업"], ["storage_provider", "파일 저장소"], ["mail_delivery", "메일 발송"],
   ["mail_settings", "메일 설정"], ["integrity_check", "조직 정합성 검사"],
   ["search_index", "검색 색인"], ["integration", "외부 연동"],
+  // 첫 관리자 설정 코드(D-522). 틀린 코드로 코드가 폐기된 일이 이 이름으로 남는다.
+  ["setup", "초기 설정"],
   // 없어진 기능의 옛 기록 — 새로 쌓이지 않는다.
   ["runner", "러너(옛 기능)"], ["workflow", "워크플로(옛 기능)"], ["template", "템플릿(옛 기능)"],
   ["document_generation", "문서 생성(옛 기능)"], ["user_notion_mapping", "Notion 연결(옛 기능)"],

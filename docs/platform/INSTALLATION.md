@@ -252,6 +252,13 @@ network-online.target
 
 **컨테이너 통과를 "설치 검증 완료" 라고 쓰지 않는다** (R15).
 
+**Release 경로 리허설(D-524)**: `scripts/release_rehearsal.sh <assets-dir> <tag-a> <tag-b>` 가 같은 LXD 에서 Release 경로를
+처음부터 끝까지 돈다(미러, 첫 관리자, 메일 연결 확인, 프록시 뒤 AI 연결 확인, 다시 돌리기, 바뀐 묶음 거절, 업그레이드, 되돌리기,
+제거 - 39항목). 2026-09-30 에 네 번째 실행이 전부 통과했다(`v0.1.0-rc.5` → `v0.1.0-rc.6`). 앞의 세 실행이 되돌리기와 AI 연결
+확인의 결함을 찾았고 코드가 고쳐졌다. 같은 날 개발자 경로(`scripts/lxd_rehearsal.sh`, 저장소 소스로 설치, 실패 주입,
+되돌리기, 업그레이드, 재시작 복구, 제거와 재설치, 옛 이름 이전, 완전 삭제 - 35항목)도 `a4bcad38` 로 전부 통과했다.
+GitHub 의 실제 내려받기와 실제 AI 자격은 여기서 재지 않는다(BACKLOG P-116).
+
 **S4 실행 기록**: LXD 컨테이너 리허설은 `scripts/lxd_rehearsal.sh` 가, 실 재부팅 복구는
 `scripts/reboot_check.sh` 가 한다. 원장은 [`EVIDENCE/S4/`](EVIDENCE/S4/) 다.
 **이 서버에는 `/dev/kvm` 이 없어**(VMware 게스트, 중첩 가상화 미노출) LXD **VM** 은 못 쓴다 —
