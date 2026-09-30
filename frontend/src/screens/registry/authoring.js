@@ -205,7 +205,8 @@ export const AUTHORING_SCREENS = {
     ],
     columns: [
       { ...col("name", "이름", "title"), rowName: (r) => r.name + " v" + r.version },
-      { key: "kind", label: "종류", type: "enum", render: (r) => r.kind_label || POLICY_KIND_LABEL[r.kind] || r.kind },
+      // 가장 긴 종류 이름(「개인정보 가리기」, 여덟 글자)이 한 줄에 서는 폭이다. enum 의 바닥 폭(6.5rem)에서는 잘렸다.
+      { key: "kind", label: "종류", type: "enum", width: "9rem", render: (r) => r.kind_label || POLICY_KIND_LABEL[r.kind] || r.kind },
       { key: "applies_to_labels", label: "적용할 기능", type: "text", render: (r) => (r.applies_to_labels || []).join(", ") || "-" },
       { key: "version", label: "버전", type: "code", render: (r) => "v" + r.version },
       badgeCol("status", "상태"),
@@ -284,7 +285,8 @@ export const AUTHORING_SCREENS = {
     searchPlaceholder: "정책 이름으로 검색",
     columns: [
       { key: "name", label: "이름", type: "title" },
-      { key: "kind", label: "종류", type: "enum", render: (r) => r.kind_label || POLICY_KIND_LABEL[r.kind] || r.kind },
+      // 가장 긴 종류 이름(「개인정보 가리기」, 여덟 글자)이 한 줄에 서는 폭이다. enum 의 바닥 폭(6.5rem)에서는 잘렸다.
+      { key: "kind", label: "종류", type: "enum", width: "9rem", render: (r) => r.kind_label || POLICY_KIND_LABEL[r.kind] || r.kind },
       { key: "applies_to_labels", label: "적용할 기능", type: "text", render: (r) => (r.applies_to_labels || []).join(", ") || "-" },
       { key: "published_version", label: "발행 버전", type: "code", render: (r) => (r.published_version == null ? "발행 안 함" : "v" + r.published_version) },
       { key: "applied", label: "30일 적용", type: "count" },

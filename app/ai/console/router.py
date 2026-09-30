@@ -64,8 +64,21 @@ def _actor_and_session(request: Request) -> tuple[str, str | None]:
     return actor.id, getattr(session, "id", None)
 
 
+def _fresh_settings(request: Request, db: Session) -> None:
+    """설정 캐시를 DB 에서 다시 읽는다. 이 화면의 조회는 드물고, 방금 저장한 값을 봐야 하는 자리다.
+
+    웹은 프로세스가 여럿이고 설정 캐시는 프로세스마다 30초(TTL)마다 새로 읽는다. 저장을 받은 프로세스만 새 값을 알고, 다른
+    프로세스는 30초 동안 옛 값을 보인다. 그래서 저장하고 연결 확인을 누르면 확인 결과는 맞는데(「API 키가 거부되었습니다」)
+    같은 응답의 연결 상태 칸은 「미설정」이었다(Release 리허설 실측). 한 번의 SELECT 가 그 어긋남보다 싸다.
+    """
+    cache = request.app.state.settings_cache
+    if cache is not None:
+        cache.load(db)
+
+
 @router.get("")
 def ai_overview(request: Request, db: Session = Depends(get_db)) -> dict:
+    _fresh_settings(request, db)
     return service.overview(db, _runtime(request), _secrets(request), request.app.state.settings_cache)
 
 
@@ -143,6 +156,9 @@ def verify_result(job_id: str, request: Request, db: Session = Depends(get_db)) 
         result = {"ok": False, "message": (job.last_error or "").strip() or "AI 연결을 확인하지 못했습니다."}
     elif job.status == STATUS_CANCELLED:
         result = {"ok": False, "message": "연결 확인이 취소됐습니다."}
+    if result is not None:
+        # 끝난 확인의 상태 칸은 워커가 방금 적은 결과와 맞아야 한다 - 이 프로세스의 캐시가 저장 전 값이면 어긋난다.
+        _fresh_settings(request, db)
     return {
         "job_id": job.id,
         "status": job.status,

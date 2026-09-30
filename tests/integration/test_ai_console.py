@@ -164,6 +164,21 @@ def test_verify_right_after_saving_reads_what_was_saved_not_a_stale_worker_cache
     assert done["result"]["ok"] is True, done
 
 
+def test_another_web_process_with_a_stale_cache_still_shows_what_was_saved(client, login_as, app, settings):
+    """웹 프로세스가 여럿이면 저장을 받지 않은 프로세스의 캐시는 30초 동안 옛 값이다. AI 설정 조회는 그 캐시를 믿지 않고
+    다시 읽는다(Release 리허설에서 연결 확인 결과의 상태 칸이 「미설정」으로 어긋났다)."""
+    (settings.secrets_dir / "ai.anthropic.api_key").write_text(KEY, encoding="utf-8")
+    csrf = login_as("system_admin")
+    cache = app.state.settings_cache
+    with app.state.session_factory() as s:
+        stale = cache.load(s)  # 저장 전 값
+    assert _put(client, csrf, {"provider": "anthropic", "model": "claude-test"}).status_code == 200
+    with cache._lock:  # 저장을 받지 않은 다른 프로세스의 캐시 - 저장 전 값을 그대로 들고 있다
+        cache._values = dict(stale)
+    body = client.get("/api/admin/ai", headers={"X-CSRF-Token": csrf}).json()
+    assert body["config"]["provider"] == "anthropic", "다른 프로세스가 저장 전 값을 보였다"
+
+
 def test_a_failed_verify_says_why_in_our_words(client, login_as, app, settings, fake_http, fake_clock):
     (settings.secrets_dir / "ai.anthropic.api_key").write_text(KEY, encoding="utf-8")
     csrf = login_as("system_admin")

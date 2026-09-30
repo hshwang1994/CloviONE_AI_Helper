@@ -428,7 +428,15 @@ export const PLATFORM_SCREENS = {
         rowName: (r) => (r.scope_type === "global" ? "기본값" : (r.user_name || r.user_id || "-")) + " / " + ({ day: "하루", month: "한 달" }[r.period] || r.period) },
       mapCol("period", "기간", { day: "하루", month: "한 달" }),
       { key: "max_calls", label: "한도", type: "count" },
-      { key: "used", label: "현재 사용", type: "count", render: (r) => (r.used == null ? "-" : r.used + " / " + r.max_calls + (r.scope_type === "global" ? " (가장 많이 쓴 사람)" : "")) },
+      // 칸에는 수만 둔다(계획 2.1). 기본값 행의 수가 누구의 것인지는 풀이로 붙인다 - 칸 안에 괄호 설명을 이으면 수 열의
+      // 폭에서 「0 / 500 (가…」로 잘렸다(최종 캡처 실측).
+      { key: "used", label: "현재 사용", type: "count", render: (r) => {
+        if (r.used == null) return "-";
+        const text = r.used + " / " + r.max_calls;
+        return r.scope_type === "global"
+          ? React.createElement("span", { title: "기본값 행은 가장 많이 쓴 사람의 사용 수입니다." }, text)
+          : text;
+      } },
       { key: "remaining", label: "남음", type: "count", render: (r) => (r.remaining == null ? "-" : String(r.remaining)) },
       dateCol("resets_at", "초기화"),
     ],
