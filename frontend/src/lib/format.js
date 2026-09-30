@@ -333,6 +333,8 @@ export const TYPE_KO = {
   ai_quota_exhausted: "AI 사용 상한 도달",
   // 예약 백업 실패를 관리자에게(app/backups/service.py). 메일과 별개로 앱 안에도 남긴다.
   backup_failed: "백업 실패",
+  // AI 제공자 연결이 막히거나 오래 불안정하거나 복구됐을 때 관리자에게(app/ai/credentials/state.py, D-515).
+  ai_provider_state: "AI 연결 상태",
 };
 export const typeKo = (t) => (t == null || t === "" ? "알림" : (TYPE_KO[t] || "알림"));
 // 장애/실패류 알림 유형 — 나머지(승인 결정, 점검 공지 등 정보성)와 시각적으로 구분해야

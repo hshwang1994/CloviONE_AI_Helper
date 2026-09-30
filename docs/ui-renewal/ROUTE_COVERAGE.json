@@ -14998,7 +14998,7 @@
    "route": "/settings?tab=ai",
    "console": "admin",
    "host_surface": "admin_settings",
-   "component": "frontend/src/screens/LlmConsole.jsx",
+   "component": "frontend/src/screens/settings/AiSettings.jsx",
    "render_engine": "custom",
    "registry_key": null,
    "registry_key_source": null,
