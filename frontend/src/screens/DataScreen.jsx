@@ -768,7 +768,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
    * 되썼다. 그래서 **같은 라우트로 다시 들어오는 길** — 사이드바 메뉴를 다시 누르기, 뒤로
    * 가기 — 에서는 주소만 비고 화면은 앞 조건을 그대로 들고 있었다(react-router 가 같은
    * 라우트를 리마운트하지 않으므로 `initialView` 도 다시 안 읽는다). 그 상태의 화면은
-   * 「조건 1개, 결과 22건」인데 주소는 조건이 없다고 말한다: 주소를 복사해 주면 상대는 다른
+   * 「조건 1개에 맞는 결과가 22건입니다.」인데 주소는 조건이 없다고 말한다: 주소를 복사해 주면 상대는 다른
    * 화면을 보고, 새로고침 한 번이면 조사 중이던 조건이 사라진다.
    *
    * 무엇을 볼 것인가 — **react-router 의 location 이 바뀔 때만** 본다. 아래 되쓰기 효과는
@@ -1141,7 +1141,14 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       const shown = hit
         ? hit.label
         : (f.type === "datetime-local" ? String(v).replace("T", " ") : unmatchedLabel(v, !!f.loading));
-      chips.push({ key: f.key, label: `${f.label}: ${shown}`, onDelete: () => setFilter(f.key, "") });
+      /* 화면이 처음부터 걸어 둔 값(registry 의 `f.value`)이면 칩이 그 사실을 말한다(계획 2.2). 안 말하면
+         사람은 아무것도 안 골랐는데 「조건 1개」가 보여 무엇이 걸렸는지 찾아야 한다. 지우면 전체로 돌아간다. */
+      const isDefault = f.value != null && f.value !== "" && String(v) === String(f.value);
+      chips.push({
+        key: f.key,
+        label: `${f.label}: ${shown}` + (isDefault ? " (기본값)" : ""),
+        onDelete: () => setFilter(f.key, ""),
+      });
     }
     return chips;
     // eslint-disable-next-line react-hooks/exhaustive-deps

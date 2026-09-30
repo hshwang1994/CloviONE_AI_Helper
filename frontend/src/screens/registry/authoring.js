@@ -16,6 +16,7 @@ import { nameVersionsAction } from "./actions.js";
 
 export const AUTHORING_SCREENS = {
   prompts: {
+    smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "prompts", area: "AI", title: "프롬프트", endpoint: "/api/admin/prompts",
     // 상태 전이 버튼이 내용 검증을 뜻하지 않는다는 점을 밝힌다(전이는 순수 상태 기록일
     // 뿐 — app/prompts/service.py).
@@ -65,7 +66,7 @@ export const AUTHORING_SCREENS = {
     // purpose는 최대 2000자에 create/edit 폼도 여러 줄 textarea라 자르지 않으면 표가 옆으로 밀린다
     // (list_field 상세는 여전히 truncateCol의 title 속성으로 전체 확인 가능 — 오류 열과 동일 패턴).
     columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 60),
-      col("version", "버전", "identifier"), badgeCol("status", "상태"), dateCol("created_at", "생성 일자")],
+      col("version", "버전", "code"), badgeCol("status", "상태"), dateCol("created_at", "생성 일자")],
     // 상세에서 실제 지시문(발행본 포함)을 읽을 수 있게 — 편집은 초안만이라 그 외엔 읽기 전용으로 노출.
     // purpose는 이제 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
     detailFields: [field("id", "프롬프트 ID"),
@@ -153,7 +154,7 @@ export const AUTHORING_SCREENS = {
     // 마이그레이션 0058). 프롬프트와 동일하게 목록 열로 노출한다 — 여러 버전이 쌓인 목록에서
     // 각 정책이 '무엇을 강제하는지' 행마다 열어보지 않고는 알 수 없었다. purpose는 최대 2000자라
     // truncateCol로 자른다(프롬프트 registry.js:53-54와 동일 패턴, 전체는 title 속성으로 확인).
-    columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 60), col("version", "버전", "identifier"), badgeCol("status", "상태"), dateCol("created_at", "생성 일자")],
+    columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 60), col("version", "버전", "code"), badgeCol("status", "상태"), dateCol("created_at", "생성 일자")],
     // id는 상세에서 확인할 수 있게 노출한다(라벨은 프롬프트의 '프롬프트 ID'와 맞춰
     // 어느 화면 상세를 보고 있는지 분명히 한다).
     // created_by는 _policy_view가 감사 로그의 actor_name과 동일한 패턴으로 created_by_name/
@@ -199,6 +200,7 @@ export const AUTHORING_SCREENS = {
     ],
   },
   "prompt-usage": {
+    smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "prompt-usage", area: "AI", title: "프롬프트 사용 통계",
     endpoint: "/api/admin/prompts/usage/stats",
     help: "프롬프트가 실제로 쓰이고 있는지 이름별로 봅니다. ‘쓰이지 않음’은 이 이름을 참조하는 스케줄이 없다는 뜻입니다. 정리 대상을 고를 때 씁니다. 버전 비교와 되돌리기는 ‘프롬프트’ 화면의 ‘버전 기록’에서 합니다.",
@@ -232,6 +234,7 @@ export const AUTHORING_SCREENS = {
        「정책」 탭이 같은 곳으로 간다. */
   },
   "policy-usage": {
+    smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "policy-usage", area: "AI", title: "정책 사용 통계",
     endpoint: "/api/admin/policies/usage/stats",
     help: "정책이 실제로 쓰이고 있는지 이름별로 봅니다. ‘쓰이지 않음’은 이 이름을 참조하는 스케줄이 없다는 뜻입니다.",

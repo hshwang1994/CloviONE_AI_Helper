@@ -55,7 +55,7 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 필터 바 오른쪽 묶음 | `ToolbarEnd` | `ui/FilterBar.jsx` | 통째로 줄바꿈(nowrap · 안 줄어듦) | 1 | 검색과 필터 바 | — |
 | 결과 수 | `ResultLine` | `ui/FilterBar.jsx` | 「전체 N건」(조건 없을 때) | 1 | 검색과 필터 바 | `filter-row-width` |
 | 조건 칩 줄 | `FilterChips` | `ui/FilterBar.jsx` | 26 · 알약 · 틴트 · X | 0 | 검색과 필터 바 | `filter-row-width` |
-| 조건 줄(둘째 줄) | `FilterConditionLine` | `ui/FilterBar.jsx` | 조건이 있을 때만 · 위 실선 · 「조건 N개, 결과 M건」 | 0 | 검색과 필터 바 | `handoff-kit-contract` |
+| 조건 줄(둘째 줄) | `FilterConditionLine` | `ui/FilterBar.jsx` | 조건이 있을 때만 · 위 실선 · 「조건 N개에 맞는 결과가 M건입니다.」(D-506, `filterSummaryText`) | 0 | 검색과 필터 바 | `handoff-kit-contract` |
 | 문맥 · 보기 줄 | `ContextBar` | `ui/ContextBar.jsx` | 「어느 판 · 어떻게 그리는가」 줄 — 문맥 칸(팀 · 회차 wide) · 보기 전환 · 「보기 옵션」 묶음(`role=group`), 줄 칸 문맥 · 크기 컨테이너, 검색 칸 · 조건 줄 없음, 필터 지우기가 안 건드린다(D-497) | 2 | — | `context-bar` |
 | 필터 켬/끔 · 패널 열기 | `FilterToggle` | `ui/FilterBar.jsx` | 34 버튼, aria-pressed / aria-expanded, 눌림만 함몰면 | 7 | 검색과 필터 바 | `handoff-kit-contract` |
 | 검색창 | `SearchBox` | `ui/filters.jsx` | 줄 칸 34, `layout=fill` 100% | 11 | 검색과 필터 바 | `handoff-kit-contract` |
@@ -432,7 +432,7 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   서버 `workspace_summary` 그대로) · 최근 열람(건수 없음). 필터 바 **위**에 선다(RULES §0). 보기도 조건이라 칩 · 조건 수 ·
   「필터 지우기」 계약은 그대로다.
 - **필터 바는 한 줄**: 검색 320 → 프로젝트 · 분류 · 태그 · 작성자(칸 안 이름 34) → 빈 공간 → `ToolbarEnd` 정렬. 조건이
-  하나라도 걸리면 실선 뒤 **조건 줄**(`FilterConditionLine` — 「조건 N개, 결과 M건」 → 칩 → 「필터 지우기」)이 필터 바 안에
+  하나라도 걸리면 실선 뒤 **조건 줄**(`FilterConditionLine` — 「조건 N개에 맞는 결과가 M건입니다.」 → 칩 → 「필터 지우기」)이 필터 바 안에
   선다(ACCEPTANCE D3). 목록 위 단독 「전체 N건」 줄은 없다 — UI 3차 C-1 이 걷었고(조건이 없을 때의 결과 수는 목록 판 발 「N건 중 M건을
   받았습니다.」가 말한다), 그래서 D3 이 「부분」이던 자리(조건 없는 화면의 면 밖 결과 줄)가 풀렸다. 줄 끝의 「필터 지우기」 글자 단추
   (`FilterActions`)는 조건 줄의 지우기로 합쳤다. 1920 은 한 줄이고, **1366 · 1200 은 두 줄로 접힌다** — 칸 폭 표(`ROW_KIND`: 검색 320 ·
@@ -534,7 +534,7 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 
 - **`FilterBar`(`ui/FilterBar.jsx`)가 목록 화면 탐색 줄의 한 벌이다.** 한 줄 = 검색(20rem 슬롯) → 내용 필터 칸 → 빈 공간 →
   `end`(정렬 · 보기 · 켬/끔 · 저장된 뷰), 아래 1px 실선. 조건 칩이 하나라도 있으면 같은 면 안 둘째 줄이 `FilterConditionLine` 이다:
-  「조건 N개, 결과 M건」(N = 칩 수) → 칩(`data-condition-chip`) → 지우기(`data-filter-clear`, 기존 낱말) → 덧붙는 글자 단추(「전체 보기」).
+  「조건 N개에 맞는 결과가 M건입니다.」(N = 칩 수) → 칩(`data-condition-chip`) → 지우기(`data-filter-clear`, 기존 낱말) → 덧붙는 글자 단추(「전체 보기」).
 - **모든 조건은 칩을 가진다.** 검색어 · 요약 카드로 켠 조건(프로젝트 「Health 하위」 · 「지연 마일스톤」) · 밖에서 넘어온 조건
   (팀 티켓 부서 · 사용자 부서) · registry 기본값(승인 대기 · 게시됨)도 칩이다. 문서의 프로젝트는 사람이 고른 자리일 때만 조건이다
   (프로젝트가 하나뿐인 조직에서 화면이 스스로 연 자리는 조건이 아니다 — D-388 을 잇는다).

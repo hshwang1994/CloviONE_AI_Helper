@@ -17,7 +17,7 @@ import { pairTracks } from "../ui/density.js";
  * 각 결함의 **원인 값**을 직접 확인한다.
  */
 
-describe("개수 열은 가운데 정렬 + 자릿수 고정이다 (numeric_alignment)", () => {
+describe("개수 열은 오른쪽 정렬 + 자릿수 고정이다 (numeric_alignment · D-506)", () => {
   /* 부서·직책의 인원 열만 어휘를 안 쓰고 있었다 — 42페이지에서 실패했다.
      (부서 표는 조직 콘솔 재구성으로 registry 를 떠났다 — 규칙은 남은 직책이 진다.) */
   it.each([
@@ -29,14 +29,14 @@ describe("개수 열은 가운데 정렬 + 자릿수 고정이다 (numeric_align
     expect(col, `${key} 에 ${colKey} 열이 없다`).toBeTruthy();
     expect(col.type).toBe("count");
     const resolved = resolveColumn(col);
-    expect(resolved.align).toBe("center");
+    expect(resolved.align).toBe("right");
     expect(resolved.numeric).toBe(true);
   });
 
-  it("반대 방향 — 어휘 자체가 가운데 정렬·자릿수 고정을 함께 준다", () => {
+  it("반대 방향 — 어휘 자체가 오른쪽 정렬과 자릿수 고정을 함께 준다", () => {
     // 이 사례가 없으면 위 둘은 «count 라고 적었다» 까지만 증명한다.
     // 우정렬에서 가운데로 옮긴 것은 지시 6·13 이고, 자릿수 고정은 그대로 남는다.
-    expect(COLUMN_TYPES.count.align).toBe("center");
+    expect(COLUMN_TYPES.count.align).toBe("right");
     expect(COLUMN_TYPES.count.numeric).toBe(true);
   });
 });

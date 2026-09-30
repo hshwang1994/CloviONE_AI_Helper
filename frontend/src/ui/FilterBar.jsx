@@ -5,6 +5,7 @@ import Typography from "@mui/material/Typography";
 import { Button } from "./kit.jsx";
 import { FILTER_SURFACE_CONTAINER, FilterRowContext } from "./filters.jsx";
 import { BREAKPOINTS, CONTROL, FONT_SIZE, FONT_WEIGHT, RADIUS, remPx } from "./theme.js";
+import { hasFinalConsonant } from "../lib/format.js";
 
 /* 탐색 줄 — 목록 화면의 «어떻게 볼지»(도구)와 «무엇을 볼지»(필터)를 담는 자리.
  *
@@ -217,7 +218,21 @@ export function FilterActions({ children, sx }) {
 /* `text` — 화면이 이미 쓰던 결과 문장(「총 N건 가운데 M건을 보여 줍니다.」 · 「총 N건, 짧은 검색어라
    부분 일치로 찾았습니다」)을 그대로 세운다(계획 P-21 — 문구를 통일하지 않는다). 문장을 준 화면은
    0건이어도 그 문장을 말한다 — 원래 그랬다. */
-export function ResultLine({ total, unit = "건", conditions, action, text, sx }) {
+/* 조건과 결과를 **한 문장**으로 말한다 (계획 2.2).
+ *
+ * 예전 문구 「조건 2개, 결과 3건」은 쉼표로 이은 두 조각이라 "조건 2개" 가 무엇을 뜻하는지 읽는
+ * 사람이 짐작해야 했다. 지금은 완전한 문장이다: 「조건 2개에 맞는 결과가 3건입니다.」 조건이 없으면
+ * 「전체 12건입니다.」다. 셀 대상이 결과가 아니라 부서처럼 이름이 있으면 `noun` 으로 주고
+ * 조사는 받침으로 고른다(「부서가」 · 「티켓이」). 단위는 `unit` 이다. */
+export function filterSummaryText({ count, total, unit = "건", noun = "결과" }) {
+  if (total == null) return "세는 중…";
+  const amount = total.toLocaleString("ko-KR") + unit;
+  if (!count) return `전체 ${amount}입니다.`;
+  const particle = hasFinalConsonant(noun) ? "이" : "가";
+  return `조건 ${count}개에 맞는 ${noun}${particle} ${amount}입니다.`;
+}
+
+export function ResultLine({ total, unit = "건", noun = "결과", conditions, action, text, sx }) {
   const has = Array.isArray(conditions) ? conditions.filter(Boolean) : [];
   /* 조건도 없고 결과도 0 이면 그리지 않는다 — 그 자리에는 이미 빈 상태가 «왜 비었는지» 를
      말하고 있고, 그 위에 「전체 0건」을 한 줄 더 얹으면 같은 사실이 두 번 나온다.
@@ -230,11 +245,7 @@ export function ResultLine({ total, unit = "건", conditions, action, text, sx }
       sx={{ display: "flex", alignItems: "baseline", gap: 1.5, flexWrap: "wrap", mb: 1.5, ...sx }}
     >
       <Typography variant="body2" color="text.secondary" aria-live="polite">
-        {text || (total == null
-          ? "세는 중…"
-          : has.length
-            ? `조건 ${has.length}개, 결과 ${total.toLocaleString("ko-KR")}${unit}`
-            : `전체 ${total.toLocaleString("ko-KR")}${unit}`)}
+        {text || filterSummaryText({ count: has.length, total, unit, noun })}
       </Typography>
       {action}
     </Box>
@@ -288,7 +299,7 @@ const CONDITION_ACTION_SX = { color: "primary.dark" };
  *
  * 결과 수의 자리는 여기와 목록 판 발 둘뿐이다. 목록 위 단독 「전체 N건」 줄은 걷었다 — 발의
  * 「N건 중 M건을 받았습니다.」가 같은 수를 말한다. */
-export function FilterConditionLine({ total, unit = "건", chips, onClearAll, clearLabel = "필터 초기화", extraAction }) {
+export function FilterConditionLine({ total, unit = "건", noun = "결과", chips, onClearAll, clearLabel = "필터 초기화", extraAction }) {
   const list = Array.isArray(chips) ? chips.filter((c) => c && c.label) : [];
   if (!list.length) return null;
   return (
@@ -303,7 +314,7 @@ export function FilterConditionLine({ total, unit = "건", chips, onClearAll, cl
         aria-live="polite"
         sx={{ marginInlineEnd: 0.5, whiteSpace: "nowrap" }}
       >
-        {total == null ? "세는 중…" : `조건 ${list.length}개, 결과 ${total.toLocaleString("ko-KR")}${unit}`}
+        {filterSummaryText({ count: list.length, total, unit, noun })}
       </Typography>
       {list.map((chip) => (
         <Chip
@@ -346,7 +357,7 @@ export function FilterConditionLine({ total, unit = "건", chips, onClearAll, cl
  *   search      `SearchBox` 하나(없으면 생략)
  *   children    내용 필터 칸(순서는 `FILTER_GROUP_ORDER`)
  *   end         오른쪽 끝 묶음
- *   conditions  `{ chips, total, unit, onClearAll, clearLabel, extraAction: { label, onClick } }`
+ *   conditions  `{ chips, total, unit, noun, onClearAll, clearLabel, extraAction: { label, onClick } }`
  *   divider     아래 실선. 서랍 안 필터처럼 목록과 가를 선이 필요 없는 자리만 `false`
  *
  * 낱개 부품은 이 조합 안에서만 쓴다. 대장 예외(`docs/ui-renewal/COMPONENT_LEDGER.md` 「조합 예외」)만 낱개를

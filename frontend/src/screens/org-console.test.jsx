@@ -505,7 +505,7 @@ describe("레일 판 머리의 검색과 「사용」", () => {
     // 맞는 노드와 그 조상은 남는다 — 조상을 지우면 어디 소속인지 알 수 없게 된다.
     expect(await node("개발팀")).toBeInTheDocument();
     expect(await node("클로비원")).toBeInTheDocument();
-    expect(await within(tree()).findByText("조건 1개, 결과 1개 부서", {}, WAIT)).toBeInTheDocument();
+    expect(await within(tree()).findByText("조건 1개에 맞는 부서가 1개입니다.", {}, WAIT)).toBeInTheDocument();
   });
 
   it("레일 판은 고정 머리 아래에 붙박인다 — `top: 0` 이면 판 윗부분이 머리 뒤로 들어간다", async () => {

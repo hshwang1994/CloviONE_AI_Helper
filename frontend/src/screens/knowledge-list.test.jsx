@@ -177,7 +177,7 @@ describe("문서 목록의 묶음 이어 받기", () => {
     /* 「이 조건에 몇 건인가」는 필터 면 안 조건 줄이, 「그중 몇 건을 받았는가」는 목록 끝 줄이 말한다. 목록 위 단독
        「전체 N건」 줄은 없다(조합 계약 C-1). 이 화면은 「프로젝트 미지정」을 고른 채 열리므로 조건이 하나다. */
     await waitFor(() => expect(document.querySelector("[data-condition-count]")).not.toBeNull());
-    expect(document.querySelector("[data-condition-count]").textContent).toBe("조건 1개, 결과 110건");
+    expect(document.querySelector("[data-condition-count]").textContent).toBe("조건 1개에 맞는 결과가 110건입니다.");
     expect(screen.queryByText(/전체 110건/)).toBeNull();
     expect(documentCalls()[0]).toContain(`limit=${PAGE}`);
     expect(documentCalls()[0]).toContain("offset=0");
@@ -375,7 +375,7 @@ describe("보기 전환 — 세그먼티드 하나가 요약 넷과 「보기」
     // 조건이라 칩이 둘이고 조건 수는 칩 수다(조합 계약 C-1).
     const line = document.querySelector("[data-condition-line]");
     expect(line).toBeTruthy();
-    expect(line.textContent).toContain("조건 2개, 결과");
+    expect(line.textContent).toContain("조건 2개에 맞는 결과가");
     const chipNames = [...line.querySelectorAll("[data-condition-chip]")].map((c) => c.textContent);
     expect(chipNames).toEqual(["보기: 내 초안", "프로젝트: 프로젝트 미지정"]);
     await userEvent.click(within(line).getByRole("button", { name: "필터 지우기" }));
@@ -418,7 +418,7 @@ describe("필터 바 — 한 줄 순서와 조건 줄 (핸드오프 README §3 �
     const line = surface.querySelector("[data-condition-line]");
     expect(line).not.toBeNull();
     expect(surface.lastElementChild).toBe(line);
-    expect(line.querySelector("[data-condition-count]").textContent).toBe("조건 1개, 결과 110건");
+    expect(line.querySelector("[data-condition-count]").textContent).toBe("조건 1개에 맞는 결과가 110건입니다.");
     expect([...line.querySelectorAll("[data-condition-chip]")].map((c) => c.textContent)).toEqual(["프로젝트: 프로젝트 미지정"]);
     expect(screen.queryByText(/전체 110건/)).toBeNull();
     // 정렬은 오른쪽 끝 묶음이라 칸 흐름의 마지막이다.

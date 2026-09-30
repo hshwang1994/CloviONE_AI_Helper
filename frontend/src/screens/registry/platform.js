@@ -22,6 +22,7 @@ const QUOTA_TARGET_STATE = {
 
 export const PLATFORM_SCREENS = {
   backup: {
+    smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "backup", area: "운영", title: "백업", endpoint: "/api/admin/backups",
     // 백업 하나는 파일 하나가 아니라 **세트 디렉터리**다(S12) — 덤프 + 매니페스트 +
     // 체크섬. 매니페스트에는 스키마 판과 «무엇이 안 담겼는가» 가 적혀 있고, 그 파일이
@@ -122,7 +123,7 @@ export const PLATFORM_SCREENS = {
     } }, badgeCol("status", "상태"), { key: "size_bytes", label: "크기", type: "number", render: (r) => fmtBytes(r.size_bytes) },
       // 파일 이름은 산문이 아니라 토큰이다 — `identifier` 다. 산문(`text`)으로 두면 제목이 없는 이 표에서
       // 남는 폭을 가져가(D-501) 「db.dump」 하나가 1,000px 칸 가운데에 떠 있게 된다.
-      { key: "path", label: "파일", type: "identifier", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } },
+      { key: "path", label: "파일", type: "path", render: (r) => { const p = r.path; if (p == null || p === "") return "-"; const s = String(p); const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\")); return i >= 0 ? s.slice(i + 1) : s; } },
       // 「성공한 백업」과 「지금 되돌릴 수 있는 백업」은 다르다. 내려받고 서버에서 지운
       // 백업은 전자이지 후자가 아니고, 그 차이가 목록에서 보여야 한다.
       // 🔴 `type:"text"` 였다. 이 칸에 들어가는 것은 산문이 아니라 **배지**인데, `text` 는
@@ -206,6 +207,7 @@ export const PLATFORM_SCREENS = {
     ],
   },
   "restore-drills": {
+    smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "restore-drills", area: "운영", title: "복구 리허설",
     endpoint: "/api/admin/backups/rehearsals",
     help: "백업은 복원해 본 적이 없으면 백업이 아닙니다. 리허설은 백업을 임시 데이터베이스로 실제로 되돌려 무결성, 행 수, 스키마를 대조하고, 복원본으로 앱을 띄워 읽기 경로까지 확인합니다. 앱이 스스로 돌리지 않으므로(메모리를 두 배로 쓰기 때문) 서버에서 명령을 실행하면 결과가 여기에 남습니다. 목록에는 최근 20건까지만 표시됩니다.",
@@ -359,6 +361,7 @@ export const PLATFORM_SCREENS = {
     ],
   },
   "ai-quotas": {
+    smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "ai-quotas", area: "AI", title: "AI 사용 상한",
     endpoint: "/api/admin/ai-quotas",
     /* 범위가 «사용자» 일 때 그 사람을 고르기 위한 후보(W5) — 예전에는 ID 를 복사해 왔다.

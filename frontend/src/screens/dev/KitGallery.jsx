@@ -210,7 +210,7 @@ const LIST_TICKETS = [
 function listTicketColumns(pick) {
   return [
     selectionColumn(pick, LIST_TICKETS.map((t) => t.id)),
-    { key: "key", label: "티켓", type: "identifier", sortable: true, nowrap: true, width: "9rem" },
+    { key: "key", label: "티켓", type: "code", sortable: true, nowrap: true, width: "9rem" },
     { key: "title", label: "제목", type: "title", sortable: true, rowName: (t) => t.title, render: (t) => <TitleCell title={t.title} onOpen={() => {}} /> },
     { key: "status", label: "상태", type: "status", sortable: true, filter: { kind: "enum", field: "status" }, render: (t) => <DotLabel label={t.status} tone={t.tone} /> },
     { key: "priority", label: "우선순위", type: "status", sortable: true, render: (t) => <DotLabel label={t.priority} tone={t.ptone} /> },

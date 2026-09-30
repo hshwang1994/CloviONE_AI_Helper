@@ -197,7 +197,7 @@ MEASURE_JS = r"""() => {
     const chips = cline.querySelectorAll('[data-condition-chip]').length;
     out.conditionText = count ? (count.innerText || '').trim().slice(0, 40) : '';
     const m = out.conditionText.match(/조건\s*([\d,]+)\s*개/);
-    if (!m) out.fails.push('조건 줄에 「조건 N개, 결과 M건」이 없다');
+    if (!m) out.fails.push('조건 줄에 「조건 N개에 맞는 결과가 M건입니다.」가 없다');
     else if (Number(m[1].replace(/,/g, '')) !== chips) out.fails.push('조건 수 ' + m[1] + ' ≠ 칩 ' + chips);
     const clear = cline.querySelector('[data-filter-clear]');
     if (clear) {

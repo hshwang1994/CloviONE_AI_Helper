@@ -206,7 +206,8 @@ export function OrgConsole() {
       conditions={{
         chips: conditionChips,
         total: visibleDeptCount,
-        unit: "개 부서",
+        unit: "개",
+        noun: "부서",
         onClearAll: hasFilter ? () => setCondition({ q: "", active: "" }) : null,
         clearLabel: "필터 지우기",
       }}

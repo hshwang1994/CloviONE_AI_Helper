@@ -53,7 +53,7 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
   }
 
   const columns = [
-    { key: "version", label: "버전", type: "identifier" },
+    { key: "version", label: "버전", type: "code" },
     // 스냅샷은 '교체된(이전) 값'이라 '값'으로 두면 '그 시각에 설정된 값'으로 오독된다 — '이전 값'으로 명확히 한다.
     { key: "value", label: "이전 값", type: "text", render: (r) => { const v = r.snapshot ? r.snapshot.value : undefined; return summarizeSetting(settingKey, v) || displayValue(v); } },
     { key: "created_at", label: "변경 시각", type: "datetime", nowrap: true, render: (r) => <DateCell value={r.created_at} /> },

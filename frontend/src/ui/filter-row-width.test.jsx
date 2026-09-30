@@ -191,7 +191,7 @@ describe("TicketFilterBar — 공유 탐색 줄 계약을 실제로 쓴다", () 
     const surface = container.querySelector("[data-filter-surface]");
     const line = surface.querySelector("[data-condition-line]");
     expect(line).toBeTruthy();
-    expect(line.querySelector("[data-condition-count]").textContent).toBe("조건 1개, 결과 7건");
+    expect(line.querySelector("[data-condition-count]").textContent).toBe("조건 1개에 맞는 결과가 7건입니다.");
     expect(line.querySelectorAll("[data-condition-chip]")).toHaveLength(1);
     // 조건 줄은 면의 마지막 줄이다.
     expect(surface.lastElementChild).toBe(line);

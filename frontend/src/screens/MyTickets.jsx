@@ -169,7 +169,7 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, claimingId = null
     /* 번호는 `AAAAAA-123456` 같이 접두 여섯 + 숫자 여섯까지 한 줄이다. 예전 7rem 은
        접두가 긴 값이 두 줄로 접혀 행 높이가 들쭉날쭉했다. 식별자 기본(anywhere)은
        끄고, 폭이 모자라면 표를 가로로 민다. */
-    { key: "tid", label: "티켓", type: "identifier",
+    { key: "tid", label: "티켓", type: "code",
       width: compact ? "8.5rem" : "10rem", minWidth: compact ? "8.5rem" : "10rem",
       nowrap: true, sortable: true, render: (t) => ticketId(t) },
     // minWidth: 제목 열이 절대 그 아래로 줄지 않는 폭. 나머지 열이 전부 고정폭 + nowrap 이라,

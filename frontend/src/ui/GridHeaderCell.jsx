@@ -1,7 +1,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import { headerAlignOf } from "./columnTypes.js";
-import { HeaderCellContent, headerSortOf, headerTitleOf } from "./TableHeaderCell.jsx";
+import { HeaderCellContent, headerSortOf, headerTitleOf, JUSTIFY_OF } from "./TableHeaderCell.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "./theme.js";
 
 /* 격자 머리 칸 — 표가 아닌 격자의 머리 줄이 **표 머리와 같은 칸**을 쓴다 (D-497).
@@ -42,7 +42,7 @@ export function GridHeaderCell({
         ...HEAD_TEXT_SX,
         display: "flex",
         alignItems: "center",
-        justifyContent: align === "left" ? "flex-start" : "center",
+        justifyContent: JUSTIFY_OF[align] || "center",
         minWidth: 0,
         ...sx,
       }}

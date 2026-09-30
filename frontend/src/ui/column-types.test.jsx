@@ -17,7 +17,7 @@ import { render, screen } from "@testing-library/react";
  * 제목 열 머리글 단언이 alignCenter 에서 alignLeft 로 옮겼고, 머리와 몸이 열마다 같은 축인지 단언을 더했다.
  */
 
-import { COLUMN_TYPES, assignLeftoverWidth, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, tableMinWidth } from "./columnTypes.js";
+import { COLUMN_TYPES, assignLeftoverWidth, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, tableMinWidth, ALIGN_BY_TYPE } from "./columnTypes.js";
 import { DataTable, tableLayoutSx } from "./kit.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
 
@@ -172,46 +172,41 @@ describe("남는 폭은 읽는 열이 갖는다 (D-501)", () => {
 });
 
 describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () => {
-  it("개수·비율은 가운데이고 자릿수를 고정한다", () => {
+  it("비교하는 수(개수 · 수치 · 비율 · 점수)는 오른쪽이고 자릿수를 고정한다 (D-506)", () => {
     for (const t of ["count", "number", "percent", "score"]) {
-      expect(COLUMN_TYPES[t].align, t).toBe("center");
+      expect(COLUMN_TYPES[t].align, t).toBe("right");
       expect(COLUMN_TYPES[t].numeric, t).toBe(true);
     }
   });
 
-  it("왼쪽은 제목 하나뿐이다 (2026-09-06 지시)", () => {
-    /* 제목은 표당 하나이고(`SINGLETON_TYPES`) 남는 폭을 전부 가져 값이 실제로 칸을
-       채운다 — 가운데에 두면 행마다 시작점이 크게 흔들린다. 그래서 이 열만 왼쪽이다. */
-    expect(COLUMN_TYPES.title.align).toBe("left");
-
-    // 반례 — 예전에 함께 왼쪽이던 둘은 이제 가운데다. 한쪽만 재면 「전부 왼쪽」도 통과한다.
-    for (const t of ["name", "text"]) {
-      expect(COLUMN_TYPES[t].align, t).toBe("center");
+  it("읽는 글(제목 · 이름 · 긴 토큰 · 설명 · 경로)은 왼쪽이다 (D-506)", () => {
+    for (const t of ["title", "name", "identifier", "text", "path"]) {
+      expect(COLUMN_TYPES[t].align, t).toBe("left");
     }
-
-    // 그리고 어휘 전체에서 왼쪽인 것이 정확히 하나다 — 새 타입이 조용히 왼쪽으로 들어오면
-    // 표에 축이 둘 생긴다(머리글은 언제나 가운데다).
-    const left = Object.keys(COLUMN_TYPES).filter((t) => COLUMN_TYPES[t].align === "left");
-    expect(left).toEqual(["title"]);
   });
 
-  it("보는 열은 가운데에 선다 — 티켓 ID·상태·짧은 닫힌 집합·날짜·행 동작", () => {
-    for (const t of ["identifier", "status", "enum", "date", "datetime", "actions"]) {
+  it("보는 값(상태 · 닫힌 집합 · 날짜 · 짧은 코드 · 행 동작 · 선택)은 가운데다", () => {
+    for (const t of ["status", "enum", "date", "datetime", "code", "actions", "select"]) {
       expect(COLUMN_TYPES[t].align, t).toBe("center");
     }
-    // 식별자형 숫자도 자릿수는 고정한다 — 값이 칸 안에서 흔들리지 않게.
-    expect(COLUMN_TYPES.identifier.numeric).toBe(true);
+    // 짧은 코드(티켓 번호 · 버전)는 자릿수를 고정한다 — 값이 칸 안에서 흔들리지 않게.
+    expect(COLUMN_TYPES.code.numeric).toBe(true);
+  });
+
+  it("모든 타입이 세 축 중 하나를 갖는다 — 새 타입이 축 없이 들어오지 못한다", () => {
+    for (const [t, a] of Object.entries(ALIGN_BY_TYPE)) {
+      expect(["left", "center", "right"], t).toContain(a);
+    }
   });
 
   it("옛 `identifier: true` 플래그는 그대로 산다", () => {
     const got = resolveColumn({ key: "email", label: "이메일", identifier: true });
     expect(got.minWidth).toBe(COLUMN_TYPES.identifier.minWidth);
     expect(got.identifier).toBe(true);
+    expect(got.align).toBe("left");
   });
 
-  it("`type` 을 안 준 열도 가운데다 — 타입이 없다고 축이 달라지지 않는다", () => {
-    /* 타입을 안 준 열만 왼쪽이면 같은 표 안에서 이유 없이 그 열 하나만 삐져 나온다.
-       값이 산문이라 왼쪽이 필요하면 정렬이 아니라 타입을 준다(`type: "text"`). */
+  it("`type` 을 안 준 열은 가운데다 — 값이 글이면 타입을 준다", () => {
     const got = resolveColumn({ key: "x", label: "무엇" });
     expect(got.align).toBe("center");
     expect(got.numeric).toBe(false);
@@ -219,18 +214,16 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
     expect(got.width).toBeUndefined();
   });
 
-  it("반례 — 호출부가 왼쪽을 적으면 그것이 이긴다", () => {
-    // 어휘를 가운데로 모았다고 화면이 자기 사정을 못 적게 되는 것은 아니다.
-    expect(resolveColumn({ key: "x", label: "무엇", align: "left" }).align).toBe("left");
-  });
-
-  it("호출부가 적은 값이 어휘표를 이긴다", () => {
+  it("🔴 화면이 적은 `align` 은 무시된다 — 정렬은 언제나 타입이 정한다", () => {
+    // 화면마다 정렬을 고르면 같은 뜻의 열이 화면마다 다른 축에 선다(D-506).
+    expect(resolveColumn({ key: "x", label: "무엇", align: "left" }).align).toBe("center");
     const got = resolveColumn({ key: "d", label: "날짜", type: "date", align: "right", minWidth: "20rem" });
-    expect(got.align).toBe("right");
+    expect(got.align).toBe("center");
+    // 폭은 여전히 호출부가 이긴다.
     expect(got.minWidth).toBe("20rem");
   });
 
-  it("개수 열의 `td` 자신이 자릿수 고정을 든다", () => {
+  it("개수 열의 `td` 자신이 오른쪽 정렬과 자릿수 고정을 든다", () => {
     // 안쪽 `<span>` 에만 걸면 QA 는 셀의 computed style 을 읽으므로 «없다» 고 본다.
     draw(<DataTable
       columns={[{ key: "n", label: "조회", type: "count" }]}
@@ -238,15 +231,13 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
       rowKey={(r) => r.n}
     />);
     const cell = screen.getByText("340").closest("td");
-    expect(cell.getAttribute("class")).toContain("MuiTableCell-alignCenter");
-    // 인라인 style 이 아니라 주입된 규칙으로 붙는다 — 브라우저가 실제로 계산하는 값을 본다
-    // (QA 프로브도 `getComputedStyle(td)` 를 읽는다).
+    expect(cell.getAttribute("class")).toContain("MuiTableCell-alignRight");
     expect(getComputedStyle(cell).fontVariantNumeric).toContain("tabular-nums");
   });
 
   it("식별자 열은 표식을 **실제로 내보낸다**", () => {
     draw(<DataTable
-      columns={[{ key: "tid", label: "티켓", type: "identifier" }]}
+      columns={[{ key: "tid", label: "티켓", type: "code" }]}
       rows={[{ tid: "ABC-1" }]}
       rowKey={(r) => r.tid}
     />);
@@ -254,25 +245,28 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
     expect(screen.getByText("ABC-1").closest("td").getAttribute("data-col-role")).toBe("identifier");
   });
 
-  it("머리글은 **자기 열의 몸통과 같은 축**이다 — 제목만 왼쪽, 나머지 가운데 (핸드오프 E2)", () => {
-    /* 예전 계약은 「머리글은 언제나 가운데」였다. 그러면 제목 열의 이름만 가운데에 떠서 그 아래
-       왼쪽에 붙은 제목들과 축이 갈렸다 — 핸드오프 갤러리 지시 [2] 가 이름으로 짚은 자리다. */
+  it("머리글은 **자기 열의 몸통과 같은 축**이다 — 왼쪽 · 가운데 · 오른쪽 셋 다 (핸드오프 E2 · D-506)", () => {
     draw(<DataTable
       columns={[
         { key: "t", label: "제목", type: "title" },
+        { key: "s", label: "상태", type: "status" },
         { key: "n", label: "건수", type: "count" },
       ]}
-      rows={[{ t: "가", n: 1 }]}
+      rows={[{ t: "가", s: "완료", n: 1 }]}
       rowKey={() => "r"}
     />);
     expect(screen.getByText("제목").closest("th").getAttribute("class")).toContain("alignLeft");
-    expect(screen.getByText("건수").closest("th").getAttribute("class")).toContain("alignCenter");
-    // 몸통은 의미대로 갈리고, 머리와 같은 축이다.
+    expect(screen.getByText("상태").closest("th").getAttribute("class")).toContain("alignCenter");
+    expect(screen.getByText("건수").closest("th").getAttribute("class")).toContain("alignRight");
     expect(screen.getByText("가").closest("td").getAttribute("class")).toContain("alignLeft");
-    expect(screen.getByText("1").closest("td").getAttribute("class")).toContain("alignCenter");
-    const heads = [...document.querySelectorAll("thead th")].map((th) => /alignLeft/.test(th.className));
-    const cells = [...document.querySelectorAll("tbody tr:first-child td")].map((td) => /alignLeft/.test(td.className));
+    expect(screen.getByText("완료").closest("td").getAttribute("class")).toContain("alignCenter");
+    expect(screen.getByText("1").closest("td").getAttribute("class")).toContain("alignRight");
+    const axis = (el) => (/alignLeft/.test(el.className) ? "l" : /alignRight/.test(el.className) ? "r" : "c");
+    const heads = [...document.querySelectorAll("thead th")].map(axis);
+    const cells = [...document.querySelectorAll("tbody tr:first-child td")].map(axis);
     expect(heads).toEqual(cells);
+    // 오른쪽 열의 머리 덩어리(이름 + 조작기)도 오른쪽 끝에 선다.
+    expect(getComputedStyle(screen.getByText("건수").closest("th").firstElementChild).justifyContent).toBe("flex-end");
   });
 
   it("정렬·필터 조작기는 이름과 한 덩어리로 칸 가운데에 선다", () => {

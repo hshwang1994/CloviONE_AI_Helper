@@ -169,7 +169,7 @@ describe("작업 보드 — 데이터 필터는 한 줄이고 보기 옵션은 �
     await waitFor(() => expect(here()).toContain("mine=1"));
     expect(screen.getByRole("button", { name: "내 티켓만" })).toHaveAttribute("aria-pressed", "true");
     expect(chipTexts()).toEqual(["검색: 로그"]);
-    expect(conditionLine().querySelector("[data-condition-count]").textContent).toMatch(/^조건 1개, /);
+    expect(conditionLine().querySelector("[data-condition-count]").textContent).toMatch(/^조건 1개에 맞는 /);
     await waitFor(() => expect(lastBoard().get("mine")).toBe("true"));
   });
 
@@ -178,7 +178,7 @@ describe("작업 보드 — 데이터 필터는 한 줄이고 보기 옵션은 �
     renderBoard("/work-board?team=d-a&sprint=sp-a&hold=1&all=1&mine=1&q=로그&project_id=p-a&priority=높음&signal=blocked&est_wd_min=1");
     await waitFor(() => expect(conditionLine()).not.toBeNull());
     await waitFor(() => expect(chipTexts()).toEqual(["우선순위: 높음", "신호: 차단됨", "프로젝트: A 프로젝트", "검색: 로그", "예상 WD: 1 ~ …"]));
-    expect(conditionLine().querySelector("[data-condition-count]").textContent).toBe("조건 5개, 결과 0건");
+    expect(conditionLine().querySelector("[data-condition-count]").textContent).toBe("조건 5개에 맞는 결과가 0건입니다.");
     // 조건 때문에 빈 판이라 빈 상태도 같은 지우기를 준다.
     expect(await screen.findByText("조건에 맞는 티켓이 없습니다.")).toBeInTheDocument();
 

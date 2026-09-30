@@ -14,6 +14,7 @@ import { ACTIVE_FILTER, activeToggle } from "./actions.js";
 
 export const ORG_SCREENS = {
   "job-titles": {
+    smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "job-titles", area: "사용자와 권한", title: "직책 관리", endpoint: "/api/admin/job-titles",
     help: "직책 이름을 한 곳에서 관리합니다. 사용자 폼의 '직책'은 여기 목록에서 고릅니다.", createLabel: "직책 추가",
     emptyTitle: "추가된 직책이 없습니다", emptyHelp: "‘+ 직책 추가’로 직책을 추가하면 사용자 폼의 ‘직책’ 목록에 바로 나타납니다.",

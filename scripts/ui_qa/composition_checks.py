@@ -625,7 +625,7 @@ def selftest_html() -> str:
           ${cell('entity', 208, 14, 6, 600, false, 'wide')}
         </div>
         <div data-condition-line="" style="display:flex;gap:8px;padding-top:12px;border-top:1px solid #e5e8f3">
-          <span>조건 2개, 결과 5건</span>
+          <span>조건 2개에 맞는 결과가 5건입니다.</span>
           <span data-condition-chip="" class="MuiChip-root" style="display:inline-flex;height:26px">상태: 진행</span>
           <span data-condition-chip="" class="MuiChip-root" style="display:inline-flex;height:26px">검색: 로그</span>
           <button data-filter-clear="" style="height:30px;border:0;background:none">필터 지우기</button>
@@ -662,7 +662,7 @@ def selftest_html() -> str:
         </div>
       </div>
       <div><span class="MuiChip-root" style="display:inline-flex;height:26px">종료 제외(기본값)</span></div>
-      <div data-result-line="">조건 1개, 결과 14건</div>
+      <div data-result-line="">조건 1개에 맞는 결과가 14건입니다.</div>
       <div class="MuiCard-root" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:20px">
         ${table('surface', true, 0, false, false, '<button style="height:30px;width:30px;margin-left:10px"><svg width="20" height="20"></svg></button><svg width="12" height="12" style="margin-left:12px"></svg>', true)}
       </div>

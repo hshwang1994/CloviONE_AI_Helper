@@ -207,7 +207,7 @@ function devCompletedColumns(defs) {
  * 표가 그 줄을 갖는다(`groupOf`)이라 위 두 표와 같은 부품이고, 폭·정렬·자릿수도 같은
  * 어휘표(`columnTypes.js`)에서 나온다. */
 const DEV_TICKET_COLUMNS = [
-  { key: "key", label: "번호", type: "identifier", help: "티켓 이름입니다(프로젝트 코드와 순번).",
+  { key: "key", label: "번호", type: "code", help: "티켓 이름입니다(프로젝트 코드와 순번).",
     render: (t) => t.key || "-" },
   { key: "title", label: "제목", type: "title", minWidth: "14rem", rowName: (t) => t.title },
   { key: "status", label: "상태", type: "status", help: "티켓의 진행 상태입니다.",

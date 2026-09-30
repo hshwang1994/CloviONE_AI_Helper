@@ -73,6 +73,9 @@ function SortGlyph({ dir, active }) {
  * 옆 머리글과 겹치지 않는다. 몸통 칸의 정렬은 여전히 안 받는다.
  *
  * 간격: 정렬 단추 안 이름 → 표지 4, 줄 안 이름(또는 정렬 단추) → 필터 단추 2 + 단추 안쪽 2 = 표지 사이 4. */
+/* 열의 축(left · center · right) → 한 덩어리(이름 + 조작기)를 세우는 자리. 몸통과 같은 축이다(D-506). */
+export const JUSTIFY_OF = { left: "flex-start", center: "center", right: "flex-end" };
+
 const HEADER_ROW_SX = {
   display: "flex",
   alignItems: "center",
@@ -126,7 +129,7 @@ export function HeaderCellContent({
           (박스가 내용보다 좁아지는 그 순간이 없으니, S19 가 겪은 "박스는 좁은데 글자만
           삐져나온다"도 다시 생기지 않는다). 정렬 표지·필터 단추는 여전히 `flexShrink:0`
           로 따로 보호된다. */}
-      <Box sx={align === "left" ? { ...HEADER_ROW_SX, justifyContent: "flex-start" } : HEADER_ROW_SX}>
+      <Box sx={{ ...HEADER_ROW_SX, justifyContent: JUSTIFY_OF[align] || "center" }}>
         {sortable ? (
           <Box
             component="button"

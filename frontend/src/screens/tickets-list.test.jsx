@@ -143,7 +143,7 @@ describe("내 티켓 — 목록", () => {
     await user.click(await screen.findByRole("option", { name: "완료" }));
 
     // 조건이 걸리면 그 사실이 건수 옆에 함께 선다 — 숫자만 보고 "왜 1건이지"를 되묻지 않게.
-    expect(await screen.findByText("조건 1개, 결과 1건")).toBeInTheDocument();
+    expect(await screen.findByText("조건 1개에 맞는 결과가 1건입니다.")).toBeInTheDocument();
     expect(screen.getByText("월간 리포트 오탈자")).toBeInTheDocument();
     expect(screen.queryByText("서버 등록 IP 중복 방지")).toBeNull();
     // 화면이 몰래 거른 것이 아니라 **서버에 물어본** 결과다.

@@ -69,6 +69,7 @@ function notificationsScreen({ key, audience, area, title, help, emptyHelp }) {
     emptyTitle: "새 알림이 없습니다",
     emptyHelp,
     paginated: true,
+    smallSet: true, // 조건이 켬/끔 하나라 저장할 조합이 없다(저장된 뷰 기준, D-506)
     // 목록 응답이 **이 audience 의** 안 읽음 수를 함께 돌려준다(app/notifications/router.py)
     // — 벨 팝오버의 '안 읽음 N'과 같은 값을 이 화면에서도 그대로 보여준다(행마다 배지를
     // 세지 않아도 되게). 한때 서버가 여기만 두 콘솔 합계를 실어, 관리 알림만 안 읽힌

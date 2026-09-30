@@ -250,7 +250,7 @@ describe("필터 바 — 줄 칸 · 토글 · 조건 줄", () => {
     expect(mine.className).toContain("MuiButton-sizeMedium");
   });
 
-  it("조건 줄은 조건이 있을 때만 서고 「조건 N개, 결과 M건」으로 시작한다", () => {
+  it("조건 줄은 조건이 있을 때만 서고 「조건 N개에 맞는 결과가 M건입니다.」로 시작한다", () => {
     const { container, rerender } = ui(<FilterConditionLine total={21} chips={[]} />);
     expect(container.querySelector("[data-condition-line]")).toBeNull();
     rerender(
@@ -258,7 +258,7 @@ describe("필터 바 — 줄 칸 · 토글 · 조건 줄", () => {
         <FilterConditionLine total={21} chips={[{ key: "s", label: "상태 계획", onDelete: () => {} }]} onClearAll={() => {}} />
       </ConfirmProvider></ToastProvider></ThemeModeProvider>,
     );
-    expect(screen.getByText("조건 1개, 결과 21건")).toBeInTheDocument();
+    expect(screen.getByText("조건 1개에 맞는 결과가 21건입니다.")).toBeInTheDocument();
     expect(getComputedStyle(container.querySelector("[data-condition-line]")).borderTopWidth).toBe("1px");
   });
 });

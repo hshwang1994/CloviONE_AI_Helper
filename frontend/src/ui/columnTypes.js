@@ -238,122 +238,88 @@ export const OVERFLOW = { ellipsis: "ellipsis", nowrap: "nowrap", anywhere: "any
  */
 /* ── 머리글은 **자기 열의 몸통과 같은 축**에 선다 (핸드오프 D-3 · ACCEPTANCE E2) ─────────
  *
- * 규칙은 하나다: **제목 열만 왼쪽, 나머지는 전부 가운데** — 머리와 행이 같다. 예전에는
- * 「머리글은 언제나 가운데」였고(2026-09-06), 그래서 제목 열의 이름만 가운데에 떠 그 아래 왼쪽에
- * 붙은 제목들과 축이 갈렸다(핸드오프 갤러리 지시 [2]: 「머리 줄 제목이 가운데로 보이면 고친다」).
- * 제목 말고는 전부 가운데라 머리글 줄이 들쭉날쭉해지는 문제는 생기지 않는다.
- * `HEADER_ALIGN` 은 제목이 아닌 열의 머리 정렬이고, 제목 열은 `headerAlignOf` 가 왼쪽을 준다.
+ * 머리와 몸이 열마다 같은 축이다 — 왼쪽 열은 머리도 왼쪽, 오른쪽 열은 머리도 오른쪽이다. 2026-09-06
+ * 에 「제목만 왼쪽, 나머지 가운데」로 모았던 까닭은 「머리글은 언제나 가운데, 몸은 왼쪽」이 축을 갈랐기
+ * 때문이다. 머리와 몸을 **함께** 옮기면 그 문제는 생기지 않는다.
  *
- * 정렬·필터 조작기는 이름과 **한 덩어리**로 칸 가운데에 선다. 이름만 따로 가운데에
- * 두고 조작기를 양옆 저울추로 밀면(`1fr auto 1fr`), 좁은 숫자 열에서 글자가 옆 칸과
- * 겹친다. `TableHeaderCell` 이 그 한 덩어리를 그린다.
+ * 정렬·필터 조작기는 이름과 **한 덩어리**로 그 열의 축에 선다. 이름만 따로 두고 조작기를 양옆
+ * 저울추로 밀면(`1fr auto 1fr`), 좁은 숫자 열에서 글자가 옆 칸과 겹친다. `TableHeaderCell` 이 그 한
+ * 덩어리를 그린다.
  */
 export const HEADER_ALIGN = "center";
 
-/** 이 열의 머리글 정렬 — 몸통이 왼쪽(제목)이면 왼쪽, 아니면 가운데. */
+/** 이 열의 머리글 정렬 — 몸통과 같다(left · center · right). */
 export function headerAlignOf(column) {
-  return resolveColumn(column || {}).align === "left" ? "left" : HEADER_ALIGN;
+  return resolveColumn(column || {}).align || HEADER_ALIGN;
 }
 
-/* ── 몸통 칸의 정렬 ────────────────────────────────────────────────────────
+/* ── 몸통 칸의 정렬 — **열의 의미가 정한다** (계획 2.9, D-506) ─────────────────────
  *
- * **제목만 왼쪽이고 나머지는 전부 가운데다** (2026-09-06 지시). 머리글이 언제나
- * 가운데이므로(`HEADER_ALIGN`), 이 규칙에서 머리와 몸이 같은 축에 선다.
+ * - **왼쪽(읽는 글)**: 제목 · 이름 · 이메일과 긴 토큰(identifier) · 설명과 원인(text) · 경로(path).
+ *   글은 왼쪽 모서리에서 읽기 시작한다. 가운데에 두면 행마다 시작점이 흔들리고, 앞이 같고 뒤가 갈리는
+ *   값(부서 경로, 파일 경로)은 왼쪽 모서리가 비교 수단이다.
+ * - **가운데(보는 값)**: 상태 · 짧은 닫힌 집합(enum) · 날짜와 시각 · 짧은 코드(티켓 번호, 버전) ·
+ *   행 동작 · 선택 칸. 폭이 거의 같은 짧은 값이라 칸 가운데가 가장 잘 보인다.
+ * - **오른쪽(비교하는 수)**: 개수 · 수치 · 비율 · 점수. 자릿수가 다른 값(1 과 1,240)을 세로로 비교하려면
+ *   끝자리가 맞아야 한다. `tabular-nums` 를 함께 건다.
  *
- * 예전에는 「읽는 것은 왼쪽, 보는 것은 가운데」였다 — 제목·이름·설명이 왼쪽,
- * 나머지가 가운데. 그 구분이 화면에서 만든 것은 **머리글과 값이 어긋난 열**이었다:
- * `/users` 의 「이름」은 자기 머리글보다 76px 왼쪽에 서 있었고,
- * `registry/platform.js` 는 같은 증상을 1920 에서 「머리 1677 / 값 1527」로 이미
- * 결함으로 적어 두었다. 열마다 축이 둘이면 눈이 표를 한 덩어리로 못 읽는다.
- *
- * 제목만 남긴 이유는 그 열이 다른 열과 성질이 다르기 때문이다. 표당 하나뿐이고
- * (`SINGLETON_TYPES`), 대개 남는 폭을 갖고, 값이 길어 실제로 칸을 채운다 — 가운데에
- * 두면 행마다 시작점이 크게 흔들린다. 나머지 열은 값이 짧아 그 흔들림이 작다
- * (기본 폭 9rem 이름 열 실측 16px).
- *
- * ⚠️ **수치 열의 우정렬도 가운데다** (2026-08-27 지시 6·13). 우정렬은 자릿수가
- * 다른 값을 세로로 비교하기에 낫고, 그것이 예전 계약이었다. 대신 `tabular-nums` 는
- * 그대로 둔다 — 자릿수가 같은 값끼리는 가운데에서도 세로로 맞는다. 자릿수가 크게
- * 다른 열(1 과 1,240)에서는 비교가 예전만 못하다는 것을 알고 고른 값이다.
- *
- * **아는 대가.** 앞이 같고 뒤가 갈리는 값(경로·페이로드)은 왼쪽 모서리가 비교
- * 수단이었다. 가운데로 가면 그 수단을 잃는다. 그 열들은 값이 길어 대개 말줄임이
- * 걸리므로(`columnShouldTruncate`) 전체를 볼 길은 `title` 속성과 상세로 남는다.
+ * 화면은 `align` 을 직접 적지 않는다(`resolveColumn` 이 호출부 값을 보지 않는다). 예외가 필요하면
+ * 그 뜻을 가진 타입을 이 표에 더한다 - 화면마다 정렬을 고르면 같은 뜻의 열이 화면마다 다른 축에 선다.
  */
 export const COLUMN_TYPES = {
   /* 표당 **하나**다. 그 행이 무엇인지 말하는 열이고, 폭 경쟁에서 가장 세다 — 호출부가 `width` 를
      적지 않으면 남는 폭을 갖는다(`columnLayoutWidth`). */
   title: { align: "left", numeric: false, minWidth: "16rem", overflow: OVERFLOW.word, identifying: true },
   /* 사람·프로젝트·조직 이름. 제목보다 짧고 한 줄로 읽힌다.
-     **폭 경쟁에 나서지 않는다**(`width: SHRINK`). 이름은 길어야 스무 글자인데 이 열이
-     `title` 과 함께 남는 폭을 나눠 가지면 둘이 반씩 갖는다 — 게시판에서 「작성자」가
-     740px 로 서고 제목이 같은 폭에서 잘렸다(S19 실측). 폭이 더 필요하면 그 화면이
-     `minWidth` 로 바닥을 올린다. 남는 폭은 읽는 열(제목, 그다음 산문)의 것이다(D-501). */
-  name: { align: "center", numeric: false, width: SHRINK, minWidth: "9rem", overflow: OVERFLOW.ellipsis, identifying: true },
-  /* 이메일·코드·UUID·티켓번호. 글자 단위로 끊어도 되는 유일한 부류다. 파일 이름 · 백업 이름처럼
-     낱말이 아니라 토큰인 값도 이 부류다 — 산문(`text`)으로 적으면 남는 폭을 가져간다. */
-  identifier: { align: "center", numeric: true, minWidth: IDENTIFIER_COL_MIN_WIDTH, overflow: OVERFLOW.anywhere, identifying: true },
+     **폭 경쟁에 나서지 않는다**(`width: SHRINK`). 남는 폭은 읽는 열(제목, 그다음 산문)의 것이다(D-501). */
+  name: { align: "left", numeric: false, width: SHRINK, minWidth: "9rem", overflow: OVERFLOW.ellipsis, identifying: true },
+  /* 이메일 · UUID · 파일 이름처럼 글자 단위로 끊어도 되는 긴 토큰. 짧은 코드(티켓 번호 · 버전)는 `code` 다. */
+  identifier: { align: "left", numeric: false, minWidth: IDENTIFIER_COL_MIN_WIDTH, overflow: OVERFLOW.anywhere, identifying: true },
+  /* 티켓 번호 · 버전 · Cron 식처럼 짧고 모양이 정해진 코드. 크기를 비교하지 않는다. */
+  code: { align: "center", numeric: true, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap, identifying: true },
   /* 설명·오류 원문. 전 행이 비면 수축 후보다(§collapse). 남는 폭을 먹는 열이 없는 표에서는
      마지막 산문 열이 그 폭을 갖는다(`assignLeftoverWidth`) — 읽어야 하는 글이 잘리는 자리다. */
-  text: { align: "center", numeric: false, minWidth: "12rem", overflow: OVERFLOW.ellipsis, collapsible: true },
+  text: { align: "left", numeric: false, minWidth: "12rem", overflow: OVERFLOW.ellipsis, collapsible: true },
+  /* 부서 경로 · 폴더 경로. 앞이 같고 뒤가 갈리는 값이라 왼쪽 모서리가 비교 수단이다. */
+  path: { align: "left", numeric: false, minWidth: "12rem", overflow: OVERFLOW.ellipsis },
   /* 상태 배지. 머리글이 「우선순위」처럼 네 글자면 5rem 으로는 정렬 화살표와 겹친다. */
   status: { align: "center", numeric: false, width: SHRINK, minWidth: "7.5rem", overflow: OVERFLOW.nowrap },
   /* 짧은 닫힌 집합(종류·범위·대상). 머리글 「난이도」+정렬이 한 줄로 서는 폭. */
   enum: { align: "center", numeric: false, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
-  /* 개수. **가운데 + 자릿수 고정.** 머리글 「조회」+정렬이 한 줄로 서는 폭. */
-  count: { align: "center", numeric: true, width: SHRINK, minWidth: "6rem", overflow: OVERFLOW.nowrap },
+  /* 개수. **오른쪽 + 자릿수 고정.** 머리글 「조회」+정렬이 한 줄로 서는 폭. */
+  count: { align: "right", numeric: true, width: SHRINK, minWidth: "6rem", overflow: OVERFLOW.nowrap },
   /* 크기·금액·공수처럼 단위가 붙는 수치. 머리글이 「예상 WD」처럼 두 토막이면 4rem 으로는
-     이름+정렬 화살표가 칸을 넘쳐 옆 열과 겹친다(`table-layout:fixed`). 바닥을 머리글이
-     한 줄로 서는 폭에 맞춘다. */
-  number: { align: "center", numeric: true, width: SHRINK, minWidth: "8rem", overflow: OVERFLOW.nowrap },
+     이름+정렬 화살표가 칸을 넘쳐 옆 열과 겹친다(`table-layout:fixed`). */
+  number: { align: "right", numeric: true, width: SHRINK, minWidth: "8rem", overflow: OVERFLOW.nowrap },
   /* 비율·점수. 머리글 「진행률」+정렬이 한 줄로 서는 폭. */
-  percent: { align: "center", numeric: true, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
-  score: { align: "center", numeric: true, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
-  /* 날짜·시각. 폭이 고정된 짧은 값이라 가운데다. 자릿수 고정은 그대로 붙는다 —
-     'YYYY-MM-DD' 는 자릿수가 언제나 같아서 가운데에서도 세로로 맞는다. */
+  percent: { align: "right", numeric: true, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
+  score: { align: "right", numeric: true, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
+  /* 날짜·시각. 폭이 고정된 짧은 값이라 가운데다. 자릿수 고정은 그대로 붙는다. */
   date: { align: "center", numeric: true, width: SHRINK, minWidth: "8.5rem", overflow: OVERFLOW.nowrap },
   datetime: { align: "center", numeric: true, width: SHRINK, minWidth: "11rem", overflow: OVERFLOW.nowrap },
-  /* 행 액션 묶음. 표의 마지막 열이고 칸 가운데에 선다. 머리글 「작업」·「결재」가 서는 폭. */
+  /* 행 액션 묶음. 표의 마지막 열이고 칸 가운데에 선다. */
   actions: { align: "center", numeric: false, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
-  /* 선택 체크박스처럼 라벨이 낱말이 아닌 열.
-     🔴 `left` 였다. 그런데 이 타입을 만드는 **유일한 자리**(`ui/bulkSelect.jsx`)는
-     `align: "center"` 를 직접 박고 있었다 — 어휘와 그 어휘의 유일한 생산자가 서로 다른
-     말을 하면 어휘가 아니다. 체크박스는 글이 아니라 표식이라 가운데가 맞다. */
+  /* 선택 체크박스처럼 라벨이 낱말이 아닌 열. 체크박스는 글이 아니라 표식이라 가운데다. */
   select: { align: "center", numeric: false, width: SHRINK, minWidth: "2.5rem", overflow: OVERFLOW.nowrap },
 };
 
 /** `type` 을 안 준 열이 받는 값.
  *
- * 가운데다 — 타입을 안 줬다고 축이 달라지면 같은 표 안에서 이유 없이 열 하나만 삐져
- * 나온다. 폭만 기본값(`DEFAULT_COL_MIN_WIDTH`)을 받는다. 값이 산문이면 타입을 주는
- * 것이 답이지 정렬로 때울 일이 아니다(`type: "text"`). */
+ * 가운데다. 값이 글이면 `type: "text"` 를, 수면 `type: "count"` 를 준다 — 정렬로 때울 일이 아니다. */
 const UNTYPED = { align: "center", numeric: false, minWidth: DEFAULT_COL_MIN_WIDTH, overflow: null };
 
-/** 자릿수를 세로로 맞춰야 하는 타입.
- *
- * 🔴 **지금 이것을 읽는 곳이 없다.** 예전 주석은 「시험과 `DataTable` 이 같은 목록을
- * 본다」고 했는데 둘 다 안 읽는다 — `DataTable` 은 열마다 `resolveColumn` 의 결과를
- * 그대로 쓰고, 시험은 타입 이름을 손으로 적는다. 파생 상수라 어휘를 고치면 자동으로
- * 따라오지만, 소비처가 생기기 전까지 이 목록은 아무것도 강제하지 않는다. 사실을
- * 적어 두는 이유는 다음 사람이 「이걸 고치면 저기가 따라 움직이겠지」로 읽지 않게
- * 하기 위해서다. */
+/** 자릿수를 세로로 맞춰야 하는 타입(파생 상수). */
 export const NUMERIC_TYPES = Object.freeze(
   Object.keys(COLUMN_TYPES).filter((k) => COLUMN_TYPES[k].numeric));
 
-/** 가운데 정렬인 타입 — 지금은 `title` 을 뺀 전부다.
- *
- * 🔴 **이것도 읽는 곳이 없다.** 예전 주석은 「`numeric_alignment` 가 재는 것과 같은
- * 집합이다」라고 했는데, 그 프로브(`scripts/ui_qa/assertions.py`)는 타입 이름을 아예
- * 모른다 — DOM 의 셀 글자와 계산된 스타일만 본다. 이름을 `END_ALIGNED_TYPES` 에서
- * 바꾼 것은 그대로 옳다(「끝에 붙인다」가 사실이 아니었다). 이름과 뜻이 갈린 상수는
- * 다음 사람이 읽고 반대로 고친다 — 주석과 사실이 갈린 상수도 같다. */
-export const CENTER_ALIGNED_TYPES = Object.freeze(
-  Object.keys(COLUMN_TYPES).filter((k) => COLUMN_TYPES[k].align === "center"));
+/** 타입별 정렬 표(파생 상수). 시험과 프로브가 같은 표를 읽는다. */
+export const ALIGN_BY_TYPE = Object.freeze(
+  Object.fromEntries(Object.keys(COLUMN_TYPES).map((k) => [k, COLUMN_TYPES[k].align])));
 
 /** 표당 하나만 허용하는 타입. 둘이면 무엇이 그 행의 이름인지 알 수 없다. */
 export const SINGLETON_TYPES = Object.freeze(["title"]);
 
-/* 열 하나를 해석한다 — **호출부의 명시 값이 언제나 이긴다.**
+/* 열 하나를 해석한다 — 폭은 호출부의 명시 값이 이기지만, **정렬은 언제나 타입이 정한다.**
  *
  * 옛 `identifier: true` 는 그대로 산다. 그 플래그는 «이 열이 행을 식별한다» 는 선언이고
  * 새 어휘의 `type:"identifier"` 와 같은 뜻이라, 둘 중 하나만 있어도 같은 결과를 준다.
@@ -362,18 +328,13 @@ export function resolveColumn(col) {
   const c = col || {};
   const key = c.type && COLUMN_TYPES[c.type] ? c.type : (c.identifier ? "identifier" : null);
   const spec = key ? COLUMN_TYPES[key] : UNTYPED;
-  const identifierLike = key === "identifier" || !!c.identifier;
-  /* **호출부가 폭을 적었으면 타입의 바닥값을 안 씌운다.**
-   *
-   * 바닥값은 아무 말도 안 한 열을 지키려고 있다. 그런데 「이 열은 7rem 이다」라고 잰 열에
-   * 12.5rem 바닥을 몰래 얹으면, 열이 자기가 적은 것보다 넓어지고 그 여유를 접히는 열에서
-   * 빼앗는다 — 홈의 티켓 표에서 「티켓」칸이 200px 를 11%만 채운 채 「제목」이 100% 접혔다
-   * (`column_width_vs_content` 실측). 바닥값을 원하면 `minWidth` 로 직접 적으면 된다. */
+  const identifierLike = key === "identifier" || key === "code" || !!c.identifier;
+  /* **호출부가 폭을 적었으면 타입의 바닥값을 안 씌운다.** 바닥값을 원하면 `minWidth` 로 직접 적는다. */
   const floor = c.minWidth != null ? c.minWidth
     : (c.width != null ? DEFAULT_COL_MIN_WIDTH : spec.minWidth);
   return {
     type: key,
-    align: c.align || spec.align,
+    align: spec.align,
     numeric: c.numeric != null ? !!c.numeric : !!spec.numeric,
     width: c.width != null ? c.width : spec.width,
     minWidth: floor,

@@ -234,7 +234,7 @@ function OffboardPlan({ preview, onDone, toast }) {
   const chosen = ids.filter((id) => selection.selected.has(id));
   const columns = [
     selectionColumn(selection, ids),
-    { key: "tid", label: "티켓", type: "identifier", render: (t) => t.key || "-" },
+    { key: "tid", label: "티켓", type: "code", render: (t) => t.key || "-" },
     { key: "title", label: "제목", type: "title" },
     { key: "status", label: "상태", type: "status", render: (t) => <Badge value={t.status} /> },
     { key: "due", label: "마감", type: "date", render: (t) => t.due || "-" },
@@ -411,7 +411,7 @@ function RunResult({ result }) {
 }
 
 const MOVE_COLUMNS = [
-  { key: "tid", label: "티켓", type: "identifier", render: (m) => m.key || m.ticket_page_id },
+  { key: "tid", label: "티켓", type: "code", render: (m) => m.key || m.ticket_page_id },
   { key: "title", label: "제목", type: "title", render: (m) => m.title || "-" },
   { key: "status", label: "결과", render: (m) => <Badge value={MOVE_STATUS_KO[m.status] || m.status} kind={MOVE_STATUS_KIND[m.status]} /> },
   /* 오류 원문이라 `text` 다 — 타입이 없으면 말줄임이 안 걸려 여러 줄로 접힌다. */
@@ -486,7 +486,7 @@ function RunHistory() {
       <Badge value={RUN_STATUS_KO[r.status] || r.status}
         kind={r.status === "completed" ? "ok" : r.status === "undone" ? "neutral" : "warn"} />
     ) },
-    { key: "ticket_moved", label: "티켓", type: "identifier", render: (r) => `${r.ticket_moved}/${r.ticket_total}` + (r.ticket_failed ? ` (실패 ${r.ticket_failed})` : "") },
+    { key: "ticket_moved", label: "티켓", type: "code", render: (r) => `${r.ticket_moved}/${r.ticket_total}` + (r.ticket_failed ? ` (실패 ${r.ticket_failed})` : "") },
     { key: "actor_name", label: "실행자", type: "name" },
   ];
 

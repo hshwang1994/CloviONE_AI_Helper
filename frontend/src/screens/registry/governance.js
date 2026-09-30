@@ -168,6 +168,7 @@ export const GOVERNANCE_SCREENS = {
     ],
   },
   "approval-delegations": {
+    smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "approval-delegations", area: "사용자와 권한", title: "승인 위임",
     endpoint: "/api/admin/approval-delegations",
     help: "결재자가 자리를 비우는 동안 다른 사람이 대신 승인할 수 있게 합니다. 위임을 받은 사람은 평소 승인 권한이 없어도 위임 기간에만 결재할 수 있고, 그 결재에는 누구를 대신했는지가 함께 기록됩니다. 기간이 지나면 저절로 닫힙니다.",
@@ -410,6 +411,7 @@ export const GOVERNANCE_SCREENS = {
     ],
   },
   "audit-anomalies": {
+    smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "audit-anomalies", area: "감사", title: "감사 이상 징후",
     endpoint: "/api/admin/audit/anomalies",
     help: "감사 로그에서 눈여겨볼 만한 것을 규칙으로 골라냅니다. 통계 모델이나 AI가 아니라 셀 수 있는 사실만 봅니다. 그래서 같은 데이터면 언제 열어도 같은 결과가 나오고, 각 항목에 왜 걸렸는지(근거, 임계값)가 함께 표시됩니다. 여기 걸렸다고 곧바로 문제인 것은 아니며, 확인할 대상을 좁혀 주는 목록입니다.",
@@ -498,7 +500,6 @@ export const GOVERNANCE_SCREENS = {
               React.createElement("span", null, role.label),
             )
           : role.label,
-        align: "center",
         render: (r) => (r.allowed || []).includes(role.value)
           ? React.createElement(Badge, { value: "허용", kind: "ok" })
           : React.createElement("span", { "aria-label": "허용 안 됨" }, "—")  // clovi-allow-glyph: 권한 매트릭스의 '허용 안 됨' 표시. 글리프 자체가 내용이다,

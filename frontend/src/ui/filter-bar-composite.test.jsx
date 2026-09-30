@@ -76,7 +76,7 @@ describe("FilterBar — 한 줄", () => {
 });
 
 describe("FilterBar — 조건 줄", () => {
-  it("칩이 있으면 같은 면 안 마지막 줄에 「조건 N개, 결과 M건」 → 칩 → 지우기 → 덧붙는 단추 순서로 선다", () => {
+  it("칩이 있으면 같은 면 안 마지막 줄에 「조건 N개에 맞는 결과가 M건입니다.」 → 칩 → 지우기 → 덧붙는 단추 순서로 선다", () => {
     const onClear = vi.fn();
     const onAll = vi.fn();
     const { container } = ui(
@@ -92,7 +92,7 @@ describe("FilterBar — 조건 줄", () => {
     expect(line).not.toBeNull();
     expect(surface.lastElementChild).toBe(line);
     const count = line.querySelector("[data-condition-count]");
-    expect(count.textContent).toBe("조건 2개, 결과 1,234건");
+    expect(count.textContent).toBe("조건 2개에 맞는 결과가 1,234건입니다.");
     expect(count).toHaveAttribute("aria-live", "polite");
     const kids = [...line.children];
     expect(kids[0]).toBe(count);
@@ -112,20 +112,20 @@ describe("FilterBar — 조건 줄", () => {
 
   it("조건 수는 칩 수다 — 칩이 없는 조건을 셀 길이가 없다", () => {
     const { container, rerender } = ui(<FilterConditionLine total={5} chips={[CHIPS[0]]} conditions={["a", "b", "c"]} />);
-    expect(container.querySelector("[data-condition-count]").textContent).toBe("조건 1개, 결과 5건");
+    expect(container.querySelector("[data-condition-count]").textContent).toBe("조건 1개에 맞는 결과가 5건입니다.");
     rerender(<ThemeModeProvider><FilterConditionLine total={5} chips={[]} /></ThemeModeProvider>);
     expect(container.querySelector("[data-condition-line]")).toBeNull();
     // 이름이 없는 칩은 칩이 아니다.
     rerender(<ThemeModeProvider><FilterConditionLine total={5} chips={[{ key: "x", label: "" }, CHIPS[1]]} /></ThemeModeProvider>);
     expect(container.querySelectorAll("[data-condition-chip]")).toHaveLength(1);
-    expect(container.querySelector("[data-condition-count]").textContent).toBe("조건 1개, 결과 5건");
+    expect(container.querySelector("[data-condition-count]").textContent).toBe("조건 1개에 맞는 결과가 5건입니다.");
   });
 
   it("결과를 아직 모르면 수를 지어내지 않는다 · 단위를 바꿀 수 있다", () => {
     const { container, rerender } = ui(<FilterConditionLine total={null} chips={CHIPS} />);
     expect(container.querySelector("[data-condition-count]").textContent).toBe("세는 중…");
     rerender(<ThemeModeProvider><FilterConditionLine total={3} unit="명" chips={CHIPS} /></ThemeModeProvider>);
-    expect(container.querySelector("[data-condition-count]").textContent).toBe("조건 2개, 결과 3명");
+    expect(container.querySelector("[data-condition-count]").textContent).toBe("조건 2개에 맞는 결과가 3명입니다.");
   });
 
   it("칩의 지우기 · 줄의 지우기 · 덧붙는 단추가 넘긴 동작을 부른다", async () => {
