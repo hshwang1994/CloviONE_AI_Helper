@@ -95,6 +95,21 @@ def test_the_release_checksum_must_match_its_own_line(tmp_path, listed, content,
     assert (result.returncode == 0) is ok, result.stderr
 
 
+@needs_bash
+def test_rollback_picks_the_latest_snapshot_not_a_helper_directory(tmp_path):
+    """특권 도우미의 `sysops/` 는 글자라 이름순으로 스냅샷 뒤에 선다. 그것을 고르면 되돌리기가 멈춘다(I3 리허설 실측)."""
+    for name in ("20260930-120000", "20260930-133345", "sysops", "manual-keep"):
+        (tmp_path / name).mkdir()
+    script = (
+        'BACKUP_ROOT="$1"\n'
+        + _text(INSTALL).split("SNAPSHOT_NAME_RE=", 1)[1].split("\n", 1)[0].join(["SNAPSHOT_NAME_RE=", "\n"])
+        + _function("latest_snapshot") + "latest_snapshot"
+    )
+    result = _run(script, tmp_path.as_posix())
+    assert result.stdout.strip().endswith("/20260930-133345"), result.stdout + result.stderr
+    assert "ls -1d" not in _function("do_rollback"), "되돌리기가 다시 디렉터리 이름순으로 고른다"
+
+
 def test_the_release_is_verified_before_it_is_unpacked_and_before_anything_changes():
     body = _function("fetch_release")
     assert body.index("verify_release_checksum") < body.index("tar -xzf"), "확인보다 풀기가 먼저다"

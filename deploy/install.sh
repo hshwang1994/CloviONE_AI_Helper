@@ -150,7 +150,7 @@ CURRENT_STAGE=""
 _ts() { date +%Y%m%d-%H%M%S; }
 log()  { local line="[$(date +%H:%M:%S)] $*"; echo "$line"; [ -n "$LOG" ] && echo "$line" >>"$LOG" || true; }
 say()  { echo "$*"; [ -n "$LOG" ] && echo "$*" >>"$LOG" || true; }
-die()  { say "$*"; exit "${2:-1}"; }
+die()  { say "$1"; exit "${2:-1}"; }  # 둘째 인자는 종료 코드다 - 메시지에 섞지 않는다
 
 open_log() {
   mkdir -p "$LOG_ROOT" 2>/dev/null || true
@@ -1811,6 +1811,21 @@ take_snapshot() {
 # 것과 같은 이유이고, 여기서는 만드는 주체가 하나뿐이라 나이 하나로 충분하다.
 SNAPSHOT_KEEP_DAYS="${SNAPSHOT_KEEP_DAYS:-14}"
 
+# 되돌릴 스냅샷의 이름 규칙(`_ts` 가 만든다). 고르는 곳(latest_snapshot)과 지우는 곳(prune_snapshots)이 같은 규칙을 쓴다.
+SNAPSHOT_NAME_RE='.*/[0-9]{8}[-_][0-9]{6}'
+
+# 가장 최근 스냅샷. **타임스탬프 디렉터리만** 본다(D-522 · I3 리허설).
+#
+# 예전에는 `$BACKUP_ROOT` 아래 디렉터리를 이름순으로 세워 마지막 것을 골랐다. 그런데 그 자리에는 특권 도우미가 바꾼 설정
+# 파일의 사본을 두는 `sysops/` 도 있고, 글자는 숫자보다 뒤에 선다. 그래서 시스템 설정 화면에서 프록시나 인증서를 한 번이라도
+# 바꾼 설치는 `rollback` 이 스냅샷 대신 `sysops/` 를 고르고 「DB 덤프도 없음 기록도 없다」며 멈췄다. Release 리허설이 프록시를
+# 설정한 뒤 되돌리기에서 실제로 그렇게 멈췄다.
+latest_snapshot() {
+  [ -d "$BACKUP_ROOT" ] || return 0
+  find "$BACKUP_ROOT" -maxdepth 1 -mindepth 1 -type d -regextype posix-extended -regex "$SNAPSHOT_NAME_RE" 2>/dev/null \
+    | sort | tail -1
+}
+
 prune_snapshots() {
   [ -d "$BACKUP_ROOT" ] || return 0
   local old
@@ -1821,15 +1836,14 @@ prune_snapshots() {
     log "스냅샷 정리(${SNAPSHOT_KEEP_DAYS}일 초과): $old"
     rm -rf -- "$old"
   done < <(find "$BACKUP_ROOT" -maxdepth 1 -mindepth 1 -type d \
-             -regextype posix-extended -regex '.*/[0-9]{8}[-_][0-9]{6}' \
+             -regextype posix-extended -regex "$SNAPSHOT_NAME_RE" \
              -mtime "+$SNAPSHOT_KEEP_DAYS" 2>/dev/null)
 }
 
 do_rollback() {
   local dir="$ROLLBACK_TARGET"
   if [ -z "$dir" ]; then
-    dir="$(ls -1d "$BACKUP_ROOT"/*/ 2>/dev/null | sort | tail -1)"
-    dir="${dir%/}"
+    dir="$(latest_snapshot)"
   fi
   [ -n "$dir" ] && [ -d "$dir" ] || die "되돌릴 스냅샷이 없습니다(대상: ${ROLLBACK_TARGET:-<자동>})" 41
   # `db.absent` 는 그 스냅샷을 뜰 때 **데이터베이스가 아직 없었다**는 기록이다. 그때는

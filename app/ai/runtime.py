@@ -430,7 +430,24 @@ class AiRuntime:
     # ── 관리자 동작 ───────────────────────────────────────────────────────────
 
     def verify(self, db: Session) -> dict:
-        """연결 확인 - 실제 생성 경로로 아주 짧은 답을 한 번 받는다. 결과가 연결 상태에 적힌다."""
+        """연결 확인 - 실제 생성 경로로 아주 짧은 답을 한 번 받는다. 결과가 연결 상태에 적힌다.
+
+        **설정을 캐시가 아니라 DB 에서 다시 읽는다.** 연결 확인은 관리자가 방금 저장한 설정을 재는 동작인데, 확인이 도는
+        워커는 웹과 다른 프로세스라 설정 캐시가 따로 있고 그 캐시는 30초(TTL)마다 새로 읽는다. 그래서 저장하고 곧바로
+        「연결 확인」을 누르면 워커가 저장 전 값으로 확인해 「AI 제공자를 아직 고르지 않았습니다」라고 거짓으로 답했다
+        (Release 리허설 실측). 확인은 드문 동작이라 DB 한 번 더 읽는 값이 싸다.
+        """
+        cache = self._settings_cache
+        if cache is not None:
+            try:
+                # 짧은 새 세션으로 읽는다. 부른 쪽(잡)의 세션에 트랜잭션을 열어 두면 그 잡이 실패로 끝날 때 함께 되감긴다.
+                if self._session_factory is not None:
+                    with self._session_factory() as fresh:
+                        cache.load(fresh)
+                elif db is not None:
+                    cache.load(db)
+            except Exception:  # noqa: BLE001 - 새로 못 읽으면 가진 값으로 확인한다
+                logger.exception("연결 확인 전에 설정을 새로 읽지 못했다")
         config = self.config(db)
         found = problems(config, self._secrets)
         if found:

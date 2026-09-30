@@ -129,6 +129,41 @@ def test_verify_is_a_one_shot_job_whose_result_carries_the_state(client, login_a
     assert db.execute(select(AuditLog).where(AuditLog.action == "ai.connection.test")).scalar_one()
 
 
+def test_verify_right_after_saving_reads_what_was_saved_not_a_stale_worker_cache(
+    client, login_as, app, settings, fake_http, fake_clock
+):
+    """워커는 웹과 다른 프로세스라 설정 캐시가 따로 있다(TTL 30초). 저장 직후 연결 확인이 그 캐시의 옛 값으로 돌아
+    「AI 제공자를 아직 고르지 않았습니다」라고 답하던 결함을 막는다(Release 리허설 실측). 위의 시험들은 워커가 웹과 같은
+    캐시를 써서 이 경우를 볼 수 없었다."""
+    from app.ai.runtime import AiRuntime
+    from app.jobs.worker import Worker, WorkerContext
+    from app.settings.service import SettingsCache
+    from app.worker_main import build_handlers
+
+    worker_cache = SettingsCache(settings, ttl_seconds=3600)
+    with app.state.session_factory() as s:
+        worker_cache.load(s)  # 저장 전에 채운 워커 캐시 - TTL 이 길어 스스로는 새로 읽지 않는다
+    worker_runtime = AiRuntime(settings=settings, outbound=app.state.outbound_client,
+                               secrets=app.state.secret_provider, session_factory=app.state.session_factory,
+                               settings_cache=worker_cache, clock=fake_clock)
+
+    (settings.secrets_dir / "ai.anthropic.api_key").write_text(KEY, encoding="utf-8")
+    csrf = login_as("system_admin")
+    assert _put(client, csrf, {"provider": "anthropic", "model": "claude-test"}).status_code == 200
+    fake_http.on(MESSAGES, json_body=_ok(text="확인"))
+    started = client.post("/api/admin/ai/verify", headers={"X-CSRF-Token": csrf}).json()
+
+    ctx = WorkerContext(settings=settings, clock=fake_clock, outbound_client=app.state.outbound_client,
+                        extras={"ai_runtime": worker_runtime, "secret_provider": app.state.secret_provider,
+                                "settings_cache": worker_cache})
+    worker = Worker(app.state.session_factory, fake_clock, build_handlers(), ctx)
+    for _ in range(20):
+        if not worker.run_once():
+            break
+    done = client.get(f"/api/admin/ai/verify/{started['job_id']}", headers={"X-CSRF-Token": csrf}).json()
+    assert done["result"]["ok"] is True, done
+
+
 def test_a_failed_verify_says_why_in_our_words(client, login_as, app, settings, fake_http, fake_clock):
     (settings.secrets_dir / "ai.anthropic.api_key").write_text(KEY, encoding="utf-8")
     csrf = login_as("system_admin")

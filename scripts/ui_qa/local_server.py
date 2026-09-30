@@ -647,6 +647,7 @@ def _seed_s21(db, me, now) -> None:
     한다(S18 이 같은 이유로 `goto` 를 다시 읽게 했다).
     """
     import json as _json
+    import uuid as _uuid
     from datetime import timedelta
 
     from app.announcements.models import Announcement
@@ -670,42 +671,70 @@ def _seed_s21(db, me, now) -> None:
     people = db.query(User).order_by(User.created_at).all()
     other = next((u for u in people if u.id != me.id), me)
 
-    # 프롬프트·정책 (AI 저작). 발행본과 초안을 **같은 이름으로** 둔다 — 「버전 기록」 하위
-    # 목록과 「초안일 때만 수정」 갈래는 한 이름에 판이 둘 이상이어야 화면에 나타난다.
+    # 프롬프트·정책 (AI 저작, D-518 · D-519). 발행본과 초안을 **같은 이름으로** 둔다 — 「버전 기록」 하위 목록과
+    # 「초안일 때만 수정」 갈래는 한 이름에 판이 둘 이상이어야 화면에 나타난다. 프롬프트는 사용처(slot)에 붙고, 사용처마다
+    # 발행본은 하나다. 정책은 종류(kind)와 적용할 기능을 갖는다 - 옛 자유 JSON(`max_tokens`)은 이제 쓰이지 않는다.
     prompts = []
-    for name, version, status, published in (
-        ("티켓 요약", 1, STATUS_PUBLISHED, now - timedelta(days=3)),
-        ("티켓 요약", 2, STATUS_DRAFT, None),
-        ("회의록 정리", 1, STATUS_PUBLISHED, now - timedelta(days=9)),
+    for name, version, status, published, slot in (
+        ("답변 지시문", 1, STATUS_PUBLISHED, now - timedelta(days=3), "answer"),
+        ("답변 지시문", 2, STATUS_DRAFT, None, "answer"),
+        ("주간 요약 지시문", 1, STATUS_PUBLISHED, now - timedelta(days=9), "weekly_summary"),
     ):
-        row = Prompt(name=name, purpose="%s 용 지시문입니다." % name, version=version,
-                     content="다음 내용을 세 문장으로 요약해 주세요.",
+        row = Prompt(name=name, purpose="%s 입니다." % name, version=version,
+                     content="근거 문서에 있는 사실만 짧게 답해 주세요.", slot=slot,
                      status=status, created_by=me.id,
                      created_at=now - timedelta(days=10 - version),
                      published_at=published)
         db.add(row)
         prompts.append(row)
-    for name, version, status in (("응답 길이 제한", 1, STATUS_PUBLISHED),
-                                  ("금지어", 1, STATUS_DRAFT)):
-        db.add(Policy(name=name, purpose="%s 정책입니다." % name, version=version,
-                      content_json=_json.dumps({"max_tokens": 800}, ensure_ascii=False),
+    for name, status, kind, rules in (
+        ("응답 제한", STATUS_PUBLISHED, "content", {"max_output_chars": 1500, "block_external_links": True}),
+        ("개인정보 가리기", STATUS_DRAFT, "data_protection",
+         {"mask_emails": True, "mask_phone_numbers": True, "mask_resident_registration_numbers": True}),
+    ):
+        db.add(Policy(name=name, purpose="%s 정책입니다." % name, version=1, kind=kind,
+                      applies_to_json=_json.dumps(["*"]),
+                      content_json=_json.dumps(rules, ensure_ascii=False),
                       status=status, created_by=me.id,
                       created_at=now - timedelta(days=6),
                       published_at=(now - timedelta(days=5)
                                     if status == STATUS_PUBLISHED else None)))
     db.flush()
 
-    # 실행 일정 + 실행 이력. 사용 통계 화면은 「이 프롬프트를 가리키는 일정이 있는가」로
-    # «쓰이는가» 를 센다 — 일정이 하나도 없으면 모든 행이 «쓰이지 않음» 이라 판정력이 0 이다.
+    # AI 호출 기록(D-517). 사용 통계, 호출 기록, 프롬프트 · 정책 사용 탭이 모두 이 표에서 센다 - 비어 있으면 그 화면들은
+    # 빈 화면만 보인다. 성공, 실패, 한도로 막힘을 한 줄씩 넘게 둔다.
+    from app.ai.models import AiUsageRecord
+
+    for i, (action, status, error, tokens) in enumerate((
+        ("chat.answer", "ok", None, (820, 240)),
+        ("chat.answer", "ok", None, (640, 180)),
+        ("workspace.ask", "ok", None, (1500, 420)),
+        ("workspace.draft", "error", "provider_timeout", (None, None)),
+        ("game.quiz", "blocked_quota", None, (None, None)),
+        ("report.weekly_summary", "ok", None, (2200, 300)),
+    )):
+        db.add(AiUsageRecord(
+            id=str(_uuid.uuid4()), created_at=now - timedelta(hours=3 * i + 1), actor_kind="user",
+            user_id=(me.id if i % 2 == 0 else other.id), action_key=action, provider="anthropic",
+            auth_method="api_key", model="claude-haiku-4-5-20251001", status=status, error_code=error,
+            input_tokens=tokens[0], output_tokens=tokens[1], latency_ms=(900 + 150 * i if status == "ok" else None),
+            prompt_slot=("answer" if action.endswith(("answer", "ask")) else None),
+            prompt_version=(1 if action.endswith(("answer", "ask")) else None),
+            prompt_source=("db" if action.endswith(("answer", "ask")) else None),
+            policy_ids_json="[]",
+        ))
+    db.flush()
+
+    # 실행 일정 + 실행 이력. 실행 일정 화면과 캘린더 탭이 이 행을 그린다.
     schedules = []
-    for i, (name, enabled, prompt_ref) in enumerate((
-        ("야간 티켓 요약", True, prompts[0].id),
-        ("주간 회의록 정리", False, prompts[2].id),
+    for i, (name, enabled) in enumerate((
+        ("야간 티켓 요약", True),
+        ("주간 회의록 정리", False),
     )):
         row = Schedule(name=name, description="%s 을(를) 정해진 시각에 돌립니다." % name,
                        schedule_type=TYPE_CRON, cron_expression="0 %d * * *" % (2 + i),
                        owner_user_id=me.id, target_type=TARGET_SYSTEM,
-                       target_ref="ai.summarize", prompt_id=prompt_ref,
+                       target_ref="ai.summarize",
                        enabled=enabled, next_run_at=now + timedelta(hours=6 + i),
                        last_run_at=now - timedelta(hours=18 - i))
         db.add(row)
