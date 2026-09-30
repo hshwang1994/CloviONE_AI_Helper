@@ -204,13 +204,30 @@ def run_health_snapshot_sweep(session_factory, settings, now):
     무엇을 했는지 물어볼 수 있어야 한다.
     """
     from app.home.service import local_today
-    from app.projects.service import record_health_snapshots
+    from app.projects.service import HealthSnapshotSweep, record_health_snapshots
 
     today = local_today(settings, now).isoformat()
+    # 한 묶음(`HEALTH_SNAPSHOT_SWEEP_LIMIT`)씩 계산하고 **묶음마다 커밋**한 뒤 이어 간다
+    # (계획 3.1). 예전에는 첫 묶음만 보고 멈춰서 500건 넘는 프로젝트가 영영 계산되지 않았다.
+    # 묶음 수에 상한을 둔다 - 정렬 열이 망가져 커서가 제자리를 돌면 틱 하나가 워커를 잡는다.
+    recorded = skipped = failed = 0
+    failures: list = []
+    after = None
     try:
-        with session_factory() as db:
-            sweep = record_health_snapshots(db, today=today, now=now)
-            db.commit()
+        for _ in range(10_000):
+            with session_factory() as db:
+                part = record_health_snapshots(db, today=today, now=now, after=after, tz=settings.timezone)
+                db.commit()
+            recorded += part.recorded
+            skipped += part.skipped
+            failed += part.failed
+            failures.extend(part.failures)
+            if not part.truncated or part.next_after is None:
+                break
+            after = part.next_after
+        sweep = HealthSnapshotSweep(
+            recorded=recorded, skipped=skipped, failed=failed, failures=tuple(failures),
+        )
     except Exception as exc:
         logger.exception("주간 헬스 스냅샷 회차가 통째로 실패했다 (today=%s)", today)
         _record_sweep_status(

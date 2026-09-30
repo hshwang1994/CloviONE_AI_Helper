@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from app.core.dates import parse_date
 from app.core.errors import NotFoundError, ValidationAppError
 from app.projects import repository
+from app.projects import stats as project_stats
 from app.projects.models import Project, ProjectMilestone
 from app.projects.schemas import MilestoneCreate, MilestoneUpdate
 
@@ -90,6 +91,8 @@ def create(
     )
     db.add(milestone)
     db.flush()
+    # 마일스톤 기한은 Health 규칙의 입력이다(계획 3.1).
+    project_stats.mark_projects(db, [project.id], now=now)
     return milestone
 
 
@@ -114,9 +117,11 @@ def update(
         setattr(milestone, field, value)
     milestone.updated_at = now
     db.flush()
+    project_stats.mark_projects(db, [milestone.project_id], now=now)
     return milestone
 
 
 def delete(db: Session, milestone: ProjectMilestone) -> None:
+    project_stats.mark_projects(db, [milestone.project_id])
     db.delete(milestone)
     db.flush()

@@ -170,9 +170,12 @@ const DASHBOARD = {
   today: "2026-08-07",
   total: 22,
   by_status: { planned: 2, active: 12, on_hold: 3, done: 5 },
-  progress: { average_pct: 47.3, counted: 14, not_counted: 8 },
+  progress: { average_pct: 47.3, counted: 14, not_counted: 8, pending: 6, no_tasks: 2 },
   health: {
     unscored: 5,
+    pending: 3,
+    unknown: 2,
+    scored: 17,
     trouble: {
       count: 4,
       items: [{
@@ -371,10 +374,19 @@ describe("프로젝트 목록 — 표", () => {
     expect(link.getAttribute("href")).toBe("#/projects/p-1");
   });
 
-  it("진행률 캐시가 비어 있으면 0% 라고 하지 않는다", async () => {
+  it("진행률 캐시가 비어 있으면 0% 라고 하지 않고, 칸에는 짧은 낱말만 넣는다", async () => {
     listPayload = {
-      items: [project({ progress_pct: null, notion_progress_pct: null, health_score: null })],
-      total: 1, page: 1, page_size: 20,
+      items: [
+        project({
+          progress_pct: null, notion_progress_pct: null, health_score: null,
+          progress: { pct: null, state: "pending" }, health: { score: null, state: "pending" },
+        }),
+        project({
+          id: "p-2", name: "빈 프로젝트", progress_pct: null, health_score: null,
+          progress: { pct: null, state: "no_tasks" }, health: { score: null, state: "unknown" },
+        }),
+      ],
+      total: 2, page: 1, page_size: 20,
     };
     renderAt("/projects");
     expect(await screen.findByText("배포 자동화")).toBeInTheDocument();
@@ -382,8 +394,13 @@ describe("프로젝트 목록 — 표", () => {
     const table = screen.getByRole("table");
     // 0% 는 "세어 봤더니 0" 이라는 뜻이라, 한 번도 안 센 것에 붙이면 거짓말이다.
     expect(within(table).queryByText("0%")).toBeNull();
-    expect(within(table).getByText("아직 계산하지 않았습니다")).toBeInTheDocument();
-    expect(within(table).getByText("Health 를 아직 계산하지 않았습니다")).toBeInTheDocument();
+    // 계산 전과 셀 것 없음은 다른 사실이다(계획 3.1). 서버가 준 상태로 가른다.
+    expect(within(table).getAllByText("계산 전").length).toBe(2);
+    expect(within(table).getByText("작업 없음")).toBeInTheDocument();
+    expect(within(table).getByText("판정 불가")).toBeInTheDocument();
+    // 문장은 칸이 아니라 풀이(title)로 간다 - 6.5rem 칸을 넘지 않게.
+    expect(within(table).getByText("작업 없음").getAttribute("title")).toMatch(/셀 작업이 없어/);
+    for (const word of ["계산 전", "작업 없음", "판정 불가"]) expect(word.length).toBeLessThanOrEqual(5);
   });
 
   it("🔴 Notion 값을 나란히 그리지 않고, 다르다고 말하지도 않는다", async () => {
@@ -515,9 +532,10 @@ describe("프로젝트 목록 — 요약", () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
 
-    expect(screen.getByText(/계산이 끝난 14건만 셌습니다/)).toBeInTheDocument();
-    expect(screen.getByText(/8건은 아직 계산하지 않았습니다/)).toBeInTheDocument();
-    expect(screen.getByText(/Health 는 5건을 아직 재지 않았습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/프로젝트 14건의 평균입니다/)).toBeInTheDocument();
+    expect(screen.getByText(/6건은 아직 계산하지 않았습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/2건은 셀 작업이 없습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/2건은 판정할 규칙이 없습니다/)).toBeInTheDocument();
   });
 
   it("VIS-09: 각주가 구역 전체가 아니라 그 숫자를 담은 타일 안에 있다", async () => {
@@ -528,13 +546,13 @@ describe("프로젝트 목록 — 요약", () => {
     // 얘기인지 DOM 만으로 확인할 방법이 없었다. 지금은 각 각주가 자기 판독 칸 안에
     // 있어야 한다(kit.jsx::MetricStrip 의 note).
     const avgTile = panel("평균 진행률");
-    expect(within(avgTile).getByText(/계산이 끝난 14건만 셌습니다/)).toBeInTheDocument();
+    expect(within(avgTile).getByText(/프로젝트 14건의 평균입니다/)).toBeInTheDocument();
 
     const healthTile = panel("Health 하위");
-    expect(within(healthTile).getByText(/Health 는 5건을 아직 재지 않았습니다/)).toBeInTheDocument();
+    expect(within(healthTile).getByText(/판정할 규칙이 없습니다/)).toBeInTheDocument();
 
     // Health 각주가 평균 진행률 타일 안에는 없다(서로 새지 않는다).
-    expect(within(avgTile).queryByText(/아직 재지 않았습니다/)).toBeNull();
+    expect(within(avgTile).queryByText(/판정할 규칙이 없습니다/)).toBeNull();
   });
 
   it("PA-RC-0018 direction 4: 프로젝트가 0건이면 값 없는 요약 타일 여덟 장을 빈 상태 위에 그리지 않는다", async () => {

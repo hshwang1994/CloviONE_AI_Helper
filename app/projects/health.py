@@ -37,8 +37,9 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from app.core.dates import parse_date
-from app.projects.models import milestone_unmet
+from app.projects.models import PROJECT_DONE, PROJECT_ON_HOLD, milestone_unmet
 from app.projects.progress import STATUS_CANCELLED, STATUS_DONE
+from app.work import workflow
 
 # 규칙 키. 화면, 스냅샷 JSON, 테스트가 같은 문자열을 쓴다.
 RULE_MILESTONE_OVERDUE = "milestone_overdue"
@@ -87,6 +88,11 @@ PENALTY_VERY_STALE = 20
 # 지표가 팀에게 반대로 행동하라고 말한다(progress.py 가 같은 판단을 기록한다).
 CLOSED_STATUSES = frozenset({STATUS_DONE, STATUS_CANCELLED})
 
+# 끝났거나 멈춘 프로젝트. 이 상태에서는 작업이 안 움직이는 것이 **정상**이라 '최근 활동'
+# 규칙을 판정하지 않고, 차질 목록에도 올리지 않는다. 안 그러면 완료한 프로젝트가 몇 주 뒤
+# 방치된 프로젝트로 빨갛게 떠서 진짜 차질을 가린다.
+QUIET_PROJECT_STATUSES = frozenset({PROJECT_DONE, PROJECT_ON_HOLD})
+
 
 @dataclass(frozen=True)
 class MilestoneFact:
@@ -127,6 +133,8 @@ class HealthInput:
     milestones: tuple[MilestoneFact, ...] = field(default_factory=tuple)
     tasks: tuple[TaskFact, ...] = field(default_factory=tuple)
     last_activity_on: str | None = None
+    # 프로젝트 자신의 상태(`PROJECT_STATUSES`). 끝난 프로젝트의 '최근 활동' 판정을 건너뛰는 데 쓴다.
+    project_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -187,7 +195,8 @@ _as_date = parse_date
 
 
 def _is_open(task: TaskFact) -> bool:
-    return task.status not in CLOSED_STATUSES
+    # 정본은 상태 어휘의 분류(`workflow`)다. 문자열 비교는 어휘가 늘어난 날 조용히 틀린다.
+    return not workflow.is_terminal(task.status)
 
 
 def _pct(part: int, whole: int) -> int:
@@ -312,6 +321,12 @@ def _rule_stale(data: HealthInput, out: _Ledger) -> None:
     프로젝트 행의 `updated_at` 을 안 쓰는 이유: 그 값은 누가 프로젝트 설명을 고쳐도 갱신돼서
     **실제 작업이 멈춘 것을 감춘다.**
     """
+    if data.project_status in QUIET_PROJECT_STATUSES:
+        out.unknown(
+            RULE_STALE,
+            "프로젝트가 완료 또는 보류 상태라 최근 활동을 판정하지 않습니다.",
+        )
+        return
     today = _as_date(data.today)
     last = _as_date(data.last_activity_on)
     if today is None or last is None:
@@ -374,7 +389,7 @@ TROUBLE_HEALTH_SCORE = 60
 REASON_LOW_HEALTH = "Health 점수 낮음"
 
 
-def trouble_reasons(health_score: int | None) -> list[str]:
+def trouble_reasons(health_score: int | None, project_status: str | None = None) -> list[str]:
     """이 프로젝트가 차질인 **이유 목록**. 비어 있으면 차질이 아니다.
 
     이유를 함께 내는 것이 이 판정의 존재 이유다. "차질 3건" 만 보여 주면 그것을 본 팀장이
@@ -388,6 +403,9 @@ def trouble_reasons(health_score: int | None) -> list[str]:
     0 점은 재 봤더니 나쁜 것이라 걸린다. 둘을 뭉치면 한 번도 안 잰 프로젝트가 전부 빨갛게
     떠서 진짜 차질이 그 안에 묻힌다.
     """
+    if project_status in QUIET_PROJECT_STATUSES:
+        # 끝났거나 멈춘 프로젝트는 '지금 볼 것' 이 아니다(`QUIET_PROJECT_STATUSES`).
+        return []
     reasons: list[str] = []
     if health_score is not None and health_score < TROUBLE_HEALTH_SCORE:
         reasons.append(REASON_LOW_HEALTH)

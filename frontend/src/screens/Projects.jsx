@@ -19,8 +19,9 @@ import { Gauge } from "../ui/charts/Gauge.jsx";
 import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
 import { useCreateProject, useDeptNames, useProjectDashboard, useProjectList } from "./project-queries.js";
 import {
-  NO_HEALTH_CACHE, NO_PROGRESS_CACHE, PROJECT_FORM_FIELDS, PROJECT_STATUS_KO,
-  PROJECT_STATUS_OPTIONS, PROJECT_WRITE_ROLES, daysBetween, deptLabel, percentText, periodText,
+  PROJECT_FORM_FIELDS, PROJECT_STATUS_KO,
+  PROJECT_STATUS_OPTIONS, PROJECT_WRITE_ROLES, daysBetween, deptLabel, healthCell, percentText, periodText,
+  progressCell,
 } from "./project-format.js";
 import { DateCell } from "../ui/cells.jsx";
 import { toggleSort } from "../ui/TableHeaderCell.jsx";
@@ -258,8 +259,7 @@ function Summary({ query, filters, onFilter }) {
             revealKey={progress.average_pct}
           />
           <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-            {"계산이 끝난 " + (progress.counted || 0) + "건만 셌습니다"
-              + (progress.not_counted ? ", " + progress.not_counted + "건은 아직 계산하지 않았습니다" : "") + "."}
+            {progressSummarySentence(progress)}
           </Typography>
         </SummaryPanel>
 
@@ -283,7 +283,7 @@ function Summary({ query, filters, onFilter }) {
               revealKey={trouble.count}
             />
             <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>
-              {"Health 는 " + (health.unscored || 0) + "건을 아직 재지 않았습니다."}
+              {healthSummarySentence(health, scored)}
             </Typography>
           </Box>
         </SummaryPanel>
@@ -363,22 +363,15 @@ function columns(deptNames) {
       render: (p) => periodText(p.starts_on, p.ends_on),
     },
     {
-      key: "progress_pct", label: "진행률", type: "percent", minWidth: "6rem",
+      key: "progress_pct", label: "진행률", type: "percent",
       // null 은 0% 가 아니다. 0 으로 그리면 "작업이 아직 안 붙은 프로젝트" 와 "붙었는데
       // 하나도 못 끝낸 프로젝트" 가 화면에서 똑같아진다(project-format.js 의 계약).
-      render: (p) => percentText(p.progress_pct) || (
-        <Typography component="span" variant="body2" color="text.secondary">
-          {NO_PROGRESS_CACHE}
-        </Typography>
-      ),
+      // 칸에는 짧은 낱말만 넣는다 - 문장을 넣으면 6.5rem 칸을 넘어 옆 칸 위에 그려진다(계획 3.1).
+      render: (p) => <StatCell cell={progressCell(p)} />,
     },
     {
-      key: "health_score", label: "Health", type: "score", minWidth: "7rem",
-      render: (p) => (p.health_score == null ? (
-        <Typography component="span" variant="body2" color="text.secondary">
-          {NO_HEALTH_CACHE}
-        </Typography>
-      ) : p.health_score + "점"),
+      key: "health_score", label: "Health", type: "score",
+      render: (p) => <StatCell cell={healthCell(p)} />,
     },
     {
       /* 이 칸이 그리는 것은 날짜가 아니라 **날짜와 시각**이다(`DateCell` — `2026-09-01 23:30`).
@@ -388,6 +381,40 @@ function columns(deptNames) {
       render: (p) => <DateCell value={p.created_at} />,
     },
   ];
+}
+
+/* 진행률 · Health 칸. 값이면 그대로, 빈 값이면 **짧은 낱말**과 문장 풀이(title) (계획 3.1). */
+function StatCell({ cell }) {
+  if (!cell.empty) return cell.text;
+  return (
+    <Typography component="span" variant="body2" color="text.secondary" title={cell.hint} aria-label={cell.hint}>
+      {cell.text}
+    </Typography>
+  );
+}
+
+/* 평균 진행률 아래 한 문장. 빠진 게 없으면 표본만 말하고, 빠진 것이 있을 때만 그 수를 말한다.
+   예전 문장(「계산이 끝난 N건만 셌습니다」)은 빠진 것이 없어도 무언가 빠진 것처럼 읽혔다. */
+export function progressSummarySentence(progress) {
+  const counted = progress.counted || 0;
+  const pending = progress.pending != null ? progress.pending : (progress.not_counted || 0);
+  const noTasks = progress.no_tasks || 0;
+  if (!counted && !pending && !noTasks) return "아직 셀 프로젝트가 없습니다.";
+  let text = counted ? "프로젝트 " + counted + "건의 평균입니다." : "평균을 낼 프로젝트가 아직 없습니다.";
+  if (pending) text += " " + pending + "건은 아직 계산하지 않았습니다.";
+  if (noTasks) text += " " + noTasks + "건은 셀 작업이 없습니다.";
+  return text;
+}
+
+/* Health 원 옆 한 문장. 잰 수가 전부면 "모두 쟀다" 로 끝난다. */
+export function healthSummarySentence(health, scored) {
+  const pending = health.pending != null ? health.pending : (health.unscored || 0);
+  const unknown = health.unknown || 0;
+  if (!pending && !unknown) return "프로젝트 " + (scored || 0) + "건을 모두 쟀습니다.";
+  let text = "프로젝트 " + (scored || 0) + "건을 쟀습니다.";
+  if (pending) text += " " + pending + "건은 아직 계산하지 않았습니다.";
+  if (unknown) text += " " + unknown + "건은 판정할 규칙이 없습니다.";
+  return text;
 }
 
 export function Projects() {

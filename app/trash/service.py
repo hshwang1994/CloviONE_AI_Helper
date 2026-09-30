@@ -59,6 +59,23 @@ def _target_uid(db: Session, item_type: str, notion_page_id: str) -> str | None:
     ).scalar_one_or_none()
 
 
+def _mark_ticket_projects(db: Session, item_type: str, page_id: str | None, now=None) -> None:
+    """휴지통에 넣고 꺼내는 티켓은 프로젝트 진행률의 분모를 바꾼다(계획 3.1, 2.6).
+
+    휴지통 키는 API 가 부르는 이름이다 - 자체 티켓은 행 uuid, 옛 티켓은 Notion page id.
+    """
+    if item_type != TRASH_TICKET or not page_id:
+        return
+    from app.projects import stats as project_stats
+    from app.tickets.models import TicketCache, api_page_id_expr
+
+    row = db.execute(
+        select(TicketCache).where(api_page_id_expr() == page_id)
+    ).scalar_one_or_none()
+    if row is not None:
+        project_stats.mark_ticket_rows(db, [row], now=now)
+
+
 def move_to_trash(
     db: Session, *, item_type: str, notion_page_id: str, title: str, url: str | None,
     user: User, now: datetime,
@@ -88,6 +105,7 @@ def move_to_trash(
         if not is_insert_race(exc):
             raise
         raise ConflictError("이미 휴지통에 있습니다.") from None
+    _mark_ticket_projects(db, item_type, notion_page_id, now)
     return item
 
 
@@ -112,6 +130,7 @@ def ensure_can_manage(db: Session, user: User, item: TrashItem) -> None:
 def restore(db: Session, item: TrashItem, user: User) -> None:
     """복원 — 휴지통 행만 지우면 원본이 그대로라 원래 목록으로 되돌아온다."""
     ensure_can_manage(db, user, item)
+    _mark_ticket_projects(db, item.item_type, item.notion_page_id)
     db.delete(item)
     db.flush()
 

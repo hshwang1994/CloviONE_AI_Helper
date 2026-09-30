@@ -36,7 +36,7 @@ from app.authz.visibility import (
     VisibilityContext,
     effective_visibility_clause,
 )
-from app.projects.health import TROUBLE_HEALTH_SCORE
+from app.projects.health import QUIET_PROJECT_STATUSES, TROUBLE_HEALTH_SCORE
 from app.projects.models import Project, ProjectMilestone, milestone_unmet_clause
 from app.projects.progress import Task, task_from_ticket
 from app.tickets.models import TicketCache
@@ -113,7 +113,11 @@ def list_in_scope(
         # 목록이 서로 다른 프로젝트를 차질이라고 부르는 날이 온다.
         # `NULL` 은 차질이 아니다 — 아직 한 번도 안 잰 것이지 나쁜 것이 아니고,
         # `<` 비교가 NULL 을 안 고르는 것이 그 판정과 같은 답을 낸다.
-        stmt = stmt.where(Project.health_score < TROUBLE_HEALTH_SCORE)
+        stmt = stmt.where(
+            Project.health_score < TROUBLE_HEALTH_SCORE,
+            # 끝났거나 멈춘 프로젝트는 차질이 아니다(`health.trouble_reasons` 와 같은 판정).
+            Project.status.notin_(tuple(sorted(QUIET_PROJECT_STATUSES))),
+        )
     if overdue_milestones:
         # 기한이 지났는데 **아직 안 끝난** 마일스톤을 가진 프로젝트. 판정 조건 셋은
         # `overdue_milestones_in_scope` 와 같은 것이다 — 두 곳이 갈리면 요약의 건수와
@@ -174,7 +178,7 @@ def summary_rows_in_scope(db: Session, ctx: VisibilityContext) -> list:
         select(
             Project.id, Project.name, Project.code, Project.status,
             Project.dept_id, Project.progress_pct, Project.health_score,
-            Project.notion_status,
+            Project.stats_computed_at, Project.notion_status,
         ).where(Project.archived_at.is_(None)),
         ctx,
     ).order_by(Project.updated_at.desc(), Project.id.asc())
@@ -260,10 +264,15 @@ def ticket_rows_for_project(db: Session, project: Project) -> list[TicketCache]:
     axes = [TicketCache.project_uid == project.id]
     if page_id:
         axes.append(TicketCache.project_ids.contains(token(page_id), autoescape=True))
+    from app.tickets.query import not_trashed_clause
+
     rows = db.execute(
         select(TicketCache).where(
             or_(*axes),
             TicketCache.notion_missing_at.is_(None),
+            # 휴지통에 넣은 티켓은 이 프로젝트의 일이 아니다(계획 2.6). 예전에는 진행률 분모와
+            # Health 비율에 그대로 남았다.
+            not_trashed_clause(),
         ).order_by(TicketCache.id.asc())
     ).scalars().all()
     return list(rows)

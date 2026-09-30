@@ -100,6 +100,49 @@ export const NO_PROGRESS_SAMPLE = "작업이 아직 없습니다";
 export const NO_HEALTH_SCORE = "점수를 낼 수 없습니다";
 export const NO_HEALTH_CACHE = "Health 를 아직 계산하지 않았습니다";
 
+/* 목록 칸에 들어가는 **짧은 낱말** (계획 3.1).
+ *
+ * 진행률 열은 6.5rem 이고 `nowrap` 이다. 예전에는 빈 값을 문장(「아직 계산하지 않았습니다」)으로
+ * 채워서 글이 옆 칸 위로 넘쳐 그려졌다. 칸에는 다섯 글자 넘는 글을 넣지 않고, 완전한 문장은
+ * `title` · `aria-label` 로 준다. 상태는 서버가 준다(`progress.state` · `health.state`) -
+ * 화면이 NULL 을 보고 추측하지 않는다(값이 NULL 인 뜻이 둘이기 때문이다). */
+export const PROGRESS_STATE_WORD = { pending: "계산 전", no_tasks: "작업 없음" };
+export const PROGRESS_STATE_HINT = {
+  pending: "아직 계산하지 않았습니다. 곧 계산됩니다.",
+  no_tasks: "셀 작업이 없어 진행률을 낼 수 없습니다.",
+};
+export const HEALTH_STATE_WORD = { pending: "계산 전", unknown: "판정 불가" };
+export const HEALTH_STATE_HINT = {
+  pending: "아직 계산하지 않았습니다. 곧 계산됩니다.",
+  unknown: "판정할 규칙이 없어 점수를 낼 수 없습니다.",
+};
+
+function progressStateOf(p) {
+  const st = p && p.progress && p.progress.state;
+  if (st) return st;
+  return p && p.progress_pct != null ? "computed" : "pending";
+}
+
+function healthStateOf(p) {
+  const st = p && p.health && p.health.state;
+  if (st) return st;
+  return p && p.health_score != null ? "scored" : "pending";
+}
+
+/** 진행률 칸의 글자와 풀이. `{ text, hint, empty }` — empty 면 흐린 색으로 그린다. */
+export function progressCell(p) {
+  const st = progressStateOf(p);
+  if (st === "computed") return { text: percentText(p.progress_pct), hint: null, empty: false };
+  return { text: PROGRESS_STATE_WORD[st] || "계산 전", hint: PROGRESS_STATE_HINT[st] || PROGRESS_STATE_HINT.pending, empty: true };
+}
+
+/** Health 칸의 글자와 풀이. */
+export function healthCell(p) {
+  const st = healthStateOf(p);
+  if (st === "scored") return { text: p.health_score + "점", hint: null, empty: false };
+  return { text: HEALTH_STATE_WORD[st] || "계산 전", hint: HEALTH_STATE_HINT[st] || HEALTH_STATE_HINT.pending, empty: true };
+}
+
 /** 차질 문턱. **판정의 정본은 서버다**(`app/projects/health.py::TROUBLE_HEALTH_SCORE`) —
  * 화면은 그 값으로 **색만** 고른다(원을 빨갛게 할지 초록으로 할지). 여기서 판정을 새로
  * 하지 않는다: 요약의 「Health 하위 3건」은 서버가 센 값이고, 화면이 다른 문턱으로 색을

@@ -178,10 +178,10 @@ def test_one_exploding_project_does_not_stop_the_rest(db, settings, monkeypatch)
 
     real = service.project_health
 
-    def _explode(db_, project, *, today):
+    def _explode(db_, project, *, today, **kw):
         if project.id == boom.id:
             raise RuntimeError("이 프로젝트에서만 터진다")
-        return real(db_, project, today=today)
+        return real(db_, project, today=today, **kw)
 
     monkeypatch.setattr(service, "project_health", _explode)
 
@@ -215,12 +215,12 @@ def test_a_half_written_failure_is_not_committed_with_everyone_else(
 
     real = service.project_health
 
-    def _dirty_then_explode(db_, project, *, today):
+    def _dirty_then_explode(db_, project, *, today, **kw):
         if project.id == boom.id:
             # 실패 직전까지 이 행을 이미 건드려 놓은 상태를 만든다.
             project.health_score = 999
             raise RuntimeError("반쯤 쓰고 터졌다")
-        return real(db_, project, today=today)
+        return real(db_, project, today=today, **kw)
 
     monkeypatch.setattr(service, "project_health", _dirty_then_explode)
 
@@ -248,7 +248,7 @@ def test_the_failure_is_visible_in_the_result_not_only_in_the_log(
     _overdue_milestone(db, boom)
     db.commit()
 
-    def _explode(db_, project, *, today):
+    def _explode(db_, project, *, today, **kw):
         raise RuntimeError("표본이 이상하다")
 
     monkeypatch.setattr(service, "project_health", _explode)
@@ -401,7 +401,7 @@ def test_the_worker_tick_records_the_run_where_a_human_can_see_it(
     assert '"failed": 0' in detail, f"실패 건수를 안 남겼다: {detail}"
 
     # 이제 실패시킨다 - 실패는 반드시 표에 남아야 한다.
-    def _explode(db_, project, *, today):
+    def _explode(db_, project, *, today, **kw):
         raise RuntimeError("표본이 이상하다")
 
     monkeypatch.setattr(service, "project_health", _explode)

@@ -268,8 +268,10 @@ def test_the_snapshot_caches_the_score_on_the_project_row(client, login_as, db, 
 
     db.commit()  # 스냅샷을 새로 뜬다 — expire_all()만으로는 이미 연 트랜잭션의 스냅샷이 안 바뀐다
     db.expire_all()
-    assert db.get(Project, world["mine"]).health_score is None, (
-        "계산 전에는 NULL 이어야 한다 - 0 은 '셌는데 0점' 이라는 뜻이다"
+    # 마일스톤을 만든 그 요청이 커밋될 때 캐시가 계산된다(계획 3.1). 예전에는 다음 스윕까지 NULL 이었다.
+    cached = db.get(Project, world["mine"]).health_score
+    assert cached is not None and cached < 100, (
+        f"지난 기한 마일스톤을 만들었는데 캐시가 안 움직였다: {cached}"
     )
 
     result = client.post(

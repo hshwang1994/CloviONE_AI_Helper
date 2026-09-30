@@ -17,7 +17,8 @@ qa-contract-change: 예전에는 노션 동기화 회차(sync.py::sync_projects)
 S14 가 그 배선을 **한 번 더 끊을 뻔했다.** 진행률을 부르던 유일한 자리가 노션 동기화
 회차였는데 그 회차가 통째로 사라졌기 때문이다. 계산기는 남고 부르는 사람만 사라지는 —
 정확히 같은 모양의 사고다. 그래서 이 시험은 이제 「계산기가 옳은가」가 아니라
-**「누가 부르는가」**를 본다. 부르는 자리는 `record_health_snapshots` 하나뿐이다.
+**「누가 부르는가」**를 본다. 부르는 자리는 둘이다: 티켓을 바꾸는 쓰기 경로(커밋 직전,
+`app/projects/stats.py`)와 안전망인 주기 스윕(`record_health_snapshots`).
 """
 
 from __future__ import annotations
@@ -74,30 +75,50 @@ def test_a_project_with_no_tasks_stays_none_not_zero(db, make_project):
     assert row.progress_pct is None, f"작업이 없는데 0%가 아닌 값을 냈다: {row.progress_pct}"
 
 
-def test_the_sweep_is_the_only_thing_that_writes_the_cache(db, make_project, make_ticket):
+def test_a_ticket_change_moves_the_cache_when_it_commits(db, make_project, make_ticket):
     """**배선이 있는지**를 본다. 이 시험이 지키는 것은 계산기가 아니라 부르는 사람이다.
 
-    티켓 상태가 바뀌어도 캐시는 그 자리에 있다가 다음 스윕에 따라온다 — 화면의 상세는
-    `project_progress()` 로 매번 새로 계산하므로(읽기 전용) 목록만 한 회차 늦다. 그 설계를
-    여기 못 박아 두는 이유는, 「저장은 스윕만 한다」가 깨지면 GET 이 쓰기를 하게 되고 그
-    사고는 목록 정렬이 무너지는 모습으로만 드러나기 때문이다.
+    예전에는 「저장은 스윕만 한다」였다. 그래서 티켓을 끝내도 목록의 진행률이 한 시간 뒤에야
+    움직였고, 새 프로젝트는 한 시간 동안 "계산 전" 이었다(계획 3.1). 이제는 티켓을 바꾸는 코드가
+    그 프로젝트를 표시하고, 커밋 직전에 한 번 계산한다(`app/projects/stats.py`).
     """
     from app.projects.models import Project
+    from app.tickets.repository_native import NativeTicketRepository
 
     project = make_project(name="상태가 바뀌는 프로젝트")
     done = make_ticket(project=project, title="완료 작업", status="완료")
     make_ticket(project=project, title="진행 작업", status="진행")
     _sweep(db)
+    db.commit()
     assert db.get(Project, project.id).progress_pct == 50.0
+
+    NativeTicketRepository().update(db, page_id=done.id, changes={"status": "진행"}, now=NOW)
+    db.commit()
+    db.expire_all()
+    assert db.get(Project, project.id).progress_pct == 0.0, (
+        "티켓 상태를 바꿔 커밋했는데 캐시가 그대로다 - 쓰기 경로의 표시가 끊겼다"
+    )
+
+
+def test_a_read_never_writes_the_cache(db, make_project, make_ticket):
+    """GET 이 쓰기를 하면 캐시 · 재시도와 어긋나고 목록 정렬(`updated_at DESC`)이 무너진다.
+
+    읽기 함수(`project_progress`)는 바뀐 표본으로 새로 계산해 돌려주지만 행은 건드리지 않는다.
+    이 시험의 티켓 변경은 쓰기 경로를 거치지 않으므로(ORM 에 직접) 표시도 없다.
+    """
+    from app.projects.models import Project
+    from app.projects.service import project_progress
+
+    project = make_project(name="읽기만 하는 프로젝트")
+    done = make_ticket(project=project, title="완료 작업", status="완료")
+    make_ticket(project=project, title="진행 작업", status="진행")
+    _sweep(db)
+    db.commit()
 
     done.status = "진행"
     db.flush()
+    fresh = project_progress(db, db.get(Project, project.id))
+    assert fresh.percent == 0.0
+    db.commit()
     db.expire_all()
-    assert db.get(Project, project.id).progress_pct == 50.0, (
-        "스윕 없이 캐시가 움직였다 — 저장하는 자리가 하나가 아니다"
-    )
-
-    _sweep(db)
-    assert db.get(Project, project.id).progress_pct == 0.0, (
-        "스윕이 돌았는데 캐시가 안 따라왔다 — 배선이 다시 끊겼다"
-    )
+    assert db.get(Project, project.id).progress_pct == 50.0, "읽기가 캐시를 썼다"

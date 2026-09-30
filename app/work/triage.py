@@ -176,6 +176,10 @@ def assign(
     ticket.project_uid = project_id
     ticket.project_link = PROJECT_LINK_OK
     db.flush()
+    # 소속이 생긴 티켓을 그 프로젝트가 세기 시작한다(계획 3.1).
+    from app.projects import stats as project_stats
+
+    project_stats.mark_projects(db, [project_id], now=stamp)
     ticket.seq = numbering.allocate(db, project_id)
     db.flush()
     db.refresh(ticket)

@@ -38,6 +38,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.work import workflow
+
 # 상태 어휘는 app/reports/service.py 와 **같은 문자열**이다. 여기서 새로 정의하면
 # 상태 이름이 바뀔 때 고칠 자리가 두 곳이 된다.
 # 🔴 정본은 `app/work/workflow.py::category_of` 다 — 문자열 비교는 그 어휘가 늘어난 날
@@ -170,7 +172,9 @@ def compute_progress(tasks) -> ProgressResult:
     cancelled = 0
     for task in leaves:
         # 취소는 분자·분모에서 **함께** 빠진다. 한쪽에만 빼면 취소가 지표를 움직인다.
-        if task.status == STATUS_CANCELLED:
+        # 판정은 상태 어휘의 정본(`workflow.category_of`)이 한다 - 문자열 비교는 어휘가
+        # 늘어난 날 조용히 틀린다(위 STATUS_* 주석).
+        if workflow.category_of(task.status) == workflow.CAT_CANCELED:
             cancelled += 1
             continue
         counted.append(task)
@@ -185,7 +189,7 @@ def compute_progress(tasks) -> ProgressResult:
             weight = FALLBACK_WEIGHT
             missing += 1
         total_weight += weight
-        if task.status == STATUS_DONE:
+        if workflow.category_of(task.status) == workflow.CAT_DONE:
             done_tasks += 1
             done_weight += weight
 
@@ -202,6 +206,18 @@ def compute_progress(tasks) -> ProgressResult:
     )
     percent = round(done_weight / total_weight * 100, 1) if total_weight > 0 else None
     return ProgressResult(percent=percent, basis=basis)
+
+
+def leaf_keys(tasks) -> set[str]:
+    """이 표본에서 **리프**인 작업의 key. 진행률과 헬스가 같은 표본을 세게 하려고 뽑아 둔다.
+
+    진행률은 리프만 세는데 헬스의 비율(기한 넘김 · 미할당)이 부모까지 세면, 같은 화면의 두
+    숫자가 서로 다른 작업 집합을 말한다. 판정은 `compute_progress` 와 똑같다.
+    """
+    rows = list(tasks)
+    keys = {t.key for t in rows if t.key}
+    parent_keys = {t.parent_key for t in rows if t.parent_key and t.parent_key in keys}
+    return {t.key for t in rows if t.key and t.key not in parent_keys}
 
 
 def task_from_ticket(row, parent_key: str | None = None) -> Task:

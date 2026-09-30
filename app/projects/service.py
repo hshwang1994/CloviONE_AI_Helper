@@ -17,10 +17,10 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.core.dates import iso_date, parse_date
+from app.core.dates import iso_date, parse_date, parse_dt
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.authz.visibility import visibility_context
 from app.core import ownership
@@ -48,7 +48,8 @@ from app.projects.models import (
     ProjectHealthSnapshot,
     ProjectWeeklyReport,
 )
-from app.projects.progress import ProgressResult, compute_progress
+from app.projects import stats as project_stats
+from app.projects.progress import ProgressResult, compute_progress, leaf_keys, task_from_ticket
 from app.projects.schemas import ProjectCreate, ProjectUpdate
 from app.projects.wbs import WbsResult, build_wbs, wbs_item_from_ticket
 from app.work import codes as work_codes
@@ -191,6 +192,9 @@ def create_project(
     # 않는다 — 서버가 다음 후보로 다시 지어서 **성공시킨다.** 그 재시도와 SAVEPOINT
     # 는 전부 `work_codes.insert_with_code` 안에 있다.
     work_codes.insert_with_code(db, project)
+    # 만들자마자 계산한다(계획 3.1). 안 하면 새 프로젝트는 다음 스윕까지 "계산 전" 이다.
+    # 막 만든 프로젝트는 티켓이 없으므로 결과는 "작업 없음" 이다.
+    project_stats.mark_projects(db, [project.id], now=now)
     return project
 
 
@@ -279,6 +283,7 @@ def update_project(
     # `code` 는 요청 스키마에 아예 없다 (D-282). 실려 오면 `extra="forbid"` 가 422 로
     # 막으므로 여기서 다시 볼 것이 없다 — 이름을 바꾸는 이 경로가 코드를 못 건드린다는
     # 것이 「이름 변경은 코드와 티켓 번호에 영향을 주지 않는다」의 실체다.
+    status_before = project.status
     for field in EDITABLE_FIELDS:
         if field not in given:
             continue
@@ -289,6 +294,9 @@ def update_project(
             value = parse_date(value)
         setattr(project, field, value)
     project.updated_at = now
+    if project.status != status_before:
+        # 완료 · 보류로 바뀌면 '최근 활동' 규칙과 차질 판정이 달라진다(health.QUIET_PROJECT_STATUSES).
+        project_stats.mark_projects(db, [project.id], now=now)
     # 낙관적 잠금 (S6). 저장할 때마다 1 씩 는다 — 안 올리면 같은 폼을 두 번 저장해도
     # 충돌이 안 잡히고, 잠금이 있는 척만 하는 상태가 된다.
     project.version = int(project.version or 1) + 1
@@ -342,6 +350,36 @@ def recompute_progress(db: Session, project: Project, *, now: datetime) -> Progr
     project.updated_at = now
     db.flush()
     return result
+
+
+def recompute_stats(
+    db: Session, project: Project, *, today: str, now: datetime, tz: str = project_stats.DEFAULT_TZ,
+):
+    """진행률과 Health 를 **함께** 다시 계산하는 단 하나의 입구(계획 3.1).
+
+    이벤트 계산(`stats.flush`)과 주기 스윕(`record_health_snapshots`)이 모두 여기를 지난다.
+    둘을 나누면 한쪽만 고쳐지고, 같은 프로젝트가 경로에 따라 다른 값을 갖는다.
+
+    `stats_computed_at` 은 처음 계산할 때와 값이 바뀔 때만 쓴다. 매번 쓰면 행이 매번 UPDATE 되고
+    `updated_at` 이 따라 움직여 목록 정렬(`updated_at DESC`)이 무너진다(`recompute_progress` 와 같은 이유).
+    처음 계산인데 값이 그대로면 `updated_at` 을 그 값 그대로 실어 보낸다 - 안 실으면
+    `onupdate=utcnow` 가 이긴다.
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+
+    first = project.stats_computed_at is None
+    before = (project.progress_pct, project.health_score)
+    progress = recompute_progress(db, project, now=now)
+    health, row = record_health_snapshot(db, project, today=today, now=now, tz=tz)
+    changed = (project.progress_pct, project.health_score) != before
+    if first or changed:
+        keep = project.updated_at
+        project.stats_computed_at = now
+        if not changed:
+            project.updated_at = keep
+            flag_modified(project, "updated_at")
+        db.flush()
+    return progress, health, row
 
 
 # ── 주간 리포트 (#12) — 규칙 기반. 조립과 **시간대 변환**이 여기 있다 ──────────────
@@ -613,16 +651,26 @@ def project_dashboard(
     by_status = {status: 0 for status in PROJECT_STATUSES}
     trouble: list[dict] = []
     percents: list[float] = []
-    unscored = 0
+    # 진행률과 Health 의 '빈 값' 을 뜻별로 센다(계획 3.1). 계산 전과 셀 것 없음은 다른 사실이고,
+    # 화면이 "빠진 게 있다" 고 말할지는 이 수가 정한다.
+    progress_pending = progress_no_tasks = 0
+    health_pending = health_unknown = 0
     for row in rows:
         # 모르는 상태 값(옛 행, 손으로 넣은 값)도 세긴 세야 총합이 맞는다. 미리 만든 칸이
         # 없으면 그 자리에서 만든다 - 조용히 빼면 상태별 합이 전체 건수보다 작아진다.
         by_status[row.status] = by_status.get(row.status, 0) + 1
         if row.progress_pct is not None:
             percents.append(float(row.progress_pct))
+        elif row.stats_computed_at is None:
+            progress_pending += 1
+        else:
+            progress_no_tasks += 1
         if row.health_score is None:
-            unscored += 1
-        reasons = compute_trouble_reasons(row.health_score)
+            if row.stats_computed_at is None:
+                health_pending += 1
+            else:
+                health_unknown += 1
+        reasons = compute_trouble_reasons(row.health_score, row.status)
         if reasons:
             trouble.append({
                 "project_id": row.id,
@@ -668,10 +716,15 @@ def project_dashboard(
             "counted": len(percents),
             # 안 센 건수를 감추지 않는다. 감추면 "평균 41%" 의 표본을 알 수 없다.
             "not_counted": len(rows) - len(percents),
+            "pending": progress_pending,
+            "no_tasks": progress_no_tasks,
         },
         "health": {
             # 차질 0건이 "다 건강하다" 인지 "아무것도 안 쟀다" 인지는 완전히 다른 사실이다.
-            "unscored": unscored,
+            "unscored": health_pending + health_unknown,
+            "scored": len(rows) - health_pending - health_unknown,
+            "pending": health_pending,
+            "unknown": health_unknown,
             "trouble": _dashboard_bucket(trouble),
         },
         "milestones": {"overdue": _dashboard_bucket(overdue)},
@@ -791,37 +844,49 @@ def project_wbs(db: Session, project: Project) -> WbsResult:
     return build_wbs(wbs_item_from_ticket(row, parents.get(row.id)) for row in rows)
 
 
-def _last_activity_on(rows) -> str | None:
-    """이 프로젝트의 작업이 마지막으로 움직인 날('YYYY-MM-DD'). 없으면 None.
+def _last_activity_on(rows, tz: str = project_stats.DEFAULT_TZ) -> str | None:
+    """이 프로젝트의 작업이 마지막으로 움직인 날('YYYY-MM-DD', 판정 시간대의 달력일). 없으면 None.
 
-    `notion_last_edited` 를 먼저 본다 - 저쪽에서 실제로 사람이 만진 시각이다. 그 값이 없는
-    행(포털에서 만든 native 티켓)은 미러 행의 `updated_at` 으로 대신한다. 둘 다 없는 상태는
-    없으므로(NOT NULL), '모른다' 가 되는 경우는 **걸린 작업이 하나도 없을 때뿐**이다.
+    행마다 `updated_at` 과 `notion_last_edited` 중 **늦은 쪽**을 본다. 예전에는
+    `notion_last_edited` 를 먼저 봤는데, 그 값은 이관 때 굳은 시각이라 이관 뒤에 포털에서 고친
+    티켓도 이관 날짜로 보였다 - 멀쩡히 움직이는 프로젝트가 방치된 것으로 떴다.
+
+    두 값은 naive UTC 다. 날짜로 자르기 전에 판정 시간대(KST)로 옮긴다. UTC 날짜를 KST 오늘과
+    비교하면 아침 9시 전의 활동이 하루 앞날로 셈해진다.
 
     프로젝트 행의 `updated_at` 을 쓰지 않는 이유는 health.py 의 규칙 주석에 적어 뒀다:
     누가 설명 한 줄만 고쳐도 갱신돼서 작업이 멈춘 사실을 감춘다.
     """
+    zone = ZoneInfo(tz)
     days = []
     for row in rows:
-        # ⚠️ 여기가 타입 판정으로 갈릴 수 있는 자리다. 예전에는 `isinstance(edited, str)`
-        # 였고, P-14a 가 컬럼을 `timestamp` 로 바꾸면 그 조건이 **영영 거짓**이 되어
-        # 「저쪽에서 사람이 만진 시각」이 조용히 버려진다 — 그러면 이 프로젝트는
-        # 미러가 스쳐 지나간 시각만으로 「활동 중」이 된다. 값이 있으면 쓴다.
-        edited = parse_date(row.notion_last_edited)
-        if edited is not None:
-            days.append(edited)
-        elif row.updated_at is not None:
-            days.append(row.updated_at.date())
+        stamps = [parse_dt(row.notion_last_edited), parse_dt(row.updated_at)]
+        stamps = [stamp for stamp in stamps if stamp is not None]
+        if not stamps:
+            continue
+        latest = max(stamps)
+        days.append(latest.replace(tzinfo=timezone.utc).astimezone(zone).date())
     return max(days).isoformat() if days else None
 
 
-def health_input(db: Session, project: Project, *, today: str) -> HealthInput:
+def health_input(
+    db: Session, project: Project, *, today: str, tz: str = project_stats.DEFAULT_TZ,
+) -> HealthInput:
     """헬스 판정에 넣을 사실을 모은다. **판정 자체는 여기서 하지 않는다**(health.py).
 
     나눠 두는 이유: 규칙을 순수 함수로 두면 표본을 손으로 만들어 시험할 수 있고, 반대로
     화면 숫자가 이상할 때 "규칙이 틀렸나 표본이 틀렸나" 를 갈라서 물어볼 수 있다.
+
+    작업 비율(기한 넘김 · 미할당)은 **리프만** 센다. 진행률이 리프만 세므로(progress.py) 같은
+    표본을 써야 한 화면의 두 숫자가 같은 작업 집합을 말한다. 마지막 활동은 부모까지 본다 -
+    부모 티켓을 고친 것도 그 프로젝트가 움직였다는 사실이다.
     """
+    # 지연 import 는 이 파일의 다른 계층 읽기(`project_wbs`)와 같은 이유다(순환을 피한다).
+    from app.work import relations
+
     rows = repository.ticket_rows_for_project(db, project)
+    parents = relations.parent_map(db, [row.id for row in rows])
+    leaves = leaf_keys(task_from_ticket(row, parents.get(row.id)) for row in rows)
     return HealthInput(
         today=today,
         milestones=tuple(
@@ -837,22 +902,27 @@ def health_input(db: Session, project: Project, *, today: str) -> HealthInput:
                 assigned=bool(split_names(row.assignee_notion_ids)),
             )
             for row in rows
+            if row.id in leaves
         ),
-        last_activity_on=_last_activity_on(rows),
+        last_activity_on=_last_activity_on(rows, tz),
+        project_status=project.status,
     )
 
 
-def project_health(db: Session, project: Project, *, today: str) -> HealthResult:
+def project_health(
+    db: Session, project: Project, *, today: str, tz: str = project_stats.DEFAULT_TZ,
+) -> HealthResult:
     """지금 시점의 헬스 점수와 이유. 읽기 전용이다(진행률과 같은 규약).
 
     GET 이 쓰기를 하면 캐시, 재시도와 어긋나고, 무엇보다 주간 스냅샷은 '그 주의 판단' 이라
     화면을 새로고침할 때마다 덮이면 이력이 실행 로그가 된다.
     """
-    return compute_health(health_input(db, project, today=today))
+    return compute_health(health_input(db, project, today=today, tz=tz))
 
 
 def record_health_snapshot(
-    db: Session, project: Project, *, today: str, now: datetime
+    db: Session, project: Project, *, today: str, now: datetime,
+    tz: str = project_stats.DEFAULT_TZ,
 ) -> tuple[HealthResult, ProjectHealthSnapshot | None]:
     """계산해서 `health_score` 에 캐시하고 **그 주의 이력**에 남긴다.
 
@@ -883,7 +953,7 @@ def record_health_snapshot(
     사용자가 방금 고친 프로젝트가 맨 위에 오지 않는다. 원인이 정렬 코드에 없어서 아무도
     못 찾는다. `recompute_progress` 가 `progress_pct` 에 같은 규칙을 건다.
     """
-    result = project_health(db, project, today=today)
+    result = project_health(db, project, today=today, tz=tz)
     if project.health_score != result.score:
         # 값이 실제로 달라질 때만 쓴다. 같은 값을 다시 대입하면 SQLAlchemy 가 변경으로
         # 세지 않아 그 컬럼이 UPDATE 에서 빠지고, 결국 `onupdate=utcnow` 가 이긴다.
@@ -1003,8 +1073,11 @@ class HealthSnapshotSweep:
     skipped: int
     failed: int
     failures: tuple[HealthSnapshotFailure, ...]
-    # 상한에 걸려 일부만 훑은 회차. True 면 이번 회차가 전 프로젝트를 본 것이 **아니다**.
+    # 상한에 걸려 일부만 훑은 호출. True 면 이 호출이 전 프로젝트를 본 것이 **아니다** -
+    # 부르는 쪽이 `next_after` 부터 다시 부른다(`worker_main.run_health_snapshot_sweep`).
     truncated: bool = False
+    # 다음 호출이 이어 갈 자리(created_at, id). 끝까지 봤으면 None.
+    next_after: tuple | None = None
 
     @property
     def total(self) -> int:
@@ -1034,7 +1107,8 @@ class HealthSnapshotSweep:
 
 
 def record_health_snapshots(
-    db: Session, *, today: str, now: datetime, limit: int = HEALTH_SNAPSHOT_SWEEP_LIMIT
+    db: Session, *, today: str, now: datetime, limit: int = HEALTH_SNAPSHOT_SWEEP_LIMIT,
+    after: tuple | None = None, tz: str = project_stats.DEFAULT_TZ,
 ) -> HealthSnapshotSweep:
     """전 프로젝트를 돌며 진행률을 다시 계산하고 그 주의 헬스를 이력에 남긴다.
     **커밋하지 않는다**(부르는 쪽 몫).
@@ -1070,19 +1144,23 @@ def record_health_snapshots(
     stmt = (
         select(Project)
         .where(Project.archived_at.is_(None))
-        # 정렬을 고정한다. 상한에 걸릴 때 회차마다 다른 프로젝트가 잘리면 어떤 프로젝트는
-        # 영원히 안 찍히고, 그 사실이 아무 데도 안 남는다.
+        # 정렬을 고정하고 **이어서 부를 자리**(keyset)를 준다. 예전에는 상한(500)에서 잘린
+        # 뒤를 아무도 안 봐서, 프로젝트가 500건을 넘으면 새 프로젝트가 영영 계산되지 않았다.
+        # 이제 워커가 `next_after` 로 끝까지 이어 부른다(한 번에 한 묶음씩 커밋한다).
         .order_by(Project.created_at.asc(), Project.id.asc())
         .limit(limit + 1)
     )
+    if after is not None:
+        after_created, after_id = after
+        stmt = stmt.where(or_(
+            Project.created_at > after_created,
+            and_(Project.created_at == after_created, Project.id > after_id),
+        ))
     projects = list(db.execute(stmt).scalars().all())
     truncated = len(projects) > limit
     if truncated:
         projects = projects[:limit]
-        logger.warning(
-            "헬스 스냅샷 스윕이 상한(%d)에 걸렸다. 이번 회차는 전 프로젝트를 보지 못했다.",
-            limit,
-        )
+    next_after = (projects[-1].created_at, projects[-1].id) if truncated and projects else None
 
     recorded = skipped = 0
     failures: list[HealthSnapshotFailure] = []
@@ -1102,8 +1180,7 @@ def record_health_snapshots(
                 #
                 # 헬스 스윕에 붙이는 이유: 같은 주기로, 같은 프로젝트 집합을, 같은 SAVEPOINT
                 # 안에서 돈다. 틱을 따로 만들면 끄는 자리가 둘이 되고 한쪽만 꺼진다.
-                recompute_progress(db, project, now=now)
-                _, row = record_health_snapshot(db, project, today=today, now=now)
+                _, _, row = recompute_stats(db, project, today=today, now=now, tz=tz)
         except Exception as exc:
             logger.exception(
                 "프로젝트 헬스 스냅샷 실패 (나머지는 계속한다): %s(%s)",
@@ -1121,7 +1198,7 @@ def record_health_snapshots(
             recorded += 1
     return HealthSnapshotSweep(
         recorded=recorded, skipped=skipped, failed=len(failures),
-        failures=tuple(failures), truncated=truncated,
+        failures=tuple(failures), truncated=truncated, next_after=next_after,
     )
 
 

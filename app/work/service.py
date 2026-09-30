@@ -56,9 +56,9 @@ from app.core.search_text import LIKE_ESCAPE, contains_folded, escape_like
 from app.org import context as org_context
 from app.projects.models import Project
 from app.tickets import query as ticket_query
-from app.tickets.models import Ticket, api_page_id, api_page_id_expr
+from app.tickets.models import Ticket, api_page_id
 from app.trash import repository as trash_repo
-from app.trash.models import TRASH_TICKET, TrashItem
+from app.trash.models import TRASH_TICKET
 from app.users.models import User
 from app.work import activity, numbering, rank as rank_mod, relations, workflow
 from app.work.models import (
@@ -115,23 +115,10 @@ def resolve_board_scope(scope: str | None, sprint_id: str | None) -> str:
 
 
 def _not_trashed_ticket_clause():
-    """이 티켓이 휴지통에 없다 — **SQL 절**로 (§8.5).
+    """이 티켓이 휴지통에 없다 - SQL 절로 (§8.5). 정본은 `app/tickets/query.py::not_trashed_clause` 다."""
+    from app.tickets.query import not_trashed_clause
 
-    예전엔(`_drop_trashed`) 전량을 파이썬으로 끌어와 `trashed_page_ids()` 집합과
-    대조했다. 쪽 단위로 받는 목록에서 그렇게 하면 이번 쪽에서 휴지통이라 걸러진 건수만큼
-    `total`(SQL COUNT)과 실제로 받은 카드 수가 어긋난다 — 커서를 끝까지 따라가도 받은
-    수가 `total` 에 못 미친다. `TrashItem` 은 API 가 부르는 이름(`api_page_id_expr`)으로
-    조회 가능한 표라 여기서 NOT EXISTS 로 만든다 — 파이썬 집합을 다시 만들 필요가 없다.
-    """
-    return ~(
-        select(TrashItem.id)
-        .where(
-            TrashItem.item_type == TRASH_TICKET,
-            TrashItem.notion_page_id == api_page_id_expr(),
-        )
-        .correlate(Ticket)
-        .exists()
-    )
+    return not_trashed_clause()
 
 
 @dataclass(frozen=True, slots=True)

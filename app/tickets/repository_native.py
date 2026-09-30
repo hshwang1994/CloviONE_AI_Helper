@@ -54,6 +54,7 @@ UUID, 우리 id 는 소문자 UUID)지만, 겹치더라도 `notion_page_id` 가 
 from __future__ import annotations
 
 from datetime import datetime
+from types import SimpleNamespace
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -65,6 +66,7 @@ from app.core.notion_blocks import markdown_to_blocks
 from app.tickets import body_doc as body_doc_mod
 from app.home.aggregate import priority_rank
 from app.org.constants import DEFAULT_ORG_ID
+from app.projects import stats as project_stats
 from app.projects.models import Project
 from app.tickets import project_link
 from app.tickets.models import (
@@ -625,6 +627,8 @@ class NativeTicketRepository:
         db.add(row)
         db.flush()
         work_service.number_if_possible(db, row, now=stamp)
+        # 프로젝트 진행률 · Health 가 이 티켓을 셀 차례다(계획 3.1, 커밋 직전에 한 번 계산한다).
+        project_stats.mark_ticket_rows(db, [row], now=stamp)
         return self._to_dto(row)
 
     def update(
@@ -644,6 +648,8 @@ class NativeTicketRepository:
             raise ValidationAppError("변경할 내용이 없습니다.")
         stamp = now or utcnow()
         row = self._require_row(db, page_id)
+        # 프로젝트를 옮기면 **옛 프로젝트**도 다시 세야 한다(분모에서 빠진다). 바꾸기 전 축을 붙잡아 둔다.
+        before = SimpleNamespace(project_uid=row.project_uid, project_ids=row.project_ids)
 
         # 차단 사유는 **차단이 켜진 뒤의 상태**를 기준으로 저장한다. 아래 반복은 dict 순서를
         # 그대로 따르므로, 사유가 깃발보다 먼저 오면 이 줄이 없을 때 「막혔다 + 이유」를 한 번에
@@ -706,6 +712,9 @@ class NativeTicketRepository:
 
         row.updated_at = stamp
         db.flush()
+        # 상태 · 예상 WD · 기한 · 담당자 · 프로젝트가 진행률과 Health 를 움직인다. 제목만 고쳐도
+        # '마지막 활동' 이 바뀌므로 어떤 변경이든 표시한다(계산은 커밋 직전 프로젝트당 한 번이다).
+        project_stats.mark_ticket_rows(db, [before, row], now=stamp)
         return self._to_dto(row)
 
     def archive(self, db: Session | None, *, page_id: str) -> None:
@@ -737,6 +746,8 @@ class NativeTicketRepository:
         row = self._row(db, page_id)
         if row is None:
             return  # 이미 없다 — 지우는 것이 목적이므로 그것으로 끝이다
+        # 지우기 **전에** 소속 프로젝트를 붙잡는다. 지운 뒤에는 어느 프로젝트였는지 알 길이 없다.
+        project_stats.mark_ticket_rows(db, [row])
         db.delete(row)
         db.flush()
 

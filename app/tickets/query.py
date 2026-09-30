@@ -15,12 +15,12 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from sqlalchemy import case, false, func, or_
+from sqlalchemy import case, false, func, or_, select
 
 from app.core.dates import parse_date
 from app.core.models_base import NAMES_SEP
 from app.core.search_text import contains_folded
-from app.tickets.models import PROJECT_LINK_OK, TicketCache
+from app.tickets.models import PROJECT_LINK_OK, TicketCache, api_page_id_expr
 from app.tickets.repository import PageSpec, TicketFilters, as_filter_values
 from app.work import workflow
 
@@ -275,3 +275,27 @@ def filter_clauses(f: TicketFilters | None) -> list:
             out.append(TicketCache.project_link == PROJECT_LINK_OK)
             out.append(TicketCache.project_uid.in_(tuple(sorted(uids))))
     return out
+
+
+def not_trashed_clause():
+    """이 티켓이 휴지통에 없다 - **SQL 절**로. 휴지통을 빼야 하는 모든 질의가 이 한 벌을 쓴다.
+
+    작업 보드(`app/work/service.py`)가 처음 만든 절을 여기로 옮겼다(계획 2.6). 프로젝트 진행률 ·
+    Health(`app/projects/repository.py`)와 월간 리포트, 정합성 검사가 각자 휴지통을 모르고 셌다 -
+    휴지통에 넣은 티켓이 진행률 분모에 남고 리포트의 담당 수에 들어갔다.
+
+    휴지통 키는 API 가 부르는 이름(`api_page_id_expr`)이다. 자체 DB 티켓은 행의 uuid, 옛 티켓은
+    Notion page id 라 두 축을 한 식으로 본다. 파이썬 집합으로 거르면 쪽 단위 목록에서 `total` 과
+    받은 수가 어긋난다(보드가 겪은 일이다).
+    """
+    from app.trash.models import TRASH_TICKET, TrashItem
+
+    return ~(
+        select(TrashItem.id)
+        .where(
+            TrashItem.item_type == TRASH_TICKET,
+            TrashItem.notion_page_id == api_page_id_expr(),
+        )
+        .correlate(TicketCache)
+        .exists()
+    )

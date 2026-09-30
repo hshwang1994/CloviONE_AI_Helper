@@ -145,7 +145,7 @@ describe("이번 주 업무 상태 묶음", () => {
     const summary = await screen.findByText("이 수에 안 들어간 프로젝트가 있습니다");
     expect(summary).toBeInTheDocument();
     // 진단 문구 자체는 지우지 않는다 — 접힌 안쪽에 그대로 있다.
-    expect(screen.getByText(/아직 상태를 계산하지 않은 프로젝트 1건/)).toBeInTheDocument();
+    expect(screen.getByText(/Health 점수가 없는 프로젝트 1건/)).toBeInTheDocument();
     expect(screen.getByText(/일부 항목만으로 계산한 프로젝트 2건/)).toBeInTheDocument();
     // 예전 문구(내부 용어 그대로)는 화면 본문에 없다.
     expect(screen.queryByText(/Health 를 계산하지 않은/)).toBeNull();

@@ -165,9 +165,14 @@ class Project(OrgScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin, Base):
     biz_type: Mapped[str | None] = mapped_column(String(200))
     product: Mapped[str | None] = mapped_column(String(200))
 
-    # 앱이 다시 계산한 값의 캐시. NULL = 아직 계산 안 함(클래스 docstring).
+    # 앱이 다시 계산한 값의 캐시. 값이 NULL 인 뜻은 `stats_computed_at` 이 가른다.
     progress_pct: Mapped[float | None] = mapped_column(Float)
     health_score: Mapped[int | None] = mapped_column(Integer)
+    # 두 캐시를 마지막으로 계산한 시각(UTC). **NULL 이면 아직 한 번도 계산하지 않았다**
+    # (`pending`). 계산했는데 값이 NULL 이면 셀 작업이 없거나(진행률) 판정할 규칙이 없었던 것이다.
+    # 이 칸이 없을 때는 두 뜻이 같은 NULL 이라 목록이 둘 다 "아직 계산하지 않았습니다" 라고 했다
+    # (`app/projects/stats.py::view`).
+    stats_computed_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
 
     # 소프트 삭제. 하드 삭제를 안 쓰는 이유는 CASCADE 다 — 주간 이력과 리포트가 함께
     # 사라지는데 그 둘은 재계산으로 돌아오지 않는다(그때의 판단 기록이기 때문이다).

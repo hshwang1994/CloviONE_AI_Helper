@@ -2029,9 +2029,12 @@ function colCellSx(c, { truncate, head } = {}) {
      닿을 수 없게 된다.
      **`render` 가 있는 열도 제외한다** — 배지·신호·태그·인라인 편집은 자기 폭을 스스로
      관리한다(위 `renderDataRow` 주석). `nowrap` 타입에 `overflow:hidden` 을 걸면 알약·표지가
-     칸 중간에서 잘려 「반쯤 깨진 알약」처럼 보인다 — 상태·신호 열에서 실제로 그랬다. */
+     칸 중간에서 잘려 「반쯤 깨진 알약」처럼 보인다 — 상태·신호 열에서 실제로 그랬다.
+     단 **수치 · 날짜 열은 `render` 가 있어도 자른다.** 그 칸의 내용은 알약이 아니라 글자이고,
+     빈 값을 문장으로 채운 칸이 옆 칸 위로 넘쳐 그려졌다(프로젝트 목록의 진행률 · Health, 계획 3.1).
+     넘치면 말줄임이 되는 편이 남의 칸을 덮는 것보다 낫다. */
   if (s.overflow === OVERFLOW.nowrap) {
-    const clip = s.type !== "actions" && s.type !== "select" && !c.render;
+    const clip = s.type !== "actions" && s.type !== "select" && (!c.render || s.numeric);
     return {
       ...sx, textAlign: s.align, overflowWrap: "normal", whiteSpace: "nowrap",
       ...(clip ? { overflow: "hidden", textOverflow: "ellipsis" } : null),

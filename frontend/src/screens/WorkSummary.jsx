@@ -173,7 +173,7 @@ export function WorkSection() {
             <TechDetail label="이 수에 안 들어간 프로젝트가 있습니다">
               {projects.unscored ? (
                 <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-                  아직 상태를 계산하지 않은 프로젝트 {fmtNum(projects.unscored)}건은 이 판정에 들어가지 않았습니다.
+                  Health 점수가 없는 프로젝트 {fmtNum(projects.unscored)}건은 이 판정에 들어가지 않았습니다.
                 </Typography>
               ) : null}
               {projects.low_confidence ? (

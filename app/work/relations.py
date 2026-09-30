@@ -145,6 +145,8 @@ def add(
         if winner is not None:
             return winner
         raise ConflictError(PARENT_TAKEN) from None
+    if kind == REL_SUBTASK_OF:
+        _mark_projects_of(db, (left, right), now)
     return row
 
 
@@ -156,6 +158,15 @@ def _edge(db: Session, left: str, right: str, kind: str) -> TicketRelation | Non
             TicketRelation.kind == kind,
         )
     ).scalar_one_or_none()
+
+
+def _mark_projects_of(db: Session, ticket_ids, now: datetime | None = None) -> None:
+    """상하위 관계가 바뀌면 리프가 바뀐다 - 두 티켓이 속한 프로젝트의 진행률을 다시 센다(계획 3.1)."""
+    from app.projects import stats as project_stats
+    from app.tickets.models import Ticket
+
+    rows = [db.get(Ticket, tid) for tid in ticket_ids if tid]
+    project_stats.mark_ticket_rows(db, [row for row in rows if row is not None], now=now)
 
 
 def remove(db: Session, *, from_ticket_id: str, to_ticket_id: str, kind: str) -> bool:
@@ -172,6 +183,8 @@ def remove(db: Session, *, from_ticket_id: str, to_ticket_id: str, kind: str) ->
         return False
     db.delete(row)
     db.flush()
+    if kind == REL_SUBTASK_OF:
+        _mark_projects_of(db, (left, right))
     return True
 
 

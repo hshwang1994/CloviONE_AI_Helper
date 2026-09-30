@@ -31,6 +31,7 @@ from app.core.deps import get_current_user, get_db, get_principal, require_csrf,
 from app.core.pagination import PageParams
 from app.core.scope import Principal
 from app.org import context as org_context
+from app.projects import stats as project_stats
 from app.projects import export as export_mod
 from app.projects import milestones as milestones_repo
 from app.projects import repository, service, weekly
@@ -93,6 +94,9 @@ def _project_view(project: Project) -> dict:
         "product": project.product,
         "progress_pct": project.progress_pct,
         "health_score": project.health_score,
+        # 값과 **상태**를 따로 준다(계획 3.1): 계산 전 · 작업 없음(판정 불가) · 계산됨.
+        # 평면 값 둘은 그대로 둔다 - 홈과 주간 블록이 그 이름을 읽는다.
+        **project_stats.view(project),
         "archived_at": project.archived_at.isoformat() if project.archived_at else None,
         # ── 이관 흔적 여섯은 여기 없다 ────────────────────────────────────────
         #
