@@ -6,7 +6,7 @@
   unverified       확인 전         설정을 바꾼 뒤 아직 성공한 호출이 없다                      허용(첫 성공이 곧 확인이다)
   ok               정상            마지막 호출이나 확인이 성공했다                              허용
   degraded         일시 장애       시간 초과, 연결 실패, 5xx, 속도 제한처럼 다시 하면 될 실패     허용(성공하면 저절로 정상)
-  reauth_required  재로그인 필요   계정 연결의 갱신이 끊겼다(ChatGPT, A2)                        막음
+  reauth_required  재로그인 필요   계정 연결의 갱신이 끊겼다(ChatGPT)                            막음
   error            인증·구성 오류  키 거부, 없는 모델, 허용 목록 밖, 저장된 키 없음              막음
 
 「값이 있다」와 「동작한다」를 같은 상태로 보이지 않는다. 정상은 실제 성공 뒤에만 쓴다.
@@ -18,8 +18,9 @@
   인증 실패(API 키), 구성 실패  → 인증·구성 오류
   설정 저장, 키 저장           → 확인 전(설정 지문이 바뀐다)
 
-미설정은 저장하지 않는다 - 설정에서 매번 판정한다. 설정 지문(제공자, 인증 방식, 모델, 자격 파일의 수정 시각)이
-저장된 지문과 다르면 옛 기록은 확인 전이다.
+미설정은 저장하지 않는다 - 설정에서 매번 판정한다. 설정 지문(제공자, 인증 방식, 모델, 자격 표식)이 저장된 지문과
+다르면 옛 기록은 확인 전이다. 자격 표식은 API 키면 키 파일의 수정 시각이고, 계정 연결이면 묶음의 `login_id` 다 -
+토큰 갱신은 한 시간마다 묶음을 다시 쓰지만 로그인은 그대로라 상태가 확인 전으로 돌아가면 안 된다(D-516).
 
 ## 막힌 상태는 사람이 고칠 때까지 자동으로 다시 시도하지 않는다
 
@@ -29,15 +30,19 @@
 ## 알림
 
   인증·구성 오류, 재로그인 필요로 바뀌면   즉시 관리자에게 한 번
-  일시 장애                                연속 실패가 10 번에 이르면 한 번(짧은 흔들림으로 알림을 뿌리지 않는다)
+  일시 장애                                연속 실패가 10 번에 이르거나 30분 넘게 이어지면 한 번(짧은 흔들림으로 알림을
+                                           뿌리지 않는다. 30분은 주기 확인 `app/ai/health.py` 가 잰다)
   위 셋 뒤에 정상으로 돌아오면             「복구됐다」 한 번
+  계정 연결의 갱신 토큰이 곧 끝나면         한 번(갱신 토큰을 새로 받을 때마다 다시 셀 수 있다)
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
-from datetime import datetime
+import uuid
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -63,6 +68,7 @@ STATE_LABELS: dict[str, str] = {
 BLOCKING_STATES = frozenset({STATE_UNCONFIGURED, STATE_REAUTH, STATE_ERROR})
 HARD_STATES = frozenset({STATE_REAUTH, STATE_ERROR})
 DEGRADED_NOTIFY_AFTER = 10
+DEGRADED_NOTIFY_AFTER_TIME = timedelta(minutes=30)
 
 RESULT_OK = "ok"
 
@@ -78,7 +84,25 @@ REASON_TEXTS: dict[str, str] = {
     "http_429": "제공자의 속도 제한에 걸렸습니다.",
     "http_529": "제공자가 지금 과부하 상태입니다.",
     "breaker_open": "실패가 이어져 잠시 호출을 멈췄습니다. 곧 다시 시도합니다.",
+    "proxy_connect": "프록시를 거쳐 제공자에 연결하지 못했습니다. 프록시 설정을 확인하세요.",
+    "stream_incomplete": "제공자의 응답이 도중에 끊겼습니다.",
+    # OpenAI (D-516)
+    "insufficient_quota": "OpenAI API 계정의 크레딧이 없습니다. OpenAI 결제 설정을 확인하세요.",
+    "plan_usage_limit": "ChatGPT 요금제 사용량 한도에 닿았습니다. 사용량 관리에서 한도를 확인하세요.",
+    "plan_usage_unavailable": "ChatGPT 요금제 사용을 지금 확인할 수 없습니다. 잠시 뒤 다시 시도합니다.",
+    "plan_not_eligible": "연결한 ChatGPT 계정으로는 이 앱에서 요금제를 쓸 수 없습니다. 다른 계정이나 API 키로 연결하세요.",
+    "account_rejected": "ChatGPT 계정 연결이 거부되었습니다. 다시 로그인하세요.",
+    "account_forbidden": "ChatGPT 계정으로 이 요청을 할 권한이 없습니다. 다시 로그인하거나 API 키로 연결하세요.",
+    "account_not_connected": "ChatGPT 계정이 연결되어 있지 않습니다. 다시 로그인하세요.",
+    "account_disconnected": "ChatGPT 계정 연결이 끊겼습니다. 다시 로그인하세요.",
+    "invalid_client": "ChatGPT 연결 정보가 더 이상 유효하지 않습니다. 다시 로그인하세요.",
+    "secret_store_unavailable": "비밀 저장 도우미에 연결할 수 없어 새 토큰을 저장하지 못했습니다.",
+    "refresh_busy": "다른 요청이 토큰을 갱신하고 있습니다. 잠시 뒤 다시 시도합니다.",
 }
+# 갱신 토큰이 거절된 까닭들 - 사람에게는 모두 같은 한 문장이다(공식 오류표의 재로그인 목록).
+for _code in ("invalid_grant", "invalid_refresh_token", "token_expired", "refresh_token_expired",
+              "refresh_token_invalidated", "refresh_token_reused"):
+    REASON_TEXTS[_code] = "ChatGPT 계정 연결이 만료되었습니다. 다시 로그인하세요."
 FALLBACK_REASON = "AI 호출이 실패했습니다."
 
 STATE_MESSAGES: dict[str, str] = {
@@ -100,9 +124,24 @@ def reason_text(code: str | None) -> str | None:
 
 
 def _secret_marker(secrets, slot: str | None) -> str:
-    """자격 파일의 수정 시각. 키를 새로 저장하면 바뀐다 - 키 값 자체는 지문에 넣지 않는다."""
+    """자격 표식. API 키면 파일의 수정 시각이고(키 값 자체는 넣지 않는다), 계정 연결이면 묶음의 `login_id` 다."""
     if not slot or secrets is None:
         return "none"
+    from app.core.secret_slots import KIND_JSON, SECRET_SLOTS
+
+    spec = SECRET_SLOTS.get(slot)
+    if spec is not None and spec.kind == KIND_JSON:
+        try:
+            value = secrets.get(slot)
+        except Exception:  # noqa: BLE001
+            return "unknown"
+        if value is None:
+            return "absent"
+        try:
+            data = json.loads(value.reveal())
+        except ValueError:
+            return "unreadable"
+        return "login:" + str(data.get("login_id") or "none") if isinstance(data, dict) else "unreadable"
     try:
         path = secrets.directory / slot
         return str(path.stat().st_mtime_ns) if path.is_file() else "absent"
@@ -126,6 +165,19 @@ def _row(db: Session, provider: str, auth_method: str, *, lock: bool = False):
     return db.execute(stmt).scalar_one_or_none()
 
 
+def account_view(row) -> dict | None:
+    """계정 연결 칸(표시용). 토큰은 없다 - 계정 이름과 만료 시각만 있다."""
+    if row is None:
+        return None
+    return {
+        "label": row.account_label,
+        "access_expires_at": row.access_expires_at.isoformat() if row.access_expires_at else None,
+        "refresh_expires_at": row.refresh_expires_at.isoformat() if row.refresh_expires_at else None,
+        "refresh_obtained_at": row.refresh_obtained_at.isoformat() if row.refresh_obtained_at else None,
+        "expiry_source": row.expiry_source,
+    }
+
+
 def view(db: Session, config, secrets, *, secret_slot: str | None, problems: list[str]) -> dict:
     """지금 상태 한 벌. 설정만 읽고 제공자에 붙지 않는다."""
     if problems:
@@ -134,6 +186,7 @@ def view(db: Session, config, secrets, *, secret_slot: str | None, problems: lis
             "message": STATE_MESSAGES[STATE_UNCONFIGURED], "problems": list(problems),
             "reason_code": None, "reason": None, "checked_at": None, "last_success_at": None,
             "consecutive_failures": 0, "blocking": True,
+            "account": None,
         }
     row = _row(db, config.provider, config.auth_method)
     stale = row is None or row.config_fingerprint != fingerprint(config, secrets, secret_slot)
@@ -150,6 +203,7 @@ def view(db: Session, config, secrets, *, secret_slot: str | None, problems: lis
         "last_success_at": row.last_success_at.isoformat() if row is not None and row.last_success_at else None,
         "consecutive_failures": 0 if stale else int(row.consecutive_failures or 0),
         "blocking": state in BLOCKING_STATES,
+        "account": account_view(row),
     }
 
 
@@ -195,8 +249,8 @@ def record(db: Session, config, secrets, *, secret_slot: str | None, result: str
         row.reason_text = reason_text(code)
         row.last_failure_at = now
     else:
-        # 인증, 구성 실패. 계정 연결의 갱신 실패는 A2 가 재로그인 필요로 보낸다.
-        row.status = STATE_REAUTH if result == "reauth" else STATE_ERROR
+        # 인증, 구성 실패. 계정 연결의 갱신 실패와 거절은 재로그인 필요다.
+        row.status = STATE_REAUTH if result == base.ERROR_REAUTH else STATE_ERROR
         row.consecutive_failures = int(row.consecutive_failures or 0) + 1
         row.reason_code = code
         row.reason_text = reason_text(code)
@@ -211,19 +265,25 @@ def record(db: Session, config, secrets, *, secret_slot: str | None, result: str
     return row.status
 
 
+def _degraded_long(row, now: datetime) -> bool:
+    since = row.last_changed_at
+    return since is not None and now - since >= DEGRADED_NOTIFY_AFTER_TIME
+
+
 def _notify_if_needed(db: Session, row, *, now: datetime) -> None:
     """관리자 알림 - 상태가 알릴 만큼 바뀌었을 때 한 번만(머리말)."""
     target = None
     if row.status in HARD_STATES:
         target = row.status
-    elif row.status == STATE_DEGRADED and int(row.consecutive_failures or 0) >= DEGRADED_NOTIFY_AFTER:
+    elif row.status == STATE_DEGRADED and (
+        int(row.consecutive_failures or 0) >= DEGRADED_NOTIFY_AFTER or _degraded_long(row, now)
+    ):
         target = STATE_DEGRADED
     elif row.status == STATE_OK and row.last_notified_state in (STATE_ERROR, STATE_REAUTH, STATE_DEGRADED):
         target = STATE_OK
     if target is None or target == row.last_notified_state:
         return
     from app.ai.providers.base import provider_spec
-    from app.notifications.service import notify_admins
 
     spec = provider_spec(row.provider)
     name = spec.label if spec else row.provider
@@ -236,9 +296,128 @@ def _notify_if_needed(db: Session, row, *, now: datetime) -> None:
         title = f"{name} AI 연결을 쓸 수 없습니다"
         body = row.reason_text or STATE_MESSAGES[target]
     try:
-        notify_admins(db, type_="ai_provider_state", title=title, body=body, related=None, now=now)
+        notify_ai_admins(db, title=title, body=body, now=now, context={
+            "provider": row.provider, "auth_method": row.auth_method, "ai_state": target,
+        })
     except Exception:  # noqa: BLE001 - 알림이 상태 기록을 막으면 안 된다
         logger.exception("AI 연결 상태 알림에 실패했다")
         return
     row.last_notified_state = target
     db.flush()
+
+
+def credential_row(db: Session, provider: str, auth_method: str):
+    """그 쌍의 행(없으면 None). 읽기만 한다."""
+    return _row(db, provider, auth_method)
+
+
+def notify_if_needed(db: Session, provider: str, auth_method: str, *, now: datetime) -> None:
+    """주기 확인이 부른다 - 일시 장애가 30분 넘게 이어진 것처럼 호출 없이도 알릴 만한 상태를 알린다."""
+    row = _row(db, provider, auth_method)
+    if row is not None:
+        _notify_if_needed(db, row, now=now)
+
+
+# ── 계정 연결 칸 (D-516) ─────────────────────────────────────────────────────
+
+
+def account_row(db: Session, provider: str, auth_method: str, *, now: datetime):
+    """그 쌍의 행. 없으면 만든다 - 로그인은 설정을 저장하기 전에도 할 수 있어 행이 먼저 필요하다.
+
+    새 행의 지문은 비어 있다. `view` 는 그 행을 확인 전으로 읽고, 첫 호출이 지문을 채운다.
+    """
+    from app.ai.models import AiCredentialState
+
+    row = _row(db, provider, auth_method, lock=True)
+    if row is None:
+        row = AiCredentialState(
+            provider=provider, auth_method=auth_method, status=STATE_UNVERIFIED, config_fingerprint="",
+            consecutive_failures=0, created_at=now, updated_at=now,
+        )
+        db.add(row)
+        db.flush()
+    return row
+
+
+def host_id(db: Session, provider: str, auth_method: str, *, now: datetime) -> str:
+    """이 설치의 `ext_agent_host_id`. 한 번 만들면 바꾸지 않는다 - 공식 안내가 호스트마다 고정된 값을 요구한다."""
+    row = account_row(db, provider, auth_method, now=now)
+    if not row.ext_agent_host_id:
+        row.ext_agent_host_id = f"urn:uuid:{uuid.uuid4()}"
+        row.updated_at = now
+        db.flush()
+    return row.ext_agent_host_id
+
+
+ACCOUNT_FIELDS = frozenset({
+    "account_label", "client_id", "access_expires_at", "refresh_obtained_at", "refresh_expires_at", "expiry_source",
+    "refresh_warned_at",
+})
+
+
+def update_account(db: Session, provider: str, auth_method: str, *, now: datetime, **fields):
+    """계정 칸만 고친다. 연결 상태(`status`)는 건드리지 않는다 - 상태는 실제 호출의 결과만 바꾼다."""
+    unknown = set(fields) - ACCOUNT_FIELDS
+    if unknown:
+        raise ValueError(f"계정 칸이 아니다: {sorted(unknown)}")
+    row = account_row(db, provider, auth_method, now=now)
+    for key, value in fields.items():
+        setattr(row, key, value)
+    row.updated_at = now
+    db.flush()
+    return row
+
+
+REFRESH_WARN_AHEAD = timedelta(days=5)
+
+
+def warn_if_refresh_ending(db: Session, provider: str, auth_method: str, *, now: datetime) -> bool:
+    """갱신 토큰이 곧 끝나면 관리자에게 한 번 알린다. 알렸으면 참이다.
+
+    한 갱신 토큰에 한 번이다: 갱신 토큰을 새로 받으면(`refresh_obtained_at` 이 알린 시각보다 뒤) 다시 셀 수 있다.
+    """
+    row = _row(db, provider, auth_method)
+    if row is None or row.refresh_expires_at is None:
+        return False
+    if row.refresh_expires_at - now > REFRESH_WARN_AHEAD:
+        return False
+    if row.refresh_warned_at is not None and (
+        row.refresh_obtained_at is None or row.refresh_warned_at >= row.refresh_obtained_at
+    ):
+        return False
+    days = max(0, (row.refresh_expires_at - now).days)
+    body = (f"ChatGPT 계정 연결이 {days}일 안에 끝납니다. 계속 쓰려면 AI 설정에서 다시 로그인하세요."
+            if days else "ChatGPT 계정 연결이 곧 끝납니다. 계속 쓰려면 AI 설정에서 다시 로그인하세요.")
+    try:
+        notify_ai_admins(db, title="ChatGPT 계정 연결이 곧 끝납니다", body=body, now=now, context={
+            "provider": provider, "auth_method": auth_method, "ai_state": "refresh_expiring",
+        })
+    except Exception:  # noqa: BLE001
+        logger.exception("ChatGPT 연결 만료 알림에 실패했다")
+        return False
+    row.refresh_warned_at = now
+    db.flush()
+    return True
+
+
+def notify_ai_admins(db: Session, *, title: str, body: str, now: datetime, context: dict) -> int:
+    """AI 연결 알림은 **시스템 관리자에게만** 간다 - AI 설정을 고칠 수 있는 사람이 그들뿐이다(D-516).
+
+    부서 관리자에게 보내면 열 수 없는 화면을 가리키는 알림이 된다. 링크는 AI 설정 화면이다(`ai_config`). 메일로도
+    받기로 한 사람에게는 메일이 가고, 보내기 직전에 상태가 바뀌었으면 가지 않는다(`app/mail/relevance.py`).
+    """
+    from app.notifications.models import AUDIENCE_ADMIN
+    from app.notifications.service import notify_user
+    from app.users.models import ROLE_SYSTEM_ADMIN, User
+
+    people = db.execute(
+        select(User.id).where(User.role == ROLE_SYSTEM_ADMIN, User.active.is_(True))
+    ).scalars().all()
+    if not people:
+        logger.error("AI 연결 알림을 받을 활성 시스템 관리자가 없다")
+    for user_id in people:
+        notify_user(
+            db, user_id, type_="ai_provider_state", title=title, body=body, related=("ai_config", "generation"),
+            now=now, audience=AUDIENCE_ADMIN, recipient_role=ROLE_SYSTEM_ADMIN, context=context,
+        )
+    return len(people)

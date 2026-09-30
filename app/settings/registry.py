@@ -266,6 +266,13 @@ def _ai_timeout(value: Any) -> None:
         raise ValidationAppError(f"{MIN_TIMEOUT_SECONDS}~{MAX_TIMEOUT_SECONDS}초 사이의 정수여야 합니다.")
 
 
+def _bounded_int(low: int, high: int, unit: str):
+    def check(value: Any) -> None:
+        if not isinstance(value, int) or isinstance(value, bool) or not (low <= value <= high):
+            raise ValidationAppError(f"{low}~{high}{unit} 사이의 정수여야 합니다.")
+    return check
+
+
 def _ai_concurrency(value: Any) -> None:
     from app.ai.concurrency import MAX_CONCURRENCY
 
@@ -410,6 +417,15 @@ REGISTRY: dict[str, SettingSpec] = {
                     "AI 호출 하나를 기다리는 시간(초)입니다", _ai_timeout),
         SettingSpec("ai_max_concurrency", "int", 2, False,
                     "웹과 워커가 함께 나눠 쓰는 AI 동시 실행 수입니다", _ai_concurrency),
+        # ChatGPT 계정 연결의 토큰 수명 기본값(계획 3.15, D-516). **정본은 제공자의 응답이다** - 응답의 `expires_in` ·
+        # JWT `exp` · `refresh_token_expires_in` 이 없을 때만 이 값을 쓴다. 제공자가 수명을 바꿔도 코드를 고치지 않는다.
+        SettingSpec("ai_openai_access_ttl_fallback_seconds", "int", 3600, False,
+                    "제공자가 access token 수명을 알려 주지 않을 때 쓰는 값(초)입니다",
+                    _bounded_int(300, 86400, "초")),
+        SettingSpec("ai_openai_refresh_ttl_fallback_days", "int", 30, False,
+                    "제공자가 갱신 토큰 수명을 알려 주지 않을 때 쓰는 값(일)입니다", _bounded_int(1, 365, "일")),
+        SettingSpec("ai_token_refresh_lead_seconds", "int", 300, False,
+                    "access token 이 끝나기 이만큼 전에 미리 갱신합니다(초)", _bounded_int(30, 3600, "초")),
     ]
 }
 
@@ -431,6 +447,9 @@ SYSTEM_ADMIN_ONLY_KEYS: frozenset[str] = frozenset(
         "ai_model",
         "ai_timeout_seconds",
         "ai_max_concurrency",
+        "ai_openai_access_ttl_fallback_seconds",
+        "ai_openai_refresh_ttl_fallback_days",
+        "ai_token_refresh_lead_seconds",
         "chat_enabled",
         "game_ai_enabled",
         "assistant_narrative_enabled",

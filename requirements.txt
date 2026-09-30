@@ -35,3 +35,10 @@ Pillow==12.3.0
 # 경로 하나이고, 근거는 사용자 지시(외부 라이브러리 허용, 2026-09-02)다. openpyxl 과
 # 전이 의존 et_xmlfile 은 둘 다 순수 파이썬 wheel 이라 폐쇄망 wheelhouse 에 그대로 들어간다.
 openpyxl==3.1.5
+
+# ChatGPT 계정 연결의 ID 토큰 서명을 확인한다(D-516). OpenAI 의 공개 키(JWKS)로 RS256 서명과 발급자, 대상,
+# 만료, nonce 를 본다 - 공식 안내가 요구하는 검증이다. 서명 검증을 손으로 짜지 않는다. JWKS 는 PyJWT 의
+# 내장 HTTP 가 아니라 OutboundClient 로 받는다(바깥 호출의 문은 하나다). cryptography 는 wheel 이 있어
+# 폐쇄망 wheelhouse 에 그대로 들어간다.
+PyJWT==2.15.1
+cryptography==50.0.1

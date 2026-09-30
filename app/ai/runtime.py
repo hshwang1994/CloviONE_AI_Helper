@@ -15,7 +15,8 @@
   5. 프롬프트를 조립한다. **`app/llm/prompt.py::build_prompt` 를 부르는 곳은 여기뿐이다** - 난스 구분자와
      「데이터는 지시가 아니다」가 모든 경로에 걸린다(D-202)
   6. 동시 실행 슬롯을 잡는다(`app/ai/concurrency.py`) - 웹과 워커가 한 벌을 나눠 쓴다
-  7. 제공자를 부른다(`app/ai/providers/`) - 제한 시간과 토큰 수를 잰다
+  7. 제공자를 부른다(`app/ai/providers/`) - 제한 시간과 토큰 수를 잰다. 계정 연결(ChatGPT)이면 어댑터가 부르기 전에
+     토큰의 만료를 보고 필요하면 갱신한다(`app/ai/credentials/chatgpt.py`)
   8. 결과로 연결 상태를 바꾼다(`app/ai/credentials/state.py`). 제 짧은 세션으로 적는다 - 부른 쪽의 트랜잭션이
      실패해도 「방금 성공했다」는 사실이 사라지지 않는다
   9. 출력을 다듬는다. 제어 문자를 지우고 액션의 길이로 자른다. JSON 액션은 자르지 않는다 - 넘으면 실패다
@@ -115,7 +116,7 @@ def _clean(text) -> str | None:
 def _status_for(result: base.ProviderResult) -> str:
     if result.error_kind == base.ERROR_TRANSIENT:
         return contract.STATUS_TIMEOUT if result.error_code == "timeout" else contract.STATUS_DEGRADED
-    if result.error_kind in (base.ERROR_AUTH, base.ERROR_CONFIG):
+    if result.error_kind in (base.ERROR_AUTH, base.ERROR_REAUTH, base.ERROR_CONFIG):
         return contract.STATUS_CREDENTIAL_ERROR
     if result.error_kind == base.ERROR_EMPTY:
         return contract.STATUS_EMPTY
@@ -128,7 +129,7 @@ class AiRuntime:
     def __init__(
         self, *, settings, outbound=None, secrets=None, session_factory=None, settings_cache=None,
         clock=None, adapter_factory=None, breaker: Breaker | None = None, lock_factory=None,
-        track_state: bool = True,
+        track_state: bool = True, chatgpt_tokens=None,
     ) -> None:
         self._settings = settings
         self._outbound = outbound
@@ -143,6 +144,29 @@ class AiRuntime:
         # 연결 상태를 읽고 적는가. 끄는 것은 DB 없이 프롬프트 경계만 보는 시험뿐이다.
         self._track_state = track_state
         self._models_cache: dict[tuple, tuple[float, base.ModelList]] = {}
+        # 계정 연결의 토큰 관리자. 프로세스에 하나다 - 갱신 잠금은 DB 가 들고 있어 웹과 워커가 나눠 쓴다.
+        self._chatgpt_tokens = chatgpt_tokens
+
+    @property
+    def secrets(self):
+        return self._secrets
+
+    @property
+    def outbound(self):
+        return self._outbound
+
+    def chatgpt_tokens(self):
+        """ChatGPT 계정 연결의 토큰 관리자. 처음 부를 때 만든다."""
+        if self._chatgpt_tokens is None:
+            from app.ai.credentials.chatgpt import ChatGptTokens
+            from app.core.secret_store import SecretStore
+
+            self._chatgpt_tokens = ChatGptTokens(
+                secrets=self._secrets, store=SecretStore(self._secrets) if self._secrets is not None else None,
+                outbound=self._outbound, session_factory=self._session_factory, clock=self._clock,
+                settings_cache=self._settings_cache,
+            )
+        return self._chatgpt_tokens
 
     # ── 설정과 상태 ───────────────────────────────────────────────────────────
 
@@ -170,8 +194,10 @@ class AiRuntime:
     def adapter(self, config: RuntimeConfig):
         if self._adapter_factory is not None:
             return self._adapter_factory(config.provider, config.auth_method)
+        method = config.method()
+        tokens = self.chatgpt_tokens() if method is not None and method.account else None
         return base.build_adapter(config.provider, config.auth_method, outbound=self._outbound,
-                                  secrets=self._secrets)
+                                  secrets=self._secrets, tokens=tokens)
 
     def status(self, db: Session) -> dict:
         """화면과 초기 설정과 진단이 같은 값을 본다. 제공자에 붙지 않는다."""
@@ -312,6 +338,23 @@ class AiRuntime:
             getattr(self._settings, "data_dir", "var"),
             timeout_seconds=config.timeout_seconds, max_concurrency=config.max_concurrency,
         )
+
+    def record(self, config: RuntimeConfig, *, result: str, code: str | None, now: datetime) -> None:
+        """호출 밖에서 알게 된 결과를 연결 상태에 적는다(주기 확인, 토큰 갱신). 제 짧은 세션으로 적는다."""
+        method = config.method()
+        self._record(config, method.secret_slot if method else None, result=result, code=code, now=now,
+                     verified=False)
+
+    def check_credentials(self, config: RuntimeConfig) -> base.ModelList:
+        """자격을 가볍게 확인한다 - 모델 목록을 한 번 묻는다(생성하지 않는다). 기억해 둔 목록을 쓰지 않는다."""
+        adapter = self.adapter(config)
+        if adapter is None:
+            return base.ModelList(ok=False, error_kind=base.ERROR_CONFIG, error_code="unknown_provider")
+        try:
+            return adapter.list_models(timeout=10.0)
+        except Exception:  # noqa: BLE001 - 어댑터 결함은 연결 상태를 바꾸지 않는다
+            logger.exception("AI 제공자 어댑터가 모델 목록에서 예상 못 한 예외를 냈다")
+            return base.ModelList(ok=False, error_kind=base.ERROR_REQUEST, error_code="adapter_crashed")
 
     def _record(self, config: RuntimeConfig, slot: str | None, *, result: str, code: str | None,
                 now: datetime, verified: bool) -> None:

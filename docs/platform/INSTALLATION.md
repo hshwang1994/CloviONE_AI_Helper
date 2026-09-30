@@ -19,6 +19,11 @@ sudo /opt/clovirassist/deploy/install.sh install \
      --dns-name clovirassist.gooddi.lab --bind-ip <IP>
 ```
 
+바깥으로 나가는 호출(AI 제공자, 메일 외의 HTTPS)이 사내 프록시를 거쳐야 하면 설치 뒤 **시스템 설정 → 프록시**에서 주소와
+예외 목록을 넣고 서비스를 다시 시작한다. 그 값은 웹, 배치 워커, 대화형 워커, 스케줄러 유닛의 드롭인이 되고 앱의 바깥 호출
+문(`OutboundClient`)이 명시적으로 읽는다(D-516). 허용 목록은 그대로 목적지에 걸린다. 인증이 필요한 프록시는 아직 지원하지
+않는다(BACKLOG P-112).
+
 설치처 앞에 역방향 프록시(로드밸런서 · 사내 게이트웨이)가 있으면 그 주소를 `--upstream-proxy <ip[,cidr…]>` 로 함께 준다.
 안 주면 nginx 의 속도 제한이 그 프록시 주소 하나에 걸려 **사용자 전원이 한 예산을 나눈다**(근거와 실측은
 `docs/NGINX_AND_CAPACITY.md`). 한 번 주면 manifest 가 기억하므로 업그레이드 때 다시 줄 필요가 없고, `none` 을 주면 지운다.

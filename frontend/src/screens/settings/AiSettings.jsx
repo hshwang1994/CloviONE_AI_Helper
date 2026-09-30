@@ -13,6 +13,7 @@ import {
 } from "../../ui/kit.jsx";
 import { SettingRow } from "../../ui/adminKit.jsx";
 import { SecretField } from "../../ui/SecretField.jsx";
+import { ChatGptAccount } from "./ChatGptConnect.jsx";
 import { kindSx } from "../../ui/filters.jsx";
 import { KO_WORD_BREAK } from "../../ui/theme.js";
 import { FORM_FIELD_CONTAINER, FORM_FIELD_GRID } from "../../ui/density.js";
@@ -28,6 +29,9 @@ import { FORM_FIELD_CONTAINER, FORM_FIELD_GRID } from "../../ui/density.js";
  * 1. 설정만 보고 「정상」을 그리지 않는다. 정상은 실제로 성공한 호출이나 연결 확인 뒤에만 선다(서버의 연결 상태).
  * 2. 연결 확인을 이 화면에서 기다리지 않는다. 작업 큐에 맡기고 결과를 이어서 묻는다.
  * 3. 제공자가 지원하지 않는 인증 방식을 그리지 않는다. 고를 수 있는 방식은 서버의 표가 준다(`providers`).
+ *
+ * 인증 칸은 두 모양이다. API 키는 비밀 칸(`SecretField`)이고, 계정 연결(OpenAI 의 ChatGPT 계정, D-516)은 로그인
+ * 단추와 연결 도우미다(`ChatGptConnect.jsx`) - 사람이 토큰을 붙여 넣는 칸은 없다.
  */
 
 const STATE_KIND = {
@@ -158,6 +162,11 @@ export function AiSettings() {
           {state.last_success_at ? `마지막 성공은 ${fmtDateTime(state.last_success_at)}입니다. ` : "아직 성공한 호출이 없습니다. "}
           {state.checked_at ? `마지막 연결 확인은 ${fmtDateTime(state.checked_at)}입니다.` : ""}
         </Typography>
+        {data.proxy ? (
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }} data-testid="ai-proxy">
+            {`프록시 ${data.proxy}를 거쳐 제공자에 연결합니다.`}
+          </Typography>
+        ) : null}
       </Section>
       </Box>
 
@@ -189,7 +198,14 @@ export function AiSettings() {
               </Field>
             ) : null}
           </Box>
-          {method ? (
+          {method && method.account ? (
+            <Box sx={{ mt: 2 }}>
+              <ChatGptAccount
+                chatgpt={data.chatgpt} state={state} tokenSettings={data.token_settings}
+                onChanged={() => qc.invalidateQueries({ queryKey: ["ai-admin"] })}
+              />
+            </Box>
+          ) : method ? (
             <Box sx={{ mt: 2, maxWidth: "36rem" }}>
               {/* 키는 저장하면 되읽지 않는다. 끝 네 글자로 어느 키인지만 알아본다. 키를 새로 넣으면 연결 상태가
                   「확인 전」으로 돌아간다(서버가 설정 지문으로 판정한다). */}

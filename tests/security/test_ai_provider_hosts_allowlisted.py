@@ -32,17 +32,28 @@ def _host_port(url: str) -> str:
     return f"{parts.hostname}:{parts.port or (443 if parts.scheme == 'https' else 80)}"
 
 
-def test_every_provider_url_is_in_the_default_allowlist():
-    from app.ai.providers import anthropic
+def _provider_urls() -> list[str]:
+    from app.ai.credentials import chatgpt
+    from app.ai.providers import anthropic, openai
 
-    urls = [anthropic.MESSAGES_URL, anthropic.MODELS_URL]
+    return [
+        anthropic.MESSAGES_URL, anthropic.MODELS_URL, openai.RESPONSES_URL, openai.MODELS_URL,
+        # ChatGPT 계정 연결(D-516): 토큰 교환과 갱신, 무효화, ID 토큰 검증 키. 인가 주소는 브라우저가 연다 - 서버가
+        # 부르지 않지만 같은 호스트다.
+        chatgpt.TOKEN_URL, chatgpt.REVOKE_URL, chatgpt.JWKS_URL, chatgpt.AUTHORIZE_URL,
+    ]
+
+
+def test_every_provider_url_is_in_the_default_allowlist():
+    urls = _provider_urls()
     missing = sorted({_host_port(u) for u in urls} - _allowed())
     assert missing == [], f"기본 허용 목록에 없는 AI 제공자 주소: {missing}"
 
 
 def test_provider_calls_go_through_the_services_allowlist():
-    from app.ai.providers import anthropic
+    from app.ai.credentials import chatgpt
+    from app.ai.providers import anthropic, openai
 
-    assert anthropic.ALLOWLIST == "services"
-    for url in (anthropic.MESSAGES_URL, anthropic.MODELS_URL):
+    assert anthropic.ALLOWLIST == openai.ALLOWLIST == chatgpt.ALLOWLIST == "services"
+    for url in _provider_urls():
         assert url.startswith("https://"), url

@@ -83,11 +83,11 @@ MAIL_DELIVERY_NOTICES: dict[str, str] = {
 }
 
 
-def mail_view(db: Session, pref: UserPreference | None, *, delivery_state: str | None) -> dict:
+def mail_view(db: Session, pref: UserPreference | None, *, delivery_state: str | None, admin: bool = True) -> dict:
     """「메일로도 받기」 한 벌 - 켜짐, 받는 유형, 고를 수 있는 유형, 메일 발송 상태의 한 문장."""
     from app.notifications.mail import recipient_view
 
-    view = recipient_view(db, pref)
+    view = recipient_view(db, pref, admin=admin)
     view["delivery"] = {
         "state": delivery_state,
         "message": MAIL_DELIVERY_NOTICES.get(delivery_state or ""),
@@ -97,7 +97,7 @@ def mail_view(db: Session, pref: UserPreference | None, *, delivery_state: str |
 
 def preference_view(
     pref: UserPreference | None, *, now: datetime, timezone_name: str, avatar_url: str | None,
-    mail: dict | None = None,
+    mail: dict | None = None, admin: bool = True,
 ) -> dict:
     """설정 화면과 셸이 함께 쓰는 응답 모양. 설정이 없어도 **기본값으로 온전한 모양**을 낸다."""
     state = quiet_state(pref, now=now, timezone_name=timezone_name)
@@ -115,7 +115,7 @@ def preference_view(
         },
         "notifications": {
             "muted_types": muted,
-            "catalog": prefs.notification_type_catalog(),
+            "catalog": prefs.notification_type_catalog(admin=admin),
             "unmutable": sorted(prefs.UNMUTABLE_TYPES),
         },
         # 알림을 메일로도 받기(계획 3.4). 라우터가 DB 와 메일 상태를 읽어 채운다.

@@ -714,6 +714,12 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
     # 여기 인라인으로 두면 "주기 실행이 이력을 만든다" 를 테스트가 증명할 방법이 없다.
     register_health_snapshot_tick(worker, session_factory, settings)
 
+    # AI 연결 주기 확인(계획 3.15, D-516) - 15분 간격. 계정 연결 토큰을 미리 갱신하고, 끝나 가는 연결과 오래 이어진
+    # 일시 장애를 관리자에게 알리고, 일시 장애가 풀렸는지 가볍게 확인한다. 배선을 함수로 둔 이유는 위와 같다.
+    from app.ai.health import register_ai_health_tick
+
+    register_ai_health_tick(worker, session_factory, ctx.extras["ai_runtime"])
+
     # 통합 검색 인덱스 재구축 (PLAN Phase 5) — search_index_interval_seconds 간격.
     #
     # **인덱싱 훅은 여기 한 곳뿐이다.** 티켓/문서/게시판/사용자를 저장하는 경로마다 인덱스를

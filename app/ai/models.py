@@ -347,7 +347,7 @@ class AiCredentialState(UUIDPrimaryKeyMixin, Base):
     """제공자와 인증 방식 한 쌍의 연결 상태. 판정 규칙은 `app/ai/credentials/state.py` 에 있다.
 
     토큰이나 키는 여기 두지 않는다 - 비밀 칸(`app/core/secret_slots.py`)에 산다. 여기에는 상태와 시각, 화면에 보일
-    계정 이름, 만료 시각(계정 연결, A2)만 있다.
+    계정 이름, 만료 시각(계정 연결, D-516)만 있다.
     """
 
     __tablename__ = "ai_credential_state"
@@ -376,5 +376,42 @@ class AiCredentialState(UUIDPrimaryKeyMixin, Base):
     consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     #: 관리자에게 마지막으로 알린 상태. 같은 상태를 두 번 알리지 않는다.
     last_notified_state: Mapped[str | None] = mapped_column(String(32))
+    #: 갱신 토큰이 곧 끝난다고 알린 시각. 갱신 토큰을 새로 받기 전에는 다시 알리지 않는다(D-516).
+    refresh_warned_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+
+class AiOAuthTransaction(Base):
+    """ChatGPT 계정 연결 시도 하나 (계획 3.14, D-516). 규칙은 `app/ai/credentials/oauth.py` 에 있다.
+
+    연결 도우미가 서버에 자신을 알리는 짝짓기 토큰은 **해시만** 둔다 - 원문은 시작 응답에 한 번 실리고 끝이다. PKCE
+    verifier 는 두지 않는다(서버 비밀 값과 state 로 다시 만든다). 인가 코드와 토큰도 두지 않는다.
+    """
+
+    __tablename__ = "ai_oauth_transactions"
+    __table_args__ = (
+        UniqueConstraint("pairing_token_hash", name="uq_ai_oauth_transactions_pairing"),
+        UniqueConstraint("state", name="uq_ai_oauth_transactions_state"),
+        Index("ix_ai_oauth_transactions_expires_at", "expires_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    pairing_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(100), nullable=False)
+    nonce: Mapped[str] = mapped_column(String(100), nullable=False)
+    #: 이번 시도가 인가 요청에 쓴 client_id(첫 연결이면 동적 등록 값).
+    client_id_used: Mapped[str | None] = mapped_column(String(200))
+    redirect_port: Mapped[int | None] = mapped_column(Integer)
+    admin_user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    #: 시작한 로그인 세션. 다른 세션은 이 시도를 볼 수 없다.
+    session_id: Mapped[str | None] = mapped_column(String(64))
+    phase: Mapped[str] = mapped_column(String(20), nullable=False)
+    failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    account_label: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime)

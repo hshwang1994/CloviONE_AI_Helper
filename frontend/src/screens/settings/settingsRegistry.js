@@ -38,6 +38,11 @@ export const SETTING_LABELS = {
   ai_model: "AI 모델",
   ai_timeout_seconds: "AI 제한 시간(초)",
   ai_max_concurrency: "AI 동시 실행 수",
+  // ChatGPT 계정 연결의 토큰 수명 기본값(D-516). 제공자가 수명을 알려 주지 않을 때만 쓰는 값이라 AI 설정 화면의
+  // 계정 연결 칸 아래에서만 다룬다.
+  ai_openai_access_ttl_fallback_seconds: "ChatGPT access token 기본 수명(초)",
+  ai_openai_refresh_ttl_fallback_days: "ChatGPT 갱신 토큰 기본 수명(일)",
+  ai_token_refresh_lead_seconds: "토큰 미리 갱신 시간(초)",
   // AI 기능 스위치 셋(D-507) — 파일 소유에서 DB 설정으로 옮기면서 이 표에 들어왔다.
   chat_enabled: "AI 채팅",
   game_ai_enabled: "게임 퀴즈 AI",
@@ -86,6 +91,7 @@ export const MAINTENANCE_KEYS = ["maintenance_mode", "maintenance_message"];
 export const DEDICATED_SCREEN_KEYS = [
   "ai_generation_enabled", "ai_provider", "ai_auth_method", "ai_model",
   "ai_timeout_seconds", "ai_max_concurrency",
+  "ai_openai_access_ttl_fallback_seconds", "ai_openai_refresh_ttl_fallback_days", "ai_token_refresh_lead_seconds",
 ];
 // 알림을 메일로도 보내기(계획 3.4)의 두 값은 메일 발송 화면의 「메일로 보내는 알림」이 다룬다. 같은 이유로 이 표에서 숨긴다.
 export const MAIL_SCREEN_KEYS = ["mail_notification_types", "mail_notification_max_age_days"];

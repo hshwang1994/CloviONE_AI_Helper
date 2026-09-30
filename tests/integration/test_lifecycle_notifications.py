@@ -519,10 +519,18 @@ def test_a_successful_manual_backup_says_nothing(app, client, login_as, make_use
 # ── 새 유형은 전부 설정 화면에서 끌 수 있어야 한다 ────────────────────────────
 
 def test_every_new_type_is_in_the_preference_registry(client, login_as):
-    """레지스트리에 없는 유형은 사용자가 끌 수 없다 - '왜 이건 못 끄지'가 남는다."""
+    """레지스트리에 없는 유형은 사용자가 끌 수 없다 - '왜 이건 못 끄지'가 남는다.
+
+    관리자만 받는 유형(백업 실패, AI 연결 상태)은 관리자의 설정 화면에만 있다(D-516). 일반 사용자에게 받을 일이
+    없는 알림을 끄고 켜는 칸을 보이면 무엇을 끄는지 모른 채 만지게 된다.
+    """
     login_as("user", email="prefs@goodmit.co.kr")
     catalog = client.get("/api/me/preferences").json()["notifications"]["catalog"]
     keys = {t["key"] for t in catalog}
-    for kind in ("ticket_assigned", "offboarding_handover",
-                 "ai_quota_exhausted", "backup_failed"):
+    for kind in ("ticket_assigned", "offboarding_handover", "ai_quota_exhausted"):
         assert kind in keys, f"{kind} 을(를) 설정 화면에서 끌 수 없다"
+    assert not keys & {"backup_failed", "ai_provider_state"}, "일반 사용자에게 관리자 전용 알림 칸이 보인다"
+    login_as("system_admin", email="prefs-admin@goodmit.co.kr")
+    admin_keys = {t["key"] for t in client.get("/api/me/preferences").json()["notifications"]["catalog"]}
+    for kind in ("backup_failed", "ai_provider_state", "ticket_assigned"):
+        assert kind in admin_keys, f"{kind} 을(를) 관리자가 설정 화면에서 끌 수 없다"

@@ -6,7 +6,8 @@
 ## 비밀 값은 여기서 다루지 않는다
 
 API 키는 비밀 칸 API(`/api/admin/secrets/{slot}`)가 쓰고 되읽지 않는다. 여기서는 저장돼 있는지와 끝 네 글자만
-보인다 - 어느 키를 넣었는지 사람이 알아볼 수 있게.
+보인다 - 어느 키를 넣었는지 사람이 알아볼 수 있게. ChatGPT 계정 연결은 사람이 붙여 넣는 칸이 아니다 - 연결 도우미와
+OAuth 흐름이 채운다(`app/ai/credentials/oauth.py`). 여기서는 연결한 계정 이름과 만료 시각만 보인다(D-516).
 """
 
 from __future__ import annotations
@@ -33,10 +34,17 @@ CONFIG_KEYS = {
 }
 MODEL_MAX_CHARS = 200
 
+# 계정 연결의 토큰 수명 기본값(D-516). 제공자 응답에 수명이 없을 때만 쓴다 - 정본은 응답이다. 시스템 관리자만 바꾼다.
+TOKEN_SETTING_KEYS = (
+    "ai_openai_access_ttl_fallback_seconds", "ai_openai_refresh_ttl_fallback_days", "ai_token_refresh_lead_seconds",
+)
+
 
 def _hint(secrets, slot: str) -> str | None:
-    """저장된 키의 끝 네 글자. 짧은 값은 보이지 않는다 - 네 글자가 값의 큰 몫이 된다."""
-    if secrets is None:
+    """저장된 키의 끝 네 글자. 짧은 값은 보이지 않는다 - 네 글자가 값의 큰 몫이 된다. 계정 연결 묶음은 보이지 않는다."""
+    from app.core.secret_slots import KIND_JSON, SECRET_SLOTS
+
+    if secrets is None or (SECRET_SLOTS.get(slot) and SECRET_SLOTS[slot].kind == KIND_JSON):
         return None
     try:
         value = secrets.get(slot)
@@ -58,6 +66,7 @@ def providers_view(secrets) -> list[dict]:
             "auth_methods": [
                 {
                     "key": m.key, "label": m.label, "help": m.help, "secret_slot": m.secret_slot,
+                    "account": m.account,
                     "secret_set": bool(secrets is not None and secrets.status(m.secret_slot) == STATUS_CONFIGURED),
                     "secret_hint": _hint(secrets, m.secret_slot),
                 }
@@ -67,9 +76,31 @@ def providers_view(secrets) -> list[dict]:
     return out
 
 
+def chatgpt_view(runtime, db: Session) -> dict:
+    """ChatGPT 계정 연결 칸 - 연결했는가, 누구인가, 언제 끝나는가. 토큰은 없다."""
+    from app.ai.credentials import chatgpt
+    from app.ai.credentials import state as state_mod
+
+    tokens = runtime.chatgpt_tokens()
+    bundle = tokens.bundle()
+    row = state_mod.credential_row(db, base.PROVIDER_OPENAI, base.AUTH_CHATGPT)
+    account = state_mod.account_view(row) or {}
+    return {
+        "connected": tokens.connected(bundle),
+        # 묶음은 있는데 토큰이 지워졌다 - 갱신이 거절돼 끊긴 연결이다. 다시 로그인해야 한다.
+        "disconnected": bundle is not None and not tokens.connected(bundle),
+        "account_label": account.get("label"),
+        "access_expires_at": account.get("access_expires_at"),
+        "refresh_expires_at": account.get("refresh_expires_at"),
+        "expiry_source": account.get("expiry_source"),
+        "manage_usage_url": chatgpt.MANAGE_USAGE_URL,
+    }
+
+
 def overview(db: Session, runtime, secrets, settings_cache) -> dict:
     config = runtime.config(db)
     values = settings_cache.current() if settings_cache is not None else {}
+    outbound = runtime.outbound
     return {
         "config": {
             "generation_enabled": config.generation_enabled,
@@ -86,6 +117,10 @@ def overview(db: Session, runtime, secrets, settings_cache) -> dict:
             "timeout_seconds": [concurrency.MIN_TIMEOUT_SECONDS, concurrency.MAX_TIMEOUT_SECONDS],
             "max_concurrency": [1, concurrency.MAX_CONCURRENCY],
         },
+        "chatgpt": chatgpt_view(runtime, db),
+        "token_settings": {key: values.get(key) for key in TOKEN_SETTING_KEYS},
+        # 프록시를 쓰면 `호스트:포트`. 시스템 설정의 프록시가 이 프로세스에 실제로 걸렸는지를 보인다(계획 2.10).
+        "proxy": getattr(outbound, "proxy_display", None) if outbound is not None else None,
     }
 
 

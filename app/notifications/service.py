@@ -25,7 +25,7 @@ logger = logging.getLogger("app.notifications")
 # audience="admin"을 넘기지만, 그건 "이 함수를 거쳐 갔다"는 사실에 기대는 것이다. 나중에
 # 실수로 notify_user를 직접 호출해 같은 유형을 보내도(또는 새 호출부가 생겨도) 사용자
 # 알림 벨에 새지 않도록 유형 자체로 한 번 더 못박는다.
-_ADMIN_ONLY_TYPES = frozenset({"backup_failed"})
+from app.profiles.prefs import ADMIN_ONLY_TYPES as _ADMIN_ONLY_TYPES  # noqa: E402 - 표는 설정 쪽에 하나다
 
 # ── 어느 콘솔의 일인가 (0060) ─────────────────────────────────────────────────
 #

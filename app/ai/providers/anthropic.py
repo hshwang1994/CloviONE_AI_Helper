@@ -66,7 +66,7 @@ def classify_status(response) -> base.ProviderResult:
     return base.failure(base.ERROR_REQUEST, _error_type(response) or f"http_{status}", http_status=status)
 
 
-def _exception_result(exc: Exception) -> base.ProviderResult:
+def _exception_result(exc: Exception, *, proxied: bool = False) -> base.ProviderResult:
     from app.core.allowlist import URLNotAllowedError
     from app.core.secret_refs import SecretMissingError
 
@@ -77,7 +77,8 @@ def _exception_result(exc: Exception) -> base.ProviderResult:
     if is_timeout_error(exc):
         return base.failure(base.ERROR_TRANSIENT, "timeout")
     if is_transport_error(exc):
-        return base.failure(base.ERROR_TRANSIENT, "connect")
+        # 프록시 뒤라면 닿지 못한 곳이 제공자가 아니라 프록시일 수 있다(계획 2.10).
+        return base.failure(base.ERROR_TRANSIENT, "proxy_connect" if proxied else "connect")
     # 키 이름이 예외 문자열에 섞일 수 있어 원문을 남기지 않는다.
     logger.warning("Anthropic 호출 실패: %s", type(exc).__name__)
     return base.failure(base.ERROR_TRANSIENT, "unexpected")
@@ -137,7 +138,7 @@ class AnthropicAdapter:
                 timeout=float(timeout), auth_type=AUTH_API_KEY_HEADER, secret_ref=self._secret_ref,
             )
         except Exception as exc:  # noqa: BLE001 - 실패는 값으로 돌려준다
-            return _exception_result(exc)
+            return _exception_result(exc, proxied=bool(getattr(self._outbound, "proxy_display", None)))
         if response.status_code >= 400:
             return classify_status(response)
         try:
@@ -162,7 +163,7 @@ class AnthropicAdapter:
                 timeout=float(timeout), auth_type=AUTH_API_KEY_HEADER, secret_ref=self._secret_ref,
             )
         except Exception as exc:  # noqa: BLE001
-            failed = _exception_result(exc)
+            failed = _exception_result(exc, proxied=bool(getattr(self._outbound, "proxy_display", None)))
             return base.ModelList(ok=False, error_kind=failed.error_kind, error_code=failed.error_code)
         if response.status_code >= 400:
             failed = classify_status(response)

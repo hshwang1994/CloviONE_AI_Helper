@@ -427,7 +427,9 @@ def test_the_admin_status_lists_the_mailable_catalog(client, world):
     csrf = _login(client, "mail-amy@goodmit.co.kr")
     body = client.get("/api/admin/mail/status", headers={"X-CSRF-Token": csrf}).json()["notification_mail"]
     assert body["allowed"] == ["ticket_assigned", "ticket_status_changed", "ticket_resolved"]
-    assert len(body["catalog"]) == 7 and body["max_age_days"] == 7
+    # 메일로 보낼 수 있는 유형은 여덟이다 - D-516 이 AI 연결 상태를 더했다(시스템 관리자만 받는다).
+    assert len(body["catalog"]) == 8 and body["max_age_days"] == 7
+    assert "ai_provider_state" in {item["key"] for item in body["catalog"]}
 
 
 def test_the_allow_list_rejects_types_that_cannot_be_mailed(client, world):

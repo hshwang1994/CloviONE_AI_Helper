@@ -74,6 +74,10 @@ NOTIFICATION_TYPES: dict[str, tuple[str, str]] = {
     "ai_provider_state": ("AI 연결 상태", "AI 제공자 연결이 막히거나 복구되었을 때"),
 }
 
+# 관리자만 받는 유형. 일반 사용자의 설정 화면에는 보이지 않는다 - 받을 일이 없는 알림을 끄고 켜는 칸은 혼란만 준다.
+# 알림 쪽의 같은 판정(`app/notifications/service.py::audience_for`)도 이 목록을 읽는다.
+ADMIN_ONLY_TYPES = frozenset({"backup_failed", "ai_provider_state"})
+
 # ── 메일로도 받을 수 있는 유형 (계획 3.4, D-514) ─────────────────────────────
 #
 # 사람 한 명에게 일어난 협업 사건만 메일로 보낼 수 있다. 전용 메일이 따로 있는 유형(승인 요청, 백업 실패,
@@ -87,6 +91,8 @@ MAILABLE_TYPES: tuple[str, ...] = (
     "document_comment",
     "chat_mentioned",
     "approval_decided",
+    # AI 연결이 막히거나 복구됐을 때 시스템 관리자에게(D-516). 보내기 직전에 상태가 이미 바뀌었으면 보내지 않는다.
+    "ai_provider_state",
 )
 # 관리자가 따로 정하지 않았을 때 메일로 보낼 수 있는 유형. 티켓의 흐름을 알리는 셋이다.
 DEFAULT_MAIL_NOTIFICATION_TYPES: tuple[str, ...] = (
@@ -241,9 +247,10 @@ def evaluate_quiet(
     return QuietState(quiet=False)
 
 
-def notification_type_catalog() -> list[dict]:
-    """설정 화면이 그리는 유형 목록(서버가 정본)."""
+def notification_type_catalog(*, admin: bool = True) -> list[dict]:
+    """설정 화면이 그리는 유형 목록(서버가 정본). 일반 사용자에게는 관리자만 받는 유형을 빼고 보인다."""
     return [
         {"key": key, "label": label, "help": help_text}
         for key, (label, help_text) in NOTIFICATION_TYPES.items()
+        if admin or key not in ADMIN_ONLY_TYPES
     ]

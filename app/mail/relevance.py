@@ -65,9 +65,11 @@ REASON_NO_LONGER_ASSIGNEE = "no_longer_assignee"
 REASON_TICKET_CLOSED = "ticket_closed"
 REASON_SOURCE_DELETED = "source_deleted"
 REASON_NO_ACCESS = "no_access"
+REASON_AI_STATE_MOVED_ON = "ai_state_moved_on"
 
 # 화면이 보여 줄 까닭 문장. 목록 칸과 상세가 같은 문장을 쓴다.
 REASON_LABELS: dict[str, str] = {
+    REASON_AI_STATE_MOVED_ON: "AI 연결 상태가 그 뒤 바뀌어 보내지 않았습니다.",
     REASON_TOO_OLD: "이벤트가 너무 오래되어 보내지 않았습니다.",
     REASON_ACCOUNT_GONE: "받을 계정이 없어져 보내지 않았습니다.",
     REASON_ARCHIVED: "받을 계정이 보관되어 보내지 않았습니다.",
@@ -311,6 +313,22 @@ def _rule_approval_decided(db: Session, delivery: MailDelivery, params: dict, no
     return None
 
 
+def _rule_ai_provider_state(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
+    """AI 연결 상태 메일은 그 상태가 아직일 때만 간다. 막힘을 알리는 메일이 복구 뒤에 도착하면 틀린 말이다(D-516)."""
+    from app.ai.credentials.state import credential_row
+
+    row = credential_row(db, str(params.get("provider") or ""), str(params.get("auth_method") or ""))
+    wanted = params.get("ai_state")
+    if row is None or not wanted:
+        return REASON_AI_STATE_MOVED_ON
+    if wanted == "refresh_expiring":
+        renewed = row.refresh_warned_at is None or (
+            row.refresh_obtained_at is not None and row.refresh_obtained_at > row.refresh_warned_at
+        )
+        return REASON_AI_STATE_MOVED_ON if renewed else None
+    return None if row.status == wanted else REASON_AI_STATE_MOVED_ON
+
+
 Rule = Callable[[Session, MailDelivery, dict, datetime], "str | None"]
 
 # 알림 유형 하나에 판정 하나. 메일로 보낼 수 있는 유형(`app/profiles/prefs.py::MAILABLE_TYPES`)이 전부 있어야 한다.
@@ -322,6 +340,7 @@ NOTIFICATION_RULES: dict[str, Rule] = {
     "document_comment": _rule_document_comment,
     "chat_mentioned": _rule_chat_mentioned,
     "approval_decided": _rule_approval_decided,
+    "ai_provider_state": _rule_ai_provider_state,
 }
 
 

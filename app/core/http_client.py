@@ -2,22 +2,37 @@
 
 This is the ONLY module in app/ allowed to import httpx — enforced by a
 static test. Every outbound request passes the SSRF allowlist at call time,
-never follows redirects, ignores proxy environment variables, and injects
-authentication from secret references without exposing plaintext.
+never follows redirects, and injects authentication from secret references
+without exposing plaintext.
+
+## 프록시 (계획 2.10, D-516)
+
+`trust_env` 는 여전히 False 다 - `.netrc` 나 `SSL_CERT_FILE` 같은 환경 영향을 들이지 않는다. 시스템 설정이 유닛에 둔
+`HTTPS_PROXY` · `HTTP_PROXY` · `NO_PROXY` 세 값만 `app/core/outbound_proxy.py` 가 **명시적으로** 읽어 라우팅으로
+넘긴다. 허용 목록은 그대로 목적지에 걸린다. 시험이 전송을 끼우면(`transport=`) 프록시를 쓰지 않는다.
+
+## 폼 본문과 스트리밍 (D-516)
+
+OAuth 토큰 교환은 `application/x-www-form-urlencoded` 본문(`data=`)을 요구하고, ChatGPT 요금제로 부르는 응답
+API 는 스트리밍(`stream()`)만 받는다. 둘 다 이 문을 지난다 - 허용 목록, redirect 금지, 비밀 주입이 같다.
+비밀 칸이 JSON 묶음이면(`ai.openai.chatgpt`) `secret_field=` 로 그 안의 한 값만 꺼내 헤더에 싣는다.
 """
 
 from __future__ import annotations
 
 import base64
+import json as json_mod
 import logging
 import math
 import time
+from contextlib import contextmanager
 
 import httpx
 
+from app.core import outbound_proxy
 from app.core.allowlist import AllowlistRegistry
 from app.core.errors import ValidationAppError
-from app.core.secret_refs import FileSecretReferenceProvider
+from app.core.secret_refs import FileSecretReferenceProvider, SecretMissingError
 
 logger = logging.getLogger("app.http")
 
@@ -87,31 +102,61 @@ class OutboundClient:
         secrets: FileSecretReferenceProvider,
         transport: httpx.BaseTransport | None = None,
         sleep=None,
+        proxy: outbound_proxy.ProxySettings | None = None,
     ) -> None:
         self._allowlists = allowlists
         self._secrets = secrets
         # 재시도 대기를 주입 가능하게 둔다. 안 그러면 429 재시도 테스트가 **실제로 몇 초를
         # 자야** 하고, 느린 테스트는 곧 지워지거나 건너뛰어진다.
         self._sleep = sleep or time.sleep
+        # 프록시는 시험이 전송을 끼우지 않았을 때만 건다 - 끼운 전송을 프록시 라우팅이 가로채면 시험이 가짜 대신
+        # 진짜 네트워크로 나간다. 값은 프로세스가 뜰 때 한 번 읽는다(드롭인은 유닛을 다시 시작해야 반영된다).
+        self._proxy = proxy if proxy is not None else outbound_proxy.proxy_settings_from_env()
+        mounts = None
+        if transport is None:
+            plan = outbound_proxy.mount_plan(self._proxy)
+            if plan:
+                mounts = {
+                    pattern: (None if target is None else httpx.HTTPTransport(proxy=target))
+                    for pattern, target in plan
+                }
         self._client = httpx.Client(
             transport=transport,
+            mounts=mounts,
             follow_redirects=False,
             trust_env=False,
         )
 
-    def request(
+    @property
+    def proxy_display(self) -> str | None:
+        """프록시를 쓰면 `호스트:포트`, 아니면 None. 화면이 「프록시 사용 중」을 말할 때 쓴다(자격 증명 없음)."""
+        return self._proxy.display() if self._proxy.enabled else None
+
+    def _secret_text(self, secret_ref: str, secret_field: str | None) -> str:
+        """비밀 값 하나. JSON 묶음이면 그 안의 한 필드만 꺼낸다. 값은 어디에도 싣지 않는다."""
+        text = self._secrets.require(secret_ref).reveal()
+        if not secret_field:
+            return text
+        try:
+            data = json_mod.loads(text)
+        except ValueError:
+            data = None
+        value = data.get(secret_field) if isinstance(data, dict) else None
+        if not isinstance(value, str) or not value.strip():
+            # 묶음은 있는데 그 값이 비었다(예: 계정 연결을 끊은 뒤). 없는 비밀과 같게 다룬다.
+            raise SecretMissingError()
+        return value.strip()
+
+    def _prepared_headers(
         self,
-        method: str,
         url: str,
         *,
         allowlist: str,
-        json: dict | None = None,
-        headers: dict[str, str] | None = None,
-        timeout: float = DEFAULT_TIMEOUT_SECONDS,
-        auth_type: str = AUTH_NONE,
-        secret_ref: str | None = None,
-        rate_limit_retries: int = 0,
-    ) -> httpx.Response:
+        headers: dict[str, str] | None,
+        auth_type: str,
+        secret_ref: str | None,
+        secret_field: str | None,
+    ) -> dict[str, str]:
         # Enforcement happens here, at call time — registry-save-time checks
         # are UX, this is the security boundary.
         self._allowlists.get(allowlist).check(url)
@@ -122,13 +167,13 @@ class OutboundClient:
                 raise ValidationAppError(f"알 수 없는 인증 방식입니다: {auth_type}")
             if not secret_ref:
                 raise ValidationAppError("인증 방식에 필요한 secret reference가 없습니다.")
-            secret = self._secrets.require(secret_ref)
+            secret = self._secret_text(secret_ref, secret_field)
             if auth_type == AUTH_BEARER:
-                final_headers["Authorization"] = f"Bearer {secret.reveal()}"
+                final_headers["Authorization"] = f"Bearer {secret}"
             elif auth_type == AUTH_API_KEY_HEADER:
-                final_headers["X-API-Key"] = secret.reveal()
+                final_headers["X-API-Key"] = secret
             elif auth_type == AUTH_BASIC:
-                pair = secret.reveal().strip()
+                pair = secret.strip()
                 if ":" not in pair:
                     # 값을 오류 메시지에 싣지 않는다. 모양만 말한다.
                     raise ValidationAppError(
@@ -136,12 +181,35 @@ class OutboundClient:
                     )
                 encoded = base64.b64encode(pair.encode("utf-8")).decode("ascii")
                 final_headers["Authorization"] = f"Basic {encoded}"
+        return final_headers
+
+    def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        allowlist: str,
+        json: dict | None = None,
+        data: dict | None = None,
+        headers: dict[str, str] | None = None,
+        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        auth_type: str = AUTH_NONE,
+        secret_ref: str | None = None,
+        secret_field: str | None = None,
+        rate_limit_retries: int = 0,
+    ) -> httpx.Response:
+        if json is not None and data is not None:
+            raise ValidationAppError("JSON 본문과 폼 본문을 함께 보낼 수 없습니다.")
+        final_headers = self._prepared_headers(
+            url, allowlist=allowlist, headers=headers, auth_type=auth_type, secret_ref=secret_ref,
+            secret_field=secret_field,
+        )
 
         # 재시도는 **부르는 쪽이 켠다**(기본 0). 여기서 무조건 켜면 쓰기 웹훅처럼 두 번 보내면
         # 안 되는 경로까지 함께 재시도하게 되고, 그 판단은 이 파일이 할 수 없다.
         for attempt in range(rate_limit_retries + 1):
             response = self._client.request(
-                method, url, json=json, headers=final_headers, timeout=timeout
+                method, url, json=json, data=data, headers=final_headers, timeout=timeout
             )
             if response.status_code != RETRY_STATUS or attempt >= rate_limit_retries:
                 return response
@@ -155,6 +223,37 @@ class OutboundClient:
                         wait, attempt + 1, rate_limit_retries, url)
             self._sleep(wait)
         return response  # pragma: no cover - 루프가 항상 반환한다
+
+    @contextmanager
+    def stream(
+        self,
+        method: str,
+        url: str,
+        *,
+        allowlist: str,
+        json: dict | None = None,
+        data: dict | None = None,
+        headers: dict[str, str] | None = None,
+        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        auth_type: str = AUTH_NONE,
+        secret_ref: str | None = None,
+        secret_field: str | None = None,
+    ):
+        """응답 본문을 한 줄씩 읽는 호출(서버가 보내는 이벤트). `with` 블록이 끝나면 연결을 닫는다.
+
+        재시도는 없다 - 받는 도중에 끊긴 스트림을 다시 보내면 같은 생성을 두 번 부른다. ``timeout`` 은 한 번 읽을
+        때마다의 제한이라 전체 시간은 부르는 쪽이 따로 잰다.
+        """
+        if json is not None and data is not None:
+            raise ValidationAppError("JSON 본문과 폼 본문을 함께 보낼 수 없습니다.")
+        final_headers = self._prepared_headers(
+            url, allowlist=allowlist, headers=headers, auth_type=auth_type, secret_ref=secret_ref,
+            secret_field=secret_field,
+        )
+        with self._client.stream(
+            method, url, json=json, data=data, headers=final_headers, timeout=timeout
+        ) as response:
+            yield response
 
     def get(self, url: str, **kwargs) -> httpx.Response:
         return self.request("GET", url, **kwargs)

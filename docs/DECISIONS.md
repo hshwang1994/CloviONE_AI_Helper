@@ -15627,3 +15627,43 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
 - 계획 5.5 의 경계를 옮겼다: A1 이 Anthropic 경로 전체(런타임, 상태, 관리 API, 설정 화면)를 한 번에 가져간다. 설정 키를
   바꾸는 순간 옛 관리 화면이 깨지므로 둘을 나눌 수 없다. OpenAI(API 키와 ChatGPT 계정 연결), 토큰 수명, 주기 확인, 외부
   프록시(2.10)는 A2 다. 계획의 A3(설정 화면)는 A1 과 A2 가 나눠 맡는다.
+
+### D-516. OpenAI 는 API 키와 공식 「Sign in with ChatGPT」로 연결하고, 토큰은 서버가 갱신하며, 바깥 호출은 시스템 설정의 프록시를 지난다 (관리자 화면 개선 회차 A2)
+
+- OpenAI 어댑터(`app/ai/providers/openai.py`)는 응답 API 하나를 두 방식으로 부른다. API 키는 스트리밍 없이
+  `max_output_tokens` 를 보내고(추론 모델이 생각에 한도를 다 쓰지 않게 하한 1024), ChatGPT 계정은 공식 미리보기 계약대로
+  `store=false` · `stream=true` · `instructions` 만 보내고 금지된 인자를 보내지 않는다. 완료 이벤트를 받아야만 성공이다.
+  공식 오류표를 여섯 연결 상태로 옮긴다: 요금제 한도(429)는 일시 장애, 요금제 공유 대상 아님(403)은 구성 오류, 계정
+  연결의 401 은 한 번 갱신해 다시 보낸 뒤에도 거절되면 재로그인 필요, API 크레딧 없음은 구성 오류다.
+- 계정 연결은 공식 흐름 그대로다(인가는 `auth.openai.com`, 동적 클라이언트 등록, PKCE S256, `127.0.0.1:<포트>/auth/callback`,
+  호스트마다 고정된 `ext_agent_host_id`). 콜백은 브라우저가 있는 PC 에만 닿으므로 원격 서버의 화면만으로는 받을 수 없다
+  (자체 호스팅 VM 지침). 그래서 관리자 PC 에서 도는 연결 도우미(`tools/connect/`, Windows 는 PowerShell, macOS 와 Linux 는
+  표준 라이브러리 파이썬)가 콜백만 서버에 넘기고, 코드 교환과 ID 토큰 검증(RS256 · JWKS · 발급자 · 대상 · 만료 · nonce)과
+  이후 갱신은 서버가 제 호스트 id 로 한다. 토큰은 도우미를 거치지 않는다. 도우미를 돌릴 수 없는 PC 는 멈춘 콜백 주소를
+  붙여 넣는 대체 경로를 쓴다(루프백 주소, 정해진 경로, 그 시도의 포트만 받는다).
+- 도우미는 256비트 짝짓기 토큰으로만 자신을 증명한다. 서버에는 해시만 남고, 한 번 쓰면 끝나며, 10분 뒤 사라지고, state 가
+  틀리는 실패가 다섯 번이면 시도가 닫힌다. PKCE verifier 는 저장하지 않고 서버 비밀 값(`SESSION_SECRET`)과 state 로 다시
+  만든다. `/api/connect/openai/*` 는 쿠키가 없어 CSRF 가 성립하지 않으므로 Origin 검사와 IP 단위 속도 제한을 겹친다.
+  도우미는 서버 인증서 지문(설치가 만든 자체 서명 인증서)을 받아 그 인증서에만 붙는다.
+- 만료 시각의 정본은 제공자의 응답이다: access 는 `expires_in` → JWT `exp` → 설정 `ai_openai_access_ttl_fallback_seconds`,
+  refresh 는 `refresh_token_expires_in` → 설정 `ai_openai_refresh_ttl_fallback_days` 순서이고 출처(`expiry_source`)를 남긴다.
+  갱신은 만료 5분 전(`ai_token_refresh_lead_seconds`)에 하고, 갱신 토큰이 쓸 때마다 바뀌므로 DB 잠금
+  (`NS_AI_TOKEN_REFRESH`)으로 프로세스 사이에서 한 번에 하나만 한다. 새 토큰을 저장할 수 없으면(특권 헬퍼 불통) 갱신하지
+  않는다. 갱신 토큰이 거절되면 묶음에서 토큰만 지우고 재로그인 필요다. 로그아웃은 공식 무효화 주소를 부르고, 확인하지
+  못하면 ChatGPT 설정에서 끊으라고 말한 뒤 이 서버의 토큰을 지운다.
+- 연결 상태의 지문은 계정 연결이면 묶음의 `login_id`(로그인마다 새로 생긴다)다 - 한 시간마다 도는 갱신이 상태를 확인
+  전으로 되돌리지 않는다.
+- 주기 확인(`app/ai/health.py`, 배치 워커 15분): access 가 30분 안에 끝나면 미리 갱신하고, 갱신 토큰이 5일 안에 끝나면
+  한 번 알리며, 정상 · 확인 전 · 일시 장애에서 모델 목록으로 자격을 가볍게 확인한다(일시 장애는 답이 오면 정상, 키 거부는
+  막힘). 일시 장애가 30분 넘게 이어지면 한 번 알린다. 오래된 연결 시도를 지운다.
+- AI 연결 알림(`ai_provider_state`)은 시스템 관리자에게만 가고 AI 설정 화면으로 이어진다. 메일로도 받을 수 있고, 보내기
+  직전에 상태가 이미 바뀌었으면 보내지 않는다. 관리자만 받는 유형(`backup_failed`, `ai_provider_state`)은 일반 사용자의
+  알림 설정에 보이지 않는다.
+- 바깥 프록시(계획 2.10): `OutboundClient` 가 `HTTPS_PROXY` · `HTTP_PROXY` · `NO_PROXY` 를 명시적으로 읽어 라우팅으로 건다
+  (`trust_env` 는 계속 꺼 둔다). 허용 목록은 그대로 목적지에 걸리고, 시스템 설정의 `proxy.set` 이 대화형 워커에도 드롭인을
+  둔다(업그레이드는 없는 유닛에 복사한다). 프록시 인증은 아직 지원하지 않는다(P-112). 화면은 「프록시 ... 를 거쳐 연결한다」를
+  보인다.
+- 기본 허용 목록에 `api.openai.com:443` 과 `auth.openai.com:443` 을 더했다. 의존성에 `PyJWT` 와 `cryptography` 를 더했다
+  (ID 토큰 서명 검증, JWKS 는 OutboundClient 로 받는다).
+- ChatGPT 계정 연결은 연결한 사람의 요금제를 쓴다. 화면은 공식 지침의 문구(「Continue with ChatGPT」, 첫 연결 안내,
+  「Using ChatGPT plan」, 「Manage usage」)를 원문으로 쓰고, 여러 사람이 쓰는 설치에는 API 키 연결이 알맞다고 적는다.

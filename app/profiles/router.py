@@ -266,9 +266,12 @@ def _mail_delivery_state(request: Request, db: Session) -> str | None:
 
 def _preferences(request: Request, db: Session, user: User, pref, *, now, tz) -> dict:
     """세 경로(조회 · 수정 · 둘러보기)가 같은 모양을 돌려준다 - 한쪽만 `mail` 을 빠뜨리면 화면 캐시가 그 칸을 잃는다."""
+    from app.users.models import ROLE_USER
+
+    admin = user.role != ROLE_USER
     return service.preference_view(
-        pref, now=now, timezone_name=tz, avatar_url=_avatar_url(pref, user.id),
-        mail=service.mail_view(db, pref, delivery_state=_mail_delivery_state(request, db)),
+        pref, now=now, timezone_name=tz, avatar_url=_avatar_url(pref, user.id), admin=admin,
+        mail=service.mail_view(db, pref, delivery_state=_mail_delivery_state(request, db), admin=admin),
     )
 
 @router.get("/api/me/preferences")

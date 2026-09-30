@@ -57,6 +57,10 @@ NS_SEARCH_REINDEX = 3    # 수동 재색인 (전역 하나)
 # 규칙 그대로다 — 무중단 재시작 중에는 옛 코드와 새 코드가 같은 데이터베이스에 함께 붙어
 # 있고, 그때 같은 번호가 서로 다른 뜻이면 한쪽이 남의 잠금을 자기 것으로 읽는다.
 
+# ChatGPT 계정 연결의 토큰 갱신(D-516). 갱신 토큰은 쓸 때마다 바뀌므로 두 프로세스가 같은 토큰으로 동시에 갱신하면
+# 늦은 쪽이 「이미 쓴 토큰」으로 거절되고 연결이 끊긴다. 웹과 워커가 모두 갱신할 수 있어 프로세스 경계를 넘는 잠금이다.
+NS_AI_TOKEN_REFRESH = 6
+
 # 대상이 하나뿐인 잠금의 키. namespace 가 이미 용도를 구분하므로 0 이면 충분하다.
 GLOBAL_KEY = 0
 
@@ -102,6 +106,31 @@ def try_lock(db: Session, namespace: int, key: str | None = None):
         else:
             sql, params = "SELECT pg_try_advisory_xact_lock(:ns, hashtext(:key))", {"key": str(key)}
         got = bool(lock_db.execute(text(sql), {"ns": namespace, **params}).scalar())
+        yield got
+
+
+@contextmanager
+def wait_lock(db: Session, namespace: int, key: str, *, wait_seconds: float):
+    """`wait_seconds` 까지 기다려 잠근다. `with` 가 주는 값이 잠갔는지 여부다 - **못 잡으면 잠금 없이 가지 않는다.**
+
+    `lock_or_continue` 와 반대 선택이다. 토큰 갱신처럼 둘이 함께 하면 결과가 망가지는 일은 못 잡았을 때 하지 않는
+    쪽이 옳다. 부른 쪽이 그 경우를 따로 다룬다(가진 토큰이 아직 쓸 만하면 그대로 쓴다).
+    """
+    with _lock_session(db) as lock_db:
+        got = False
+        try:
+            lock_db.execute(
+                text("SELECT set_config('lock_timeout', :t, true)"),
+                {"t": f"{int(wait_seconds * 1000)}ms"},
+            )
+            lock_db.execute(text("SELECT pg_advisory_xact_lock(:ns, hashtext(:key))"),
+                            {"ns": namespace, "key": str(key)})
+            got = True
+        except (OperationalError, DBAPIError) as exc:
+            if not is_serialization_conflict(exc):
+                raise
+            lock_db.rollback()
+            logger.warning("잠금(ns=%s)을 %.0f초 안에 못 잡아 이번에는 하지 않는다", namespace, wait_seconds)
         yield got
 
 

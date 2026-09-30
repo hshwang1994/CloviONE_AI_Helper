@@ -1103,6 +1103,20 @@ stage_13_units() {
       || { fail "유닛 파일이 배포본에 없습니다: deploy/systemd/$u" "저장소에 그 파일이 있는지 확인하십시오" 33 || return $?; }
     install -o root -g root -m 0644 "$APP_DIR/deploy/systemd/$u" "/etc/systemd/system/$u"
   done
+  # 바깥 프록시(계획 2.10). 시스템 설정 화면이 웹 유닛에 둔 프록시 드롭인이 있으면, 그 드롭인이 없는 나머지 바깥 호출
+  # 유닛에도 같은 파일을 둔다. 새 버전이 드롭인 대상 유닛을 늘렸을 때(대화형 워커) 업그레이드만으로 맞춰진다.
+  # 사람이 유닛마다 다르게 둔 드롭인은 건드리지 않는다 - 없는 곳에만 복사한다.
+  local proxy_name="99-$SLUG-proxy.conf" proxy_unit
+  if [ -f "/etc/systemd/system/$WEB_UNIT.d/$proxy_name" ]; then
+    for proxy_unit in "$WORKER_UNIT" "$WORKER_CONV_UNIT" "$SCHEDULER_UNIT"; do
+      if [ ! -f "/etc/systemd/system/$proxy_unit.d/$proxy_name" ]; then
+        install -d -o root -g root -m 0755 "/etc/systemd/system/$proxy_unit.d"
+        install -o root -g root -m 0644 "/etc/systemd/system/$WEB_UNIT.d/$proxy_name" \
+          "/etc/systemd/system/$proxy_unit.d/$proxy_name"
+        log "프록시 드롭인을 $proxy_unit 에도 두었습니다"
+      fi
+    done
+  fi
   # 색인 레인 유닛은 S9 이 넣었고 위 루프가 그것을 깐다(ALL_UNITS 에 있다). 이 가드는
   # 남겨 둔다 — 유닛을 지우면서 레인은 남기는 실수를 잡는 자리이고, 그 상태의 증상은
   # 「색인이 안 되는데 아무 오류도 없다」뿐이다.

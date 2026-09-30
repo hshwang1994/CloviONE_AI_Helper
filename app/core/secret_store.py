@@ -49,6 +49,19 @@ class SecretStore:
         updated: datetime | None = self._provider.modified_at(name) if stored else None
         return {"stored": stored, "updated_at": updated.isoformat() if updated else None}
 
+    def ready(self) -> bool:
+        """지금 값을 저장할 수 있는가. 곧바로 쓸 수 있거나 특권 헬퍼가 답하면 참이다.
+
+        되돌릴 수 없는 일을 하기 **전에** 묻는다 - ChatGPT 계정 연결의 갱신 토큰은 쓰는 순간 옛 토큰이 무효가 되므로,
+        새 토큰을 저장할 수 없는 상태에서 갱신하면 연결을 잃는다(D-516).
+        """
+        if self._provider.writable():
+            return True
+        try:
+            return bool(self._helper().probe().available)
+        except Exception:  # noqa: BLE001 - 물어보지 못하면 저장할 수 없는 것으로 본다
+            return False
+
     def write(self, name: str, value: object) -> bool:
         """값을 저장하고, 실제로 바뀌었는지를 돌려준다."""
         slot = get_slot(name)

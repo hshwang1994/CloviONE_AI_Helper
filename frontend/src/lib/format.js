@@ -243,8 +243,11 @@ export const OBJECT_KO = {
   organization: "조직", feature_flag: "기능 플래그", ai_quota: "AI 사용 상한",
   approval_delegation: "승인 위임", announcement: "공지", offboarding: "오프보딩",
   offboarding_run: "오프보딩",
+  // AI 설정의 감사 동작(D-515 · D-516). 동작 이름의 앞부분이 대상이다(`ai.oauth.start` 는 「ChatGPT 계정 연결, 시작」).
+  ai_config: "AI 설정", "ai.config": "AI 설정", "ai.connection": "AI 연결", "ai.oauth": "ChatGPT 계정 연결",
 };
 export const VERB_KO = {
+  start: "시작", connect: "연결됨",
   create: "추가", update: "수정", delete: "삭제", enable: "활성화", disable: "비활성화",
   archive: "보관", unarchive: "복구", approve: "승인", reject: "거절", cancel: "취소",
   transition: "상태 변경", rollback: "롤백", grant: "부여", revoke: "회수", map: "연결",

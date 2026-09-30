@@ -306,6 +306,10 @@ EXEMPT: dict[str, str] = {
         "외부 연동에는 조직 축이 없다(`Integration` 이 `OrgScopedMixin` 을 안 타고 `org_id` 도 "
         "없다) — 좁힐 범위가 존재하지 않는다. 쓰기는 `require_global_management` 가, 읽기는 "
         "`CONSOLE_READ_ROLES` 가 지킨다.",
+    # ChatGPT 계정 연결 도우미 파일(D-516). `{name}` 은 자원 id 가 아니라 **고정된 파일 이름 둘**이다
+    # (`HELPER_FILES` 밖은 404). 비밀이 없는 공개 스크립트이고 저장소에도 그대로 있어 좁힐 범위가 없다.
+    "app/ai/connect_router.py::connect_helper_file":
+        "고정된 공개 도우미 파일 둘만 내려준다(`HELPER_FILES` 밖은 404) — 자원 id 가 아니고 좁힐 범위가 없다.",
 }
 
 # ── 알려진 미해결 gap ────────────────────────────────────────────────────────

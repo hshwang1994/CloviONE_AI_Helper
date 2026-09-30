@@ -170,11 +170,14 @@ def recheck_recipient(db: Session, delivery) -> str | None:
     return reason
 
 
-def recipient_view(db: Session, pref) -> dict:
-    """내 설정 화면의 「메일로도 받기」 한 벌 - 켜짐, 받는 유형, 고를 수 있는 유형(`app/profiles/router.py`)."""
-    from app.profiles.prefs import NOTIFICATION_TYPES
+def recipient_view(db: Session, pref, *, admin: bool = True) -> dict:
+    """내 설정 화면의 「메일로도 받기」 한 벌 - 켜짐, 받는 유형, 고를 수 있는 유형(`app/profiles/router.py`).
 
-    allowed = allowed_types(db)
+    일반 사용자에게는 관리자만 받는 유형(`ADMIN_ONLY_TYPES`)을 고를 칸으로 보이지 않는다.
+    """
+    from app.profiles.prefs import ADMIN_ONLY_TYPES, NOTIFICATION_TYPES
+
+    allowed = tuple(t for t in allowed_types(db) if admin or t not in ADMIN_ONLY_TYPES)
     return {
         "enabled": bool(pref.mail_enabled) if pref is not None else False,
         "types": chosen_types(pref, allowed),

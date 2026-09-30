@@ -29,9 +29,12 @@ TIMESYNCD_DROPIN = product.TIMESYNCD_DROPIN
 RESOLVED_DROPIN = product.RESOLVED_DROPIN
 # 프록시 드롭인을 받는 유닛. 외부로 나가는 프로세스가 전부 들어와야 한다 —
 # 스케줄러도 워크플로를 부르므로 웹·배치 워커와 같은 프록시를 봐야 한다.
+# 대화형 워커는 채팅 답변과 AI 연결 확인을 AI 제공자에게 보낸다(D-516). 빠져 있으면 프록시 뒤 설치에서 웹의 연결
+# 확인만 되고 채팅은 끝내 닿지 못한다. 색인 레인은 바깥으로 나가지 않아 넣지 않는다.
 PROXY_DROPIN_UNITS = (
     product.WEB_UNIT,
     product.WORKER_UNIT,
+    product.WORKER_CONVERSATIONAL_UNIT,
     product.SCHEDULER_UNIT,
 )
 HOSTS_FILE = "/etc/hosts"
