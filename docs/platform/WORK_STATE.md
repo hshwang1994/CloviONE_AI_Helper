@@ -7,6 +7,22 @@
 > 큰 작업 단위는 [`BACKLOG.md`](BACKLOG.md), 설치 사양은 [`INSTALLATION.md`](INSTALLATION.md),
 > 실측 목록은 [`INVENTORY/`](INVENTORY/README.md), 결정은 [`../DECISIONS.md`](../DECISIONS.md) D-187~.
 
+## 진행 중 — 관리자 · 사용자 화면 전반 개선 회차 (2026-09-30 ~)
+
+- 계획 정본: `C:/Users/hshwa/.claude/plans/pasted-content-id-c5c6-clovirassist-vivid-flask.md`(사용자 승인, 2차 보완 반영).
+  구현 순서는 그 문서 §5 다(F 기반 → B 버그 → U 화면 → M 메일 → A AI → I 설치). 결정은 D-503 부터.
+- 사용자 지시: auto 모드로 계획 전체를 구현하고 Packet 마다 표적 검증과 회귀를 돈 뒤, 끝에 E2E 와 최종 검증을 한다.
+- 끝난 Packet:
+
+| Packet | 커밋 | 결정 |
+|---|---|---|
+| F1 비밀 입력 경로(헬퍼 secret.write, /api/admin/secrets, SecretField) | `5deb94ef` | D-503 |
+| B1 + F2 프로젝트 진행률 · Health(커밋 직전 계산, 0031, 휴지통 공용 절) | `5f15c465` | D-504 |
+| B2 월간 리포트(사람 id, 일곱 칸, 완료일 축, 0032) | `dfb85ec7` | D-505 |
+
+- 다음: F3(공통 UI 규칙: 폭 · 필터 문구 · 의미 기반 정렬) → F4(AI 기능 플래그 DB) → B3 → B4 → U1 → U2 → M1 ~ M4 → A1 ~ A6 → U3 · U4 → I1 ~ I3.
+- 번들(`app/static/react`)은 화면 Packet 이 모인 뒤 한 번에 다시 빌드한다(아직 안 했다).
+
 ## CHECKPOINT
 
 - checkpoint_at: **2026-09-21** (제품 일관성 회차 — 사용자가 짚은 여덟 가지를 **사례**로 보고 공통 원인 다섯을 공통 계층에서 고쳤다:
