@@ -37,6 +37,11 @@ served today.
 
 Deliberate contract changes recorded here (each landed with its golden edit):
 
+  * **월간 리포트가 사람 id 로 묶이고 완료일 축을 얻었다** (D-505 · 계획 3.7). ``developers[]`` 행에
+    ``kind`` · ``email`` · ``department`` · ``state`` · ``ambiguous_name`` · ``other`` · ``act_per_done`` ·
+    ``estimate_accuracy_pct`` · ``completed`` · ``no_due`` 가, 상세 티켓에 ``uid`` 가, 팀 합계에 ``other`` ·
+    ``completion_rate`` 가, 응답에 ``today`` · ``timezone`` · ``completed`` · ``no_due`` · ``definitions`` 가
+    **더해졌다.** 기존 칸의 값은 한 칸도 안 바뀌었다(골든 diff 가 추가뿐이다).
   * **진행 상태와 신호가 갈렸다** (D-349 · 지시 2). 상태 어휘에서 ``이슈`` 가 빠지고
     ``보류`` 가 들어왔다 — 여섯이 전부다(``계획 · 진행 · 검증 · 완료 · 보류 · 취소``).
     ``이슈`` 는 상태가 아니라 **신호**였다: 「진행 중인데 문제가 있다」를 한 칸에 적으려니

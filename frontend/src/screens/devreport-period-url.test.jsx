@@ -98,12 +98,11 @@ describe("개발자 월간 리포트 — 고른 달이 주소에 실린다", () 
     expect(await screen.findByText(/마감일이 2026년 5월인 티켓을/)).toBeInTheDocument();
   });
 
-  it("반례 — 아무것도 안 고른 주소는 깨끗하게 두고 이번 달을 받는다", async () => {
+  it("반례 — 아무것도 안 고른 주소는 깨끗하게 두고, 이번 달은 서버가 정한다", async () => {
     renderReport("/dev-report");
     await waitFor(() => expect(asked.length).toBeGreaterThan(0));
-    const now = new Date();
-    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    expect(asked[0]).toContain("period=" + month);
+    // 브라우저 시계로 달을 만들지 않는다(계획 3.7) - 기간 없이 묻고 서버의 KST 이번 달을 받는다.
+    expect(asked[0]).not.toContain("period=");
     expect(addr()).toBe("/dev-report");
   });
 });

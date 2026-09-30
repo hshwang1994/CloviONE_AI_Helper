@@ -364,6 +364,18 @@ class TicketRepository(Protocol):
         filters: TicketFilters | None = None, page: PageSpec | None = None,
     ) -> TicketList: ...
 
+    def list_completed_between(self, db, *, since, until) -> TicketList:
+        """끝낸 시각이 [since, until) 인 완료 티켓(월간 리포트의 완료일 축)."""
+        ...
+
+    def list_open_without_due(self, db) -> TicketList:
+        """마감일이 없는 열린 티켓."""
+        ...
+
+    def count_done_without_completion(self, db) -> int:
+        """완료 상태인데 끝낸 날짜를 모르는 티켓 수."""
+        ...
+
     def get(self, db, *, page_id: str) -> TicketDTO:
         """단건. 없으면 TicketNotFoundError."""
         ...

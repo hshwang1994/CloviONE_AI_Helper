@@ -77,7 +77,7 @@ from app.tickets.models import (
     join_names,
     split_names,
 )
-from app.tickets.query import filter_clauses, order_clause, token
+from app.tickets.query import filter_clauses, not_trashed_clause, order_clause, token
 from app.tickets.repository import (
     BodySaveResult,
     PageSpec,
@@ -429,9 +429,51 @@ class NativeTicketRepository:
                 TicketCache.due_date.is_not(None),
                 TicketCache.due_date >= parse_date(start),
                 TicketCache.due_date < parse_date(end),
+                # 휴지통 티켓은 리포트 · 번다운의 일이 아니다(계획 2.6, 3.7).
+                not_trashed_clause(),
             ),
             filters, page,
         )
+
+    def list_completed_between(
+        self, db: Session, *, since: datetime, until: datetime,
+    ) -> TicketList:
+        """끝낸 시각(`completed_at`, naive UTC)이 `[since, until)` 인 완료 티켓. 월간 리포트의 완료일 축이다."""
+        return self._list(
+            db,
+            select(TicketCache).where(
+                TicketCache.completed_at.is_not(None),
+                TicketCache.completed_at >= since,
+                TicketCache.completed_at < until,
+                workflow.category_sql(TicketCache.status) == workflow.CAT_DONE,
+                not_trashed_clause(),
+            ),
+        )
+
+    def list_open_without_due(self, db: Session) -> TicketList:
+        """마감일이 없는 **열린** 티켓(완료 · 취소가 아닌 것). 어느 달의 마감일 축에도 안 들어가는 일이다."""
+        return self._list(
+            db,
+            select(TicketCache).where(
+                TicketCache.due_date.is_(None),
+                # 모르는 상태(분류가 NULL)도 열린 일로 센다 - 끝났다는 증거가 없다.
+                or_(
+                    workflow.category_sql(TicketCache.status).is_(None),
+                    workflow.category_sql(TicketCache.status).notin_(sorted(workflow.TERMINAL_CATEGORIES)),
+                ),
+                not_trashed_clause(),
+            ),
+        )
+
+    def count_done_without_completion(self, db: Session) -> int:
+        """완료 상태인데 끝낸 날짜를 모르는 티켓 수(이관 데이터). 완료일 축에 넣을 수 없는 일의 크기다."""
+        stmt = select(func.count()).select_from(TicketCache).where(
+            TicketCache.notion_missing_at.is_(None),
+            TicketCache.completed_at.is_(None),
+            workflow.category_sql(TicketCache.status) == workflow.CAT_DONE,
+            not_trashed_clause(),
+        )
+        return int(db.execute(stmt).scalar_one())
 
     # ── 단건 ─────────────────────────────────────────────────────────────────
 

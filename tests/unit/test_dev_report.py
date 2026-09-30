@@ -83,9 +83,11 @@ def test_aggregates_by_developer_with_names_and_overdue(db, settings, make_user)
 
     report = _report(db, settings)
 
+    # 칸은 일곱이고(모르는 상태는 '기타') 팀 완료율은 서버가 한 번 계산한다(계획 3.7).
     assert report["team"] == {
         "total": 3, "done": 1, "in_progress": 1, "verify": 0, "plan": 1, "hold": 0,
-        "cancel": 0, "overdue": 1, "est_done_total": 3.0, "est_all_total": 6.0,
+        "cancel": 0, "other": 0, "overdue": 1, "completion_rate": 33,
+        "est_done_total": 3.0, "est_all_total": 6.0,
     }
     assert report["unassigned"]["total"] == 1
     assert report["unassigned"]["plan"] == 1

@@ -94,6 +94,7 @@ describe("개발자 월간 리포트 — 담당자 0명", () => {
 
 describe("개발자 월간 리포트 — 데이터가 있는 달", () => {
   const DEV = {
+    user_id: "u-seo", email: "seo@goodmit.co.kr", state: "active", ambiguous_name: false,
     name: "서윤경", done: 3, prog: 1, verify: 0, plan: 2, cancel: 0, assigned: 6,
     overdue: 1, completion_rate: 50, est_done: 4.5, est_all: 9, act_done: 5,
     difficulty_avg: 3.2, has_tickets: true,
@@ -136,9 +137,9 @@ describe("개발자 월간 리포트 — 데이터가 있는 달", () => {
     expect(within(notes).getByText(/팀 합계는 티켓 단위로 셉니다/)).toBeInTheDocument();
     // 합계에 안 드는 취소는 도넛만 그렸다 — 사라지지 않고 정의 목록이 수로 말한다.
     expect(within(notes).getByText("1건은 합계에서 뺐습니다.")).toBeInTheDocument();
-    // 막대의 색 범례 — 다섯 상태가 이름으로 선다.
+    // 막대의 색 범례 — 일곱 칸이 이름으로 선다(보류와 기타가 빠지면 막대의 합이 담당과 다르다, 계획 3.7).
     const legend = screen.getByRole("list", { name: "상태 구성 막대의 색" });
-    expect(within(legend).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["완료", "진행", "검증", "계획", "취소"]);
+    expect(within(legend).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["완료", "진행", "검증", "계획", "보류", "취소", "기타"]);
   });
 
   it("반례: 취소가 0건이면 그 각주는 서지 않는다", async () => {
@@ -178,13 +179,46 @@ describe("개발자 월간 리포트 — 데이터가 있는 달", () => {
     await screen.findByText("담당자별 상세 티켓");
     const groups = container.querySelectorAll("[data-group-row]");
     expect(groups).toHaveLength(1);
-    expect(groups[0].getAttribute("data-group-row")).toBe("서윤경");
-    // 요약 문장은 그대로다 — 흡수는 문구를 바꾸는 일이 아니다.
-    expect(groups[0].textContent).toContain("완료 3건, 진행 중 1건, 완료 예상 WD 4.5인일");
+    // 묶는 키는 이름이 아니라 사람 id 다(같은 이름의 두 사람이 한 묶음이 되지 않게, 계획 3.7).
+    expect(groups[0].getAttribute("data-group-row")).toBe("u-seo");
+    expect(groups[0].textContent).toContain("서윤경");
+    expect(groups[0].textContent).toContain("완료 3건, 진행과 검증 1건, 완료 예상 WD 4.5인일");
     // 스크린 리더가 아래 행들이 이 이름에 속한다고 읽는다.
     expect(groups[0].querySelector("th").getAttribute("scope")).toBe("colgroup");
     // 그 줄이 붙어 있는 표는 상세 티켓 표다(제목 열이 그 표에만 있다).
     const table = groups[0].closest("table");
     expect(within(table).getByText("로그인 화면 정리")).toBeInTheDocument();
+  });
+
+  it("같은 이름의 두 사람은 두 줄이고 이메일로 구별한다", async () => {
+    const twin = (id, email) => ({
+      ...DEV, user_id: id, email, ambiguous_name: true, name: "김철수",
+      tickets: [{ ...DEV.tickets[0], uid: "t-" + id, title: "일 " + id }],
+    });
+    apiMock.mockResolvedValue({
+      configured: true, ok: true, period: "2026-08",
+      team: { ...EMPTY_TEAM, total: 2, done: 2, est_done_total: 3 },
+      developers: [twin("u1", "kim1@goodmit.co.kr"), twin("u2", "kim2@goodmit.co.kr")],
+      unassigned: { total: 0 },
+    });
+    renderReport();
+    expect((await screen.findAllByText("김철수 (kim1@goodmit.co.kr)")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("김철수 (kim2@goodmit.co.kr)").length).toBeGreaterThan(0);
+  });
+
+  it("이 달에 끝낸 일은 끝낸 날짜로 따로 보이고, 끝낸 날짜를 모르는 완료 티켓 수를 말한다", async () => {
+    apiMock.mockResolvedValue({
+      configured: true, ok: true, period: "2026-08",
+      team: { ...EMPTY_TEAM, total: 6, done: 3, in_progress: 1, plan: 2, overdue: 1, est_done_total: 4.5 },
+      developers: [{ ...DEV, completed: { done: 4, late_done: 1, est_done: 5, act_done: 6 }, no_due: { open: 2 } }],
+      unassigned: { total: 0 },
+      completed: { team: { done: 4, late_done: 1, est_done: 5, act_done: 6 }, unknown_date: 3 },
+      no_due: { team: { open: 2 } },
+      definitions: { completed_done: "끝낸 날짜가 이 달인 완료 티켓입니다." },
+    });
+    renderReport();
+    expect(await screen.findByText("이 달에 끝낸 일 (2026-08)")).toBeInTheDocument();
+    expect(screen.getByText(/끝낸 날짜를 모르는 완료 티켓 3건/)).toBeInTheDocument();
+    expect(screen.getByText(/마감일이 없는 열린 티켓 2건/)).toBeInTheDocument();
   });
 });

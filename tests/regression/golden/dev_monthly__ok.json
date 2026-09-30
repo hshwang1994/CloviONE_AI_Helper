@@ -1,21 +1,58 @@
 {
+  "completed": {
+    "team": {
+      "act_done": 0.0,
+      "done": 0,
+      "est_done": 0.0,
+      "late_done": 0
+    },
+    "unknown_date": 2
+  },
   "configured": true,
+  "definitions": {
+    "assigned": "마감일이 이 달인 티켓 중 이 사람이 담당한 수입니다. 한 티켓에 여러 사람이 있으면 사람마다 셉니다.",
+    "completed_done": "끝낸 날짜가 이 달인 완료 티켓입니다. 마감일과 관계없이 끝낸 달에 셉니다.",
+    "completed_unknown_date": "완료 상태인데 끝낸 날짜를 모르는 티켓입니다. 완료일 기준에 넣을 수 없습니다.",
+    "completion_rate": "완료를 담당에서 취소를 뺀 수로 나눠 100을 곱하고 반올림합니다.",
+    "estimate_accuracy_pct": "완료한 티켓의 실제 WD 합을 예상 WD 합으로 나눠 100을 곱하고 반올림합니다. 100보다 크면 예상보다 오래 걸린 것입니다.",
+    "late_done": "이 달에 끝낸 티켓 중 끝낸 날짜가 마감일보다 뒤인 티켓입니다.",
+    "no_due_open": "마감일이 없는 열린 티켓입니다. 어느 달의 마감일 기준에도 들어가지 않아 지금 기준으로 따로 셉니다.",
+    "other": "제품이 모르는 상태 값을 가진 티켓입니다. 이관 데이터에서 나옵니다.",
+    "overdue": "마감일이 오늘보다 앞인데 완료나 취소가 아닌 티켓입니다."
+  },
   "developers": [
     {
       "act_done": 2.0,
+      "act_per_done": 2.0,
+      "ambiguous_name": false,
       "assigned": 2,
       "cancel": 0,
+      "completed": {
+        "act_done": 0.0,
+        "done": 0,
+        "est_done": 0.0,
+        "late_done": 0
+      },
       "completion_rate": 50,
+      "department": null,
       "difficulty_avg": 3.0,
       "done": 1,
+      "email": "contract-dev@goodmit.co.kr",
       "est_all": 4.5,
       "est_done": 1.5,
+      "estimate_accuracy_pct": 133,
       "has_tickets": true,
       "hold": 0,
+      "kind": "person",
       "name": "개발자 이",
+      "no_due": {
+        "open": 0
+      },
+      "other": 0,
       "overdue": 0,
       "plan": 0,
       "prog": 0,
+      "state": "active",
       "tickets": [
         {
           "act_wd": 2.0,
@@ -27,7 +64,8 @@
           "priority": "보통",
           "status": "완료",
           "tid": 102,
-          "title": "공동 담당 완료 티켓"
+          "title": "공동 담당 완료 티켓",
+          "uid": "00000000-0000-4000-8000-00000000d002"
         },
         {
           "act_wd": null,
@@ -39,7 +77,8 @@
           "priority": "낮음",
           "status": "검증",
           "tid": 103,
-          "title": "개발자 검증 티켓"
+          "title": "개발자 검증 티켓",
+          "uid": "00000000-0000-4000-8000-00000000d003"
         }
       ],
       "user_id": "00000000-0000-4000-8000-00000000a002",
@@ -47,19 +86,36 @@
     },
     {
       "act_done": 2.0,
+      "act_per_done": 2.0,
+      "ambiguous_name": false,
       "assigned": 2,
       "cancel": 0,
+      "completed": {
+        "act_done": 0.0,
+        "done": 0,
+        "est_done": 0.0,
+        "late_done": 0
+      },
       "completion_rate": 50,
+      "department": null,
       "difficulty_avg": 4.0,
       "done": 1,
+      "email": "contract-admin@goodmit.co.kr",
       "est_all": 3.5,
       "est_done": 1.5,
+      "estimate_accuracy_pct": 133,
       "has_tickets": true,
       "hold": 0,
+      "kind": "person",
       "name": "관리자 김",
+      "no_due": {
+        "open": 1
+      },
+      "other": 0,
       "overdue": 1,
       "plan": 0,
       "prog": 1,
+      "state": "active",
       "tickets": [
         {
           "act_wd": null,
@@ -71,7 +127,8 @@
           "priority": "높음",
           "status": "진행",
           "tid": 101,
-          "title": "관리자 진행 티켓"
+          "title": "관리자 진행 티켓",
+          "uid": "00000000-0000-4000-8000-00000000d001"
         },
         {
           "act_wd": 2.0,
@@ -83,7 +140,8 @@
           "priority": "보통",
           "status": "완료",
           "tid": 102,
-          "title": "공동 담당 완료 티켓"
+          "title": "공동 담당 완료 티켓",
+          "uid": "00000000-0000-4000-8000-00000000d002"
         }
       ],
       "user_id": "00000000-0000-4000-8000-00000000a001",
@@ -91,25 +149,47 @@
     },
     {
       "act_done": 0.0,
+      "act_per_done": null,
+      "ambiguous_name": false,
       "assigned": 0,
       "cancel": 0,
+      "completed": {
+        "act_done": 0.0,
+        "done": 0,
+        "est_done": 0.0,
+        "late_done": 0
+      },
       "completion_rate": null,
+      "department": null,
       "difficulty_avg": null,
       "done": 0,
+      "email": "contract-nomap@goodmit.co.kr",
       "est_all": 0.0,
       "est_done": 0.0,
+      "estimate_accuracy_pct": null,
       "has_tickets": false,
       "hold": 0,
+      "kind": "person",
       "name": "미연결 박",
+      "no_due": {
+        "open": 0
+      },
+      "other": 0,
       "overdue": 0,
       "plan": 0,
       "prog": 0,
+      "state": "active",
       "tickets": [],
       "user_id": "00000000-0000-4000-8000-00000000a003",
       "verify": 0
     }
   ],
   "generated_at": "2026-07-14T09:00:00",
+  "no_due": {
+    "team": {
+      "open": 1
+    }
+  },
   "ok": true,
   "period": "2026-07",
   "range": {
@@ -118,20 +198,25 @@
   },
   "team": {
     "cancel": 0,
+    "completion_rate": 25,
     "done": 1,
     "est_all_total": 7.0,
     "est_done_total": 1.5,
     "hold": 0,
     "in_progress": 1,
+    "other": 0,
     "overdue": 1,
     "plan": 1,
     "total": 4,
     "verify": 1
   },
+  "timezone": "Asia/Seoul",
+  "today": "2026-07-14",
   "unassigned": {
     "cancel": 0,
     "done": 0,
     "hold": 0,
+    "other": 0,
     "plan": 1,
     "prog": 0,
     "total": 1,
