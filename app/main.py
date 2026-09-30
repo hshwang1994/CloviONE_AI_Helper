@@ -128,6 +128,11 @@ def create_app(
     app.state.settings_cache = SettingsCache(settings)
     try:
         with app.state.session_factory() as _db:
+            # 파일 소유였던 AI 기능 플래그의 옛 값을 한 번 DB 로 옮긴다(D-507). DB 에 값이 있으면 그대로다.
+            from app.core.feature_flags import import_legacy_file_values
+
+            if import_legacy_file_values(_db, settings.config_dir):
+                _db.commit()
             app.state.settings_cache.load(_db)
     except Exception:
         # CORE-12: 이 except가 두 가지를 구별 없이 삼켰다 — ① 정말 기대한 경우(첫

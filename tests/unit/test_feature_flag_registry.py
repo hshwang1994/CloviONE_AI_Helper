@@ -98,11 +98,11 @@ def test_a_non_boolean_value_falls_back_to_the_default_instead_of_being_truthy(
 ):
     reset_cache()
     (tmp_path / "feature-flags.json").write_text(
-        json.dumps({"game_ai_enabled": bad_value}), encoding="utf-8"
+        json.dumps({"self_approval_allowed": bad_value}), encoding="utf-8"
     )
     flags = load_feature_flags(tmp_path)
-    assert flags["game_ai_enabled"] is False, (
-        f"타입 강제가 없어 {bad_value!r}(정수/문자열 등)이 켜짐으로 해석됐다: {flags['game_ai_enabled']!r}"
+    assert flags["self_approval_allowed"] is False, (
+        f"타입 강제가 없어 {bad_value!r}(정수/문자열 등)이 켜짐으로 해석됐다: {flags['self_approval_allowed']!r}"
     )
 
 
@@ -110,9 +110,9 @@ def test_a_real_boolean_value_still_works(tmp_path):
     """회귀 없음 — 진짜 JSON boolean은 그대로 반영돼야 한다."""
     reset_cache()
     (tmp_path / "feature-flags.json").write_text(
-        json.dumps({"game_ai_enabled": True}), encoding="utf-8"
+        json.dumps({"self_approval_allowed": True}), encoding="utf-8"
     )
-    assert load_feature_flags(tmp_path)["game_ai_enabled"] is True
+    assert load_feature_flags(tmp_path)["self_approval_allowed"] is True
 
 
 def test_registry_owners_are_only_the_two_known_values():

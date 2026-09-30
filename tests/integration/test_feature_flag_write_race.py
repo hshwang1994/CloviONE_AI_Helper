@@ -26,18 +26,13 @@ import pytest
 
 pytestmark = pytest.mark.integration
 
-# 파일 소유 플래그 여덟. 서로 **다른** 키를 동시에 쓰는 것이 이 결함의 모양이다 —
+# 파일 소유 플래그 전부. 서로 **다른** 키를 동시에 쓰는 것이 이 결함의 모양이다 —
 # 같은 키를 쓰면 마지막이 이기는 것이 정상이라 아무것도 증명하지 못한다.
-FLAGS = (
-    "board_enabled",
-    "chat_enabled",
-    "team_docs_enabled",
-    "games_enabled",
-    "team_chat_enabled",
-    "self_approval_allowed",
-    "game_ai_enabled",
-    "assistant_narrative_enabled",
-)
+# 목록은 레지스트리에서 뽑는다 - AI 기능 셋은 DB 소유로 옮겼다(D-507).
+from app.core.feature_flags import FILE_OWNED  # noqa: E402
+
+FLAGS = tuple(FILE_OWNED)
+assert len(FLAGS) >= 5, FLAGS
 
 
 @pytest.fixture()

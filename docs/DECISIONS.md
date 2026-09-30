@@ -15455,3 +15455,14 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
   (`registry-saved-views-criteria.test.js` 가 두 방향을 다 잰다). 이번에 11개 화면이 선언을 얻었다.
 - 폭 정책(`READ_COLUMN` 삭제)은 그 두 소비처(조직 정합성 · 초기 설정)를 다시 짜는 Packet(U1 · U3)에서 함께 한다 — 먼저 걷으면 두
   화면이 그 사이에 긴 줄로 돌아간다.
+
+### D-507. AI 기능 셋(채팅 · 퀴즈 · 문장 요약)은 DB 소유 설정이다 — 운영에서 화면이 켜고 끈다 (관리자 화면 개선 회차 F4)
+
+- `chat_enabled` · `game_ai_enabled` · `assistant_narrative_enabled` 는 `feature-flags.json` 소유였다. 그 파일은 운영에서
+  `/etc/clovirassist` 아래라 웹 유닛(`ProtectSystem=strict`)이 쓸 수 없어서, 관리 화면에서 켜면 409 였다. 이제 `app_settings` 가
+  정본이다(system_admin 전용 키). 소비처(채팅 API · 놀이 · 도우미 문장)는 설정 캐시에서 읽으므로 재시작 없이 반영된다.
+- 옛 파일 값은 부팅 때 한 번 DB 로 옮긴다(`import_legacy_file_values`). DB 에 행이 있으면 건드리지 않고, 기본값과 같으면 행을
+  만들지 않으며, 진짜 JSON boolean 만 믿는다 — 업그레이드한 설치가 조용히 꺼지거나 켜지지 않게.
+- 메뉴도 `chat_enabled` 를 받는다. 예전에는 채팅을 꺼도 메뉴가 남아 눌러 보면 404 였다.
+- 파일 소유로 남은 플래그 다섯(게시판 · 팀 문서 · 놀이 · 팀 채팅 · 본인 승인)도 같은 원인으로 운영에서 못 바꾼다. 같은 함수로 옮길 수
+  있게 만들어 두었고, 이번 회차 범위 밖이라 BACKLOG 로 보낸다.

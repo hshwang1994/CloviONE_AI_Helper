@@ -72,10 +72,13 @@ FLAG_REGISTRY: dict[str, FlagSpec] = {
         # AI-45: 다른 선택적 모듈(게시판·팀 채팅·팀 문서·놀이)은 전부 테넌트별로 끌 수 있는데
         # AI 도우미 채팅만 빠져 있었다. 앱 셸(app/chat/router.py "/")은 이 플래그로 막지
         # 않는다 — 그 경로는 채팅 전용이 아니라 React 앱 전체의 진입점이다.
-        FlagSpec("chat_enabled", True, OWNER_FILE, "AI 도우미 채팅(대화 CRUD, 메시지, 쿼터 조회)."),
-        FlagSpec("game_ai_enabled", False, OWNER_FILE,
-                 "AI 퀴즈 생성(§7-9). 러너/Claude 호출이라 기본 OFF(fail-closed)."),
-        FlagSpec("assistant_narrative_enabled", False, OWNER_FILE,
+        # AI 기능 셋은 **DB 소유**다(계획 3.13, D-507). 예전에는 파일 소유였는데 그 파일은 운영에서
+        # `/etc/clovirassist` 아래라 웹이 쓸 수 없어, 관리 화면에서 켜면 409 로 실패했다. AI 설정 화면이
+        # 이 셋을 켜고 끈다. 옛 파일 값은 부팅 때 한 번 DB 로 옮긴다(`import_legacy_file_values`).
+        FlagSpec("chat_enabled", True, OWNER_DB, "AI 도우미 채팅(대화 CRUD, 메시지, 쿼터 조회)."),
+        FlagSpec("game_ai_enabled", False, OWNER_DB,
+                 "AI 퀴즈 생성(§7-9). 모델 호출이라 기본 OFF(fail-closed)."),
+        FlagSpec("assistant_narrative_enabled", False, OWNER_DB,
                  "AI 도우미의 '문장' 생성. 꺼져도 숫자, 목록은 전부 나온다."),
         # ── 소비자가 아직 없는 플래그 ─────────────────────────────────────────
         # 정직하게 적어 둔다: 읽는 코드가 하나도 없다. 지우지 않는 이유는 운영 파일에
@@ -178,3 +181,58 @@ def reset_cache() -> None:
     """테스트용 — 파일을 만든 직후 mtime 해상도 때문에 같은 키가 나오는 경우를 피한다."""
     with _cache_lock:
         _cache.clear()
+
+
+# 파일 소유였다가 DB 로 옮긴 플래그. 부팅 때 파일에 남은 옛 값을 한 번 DB 로 옮긴다.
+MIGRATED_TO_DB: tuple[str, ...] = ("chat_enabled", "game_ai_enabled", "assistant_narrative_enabled")
+
+
+def import_legacy_file_values(db, config_dir: Path | str, *, now=None) -> list[str]:
+    """파일에 남은 옛 값을 DB 로 **한 번** 옮긴다. 옮긴 키 목록을 돌려준다. 커밋은 부르는 쪽 몫이다.
+
+    - DB 에 이미 행이 있으면 건드리지 않는다(관리자가 화면에서 정한 값이 이긴다). 그래서 여러 번
+      불러도 결과가 같고, 파일을 나중에 고쳐도 DB 값을 덮지 않는다.
+    - 파일 값이 기본값과 같으면 행을 만들지 않는다(기본값은 행이 없어도 기본값이다).
+    - 진짜 JSON boolean 만 믿는다(`_parse` 와 같은 규칙).
+
+    업그레이드한 설치에서 `game_ai_enabled=true` 로 운영하던 곳이 조용히 꺼지지 않게 하려는 것이다.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    from app.core.models_base import utcnow
+    from app.settings.models import AppSetting
+
+    path = flags_path(config_dir)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    moved: list[str] = []
+    stamp = now or utcnow()
+    for key in MIGRATED_TO_DB:
+        value = data.get(key)
+        if not isinstance(value, bool) or value == FLAG_REGISTRY[key].default:
+            continue
+        if db.get(AppSetting, key) is not None:
+            continue
+        try:
+            with db.begin_nested():
+                db.add(AppSetting(
+                    key=key, value_json=json.dumps(value), value_type="bool",
+                    restart_required=False, updated_by=None, updated_at=stamp,
+                ))
+                db.flush()
+        except IntegrityError:
+            continue  # 다른 프로세스가 먼저 옮겼다
+        moved.append(key)
+    return moved
+
+
+def db_flag(settings_cache, key: str) -> bool:
+    """DB 소유 플래그의 지금 값. 캐시가 아직 없으면 레지스트리 기본값이다."""
+    value = settings_cache.current_value(key) if settings_cache is not None else None
+    if value is None:
+        return FLAG_REGISTRY[key].default
+    return bool(value)

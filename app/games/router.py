@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import AuthContext, get_current_auth, get_current_user, get_db, require_csrf
 from app.core.etag import etag_json_response
 from app.core.errors import NotFoundError, RateLimitedError
-from app.core.feature_flags import load_feature_flags
+from app.core.feature_flags import db_flag, load_feature_flags
 from app.games import ai, repository, service
 from app.games.models import EV_CHAT, ROLE_SPECTATOR
 from app.games.schemas import ChatInput, NumberInput, QuizGenerateInput, ReadyInput, RoomCreate, VoteInput
@@ -32,8 +32,8 @@ def require_games_enabled(request: Request) -> None:
 
 def require_game_ai_enabled(request: Request) -> None:
     # fail-closed: 기본값 False. 켜지 않으면 AI 생성 엔드포인트는 404(나머지 놀이는 그대로 동작).
-    flags = load_feature_flags(request.app.state.settings.config_dir)
-    if not flags.get("game_ai_enabled", False):
+    # DB 소유 플래그다(D-507) - AI 설정 화면에서 켜고 끈다.
+    if not db_flag(getattr(request.app.state, "settings_cache", None), "game_ai_enabled"):
         raise NotFoundError("AI 퀴즈 생성 기능이 비활성화되어 있습니다.")
 
 
@@ -114,13 +114,12 @@ def list_rooms(request: Request, db: Session = Depends(get_db), me: User = Depen
     # 목록을 볼 때마다 버려진(폴링 끊긴) 방을 먼저 정리해 유령 방이 남지 않게 한다.
     service.cleanup_idle_rooms(db, now=request.app.state.clock.now())
     rooms = repository.list_open_rooms(db, org_id=_viewer_org_id(db, me))
-    flags = load_feature_flags(request.app.state.settings.config_dir)
     # 프런트가 AI 퀴즈 생성 버튼 노출 여부를 알도록 플래그를 함께 내려준다(기본 OFF → 버튼 숨김).
     # 놀이 목록은 3초마다 폴링된다 — 방이 하나도 안 바뀐 동안은 304 로 끝낸다.
     # (위의 cleanup_idle_rooms 는 그대로 돈다: 유령 방 정리를 건너뛰면 목록이 썩는다.)
     return etag_json_response(request, {
         "items": [_room_summary(db, r) for r in rooms],
-        "game_ai_enabled": bool(flags.get("game_ai_enabled", False)),
+        "game_ai_enabled": db_flag(getattr(request.app.state, "settings_cache", None), "game_ai_enabled"),
     })
 
 

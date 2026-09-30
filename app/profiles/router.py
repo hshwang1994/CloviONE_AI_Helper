@@ -66,10 +66,14 @@ _MENU_FLAGS = ("board_enabled", "team_docs_enabled", "games_enabled", "team_chat
 
 
 def _menu_features(request) -> dict:
-    from app.core.feature_flags import load_feature_flags
+    from app.core.feature_flags import db_flag, load_feature_flags
 
     flags = load_feature_flags(request.app.state.settings.config_dir)
-    return {k: bool(flags.get(k, True)) for k in _MENU_FLAGS}
+    features = {k: bool(flags.get(k, True)) for k in _MENU_FLAGS}
+    # AI 도우미 채팅은 DB 소유 플래그다(D-507). 예전에는 이 목록에 없어서, 채팅을 꺼도 메뉴가 남아
+    # 눌러 보면 404 였다.
+    features["chat_enabled"] = db_flag(getattr(request.app.state, "settings_cache", None), "chat_enabled")
+    return features
 
 
 def _scope_names(db: Session, user: User) -> dict:

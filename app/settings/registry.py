@@ -319,6 +319,13 @@ REGISTRY: dict[str, SettingSpec] = {
                     _interval_seconds),
         SettingSpec("document_automation_enabled", "bool", True, False,
                     "문서 자동화: 끄면 신규 문서 생성 요청이 거부됩니다", _bool),
+        # AI 기능 셋(계획 3.13, D-507). 예전에는 feature-flags.json 소유라 운영에서 관리 화면이 못 켰다.
+        SettingSpec("chat_enabled", "bool", True, False,
+                    "AI 도우미 채팅: 끄면 채팅 화면과 대화 API 가 닫힙니다", _bool),
+        SettingSpec("game_ai_enabled", "bool", False, False,
+                    "AI 퀴즈 만들기: 켜면 놀이 화면에서 AI 가 퀴즈 초안을 만듭니다", _bool),
+        SettingSpec("assistant_narrative_enabled", "bool", False, False,
+                    "AI 도우미 문장 요약: 켜면 홈과 도우미가 숫자 옆에 한두 문장 요약을 붙입니다", _bool),
         # 백업 스케줄(0033, PLAN Phase 6). 워커가 이 값을 읽어 실제로 백업을 만든다
         # (app/worker_main.py::backup_schedule_tick) — '되는 척하는 스위치'가 아니다.
         # 기본은 꺼짐: 켜는 순간 디스크를 쓰기 시작하므로 운영자가 의도해서 켜야 한다.
@@ -398,6 +405,9 @@ SYSTEM_ADMIN_ONLY_KEYS: frozenset[str] = frozenset(
         "llm_model",
         "llm_timeout_seconds",
         "llm_max_concurrency",
+        "chat_enabled",
+        "game_ai_enabled",
+        "assistant_narrative_enabled",
     }
 )
 

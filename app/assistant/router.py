@@ -44,7 +44,8 @@ def _with_narrative(
         return {**body, "narrative": None}
     settings = request.app.state.settings
     # 꺼져 있으면 레이트리밋 토큰도 쓰지 않는다(호출이 아예 나가지 않으므로).
-    if not narrate_service.is_enabled(settings):
+    cache = getattr(request.app.state, "settings_cache", None)
+    if not narrate_service.is_enabled(settings, cache):
         return {**body, "narrative": narrate_service.disabled_result()}
     limiter = request.app.state.assistant_ratelimiter
     key = f"assistant:{user.id}"
@@ -64,6 +65,7 @@ def _with_narrative(
             request.app.state.ai_gateway, settings,
             kind=body.get("kind", ""), facts=body,
             requester={"user_id": user.id, "display_name": user.display_name},
+            settings_cache=cache,
         )
 
     if db is None:

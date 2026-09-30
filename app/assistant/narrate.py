@@ -26,7 +26,7 @@ import json
 import logging
 
 from app.ai.gateway import contract
-from app.core.feature_flags import load_feature_flags
+from app.core.feature_flags import db_flag
 
 logger = logging.getLogger("app.assistant.narrate")
 
@@ -49,8 +49,9 @@ _ERR_DISABLED = "요약 문장 생성이 꺼져 있습니다(숫자는 그대로
 _ERR_EMPTY = "요약 문장이 비어 있어 숫자만 표시합니다."
 
 
-def is_enabled(settings) -> bool:
-    return bool(load_feature_flags(settings.config_dir).get(FLAG, False))
+def is_enabled(settings, settings_cache=None) -> bool:
+    """DB 소유 플래그다(D-507). 캐시를 안 주면 기본값(꺼짐)으로 닫힌다 - fail-closed."""
+    return db_flag(settings_cache, FLAG)
 
 
 def disabled_result() -> dict:
@@ -67,14 +68,14 @@ def _clean(value) -> str | None:
     return text[:MAX_TEXT_CHARS] if text else None
 
 
-def narrate(gateway, settings, *, kind: str, facts: dict, requester: dict) -> dict:
+def narrate(gateway, settings, *, kind: str, facts: dict, requester: dict, settings_cache=None) -> dict:
     """사실 dict → {"enabled", "text", "error"}. **절대 예외를 던지지 않는다.**
 
     모델에는 이미 계산된 사실만 보낸다 — 원본 티켓 목록 전체나 사용자 식별자를 넘기지
     않는다. 모델이 숫자를 다시 세지 않으므로, 문장이 화면의 숫자와 어긋날 여지가 구조적으로
     없다(모델은 우리가 준 값을 문장으로 옮기기만 한다).
     """
-    if not is_enabled(settings):
+    if not is_enabled(settings, settings_cache):
         return disabled_result()
 
     payload = {
