@@ -91,6 +91,7 @@ def update_draft(
     content: str | _Unset = UNSET,
     purpose: str | None | _Unset = UNSET,
     slot: str | None | _Unset = UNSET,
+    applies_to: list[str] | _Unset = UNSET,
 ) -> VersionedModel:
     """초안에서 **보낸 칸만** 고친다.
 
@@ -111,6 +112,8 @@ def update_draft(
         row.purpose = purpose
     if not isinstance(slot, _Unset) and isinstance(row, Prompt):
         row.slot = slot or None
+    if not isinstance(applies_to, _Unset) and isinstance(row, Policy):
+        row.applies_to_json = json.dumps(applies_to)
     db.flush()
     return row
 
@@ -141,6 +144,11 @@ def transition(
         from app.ai.prompts.service import validate_for_publish
 
         validate_for_publish(row.slot, row.content)
+    if new_status == STATUS_PUBLISHED and isinstance(row, Policy):
+        # 정책은 발행하면 다음 AI 요청부터 걸린다. 종류, 규칙, 적용 대상, 겹침을 여기서 본다(D-519).
+        from app.ai.policy.engine import check_publishable
+
+        check_publishable(db, row)
     # UB-04: 이 읽기~쓰기 사이는 잠기지 않는다(커밋은 요청 끝에 한 번). 두 관리자가 같은
     # 이름의 서로 다른 버전을 거의 동시에 발행하면 둘 다 "기존 발행본 없음/다름"을 보고
     # 각자 자기 행을 published로 만들 수 있다 — 그러면 이후 그 이름의 모든 조회가
@@ -198,6 +206,8 @@ def new_version_from(
     # 여전히 Prompt 전용이다.
     purpose = row.purpose
     slot = row.slot if is_prompt else None
+    kind = None if is_prompt else row.kind
+    applies_to_json = None if is_prompt else row.applies_to_json
     source_content = content if content is not None else _model_content(row)
     # UB-21: 같은 이름에 "새 버전" 요청 두 개가 거의 동시에 오면(연타·재제출) 둘 다 같은
     # next_version()을 읽어 같은 버전 번호로 삽입을 시도할 수 있다 - uq_{prompts,policies}
@@ -229,6 +239,8 @@ def new_version_from(
                 purpose=purpose,
                 version=version,
                 content_json=source_content,
+                kind=kind,
+                applies_to_json=applies_to_json,
                 status=STATUS_DRAFT,
                 created_by=created_by,
             )

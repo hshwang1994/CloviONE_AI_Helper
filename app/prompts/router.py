@@ -94,6 +94,9 @@ class PolicyCreateRequest(BaseModel):
     # WF1 단독 결함 — Prompt와 대칭. app/prompts/models.py::Policy.purpose(0058) 참고.
     purpose: str | None = Field(default=None, max_length=2000)
     content: str = Field(default="{}", max_length=100000)
+    # 종류와 적용 대상(D-519). 종류는 만들 때 정하고 바꾸지 않는다 - 바꾸면 규칙의 칸이 통째로 달라진다.
+    kind: str = Field(min_length=1, max_length=24)
+    applies_to: list[str] | str = Field(default="*")
 
     _normalize_name = field_validator("name")(_clean_name)
     _coerce_content = field_validator("content", mode="before")(_json_object_to_str)
@@ -122,6 +125,7 @@ class PromptContentUpdateRequest(BaseModel):
 class PolicyContentUpdateRequest(BaseModel):
     purpose: str | None = Field(default=None, max_length=2000)
     content: str = Field(default="{}", max_length=100000)
+    applies_to: list[str] | str | None = Field(default=None)
 
     _coerce_content = field_validator("content", mode="before")(_json_object_to_str)
 
@@ -135,7 +139,8 @@ def _sent_changes(payload: BaseModel) -> dict:
     뜻으로 받는다 — 안 보낸 것과 다른 사실이다.
     """
     sent = payload.model_fields_set
-    return {field: getattr(payload, field) for field in ("content", "purpose", "slot") if field in sent}
+    return {field: getattr(payload, field) for field in ("content", "purpose", "slot", "applies_to")
+            if field in sent}
 
 
 class TransitionRequest(BaseModel):
@@ -234,15 +239,40 @@ def _usage_since(request: Request):
     return request.app.state.clock.now() - timedelta(days=USAGE_WINDOW_DAYS)
 
 
-def _policy_view(row: Policy, names: dict | None = None) -> dict:
+def _policy_targets(row: Policy) -> list[str]:
+    try:
+        value = _json.loads(row.applies_to_json or "[]")
+    except (TypeError, ValueError):
+        return []
+    return value if isinstance(value, list) else []
+
+
+def _target_labels(targets: list[str]) -> list[str]:
+    from app.ai.actions import ACTIONS
+
+    return ["모든 기능" if t == "*" else (ACTIONS[t].label if t in ACTIONS else t) for t in targets]
+
+
+def _policy_view(row: Policy, names: dict | None = None, usage: dict | None = None) -> dict:
     import json
 
+    from app.ai.policy.schemas import KIND_LABELS, KIND_LEGACY
+
+    targets = _policy_targets(row)
     return {
         "id": row.id,
         "name": row.name,
         "purpose": row.purpose,
         "version": row.version,
         "content": json.loads(row.content_json),
+        "kind": row.kind,
+        "kind_label": KIND_LABELS.get(row.kind, row.kind),
+        "applies_to": targets,
+        "applies_to_labels": _target_labels(targets),
+        "migrated_from_id": row.migrated_from_id,
+        # 발행한 정책은 다음 AI 요청부터 걸린다(D-519). 옛 형식은 발행될 수 없다.
+        "in_use": row.status == STATUS_PUBLISHED and row.kind != KIND_LEGACY,
+        **_usage_fields(usage),
         "status": row.status,
         **_creator_fields(row.created_by, names or {}),
         "created_at": row.created_at.isoformat(),
@@ -348,6 +378,8 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         # 프롬프트만 쓴다(D-518): 사용처와 출처(기본 제공 · 관리자 작성). 정책 목록은 두 값을 보지 않는다.
         slot: str | None = Query(default=None, max_length=32),
         source: str | None = Query(default=None, max_length=16),
+        # 정책만 쓴다(D-519): 종류.
+        kind_filter: str | None = Query(default=None, alias="kind", max_length=24),
         page: int = Query(default=1, ge=1),
         # Default kept at the old hardcoded .limit(500) so existing callers
         # (registry.js does not yet set paginated:true / pass page params —
@@ -368,6 +400,8 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             stmt = stmt.where(model.status == status)
         if is_prompt and slot:
             stmt = stmt.where(Prompt.slot == slot)
+        if model is Policy and kind_filter:
+            stmt = stmt.where(Policy.kind == kind_filter)
         if not want_rows:
             stmt = stmt.where(False)
         total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
@@ -386,7 +420,11 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         )
         names = _resolve_creator_names(db, {r.created_by for r in rows if r.created_by})
         if not is_prompt:
-            return {"items": [view(r, names) for r in rows], "total": total, "page": page, "page_size": page_size}
+            from app.ai import usage as usage_mod
+
+            applied = usage_mod.policy_usage(db, since=_usage_since(request))
+            return {"items": [view(r, names, applied.get(r.id)) for r in rows], "total": total, "page": page,
+                    "page_size": page_size}
 
         # 프롬프트: 사용처마다 기본 제공 행을 앞에 둔다(첫 쪽에만). 발행본이 있는 사용처의 기본 제공 행은 쉬고 있다.
         from app.ai import usage as usage_mod
@@ -437,9 +475,16 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             )
         content = payload.content
         if model is Policy:
+            from app.ai.policy.schemas import KINDS, normalize_applies_to, normalize_rules
+
             validate_policy_content(content)
+            if payload.kind not in KINDS:
+                raise ValidationAppError("정책 종류를 고르세요.")
+            rules = normalize_rules(payload.kind, _json.loads(content))
             row = Policy(
-                name=payload.name, purpose=payload.purpose, version=1, content_json=content,
+                name=payload.name, purpose=payload.purpose, version=1,
+                content_json=_json.dumps(rules, ensure_ascii=False), kind=payload.kind,
+                applies_to_json=_json.dumps(normalize_applies_to(payload.kind, payload.applies_to)),
                 status=STATUS_DRAFT, created_by=request.state.user.id,
             )
         else:
@@ -499,8 +544,15 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         row = get_or_404(db, model, row_id)
         # WF1 단독 결함 — purpose는 이제 Prompt/Policy 둘 다 있다.
         changes = _sent_changes(payload)
-        if model is Policy and "content" in changes:
-            validate_policy_content(changes["content"])
+        if model is Policy:
+            from app.ai.policy.schemas import normalize_applies_to, normalize_rules
+
+            if "content" in changes:
+                validate_policy_content(changes["content"])
+                changes["content"] = _json.dumps(normalize_rules(row.kind, _json.loads(changes["content"])),
+                                                 ensure_ascii=False)
+            if "applies_to" in changes:
+                changes["applies_to"] = normalize_applies_to(row.kind, changes["applies_to"])
         update_draft(db, row, **changes)
         record_audit_from_request(
             request, db, action=f"{kind}.update_content", object_type=kind,
@@ -580,6 +632,12 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
                 })
             return {"items": items, "kind": kind, "days": USAGE_WINDOW_DAYS}
 
+        # 정책(D-519): 이름마다 한 줄 - 지금 걸리는 버전, 종류, 적용 대상, 최근 30일에 걸린 호출 수와 마지막 적용.
+        # 수는 AI 호출 기록의 `policy_ids_json` 에서 센다(그 호출에 그 정책이 걸렸다).
+        from app.ai import usage as usage_mod
+        from app.ai.policy.schemas import KIND_LABELS
+
+        applied = usage_mod.policy_usage(db, since=_usage_since(request))
         rows = db.execute(select(model).order_by(model.name, model.version)).scalars().all()
         by_name: dict[str, list] = {}
         for row in rows:
@@ -588,24 +646,24 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         items = []
         for name, versions in by_name.items():
             published = [v for v in versions if v.status == STATUS_PUBLISHED]
-            schedules_using: list[str] = []
+            shown = published[-1] if published else versions[-1]
+            counts = [applied[v.id] for v in versions if v.id in applied]
+            last = max((c["last_at"] for c in counts if c.get("last_at")), default=None)
+            targets = _policy_targets(shown)
             items.append({
                 "name": name,
+                "id": shown.id,
+                "kind": shown.kind,
+                "kind_label": KIND_LABELS.get(shown.kind, shown.kind),
+                "applies_to_labels": _target_labels(targets),
                 "versions": len(versions),
                 "published_version": published[-1].version if published else None,
-                "latest_version": versions[-1].version,
                 "latest_status": versions[-1].status,
-                "last_published_at": (
-                    published[-1].published_at.isoformat()
-                    if published and published[-1].published_at
-                    else None
-                ),
-                "schedule_refs": len(schedules_using),
-                "schedule_names": schedules_using,
-                "unused": not schedules_using,
+                "applied": sum(int(c.get("calls", 0)) for c in counts),
+                "last_applied_at": last,
             })
-        items.sort(key=lambda i: (i["unused"], i["name"]))
-        return {"items": items, "kind": kind}
+        items.sort(key=lambda i: (i["published_version"] is None, -i["applied"], i["name"]))
+        return {"items": items, "kind": kind, "days": USAGE_WINDOW_DAYS}
 
     @router.get("/diff/view", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
     def diff(

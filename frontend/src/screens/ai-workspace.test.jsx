@@ -159,6 +159,30 @@ describe("AI 작업공간", () => {
     expect(screen.getByText("연차 사용 안내")).toBeInTheDocument();
   });
 
+  it("쓰기 승인 정책이 걸리면 초안을 승인에 올렸다고 말하고 문서로 가지 않는다", async () => {
+    // D-519: 서버가 문서 대신 승인 요청을 만들었다. 초안은 만들어졌으니 대화상자를 닫고, 문서 화면으로 가지 않는다.
+    stubStatus();
+    responses.set("GET /api/projects*", { items: [], total: 0, page: 1, page_size: 200 });
+    responses.set("POST /api/ai/ask", {
+      query: "연차", citations: [CITATION], lane_counts: {}, semantic: true,
+      vector_notice: null, answer: "연차는 남은 일수 안에서 씁니다 [1].", status: "ok",
+      model: "g", notice: null, truncated: false, delimiter_conflict: false,
+    });
+    responses.set("POST /api/ai/documents", {
+      query: "연차", citations: [CITATION], status: "ok", answer: "초안", notice: null, document: null,
+      approval: { id: "ap-1", status: "pending", request_id: "req-1", route: "/my-approvals?box=requested" },
+    });
+    await renderWorkspace();
+
+    await userEvent.type(screen.getByLabelText(/무엇을 찾고 있습니까/), "연차");
+    await userEvent.click(screen.getByRole("button", { name: "물어보기" }));
+    await userEvent.click(await screen.findByRole("button", { name: "이 근거로 초안 쓰기" }));
+    await userEvent.click(await screen.findByRole("button", { name: "초안 쓰기" }));
+
+    await waitFor(() => expect(toasts).toContain("초안을 만들어 승인을 요청했습니다. 승인되면 문서가 만들어집니다."));
+    expect(screen.queryByTestId("here")).toBeNull();
+  });
+
   it("임베딩 모델이 없으면 **지금 무엇으로 찾고 있는지**를 말한다", async () => {
     stubStatus({ embed: false });
     await renderWorkspace();

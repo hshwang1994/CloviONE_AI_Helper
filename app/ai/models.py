@@ -50,7 +50,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import UserDefinedType
 
 from app.ai.catalog import FTS_CONFIG, VECTOR_DIM
-from app.core.models_base import Base, UUIDPrimaryKeyMixin, utcnow
+from app.core.models_base import Base, JsonText, UUIDPrimaryKeyMixin, utcnow
 
 # ── 색인 대상의 종류 ─────────────────────────────────────────────────────────
 #: 문서 본문에서 나온 chunk. 앵커는 블록 id 다(D-198).
@@ -470,3 +470,27 @@ class AiUsageRecord(Base):
     truncated_output: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     request_id: Mapped[str | None] = mapped_column(String(64))
     job_id: Mapped[str | None] = mapped_column(String(36))
+
+
+class AiActionRequest(UUIDPrimaryKeyMixin, Base):
+    """승인을 기다리는 AI 쓰기 한 건 (계획 3.9, D-519).
+
+    쓰기 승인 정책이 걸린 사람이 작업 공간의 초안을 저장하면 문서 대신 이 행과 승인 요청이 생긴다. 초안 본문은 여기
+    있다 - 승인 요청의 payload 는 중복 검사 인덱스(`ux_approvals_pending_dedup`)에 들어가므로 긴 본문을 담을 수 없다.
+    승인되면 실행기가 요청한 사람의 권한을 **그때 다시** 확인하고 문서를 만든다(`document_id`). 상태는 승인 요청의
+    상태가 정본이다 - 여기서 따로 두면 둘이 갈린다.
+    """
+
+    __tablename__ = "ai_action_requests"
+
+    action_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    # 어디에 만들지(space_id · project_id · folder_id). 요청 때의 값을 그대로 둔다.
+    target_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
+    output_text: Mapped[str] = mapped_column(Text, nullable=False)
+    policy_id: Mapped[str | None] = mapped_column(String(36))
+    approval_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    document_id: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime)

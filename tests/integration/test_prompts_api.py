@@ -106,17 +106,18 @@ def test_patch_prompt_content_null_is_rejected_not_stored_as_braces(client, admi
 
     # 대조군: Policy는 여전히 null → {} 로 받아 줘야 한다(관리자 콘솔의 빈 JSON 입력란).
     policy = client.post(
-        "/api/admin/policies", json={"name": "널 정책", "content": "{}"}, headers=_headers(admin_csrf)
+        "/api/admin/policies", json={"name": "널 정책", "content": "{}", "kind": "content"},
+        headers=_headers(admin_csrf),
     ).json()["item"]
     r = client.patch(
         f"/api/admin/policies/{policy['id']}", json={"content": None}, headers=_headers(admin_csrf)
     )
     assert r.status_code == 200, r.text
-    assert r.json()["item"]["content"] == {}
+    assert r.json()["item"]["content"] == {"max_output_chars": None, "block_external_links": False}
 
 
-def _create_policy(client, csrf, name="휴가 승인 정책", content='{"days": 3}', purpose=None):
-    body = {"name": name, "content": content}
+def _create_policy(client, csrf, name="휴가 승인 정책", content='{"max_output_chars": 300}', purpose=None):
+    body = {"name": name, "content": content, "kind": "content", "applies_to": "*"}
     if purpose is not None:
         body["purpose"] = purpose
     r = client.post("/api/admin/policies", json=body, headers=_headers(csrf))
@@ -143,7 +144,7 @@ def test_policy_purpose_editable_via_patch(client, admin_csrf):
     item = _create_policy(client, admin_csrf, purpose="처음 용도")
     r = client.patch(
         f"/api/admin/policies/{item['id']}",
-        json={"content": item["content"] if isinstance(item["content"], str) else '{"days": 3}', "purpose": "바뀐 용도"},
+        json={"content": '{"max_output_chars": 300}', "purpose": "바뀐 용도"},
         headers=_headers(admin_csrf),
     )
     assert r.status_code == 200, r.text
@@ -242,18 +243,18 @@ def test_rollback_name_has_the_same_length_limit_as_its_sibling_diff_endpoint(cl
 def test_policy_content_must_be_json_object(client, admin_csrf):
     r = client.post(
         "/api/admin/policies",
-        json={"name": "티켓 정책", "content": "not-json"},
+        json={"name": "티켓 정책", "content": "not-json", "kind": "content"},
         headers=_headers(admin_csrf),
     )
     assert r.status_code == 422
 
     r = client.post(
         "/api/admin/policies",
-        json={"name": "티켓 정책", "content": '{"required_fields": ["title"]}'},
+        json={"name": "티켓 정책", "content": '{"block_external_links": true}', "kind": "content"},
         headers=_headers(admin_csrf),
     )
     assert r.status_code == 201
-    assert r.json()["item"]["content"] == {"required_fields": ["title"]}
+    assert r.json()["item"]["content"] == {"max_output_chars": None, "block_external_links": True}
 
 
 def test_operator_cannot_mutate_prompts(client, login_as):

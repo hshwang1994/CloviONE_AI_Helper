@@ -72,11 +72,13 @@ NOTIFICATION_TYPES: dict[str, tuple[str, str]] = {
     "ticket_resolved": ("요청한 티켓 결과", "내가 요청한 티켓이 완료되거나 취소되었을 때"),
     # D-515. AI 제공자 연결이 막히거나(키 거부, 재로그인 필요), 일시 장애가 이어지거나, 복구되었을 때 관리자에게 한 번.
     "ai_provider_state": ("AI 연결 상태", "AI 제공자 연결이 막히거나 복구되었을 때"),
+    # D-519. 업그레이드(0041)가 옛 AI 정책을 새 형식의 초안으로 옮겼을 때 시스템 관리자에게 한 번. 발행해야 걸린다.
+    "ai_policy_migrated": ("옮긴 AI 정책 검토", "업그레이드가 옛 AI 정책을 새 형식의 초안으로 옮겼을 때"),
 }
 
 # 관리자만 받는 유형. 일반 사용자의 설정 화면에는 보이지 않는다 - 받을 일이 없는 알림을 끄고 켜는 칸은 혼란만 준다.
 # 알림 쪽의 같은 판정(`app/notifications/service.py::audience_for`)도 이 목록을 읽는다.
-ADMIN_ONLY_TYPES = frozenset({"backup_failed", "ai_provider_state"})
+ADMIN_ONLY_TYPES = frozenset({"backup_failed", "ai_provider_state", "ai_policy_migrated"})
 
 # ── 메일로도 받을 수 있는 유형 (계획 3.4, D-514) ─────────────────────────────
 #

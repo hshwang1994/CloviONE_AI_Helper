@@ -30,23 +30,25 @@ def test_policy_create_accepts_parsed_object(client, admin_csrf):
     # B1(HIGH): 콘솔은 content를 파싱된 객체로 보낸다. 문자열만 받으면 정책 생성이 항상 422.
     r = client.post(
         "/api/admin/policies",
-        json={"name": "필수필드 정책", "content": {"required_fields": ["title"]}},
+        json={"name": "필수필드 정책", "content": {"mask_emails": True}, "kind": "data_protection"},
         headers=_h(admin_csrf),
     )
     assert r.status_code == 201, r.text
-    assert r.json()["item"]["content"] == {"required_fields": ["title"]}
+    assert r.json()["item"]["content"] == {
+        "mask_emails": True, "mask_phone_numbers": True, "mask_resident_registration_numbers": True,
+    }
 
 
 def test_policy_update_accepts_parsed_object(client, admin_csrf):
     # B1(HIGH): 정책 수정도 객체를 보낸다.
     created = client.post(
         "/api/admin/policies",
-        json={"name": "수정용 정책", "content": {"a": 1}},
+        json={"name": "수정용 정책", "content": {"max_output_chars": 400}, "kind": "content"},
         headers=_h(admin_csrf),
     ).json()["item"]
     r = client.patch(
         f"/api/admin/policies/{created['id']}",
-        json={"content": {"a": 2, "b": 3}},
+        json={"content": {"max_output_chars": 500, "block_external_links": True}},
         headers=_h(admin_csrf),
     )
     assert r.status_code == 200, r.text

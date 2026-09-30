@@ -49,6 +49,8 @@ _REQUEST_TYPE_KO = {
     "user.role_change": "역할 변경",
     "integration.change_config": "연동 설정 변경",
     "schedule.enable": "스케줄 활성화",
+    # D-519. 쓰기 승인 정책이 걸린 사람의 작업 공간 초안을 문서로 저장한다(`app/ai/action_requests.py`).
+    "ai.document_create": "AI 문서 만들기",
 }
 
 
@@ -65,6 +67,7 @@ _OBJECT_TYPE_KO = {
     "user": "사용자",
     "schedule": "스케줄",
     "integration": "외부 연동",
+    "ai_action_request": "AI 초안",
 }
 
 #: 결정된 승인을 다시 결재하려 할 때 쓰는 상태 이름. 화면의 상태 배지와 같은 낱말이라
@@ -881,3 +884,13 @@ def _execute_integration_config(db: Session, approval: Approval, app_state) -> N
 APPROVAL_EXECUTORS["schedule.enable"] = _execute_schedule_enable
 APPROVAL_EXECUTORS["integration.change_config"] = _execute_integration_config
 APPROVAL_EXECUTORS["user.role_change"] = _execute_user_role_change
+
+
+def _execute_ai_document_create(db: Session, approval: Approval, app_state) -> None:
+    # AI 모듈을 부를 때 가져온다 - 승인 모듈이 뜰 때 AI 쪽을 함께 올리면 가져오기 순환이 생긴다.
+    from app.ai.action_requests import execute_document_create
+
+    execute_document_create(db, approval, app_state)
+
+
+APPROVAL_EXECUTORS["ai.document_create"] = _execute_ai_document_create

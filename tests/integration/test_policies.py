@@ -7,6 +7,8 @@
 
 정책이 프롬프트의 쌍둥이 화면이므로 두 화면이 같은 요청에 같은 답을 해야 한다
 (`test_prompts.py` 가 반대쪽을 잰다).
+
+qa-contract-change: 정책에 종류와 규칙 칸이 생겼다(D-519). 규칙은 종류마다 정해진 칸만 받고 빠진 칸은 기본값으로 채우므로 「빈 객체를 보내면 비운다」는 「빈 객체를 보내면 기본값으로 되돌린다」가 됐다. 부분 갱신과 JSON 검증의 계약은 그대로다.
 """
 
 import pytest
@@ -23,13 +25,16 @@ def _h(csrf):
     return {"X-CSRF-Token": csrf}
 
 
-RULES = {"required_fields": ["title", "owner"], "min_length": 10}
+# 응답 제한 정책의 규칙(D-519). 빠진 칸이 없게 적어 두어야 「그대로 남는다」를 값 그대로 잴 수 있다.
+RULES = {"max_output_chars": 800, "block_external_links": True}
+DEFAULTS = {"max_output_chars": None, "block_external_links": False}
 
 
 def _create(client, csrf, name="부분수정 정책", content=None, purpose="처음 용도"):
     r = client.post(
         "/api/admin/policies",
-        json={"name": name, "content": RULES if content is None else content, "purpose": purpose},
+        json={"name": name, "content": RULES if content is None else content, "purpose": purpose,
+              "kind": "content", "applies_to": "*"},
         headers=_h(csrf),
     )
     assert r.status_code == 201, r.text
@@ -61,23 +66,23 @@ def test_patching_the_content_still_replaces_the_rules(client, admin_csrf):
 
     r = client.patch(
         f"/api/admin/policies/{item['id']}",
-        json={"content": {"min_length": 99}},
+        json={"content": {"max_output_chars": 500}},
         headers=_h(admin_csrf),
     )
     assert r.status_code == 200, r.text
-    assert r.json()["item"]["content"] == {"min_length": 99}
+    assert r.json()["item"]["content"] == {"max_output_chars": 500, "block_external_links": False}
     assert r.json()["item"]["purpose"] == "처음 용도"
 
 
-def test_explicit_empty_rules_still_clear_them(client, admin_csrf):
-    """반례: 「빈 객체를 보냈다」는 「안 보냈다」와 다른 사실이다 — 보냈으면 비운다."""
+def test_explicit_empty_rules_reset_them_to_defaults(client, admin_csrf):
+    """반례: 「빈 객체를 보냈다」는 「안 보냈다」와 다른 사실이다 — 보냈으면 기본값으로 되돌린다."""
     item = _create(client, admin_csrf)
 
     r = client.patch(
         f"/api/admin/policies/{item['id']}", json={"content": {}}, headers=_h(admin_csrf)
     )
     assert r.status_code == 200, r.text
-    assert r.json()["item"]["content"] == {}
+    assert r.json()["item"]["content"] == DEFAULTS
 
 
 def test_policy_content_null_still_means_empty_rules(client, admin_csrf):
@@ -87,7 +92,7 @@ def test_policy_content_null_still_means_empty_rules(client, admin_csrf):
         f"/api/admin/policies/{item['id']}", json={"content": None}, headers=_h(admin_csrf)
     )
     assert r.status_code == 200, r.text
-    assert r.json()["item"]["content"] == {}
+    assert r.json()["item"]["content"] == DEFAULTS
 
 
 def test_invalid_json_content_is_still_rejected(client, admin_csrf):
@@ -98,6 +103,11 @@ def test_invalid_json_content_is_still_rejected(client, admin_csrf):
     )
     assert r.status_code == 422, r.text
     assert client.get(f"/api/admin/policies/{item['id']}").json()["item"]["content"] == RULES
+    # 종류에 없는 규칙도 422 다 — 모르는 칸을 조용히 저장하면 걸리지 않는 규칙을 믿게 된다.
+    unknown = client.patch(
+        f"/api/admin/policies/{item['id']}", json={"content": {"min_length": 10}}, headers=_h(admin_csrf)
+    )
+    assert unknown.status_code == 422, unknown.text
 
 
 def test_empty_patch_body_changes_nothing(client, admin_csrf):
@@ -129,7 +139,7 @@ def test_partial_patch_still_refuses_a_published_row(client, admin_csrf):
 def test_blank_name_is_rejected(client, admin_csrf, blank):
     """xb-11: 공백·개행만으로 이뤄진 이름은 만들 수 없다."""
     r = client.post(
-        "/api/admin/policies", json={"name": blank, "content": {}}, headers=_h(admin_csrf)
+        "/api/admin/policies", json={"name": blank, "content": {}, "kind": "content"}, headers=_h(admin_csrf)
     )
     assert r.status_code == 422, f"공백만 이름이 통과했다: {r.status_code} {r.text}"
 
@@ -137,7 +147,7 @@ def test_blank_name_is_rejected(client, admin_csrf, blank):
 def test_a_real_name_is_still_accepted_and_trimmed(client, admin_csrf):
     """반례: 정상 이름은 만들어지고, 앞뒤 공백만 잘린다."""
     r = client.post(
-        "/api/admin/policies", json={"name": "  휴가 승인  ", "content": {}}, headers=_h(admin_csrf)
+        "/api/admin/policies", json={"name": "  휴가 승인  ", "content": {}, "kind": "content"}, headers=_h(admin_csrf)
     )
     assert r.status_code == 201, r.text
     assert r.json()["item"]["name"] == "휴가 승인"

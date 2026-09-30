@@ -89,6 +89,7 @@
   "policies": {
     "create": {
       "content": 100000,
+      "kind": 24,
       "name": 120,
       "purpose": 2000
     },

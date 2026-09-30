@@ -384,3 +384,16 @@ def slot_usage(db: Session, *, since: datetime) -> dict[str, dict]:
             .group_by(R.prompt_slot)
         ).all()
     }
+
+
+def policy_usage(db: Session, *, since: datetime) -> dict[str, dict]:
+    """정책 id → 그 기간에 그 정책이 걸린 호출 수와 마지막 시각. 기록은 걸린 정책의 id 목록을 JSON 글로 들고 있다."""
+    from sqlalchemy import text
+
+    rows = db.execute(text(
+        "SELECT p.value AS policy_id, count(*) AS calls, max(r.created_at) AS last_at "
+        "FROM ai_usage_records r CROSS JOIN LATERAL json_array_elements_text(r.policy_ids_json::json) AS p(value) "
+        "WHERE r.created_at >= :since AND r.policy_ids_json IS NOT NULL GROUP BY p.value"
+    ), {"since": since}).all()
+    return {row.policy_id: {"calls": int(row.calls), "errors": 0,
+                            "last_at": row.last_at.isoformat() if row.last_at else None} for row in rows}

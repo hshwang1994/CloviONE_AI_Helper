@@ -208,6 +208,8 @@ class GenerateResult:
     prompt_source: str | None = None
     prompt_version: int | None = None
     prompt_id: str | None = None
+    #: 이 호출에 걸린 정책의 id(D-519). 사용 기록이 남기고 정책 사용 통계가 센다.
+    policy_ids: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:

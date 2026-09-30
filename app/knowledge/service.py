@@ -214,6 +214,40 @@ def create_space(
     return space
 
 
+def _visible_project_or_404(db: Session, user: User, project_id: str):
+    """이 사람이 볼 수 있는 프로젝트. 아니면 404 다(아래 `resolve_or_create_project_space` 의 판정 그대로)."""
+    from app.authz.visibility import RESOURCE_PROJECT
+    from app.projects.models import Project
+
+    ctx = context_for_user(db, user)
+    stmt = select(Project).where(Project.id == project_id)
+    clause = effective_visibility_clause(ctx, RESOURCE_PROJECT)
+    if clause is not None:
+        stmt = stmt.where(clause)
+    project = db.execute(stmt).scalar_one_or_none()
+    if project is None:
+        raise NotFoundError("프로젝트를 찾을 수 없습니다.")
+    return project
+
+
+def check_document_target(db: Session, user: User, *, space_id: str | None = None,
+                          project_id: str | None = None, folder_id: str | None = None) -> None:
+    """`create_document` 가 받을 자리를 **만들지 않고** 미리 본다(D-519).
+
+    AI 초안을 승인에 올리기 전에 부른다 - 승인된 뒤에야 「그 자리를 볼 수 없다」가 드러나면 결재자의 시간과 요청자의
+    AI 한도를 헛되이 쓴다. 판정은 `create_document` 와 같은 함수들이다. 프로젝트 공간은 여기서 만들지 않는다.
+    """
+    space = None
+    if project_id and project_id != PROJECT_FILTER_NONE:
+        _visible_project_or_404(db, user, project_id)
+    elif space_id:
+        space = get_scoped_space_or_404(db, user, space_id)
+    if folder_id:
+        folder = get_scoped_folder_or_404(db, user, folder_id)
+        if space is not None and folder.space_id != space.id:
+            raise ValidationAppError("다른 공간의 폴더에는 넣을 수 없습니다.")
+
+
 def resolve_or_create_project_space(db: Session, user: User, project_id: str) -> KnowledgeSpace:
     """그 프로젝트의 지식 공간을 찾거나 만든다 (§14.2).
 
@@ -231,17 +265,7 @@ def resolve_or_create_project_space(db: Session, user: User, project_id: str) ->
     자기 게이트를 하나 더 둔 이유) 이 모듈이 이미 쓰는 `context_for_user` 경로와 갈라진
     판정 경로가 생긴다. 판정 자체는 양쪽 다 `effective_visibility_clause` 하나다(D-194).
     """
-    from app.authz.visibility import RESOURCE_PROJECT
-    from app.projects.models import Project
-
-    ctx = context_for_user(db, user)
-    stmt = select(Project).where(Project.id == project_id)
-    clause = effective_visibility_clause(ctx, RESOURCE_PROJECT)
-    if clause is not None:
-        stmt = stmt.where(clause)
-    project = db.execute(stmt).scalar_one_or_none()
-    if project is None:
-        raise NotFoundError("프로젝트를 찾을 수 없습니다.")
+    project = _visible_project_or_404(db, user, project_id)
     existing = db.execute(
         select(KnowledgeSpace).where(
             KnowledgeSpace.owner_kind == OWNER_PROJECT,

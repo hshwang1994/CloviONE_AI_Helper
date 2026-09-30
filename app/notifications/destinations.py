@@ -91,6 +91,8 @@ RELATED_DESTINATIONS: dict[str, str] = {
     "approval_delegation": "/my-approvals",
     # AI 연결 상태(ai_provider_state, D-516) - AI 설정 화면으로 간다. 받는 사람은 시스템 관리자뿐이라 그 화면을 연다.
     "ai_config": "/settings?tab=ai",
+    # 옮긴 AI 정책 검토(ai_policy_migrated, D-519) - 정책 화면의 초안 목록으로 간다. 옮긴 것은 초안이라 발행해야 걸린다.
+    "policy_review": "/policies?status=draft",
 }
 
 # 아직 표에 없는 관련 유형(schedule_run)은 **일부러** 비워 둔다. '#/schedules'로 보내도

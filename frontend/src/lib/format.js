@@ -245,6 +245,9 @@ export const OBJECT_KO = {
   offboarding_run: "오프보딩",
   // AI 설정의 감사 동작(D-515 · D-516). 동작 이름의 앞부분이 대상이다(`ai.oauth.start` 는 「ChatGPT 계정 연결, 시작」).
   ai_config: "AI 설정", "ai.config": "AI 설정", "ai.connection": "AI 연결", "ai.oauth": "ChatGPT 계정 연결",
+  // AI 초안의 저장 승인(D-519). 승인 요청 유형 `ai.document_create` 는 「AI, 문서 만들기」, 감사 동작
+  // `ai.document.approval_requested` 는 「AI 문서, 승인 요청」으로 읽힌다.
+  ai: "AI", "ai.document": "AI 문서", ai_action_request: "AI 초안",
 };
 export const VERB_KO = {
   start: "시작", connect: "연결됨",
@@ -258,6 +261,7 @@ export const VERB_KO = {
   // 새로 만들 수 있는 경로는 없다(S11). 옛 감사 기록이 raw 로 보이지 않게 라벨은 남긴다.
   "resolve-conflict": "충돌 해결",
   role_change: "역할 변경", change_config: "설정 변경", role_grant: "역할 부여",
+  document_create: "문서 만들기", drafted: "초안 작성", approval_requested: "승인 요청", created_on_approval: "승인 뒤 생성",
   // 라우터가 실제로 쓰는 언더스코어 동작명(감사 로그) — 없으면 '작업' 칸에 영어 원문이 샌다.
   update_content: "내용 수정", new_version: "새 버전", revoke_sessions: "세션 해제", set_role: "역할 변경",
   // 승인/요청·CLI·기타 동작(감사 로그에 실제로 나타나는 값)
@@ -338,6 +342,7 @@ export const TYPE_KO = {
   backup_failed: "백업 실패",
   // AI 제공자 연결이 막히거나 오래 불안정하거나 복구됐을 때 관리자에게(app/ai/credentials/state.py, D-515).
   ai_provider_state: "AI 연결 상태",
+  ai_policy_migrated: "옮긴 AI 정책 검토",
 };
 export const typeKo = (t) => (t == null || t === "" ? "알림" : (TYPE_KO[t] || "알림"));
 // 장애/실패류 알림 유형 — 나머지(승인 결정, 점검 공지 등 정보성)와 시각적으로 구분해야

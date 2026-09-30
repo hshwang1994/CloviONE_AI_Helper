@@ -18,11 +18,12 @@ describe("RG-05 — 승인 큐가 request_type/requested_by 서버 필터를 쓴
     expect(f.type).toBe("select");
   });
 
-  it("request_type 옵션이 실제 등록된 3개 요청 유형과 일치하고, 목록 열과 같은 라벨(actionKo)을 쓴다", () => {
+  it("request_type 옵션이 실제 등록된 요청 유형 넷과 일치하고, 목록 열과 같은 라벨(actionKo)을 쓴다", () => {
+    // 넷째는 AI 문서 만들기다(D-519) - 쓰기 승인 정책이 걸린 사람의 작업 공간 초안.
     const f = filters.find((x) => x.key === "request_type");
     const values = f.options.map((o) => o.value).sort();
     expect(values).toEqual(
-      ["integration.change_config", "schedule.enable", "user.role_change"].sort(),
+      ["ai.document_create", "integration.change_config", "schedule.enable", "user.role_change"].sort(),
     );
     for (const o of f.options) {
       expect(o.label).toBe(actionKo(o.value));

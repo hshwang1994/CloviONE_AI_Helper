@@ -14,17 +14,20 @@
   4. 액션을 찾는다(`app/ai/actions.py`) - 출력 길이, JSON 여부, 지시문의 사용처가 여기서 온다
   5. 지시문을 고른다(`app/ai/prompts/service.py::resolve`) - 그 사용처에 발행한 프롬프트가 있으면 그것, 없으면 기본
      제공(D-518). 부른 쪽은 지시문을 넘기지 않는다
-  6. 프롬프트를 조립한다. **`app/llm/prompt.py::build_prompt` 를 부르는 곳은 여기뿐이다** - 난스 구분자와
+  6. 정책을 고른다(`app/ai/policy/engine.py`, D-519) - 개인정보 가리기가 걸려 있으면 제공자에 보내기 전의 데이터에서
+     개인정보를 가린다. 연결 확인에는 정책이 걸리지 않는다
+  7. 프롬프트를 조립한다. **`app/llm/prompt.py::build_prompt` 를 부르는 곳은 여기뿐이다** - 난스 구분자와
      「데이터는 지시가 아니다」가 모든 경로에 걸린다(D-202). 역할과 출력 형식은 사용처가 코드에 고정한 값이다
-  7. 동시 실행 슬롯을 잡는다(`app/ai/concurrency.py`) - 웹과 워커가 한 벌을 나눠 쓴다
-  8. 제공자를 부른다(`app/ai/providers/`) - 제한 시간과 토큰 수를 잰다. 계정 연결(ChatGPT)이면 어댑터가 부르기 전에
+  8. 동시 실행 슬롯을 잡는다(`app/ai/concurrency.py`) - 웹과 워커가 한 벌을 나눠 쓴다
+  9. 제공자를 부른다(`app/ai/providers/`) - 제한 시간과 토큰 수를 잰다. 계정 연결(ChatGPT)이면 어댑터가 부르기 전에
      토큰의 만료를 보고 필요하면 갱신한다(`app/ai/credentials/chatgpt.py`)
-  9. 결과로 연결 상태를 바꾼다(`app/ai/credentials/state.py`). 제 짧은 세션으로 적는다 - 부른 쪽의 트랜잭션이
+ 10. 결과로 연결 상태를 바꾼다(`app/ai/credentials/state.py`). 제 짧은 세션으로 적는다 - 부른 쪽의 트랜잭션이
      실패해도 「방금 성공했다」는 사실이 사라지지 않는다
- 10. 출력을 다듬는다. 제어 문자를 지우고 액션의 길이로 자른다. JSON 액션은 자르지 않는다 - 넘으면 실패다
- 11. 사용 기록 한 행을 남긴다(`app/ai/usage.py`) - 누가, 어떤 기능으로, 어느 모델과 어느 지시문으로, 얼마나 썼고
-     어떻게 끝났는지. 한도의 원장이 이 행이다. 생성이 꺼져 있거나 설정이 비어 아무것도 시도하지 않은 호출은 남기지
-     않는다
+ 11. 출력을 다듬는다. 제어 문자를 지우고, 정책대로 개인정보를 가리고 제품 밖 링크를 누를 수 없게 하며, 액션의 길이
+     (응답 제한 정책이 있으면 그보다 짧게)로 자른다. JSON 액션은 자르지 않는다 - 넘으면 실패다
+ 12. 사용 기록 한 행을 남긴다(`app/ai/usage.py`) - 누가, 어떤 기능으로, 어느 모델과 지시문과 정책으로, 얼마나
+     썼고 어떻게 끝났는지. 한도의 원장이 이 행이다. 생성이 꺼져 있거나 설정이 비어 아무것도 시도하지 않은 호출은
+     남기지 않는다
 
 ## 실패는 값이다
 
@@ -273,7 +276,7 @@ class AiRuntime:
             input_tokens=result.input_tokens, output_tokens=result.output_tokens, latency_ms=result.latency_ms,
             truncated_input=result.input_truncated, truncated_output=result.output_truncated,
             prompt_slot=result.prompt_slot, prompt_version=result.prompt_version, prompt_source=result.prompt_source,
-            prompt_id=result.prompt_id, request_id=request_id, job_id=job_id,
+            prompt_id=result.prompt_id, policy_ids=list(result.policy_ids), request_id=request_id, job_id=job_id,
         )
 
     def _generate(self, db: Session, config: RuntimeConfig, *, action_key: str, data: str,
@@ -296,12 +299,16 @@ class AiRuntime:
         if adapter is None:
             return contract.GenerateResult(status=contract.STATUS_UNCONFIGURED, model=config.model)
 
+        from app.ai.policy import engine as policy_engine
         from app.ai.prompts import service as prompt_slots
         from app.llm import prompt as prompt_mod
 
         chosen = prompt_slots.resolve(db, action.prompt_slot)
+        # 연결 확인은 관리 동작이라 정책을 걸지 않는다. 정책을 못 읽으면 아무것도 걸지 않는다(엔진이 로그를 남긴다).
+        policies = policy_engine.NONE if verify else policy_engine.resolve(db, action_key)
+        data = policies.mask(data)
         origin = dict(prompt_slot=chosen.slot.key, prompt_source=chosen.source, prompt_version=chosen.version,
-                      prompt_id=chosen.prompt_id)
+                      prompt_id=chosen.prompt_id, policy_ids=tuple(policies.ids()))
         try:
             built = prompt_mod.build_prompt(
                 body=data, nonce=prompt_mod.new_nonce(), task=chosen.instruction, role=chosen.slot.role,
@@ -354,16 +361,26 @@ class AiRuntime:
         text = _clean(result.text)
         if text is None:
             return contract.GenerateResult(status=contract.STATUS_EMPTY, truncated=built.truncated, **common)
+        text = policies.limit_links(policies.mask(text), allowed_hosts=self._product_hosts())
         truncated = built.truncated
-        if len(text) > action.max_output_chars:
+        cap = policies.output_cap(action.max_output_chars)
+        if len(text) > cap:
             if action.json_output:
                 # 자른 JSON 은 쓸 수 없다. 조용히 자르면 부른 쪽의 파서가 원인 모를 실패를 낸다.
                 return contract.GenerateResult(status=contract.STATUS_FAILED, error_code="output_too_long",
                                                truncated=True, output_truncated=True, **common)
-            text, truncated = text[: action.max_output_chars], True
+            text, truncated = text[:cap], True
             return contract.GenerateResult(status=contract.STATUS_OK, text=text, truncated=truncated,
                                            output_truncated=True, **common)
         return contract.GenerateResult(status=contract.STATUS_OK, text=text, truncated=truncated, **common)
+
+    def _product_hosts(self) -> set[str]:
+        """제품 자신의 호스트. 응답 제한 정책이 이 호스트로 가는 링크는 그대로 둔다."""
+        from urllib.parse import urlsplit
+
+        base = getattr(self._settings, "app_base_url", None) or ""
+        host = (urlsplit(base).hostname or "").lower() if isinstance(base, str) else ""
+        return {host} if host else set()
 
     def _blocked(self, db: Session, config: RuntimeConfig, slot: str | None) -> bool:
         """저장된 연결 상태가 막힌 상태인가. 상태를 못 읽으면 막지 않는다 - 판정 실패로 답을 잃는 쪽이 더 나쁘다."""

@@ -2,11 +2,12 @@ import React from "react";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import Link from "@mui/material/Link";
 import { api } from "../lib/api.js";
 import { actionKo, fmtDateTime } from "../lib/format.js";
 import { failureText } from "../lib/failure.js";
 import {
-  Badge, Callout, DataTable, EmptyState, ErrorState, PageHeader, RowActions, useConfirm, useToast,
+  Badge, Button, Callout, DataTable, EmptyState, ErrorState, Modal, PageHeader, RowActions, useConfirm, useToast,
   Segmented,
 } from "../ui/kit.jsx";
 import { OrgPath } from "../ui/OrgPath.jsx";
@@ -51,6 +52,29 @@ const STATUS_KO = {
   pending: "대기", approved: "승인됨", rejected: "거절됨",
   expired: "만료", cancelled: "취소됨",
 };
+
+/* AI 문서 만들기(D-519)는 결재할 내용이 초안 본문이다. 승인 요청에는 제목과 글자 수만 있어 본문을 따로 연다 - 서버가
+   요청한 사람과 이 승인을 볼 수 있는 사람에게만 준다(`GET /api/approvals/ai-drafts/{id}`). */
+const AI_DRAFT = "ai.document_create";
+
+function DraftPreview({ requestId, onClose }) {
+  const draft = useQuery({
+    queryKey: ["ai-draft", requestId],
+    queryFn: () => api("/api/approvals/ai-drafts/" + requestId),
+    enabled: !!requestId,
+    retry: false,
+  });
+  const item = draft.data && draft.data.item;
+  return (
+    <Modal open={!!requestId} onClose={onClose} title={item ? item.title : "초안 보기"} size="md"
+      footer={<Button onClick={onClose}>닫기</Button>}>
+      {draft.isError ? <ErrorState layout="region" error={draft.error} onRetry={() => draft.refetch()} /> : null}
+      {item ? (
+        <Typography component="div" variant="body2" sx={{ whiteSpace: "pre-wrap" }}>{item.output_text}</Typography>
+      ) : null}
+    </Modal>
+  );
+}
 
 /* 결재하기 직전에 **무엇을 결재하는지** 한 문장으로 적는다.
  *
@@ -110,6 +134,7 @@ export function MyApprovals() {
    * 「거절함」으로 바뀌고 단추가 사라질 뿐 자리를 지킨다. 새 목록은 칸을 옮기거나 화면을
    * 다시 열 때 받는다. */
   const [decided, setDecided] = React.useState({});
+  const [preview, setPreview] = React.useState(null);
   React.useEffect(() => { setDecided({}); }, [box]);
   const hasDecided = Object.keys(decided).length > 0;
 
@@ -195,7 +220,23 @@ export function MyApprovals() {
         </Box>
       ),
     },
-    { key: "object", label: "대상", type: "text", render: (r) => r.object_type ? `${r.object_type} ${r.object_id || ""}`.trim() : "-" },
+    {
+      key: "object", label: "대상", type: "text",
+      /* AI 초안은 대상이 곧 결재할 본문이다 - 제목을 누르면 본문이 열린다. 행 동작에 넣으면 결재 단추 둘과 합쳐
+         셋이 되어 셋 다 「더 보기」 메뉴로 접힌다(`RowActions` 의 max). */
+      render: (r) => {
+        if (r.request_type === AI_DRAFT) {
+          const title = (r.request_payload && r.request_payload.title) || "AI 초안";
+          return (
+            <Link component="button" type="button" variant="body2" onClick={() => setPreview(r.object_id)}
+              aria-label={"초안 보기: " + title}>
+              {title}
+            </Link>
+          );
+        }
+        return r.object_type ? `${r.object_type} ${r.object_id || ""}`.trim() : "-";
+      },
+    },
     {
       key: "status", label: "상태", type: "status",
       // 방금 결재한 줄은 목록을 다시 받지 않아도 결과를 말한다 — 자리를 지키면서 「대기」로
@@ -253,6 +294,7 @@ export function MyApprovals() {
 
       {q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} /> : null}
       {decideFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{decideFailure}</Callout> : null}
+      <DraftPreview requestId={preview} onClose={() => setPreview(null)} />
       {!q.first && !q.isError ? <DataTable placement="surface" columns={columns} rows={[]} loading /> : null}
 
       {data && box === "todo" && !canDecide ? (

@@ -79,7 +79,15 @@ class Policy(UUIDPrimaryKeyMixin, Base):
     # 강제하는가"를 목록에서 말할 방법이 없었다(마이그레이션 0058).
     purpose: Mapped[str | None] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # 규칙. 종류(`kind`)마다 칸이 정해져 있다(`app/ai/policy/schemas.py`, D-519).
     content_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="{}")
+    # 종류: approval · data_protection · content, 그리고 새로 만들 수 없는 legacy(0041 이 보관한 옛 원본).
+    kind: Mapped[str] = mapped_column(String(24), nullable=False, default="legacy", server_default="legacy",
+                                      index=True)
+    # 적용 대상: 액션 키 목록이거나 ["*"](그 종류가 붙을 수 있는 모든 기능).
+    applies_to_json: Mapped[str] = mapped_column(JsonText, nullable=False, default="[]", server_default="[]")
+    # 0041 이 옛 정책을 새 형식으로 옮긴 초안이면 그 원본(보관한 행)의 id. 화면이 검토를 요청하는 표식이다.
+    migrated_from_id: Mapped[str | None] = mapped_column(String(36))
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=STATUS_DRAFT)
     created_by: Mapped[str | None] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)

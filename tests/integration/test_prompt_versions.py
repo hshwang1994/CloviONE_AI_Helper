@@ -104,7 +104,7 @@ def test_a_scoped_admin_cannot_create_a_policy(client, dept_admin):
     csrf = dept_admin()
     r = client.post(
         "/api/admin/policies",
-        json={"name": "부서관리자 정책", "content": {"a": 1}},
+        json={"name": "부서관리자 정책", "content": {"block_external_links": True}, "kind": "content"},
         headers=_h(csrf),
     )
     assert r.status_code == 403, r.text

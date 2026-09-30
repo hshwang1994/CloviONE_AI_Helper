@@ -21,7 +21,7 @@ import { APPROVAL_DONE } from "./actions.js";
 // app/approvals/service.py의 _REQUEST_TYPE_KO(APPR-02)와 정본이 같다 — 라벨은 actionKo로 만들어
 // 목록 열(actionCol("request_type", ...))과 항상 같은 말을 쓰게 한다.
 const APPROVAL_REQUEST_TYPES = [
-  "user.role_change", "integration.change_config", "schedule.enable",
+  "user.role_change", "integration.change_config", "schedule.enable", "ai.document_create",
 ];
 
 /* app/core/authz.py `rbac_matrix()` 가 돌려주는 `scopes`(전체/조직/부서 + 각 설명)를
@@ -161,6 +161,8 @@ export const GOVERNANCE_SCREENS = {
       // 대상 화면이 id 기반 딥링크를 지원하면(OBJ_ID_PARAM) 목록 전체가 아니라 바로 그 대상으로
       // 이동한다 — 그렇지 않은 대상 유형은 예전처럼 목록으로만 이동한다(objRouteHref가 그대로 base 반환).
       { label: "대상 보기", when: (r, ctx) => !!OBJ_ROUTE[r.object_type] && canReachObjRoute(r.object_type, ctx && ctx.role), navigate: (r) => objRouteHref(r.object_type, r.object_id) },
+      // AI 문서 만들기(D-519)는 결재할 내용이 초안 본문이다 - 승인 요청에는 제목과 글자 수만 있으므로 본문을 따로 연다.
+      { label: "초안 미리 보기", when: (r) => r.request_type === "ai.document_create", method: "GET", path: (r) => "/api/approvals/ai-drafts/" + r.object_id, info: (res) => (res && res.item ? res.item.output_text : "") },
       // 승인/거절/취소 결정은 모두 object_type='approval'로 감사 로그에 기록된다(app/approvals/router.py).
       // operator는 승인 화면(OPS_ROLES)엔 들어오지만 감사 화면엔 못 들어간다(App.jsx SCREEN_ROLES) —
       // '대상 보기'의 canReachObjRoute와 동일한 이유로 admin/system_admin/auditor에만 노출한다.

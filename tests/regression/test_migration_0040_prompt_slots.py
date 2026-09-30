@@ -80,7 +80,8 @@ def test_old_prompts_are_sorted_out_without_changing_any_answer(db, db_url):
                 "INSERT INTO policies (id, name, version, content_json, status, created_at) "
                 "VALUES (:id, '검토 정책', 1, CAST('{}' AS jsonb), 'review', :at)"
             ), {"id": str(uuid.uuid4()), "at": WHEN})
-        _alembic(db_url, "upgrade", "head")
+        # 이 마이그레이션만 올려 본다 - 다음 0041 은 옛 정책을 모두 보관하므로 head 까지 가면 정책 상태를 잴 수 없다.
+        _alembic(db_url, "upgrade", "0040_prompt_slots")
 
         with engine.connect() as conn:
             rows = {r.id: r for r in conn.execute(sa.text("SELECT id, status, purpose, slot FROM prompts")).all()}

@@ -166,6 +166,13 @@ export function AiWorkspace() {
   const makeDocument = useMutation({
     mutationFn: (body) => api("/api/ai/documents", { method: "POST", body }),
     onSuccess: (data) => {
+      /* 쓰기 승인 정책이 걸려 있으면 문서 대신 승인 요청이 생긴다(D-519). 초안은 만들어졌으니 모달을 닫고, 진행은
+         내 승인 화면의 「내가 올린 요청」에서 본다. */
+      if (data.approval) {
+        setDrafting(false);
+        toast("초안을 만들어 승인을 요청했습니다. 승인되면 문서가 만들어집니다.");
+        return;
+      }
       /* 초안을 못 쓴 응답이면 모달을 닫지 않는다 — 그 이유는 폼 위 오류로 선다(아래 `onSubmit` 이
          던진다). 예전에는 모달을 닫고 사라지는 토스트로만 말했다. */
       if (!data.document) return;
@@ -326,7 +333,7 @@ export function AiWorkspace() {
               : {}),
             instruction: draft.trim(),
           });
-          if (!data.document) throw new Error(data.notice || "초안을 쓰지 못했습니다.");
+          if (!data.document && !data.approval) throw new Error(data.notice || "초안을 쓰지 못했습니다.");
         }}
       />
     </Box>

@@ -66,7 +66,7 @@ export const OBJTYPE_OPTS = [
   // 시스템·운영
   ["app_setting", "설정"], ["system_setting", "서버 설정"], ["secret", "비밀 값"], ["feature_flag", "기능 플래그"],
   ["llm_config", "AI 모델 설정(옛 기능)"], ["ai_config", "AI 설정"], ["ai_quota", "AI 사용 한도"], ["announcement", "공지 배너"],
-  ["prompts", "프롬프트"], ["policies", "정책"],
+  ["prompts", "프롬프트"], ["policies", "정책"], ["ai_action_request", "AI 초안"],
   ["schedule", "스케줄"], ["schedule_run", "예약 실행"], ["job", "작업"],
   ["backup", "백업"], ["storage_provider", "파일 저장소"], ["mail_delivery", "메일 발송"],
   ["mail_settings", "메일 설정"], ["integrity_check", "조직 정합성 검사"],

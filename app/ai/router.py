@@ -159,8 +159,19 @@ def ai_draft_document(
 
     문서 생성 권한을 따로 묻는다. `AI_USE` 는 「AI 를 쓸 수 있다」이고 문서를 만드는
     것은 다른 일이다 — 합치면 AI 만 쓸 수 있게 해 둔 사람이 문서를 만들게 된다.
+
+    쓰기 승인 정책이 이 사람에게 걸려 있으면(D-519) 문서 대신 승인 요청을 만든다. 저장할 자리는 모델을 부르기 전에
+    본다 - 승인된 뒤에야 자리를 볼 수 없다는 것이 드러나면 한도와 결재자의 시간을 헛되이 쓴다.
     """
+    from app.ai import action_requests
+    from app.ai.policy import engine as policy_engine
+
     _require_document_create(db, user)
+    approval_policy = policy_engine.approval_needed(db, action_key=WORKSPACE_DRAFT, user=user)
+    if approval_policy is not None:
+        knowledge_service.check_document_target(
+            db, user, space_id=payload.space_id, project_id=payload.project_id, folder_id=payload.folder_id,
+        )
 
     now = request.app.state.clock.now()
     with ai_quotas.consume(
@@ -177,6 +188,23 @@ def ai_draft_document(
             # 초안을 못 만들었으면 **문서를 만들지 않는다.** 빈 문서를 남기면 목록에
             # 제목만 있는 껍데기가 쌓이고, 사람은 그것이 실패의 흔적인 줄 모른다.
             return {**result.as_dict(), "document": None}
+        if approval_policy is not None:
+            pending, approval = action_requests.request_document(
+                db, user, action_key=WORKSPACE_DRAFT, title=payload.title, text=result.text or "",
+                space_id=payload.space_id, project_id=payload.project_id, folder_id=payload.folder_id,
+                policy_id=approval_policy.id, now=now,
+            )
+            record_audit_from_request(
+                request, db, action="ai.document.approval_requested",
+                object_type="ai_action_request", object_id=pending.id,
+                after={"approval_id": approval.id, "policy_id": approval_policy.id, "chars": len(result.text or "")},
+            )
+            db.commit()
+            return {
+                **result.as_dict(), "document": None,
+                "approval": {"id": approval.id, "status": approval.status, "request_id": pending.id,
+                             "route": "/my-approvals?box=requested"},
+            }
         document = knowledge_service.create_document(
             db, user,
             space_id=payload.space_id,

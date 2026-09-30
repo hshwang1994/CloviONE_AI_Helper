@@ -142,6 +142,41 @@ personal_router = APIRouter(
 )
 
 
+@personal_router.get("/ai-drafts/{request_id}")
+def ai_draft_for_approval(
+    request_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    principal: Principal = Depends(get_principal),
+):
+    """결재할 AI 초안 한 건의 본문(D-519). 승인 요청에는 제목과 글자 수만 있어 본문을 따로 연다.
+
+    AI 라우터(`/api/ai/*`)가 아니라 여기 있는 까닭: 그쪽은 모든 경로가 AI 사용 권한을 요구하는데, 결재자는 AI 를 쓰지
+    않는 사람일 수 있다. 여는 사람은 요청한 사람과, 그 승인 요청을 볼 수 있는 사람뿐이다 - 결재할 수 있으면 결재
+    범위(위임이면 위임자의 범위), 아니면 콘솔 읽기 역할의 관리 범위. 둘 다 아니면 없는 것과 같다(404).
+    """
+    from app.ai import action_requests
+    from app.ai.models import AiActionRequest
+
+    row = db.get(AiActionRequest, request_id)
+    if row is None:
+        raise NotFoundError("AI 초안을 찾을 수 없습니다.")
+    if row.requested_by != user.id:
+        if not row.approval_id:
+            raise NotFoundError("AI 초안을 찾을 수 없습니다.")
+        now = request.app.state.clock.now()
+        can_decide, on_behalf_of = delegation_service.resolve_authority(db, user, now)
+        if can_decide:
+            visible = decision_visible_user_ids(db, principal=principal, on_behalf_of=on_behalf_of)
+        elif user.role in CONSOLE_READ_ROLES:
+            visible = visible_user_ids(db, principal.management)
+        else:
+            raise NotFoundError("AI 초안을 찾을 수 없습니다.")
+        get_scoped_approval_or_404(db, row.approval_id, visible)
+    return {"item": action_requests.request_view(db, row)}
+
+
 @personal_router.get("/mine")
 def my_approvals(
     request: Request,

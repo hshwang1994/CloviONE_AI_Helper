@@ -30,6 +30,92 @@ const PROMPT_SOURCE = { builtin: "기본 제공", admin: "관리자 작성" };
 const isBuiltinRow = (r) => r.source === "builtin";
 const promptPath = (r) => "/api/admin/prompts/" + r.id;
 
+/* 정책(계획 3.9, D-519). 종류마다 규칙 칸이 정해져 있고, 폼은 JSON 대신 그 칸을 보인다. 서버가 같은 규칙으로 다시
+   검사한다(`app/ai/policy/schemas.py`) - 화면은 칸을 모아 보낼 뿐이다. */
+const POLICY_KINDS = [["approval", "쓰기 승인"], ["data_protection", "개인정보 가리기"], ["content", "응답 제한"]];
+const POLICY_KIND_LABEL = { approval: "쓰기 승인", data_protection: "개인정보 가리기", content: "응답 제한", legacy: "옛 형식" };
+// 서버의 액션 이름과 같은 표다(`app/ai/actions.py`). 쓰기 승인은 결과가 저장되는 기능에만 건다.
+const POLICY_TARGETS = [["*", "모든 기능"], ["chat.answer", "채팅 답변"], ["workspace.ask", "작업 공간 질문"],
+  ["workspace.draft", "작업 공간 문서 초안"], ["report.weekly_summary", "프로젝트 주간 요약"], ["home.narrative", "홈 문장 요약"],
+  ["game.quiz", "게임 퀴즈 만들기"]];
+const WRITE_TARGETS = [["workspace.draft", "작업 공간 문서 초안"]];
+const AUTO_ROLES = [["auto_system_admin", "system_admin", "시스템 관리자는 승인 없이 저장합니다"],
+  ["auto_admin", "admin", "관리자는 승인 없이 저장합니다"], ["auto_operator", "operator", "운영자는 승인 없이 저장합니다"]];
+const RULE_FIELDS = {
+  approval: [
+    { name: "write_requires_approval", type: "checkbox", label: "승인", checkLabel: "문서로 저장하기 전에 승인을 받습니다", value: true },
+    ...AUTO_ROLES.map(([name, , checkLabel]) => ({ name, type: "checkbox", label: "승인 없이 저장", checkLabel })),
+  ],
+  data_protection: [
+    { name: "mask_phone_numbers", type: "checkbox", label: "전화번호", checkLabel: "전화번호를 가립니다", value: true },
+    { name: "mask_resident_registration_numbers", type: "checkbox", label: "주민등록번호", checkLabel: "주민등록번호를 가립니다", value: true },
+    { name: "mask_emails", type: "checkbox", label: "이메일", checkLabel: "이메일 주소를 가립니다" },
+  ],
+  content: [
+    { name: "max_output_chars", type: "number", label: "답의 최대 글자 수", help: "비우면 기능마다 정해진 길이를 씁니다. 퀴즈처럼 JSON 으로 답하는 기능은 넘으면 자르지 않고 실패합니다." },
+    { name: "block_external_links", type: "checkbox", label: "제품 밖 링크", checkLabel: "제품 밖 링크를 누를 수 없게 바꿉니다" },
+  ],
+};
+const ruleKindOf = (body) => body.kind || Object.keys(RULE_FIELDS).find((k) => RULE_FIELDS[k].some((f) => f.name in body));
+function policyApiBody(body) {
+  const kind = ruleKindOf(body);
+  const out = {};
+  for (const key of ["name", "purpose", "kind"]) if (key in body) out[key] = body[key];
+  const target = kind === "approval" ? body.target_write : body.target;
+  if (target !== undefined) out.applies_to = target;
+  if (kind === "approval") {
+    out.content = { write_requires_approval: !!body.write_requires_approval, auto_approve_roles: AUTO_ROLES.filter(([name]) => body[name]).map(([, role]) => role) };
+  } else if (kind === "data_protection") {
+    out.content = { mask_phone_numbers: !!body.mask_phone_numbers, mask_resident_registration_numbers: !!body.mask_resident_registration_numbers, mask_emails: !!body.mask_emails };
+  } else if (kind === "content") {
+    const cap = body.max_output_chars;
+    out.content = { max_output_chars: cap === "" || cap == null ? null : Number(cap), block_external_links: !!body.block_external_links };
+  }
+  return out;
+}
+/* 수정 폼의 처음 값. **그 종류의 칸만** 담는다 - 모든 종류의 칸을 담으면 `policyApiBody` 가 종류를 잘못 알아보고,
+   바뀐 칸만 보내는 비교(`diffFields`)가 늘 「바뀜」으로 읽는다. */
+function policyFormValues(row) {
+  const c = row.content || {};
+  const target = (row.applies_to || [])[0];
+  const roles = c.auto_approve_roles || [];
+  const base = { purpose: row.purpose };
+  if (row.kind === "approval") {
+    return { ...base, target_write: target || "workspace.draft", write_requires_approval: c.write_requires_approval !== false,
+      ...Object.fromEntries(AUTO_ROLES.map(([name, role]) => [name, roles.includes(role)])) };
+  }
+  if (row.kind === "data_protection") {
+    return { ...base, target: target || "*", mask_phone_numbers: !!c.mask_phone_numbers,
+      mask_resident_registration_numbers: !!c.mask_resident_registration_numbers, mask_emails: !!c.mask_emails };
+  }
+  if (row.kind === "content") {
+    return { ...base, target: target || "*", max_output_chars: c.max_output_chars == null ? "" : c.max_output_chars,
+      block_external_links: !!c.block_external_links };
+  }
+  return base;
+}
+const targetField = (kind) => (kind === "approval"
+  ? { name: "target_write", label: "적용할 기능", type: "select", required: true, value: "workspace.draft", options: opt(WRITE_TARGETS) }
+  : { name: "target", label: "적용할 기능", type: "select", required: true, value: "*", options: opt(POLICY_TARGETS), help: "기능을 지정한 정책이 모든 기능 정책보다 먼저 걸립니다." });
+function policyRuleSummary(r) {
+  const c = r.content || {};
+  if (r.kind === "approval") {
+    const who = (c.auto_approve_roles || []).map((x) => ({ system_admin: "시스템 관리자", admin: "관리자", operator: "운영자", user: "사용자" })[x] || x);
+    if (!c.write_requires_approval) return "승인을 요구하지 않습니다.";
+    return who.length ? who.join(", ") + "만 승인 없이 저장하고 나머지는 승인을 받습니다." : "모든 사람이 문서로 저장하기 전에 승인을 받습니다.";
+  }
+  if (r.kind === "data_protection") {
+    const parts = [c.mask_phone_numbers ? "전화번호" : null, c.mask_resident_registration_numbers ? "주민등록번호" : null, c.mask_emails ? "이메일" : null].filter(Boolean);
+    return parts.length ? parts.join(", ") + "를 가립니다." : "가리는 항목이 없습니다.";
+  }
+  if (r.kind === "content") {
+    const cap = c.max_output_chars ? "답을 " + c.max_output_chars + "자까지 싣습니다." : "기능마다 정해진 길이를 씁니다.";
+    return cap + (c.block_external_links ? " 제품 밖 링크는 누를 수 없게 바꿉니다." : "");
+  }
+  return "옛 형식이라 적용하지 않습니다.";
+}
+const policyPath = (r) => "/api/admin/policies/" + r.id;
+
 export const AUTHORING_SCREENS = {
   prompts: {
     smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
@@ -88,7 +174,8 @@ export const AUTHORING_SCREENS = {
     ] },
     actions: [
       { label: "복제해서 수정", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => isBuiltinRow(r) && r.editable !== false, path: (r) => "/api/admin/prompts/builtin/" + r.slot + "/copy", keepSelection: true },
-      { label: "발행", variant: "primary", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => !isBuiltinRow(r) && r.status === "draft", path: (r) => promptPath(r) + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 다음 AI 호출부터 이 사용처는 이 지시문을 쓰고, 지금 쓰는 발행본은 보관됩니다." },
+      // 초안에서는 고정 「수정」이 채움 단추다 - 「발행」까지 채우면 한 영역에 둘이 된다(PA-RC-0023).
+      { label: "발행", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => !isBuiltinRow(r) && r.status === "draft", path: (r) => promptPath(r) + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 다음 AI 호출부터 이 사용처는 이 지시문을 쓰고, 지금 쓰는 발행본은 보관됩니다." },
       // 새 버전은 어떤 상태에서든 새 초안으로 갈라진다. 드로어를 새 초안으로 바꿔 곧바로 고칠 수 있게 한다.
       { label: "새 버전", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => !isBuiltinRow(r) && r.status !== "draft", path: (r) => promptPath(r) + "/new-version", keepSelection: true },
       { ...nameVersionsAction("/api/admin/prompts", "프롬프트 버전 기록"), when: (r) => !isBuiltinRow(r) },
@@ -98,88 +185,67 @@ export const AUTHORING_SCREENS = {
     ],
   },
   policies: {
-    /* C2 «Filter Surface 가 정당한가» — 이 화면은 **행 수가 유한하고 작다**(정책 2 ·
-       기능 플래그 11 · 통합 4 · RBAC 13 실측). R-88 이 "25행" 을 기계 규칙으로 쓰지 말라고
-       못박으므로 숫자가 아니라 **판단**을 남긴다: 조건 조합을 이름 붙여 재사용할 만큼
-       탐색이 반복되지 않는다. 그래서 저장된 뷰를 그리지 않는다 — 기능이 아니라 소음이다. */
+    /* C2 «Filter Surface 가 정당한가» — 이 화면은 행 수가 유한하고 작다. 조건 조합을 이름 붙여 재사용할 만큼
+       탐색이 반복되지 않으므로 저장된 뷰를 그리지 않는다. */
     smallSet: true,
     key: "policies", area: "AI", title: "정책", endpoint: "/api/admin/policies",
-    // 생명주기는 초안 → 발행 → 보관이다(D-518). 발행은 JSON 모양만 검사한다.
-    help: "업무 규칙(정책)을 버전으로 관리합니다. 발행하면 이 이름의 발행본이 새 버전으로 바뀌고, 발행할 때는 JSON 모양만 검사합니다.",
-    // 발행은 그 순간부터 이 이름의 발행본을 바꾼다 — 프롬프트보다 파급이 크다는 판단은
-    // 그대로다. 배너를 일반 안내와 같은 톤으로 두면 그 경고가 안 읽힌다.
+    // 발행은 그 순간부터 전사 AI 요청에 걸린다 — 배너를 일반 안내와 같은 톤으로 두면 그 경고가 안 읽힌다.
     helpTone: "warn",
-    emptyTitle: "추가된 정책이 없습니다",
-    // 정책도 프롬프트와 동일하게 4단계 생명주기(초안→테스트→검토→발행)를 강제한다 — '등록하고
-    // 발행하세요'는 마치 한 단계로 끝나는 것처럼 읽혀, 새 관리자가 초안 행에서 비활성 '발행' 버튼을
-    // 만나고 이유를 못 찾았다(프롬프트 registry.js:404와 동일 문구로 맞춘다).
-    emptyHelp: writerEmptyHelp("‘+ 정책 추가’로 업무 규칙(JSON)을 넣고 초안에서 발행하세요.", "정책은 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
+    help: "AI 요청에 거는 규칙입니다. 발행한 정책은 다음 AI 요청부터 걸리고, 기능을 지정한 정책이 모든 기능 정책보다 먼저 걸립니다. 같은 기능에 같은 종류의 정책은 하나만 발행할 수 있고, 업그레이드로 옮긴 옛 정책은 초안이라 발행해야 걸립니다.",
+    emptyTitle: "조건에 맞는 정책이 없습니다",
+    emptyHelp: writerEmptyHelp("‘+ 정책 추가’로 종류와 적용할 기능을 고르고 초안에서 발행하세요. 발행한 정책이 없으면 AI 요청에 아무 규칙도 걸리지 않습니다.", "정책은 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
     createLabel: "정책 추가",
-    // 다른 화면이 ?id=로 넘겨주는 딥링크를 소비해 그 정책의 상세 드로어를 곧바로
-    // 연다(단건 GET). 이 라우터의 GET /{row_id}는 {"item":...} 모양으로
-    // 응답한다(app/prompts/router.py _build_router가 prompts/policies를 함께 만드는 get_one).
     onQuery: (p) => p.id ? { open: "select", id: p.id } : null,
     selectKey: "item",
-    // 백엔드 list_all은 프롬프트와 동일하게 page/page_size를 지원한다(app/prompts/router.py의 같은
-    // 엔드포인트를 정책도 공유) — paginated:true로 실제 '다음' 컨트롤을 켠다(프롬프트 registry.js와
-    // 동일). capWarning은 500건 상한 자체를 계속 알린다.
     paginated: true,
     capWarning: 500,
-    // 이름으로 좁혀 한 정책의 버전들만 모아 본다(백엔드 ?name= 정확 일치 필터). 상태로도 좁힐 수 있게
-    // 한다(백엔드 list_all이 status를 지원한다 — 프롬프트와 동일 엔드포인트) — 이름 없이 '지금 검토
-    // 대기 중인 정책만' 같은 질문에 답할 방법이 없었다.
-    // status 기본값을 'published'로 스코프한다(여전히 '전체'로 바꿀 수 있다) — 기본값이 없으면
-    // 첫 방문마다 초안/테스트/검토/발행/보관 버전이 모두 뒤섞여, '지금 실제로 쓰이는 것'을
-    // 알아보려면 매번 손으로 필터를 걸어야 했다.
-    // 🔴 이름 후보는 프롬프트와 **같은 이유로** 받아 둔 행이 아니라 전량 엔드포인트에서 온다
-    // (위 프롬프트 항목의 긴 주석 참고 — 서버 필터가 정확 일치라 후보를 못 보면 못 쓰는
-    // 필터이고, `/usage/stats` 가 이름당 한 행을 같은 게이트로 무페이징 제공한다).
-    refLists: [{ key: "policyNames", endpoint: "/api/admin/policies/usage/stats", valueKey: "name", labelKey: "name" }],
-    filters: [{ key: "name", type: "select", kind: "entity", label: "이름", optionsFromRefList: "policyNames" },
-      { key: "status", type: "select", label: "상태", value: "published", options: opt([["draft", "초안"], ["published", "발행됨"], ["archived", "보관됨"]]) }],
-    // WF1 단독 결함 — purpose는 이제 Policy에도 있다(app/prompts/models.py::Policy.purpose,
-    // 마이그레이션 0058). 프롬프트와 동일하게 목록 열로 노출한다 — 여러 버전이 쌓인 목록에서
-    // 각 정책이 '무엇을 강제하는지' 행마다 열어보지 않고는 알 수 없었다. purpose는 최대 2000자라
-    // truncateCol로 자른다(프롬프트 registry.js:53-54와 동일 패턴, 전체는 title 속성으로 확인).
-    columns: [{ ...col("name", "이름"), identifier: true }, truncateCol("purpose", "용도", 60), col("version", "버전", "code"), badgeCol("status", "상태"), dateCol("created_at", "생성 일자")],
-    // id는 상세에서 확인할 수 있게 노출한다(라벨은 프롬프트의 '프롬프트 ID'와 맞춰
-    // 어느 화면 상세를 보고 있는지 분명히 한다).
-    // created_by는 _policy_view가 감사 로그의 actor_name과 동일한 패턴으로 created_by_name/
-    // created_by_email을 이미 계산해 돌려준다 — 원시 UUID 대신 그 이름을 보여준다(프롬프트 상세와 동일 패턴).
-    // purpose는 이제 목록 열이라 상세에서 중복 제거(프롬프트 registry.js:63과 동일 판단).
-    detailFields: [field("id", "정책 ID"),
+    filters: [
+      { key: "kind", type: "select", label: "종류", options: opt([...POLICY_KINDS, ["legacy", "옛 형식"]]) },
+      { key: "status", type: "select", label: "상태", value: "published", options: opt([["draft", "초안"], ["published", "발행됨"], ["archived", "보관됨"]]) },
+    ],
+    columns: [
+      { ...col("name", "이름", "title"), rowName: (r) => r.name + " v" + r.version },
+      { key: "kind", label: "종류", type: "enum", render: (r) => r.kind_label || POLICY_KIND_LABEL[r.kind] || r.kind },
+      { key: "applies_to_labels", label: "적용할 기능", type: "text", render: (r) => (r.applies_to_labels || []).join(", ") || "-" },
+      { key: "version", label: "버전", type: "code", render: (r) => "v" + r.version },
+      badgeCol("status", "상태"),
+      { key: "calls_30d", label: "30일 적용", type: "count" },
+    ],
+    detailFields: [
+      field("purpose", "설명"),
+      { key: "_rules", label: "규칙", render: (r) => policyRuleSummary(r) },
+      { key: "_migrated", label: "옮긴 정책", render: (r) => (r.migrated_from_id ? "업그레이드가 옛 정책에서 옮긴 초안입니다. 검토하고 발행해야 걸립니다." : "-") },
       { key: "created_by", label: "작성자", render: (r) => r.created_by_name || r.created_by_email || r.created_by || "-" },
-      // 초안이 아니면 '수정' 버튼이 통째로 사라진다(editWhen 아래) — 이유를 밝히지 않으면 이 화면을
-      // 처음 보는 관리자는 왜 버튼이 없는지 알 방법이 없다. '새 버전'이 실제 대안이라고 안내한다.
-      { key: "_edit_note", label: "수정 안내", render: (r) => r.status !== "draft" ? "이 버전은 초안이 아니라 수정할 수 없습니다. 아래 ‘새 버전’으로 수정 가능한 초안을 추가하세요." : "-" },
-      dateCol("published_at", "발행 시각"), jsonField("content", "규칙(JSON)")],
-    /* 정책도 프롬프트와 같은 문을 지난다(위 프롬프트 create 주석) —
-       한 번의 롤백으로 전사 규칙이 바뀌는 자원이라 서버가 쓰기를 전역 범위로 한정한다. */
+      { key: "_edit_note", label: "수정 안내", render: (r) => (r.status !== "draft" ? "이 버전은 초안이 아니라 고칠 수 없습니다. ‘새 버전’으로 초안을 만드세요." : "-") },
+      dateCol("published_at", "발행 시각"),
+      jsonField("content", "규칙(JSON)"),
+      field("id", "정책 ID"),
+    ],
+    /* 정책은 부서로 나뉘는 자원이 아니다 - 발행본이 전사 AI 요청에 걸린다. 서버가 쓰기를 전역 범위 관리자로 한정한다. */
     create: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
       { name: "name", label: "이름", type: "text", required: true },
-      // purpose는 서버에서 최대 2000자까지 허용한다(app/prompts/router.py) — 한 줄 text 입력은
-      // 좁아서 textarea로(프롬프트 registry.js:70-71과 동일 대우).
-      { name: "purpose", label: "용도", type: "textarea" },
-      // 서버 기본값("{}")과 맞춘다(app/prompts/router.py PolicyCreateRequest.content) — 값 없이는
-      // 다른 registry create 필드처럼 즉시 제출 가능해야 한다(예전엔 최소 "{}"라도 직접 타이핑해야 했다).
-      { name: "content", label: "규칙(JSON)", type: "json", required: true, value: '{\n  "required_fields": ["title"]\n}', help: '업무 규칙을 JSON 객체로 적습니다. 위 기본값은 "제목은 필수"라는 뜻의 예시입니다. 필요에 맞게 바꾸세요(예: {"required_fields":["title","owner"],"min_length":10}).' },
+      { name: "kind", label: "종류", type: "select", required: true, value: "data_protection", options: opt(POLICY_KINDS), help: "종류는 만든 뒤에 바꿀 수 없습니다." },
+      { ...targetField("approval"), showIf: (v) => v.kind === "approval" },
+      { ...targetField("other"), showIf: (v) => v.kind !== "approval" },
+      ...Object.entries(RULE_FIELDS).flatMap(([kind, fields]) => fields.map((f) => ({ ...f, showIf: (v) => v.kind === kind }))),
+      { name: "purpose", label: "설명", type: "textarea" },
     ] },
-    editMethod: "PATCH", editWhen: (r) => r.status === "draft", edit: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
-      { name: "content", label: "규칙(JSON)", type: "json", required: true, help: '예: {"required_fields":["title"]}' },
-      { name: "purpose", label: "용도", type: "textarea" },
+    toApiBody: policyApiBody,
+    fromRow: policyFormValues,
+    // 수정은 초안일 때만 된다. 종류는 바꾸지 않으므로 그 종류의 칸만 보인다.
+    editMethod: "PATCH", editWhen: (r) => r.status === "draft" && r.kind !== "legacy",
+    edit: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: (role, row) => [
+      targetField(row && row.kind),
+      ...((row && RULE_FIELDS[row.kind]) || []),
+      { name: "purpose", label: "설명", type: "textarea" },
     ] },
     actions: [
-      { label: "발행", variant: "primary", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "draft", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 같은 이름으로 발행돼 있던 버전은 보관됩니다." },
-      // keepSelection — 새 버전을 만드는 목적이 '바로 이어서 편집'이므로(내용은 초안일 때만 편집
-      // 가능), 프롬프트의 '새 버전'과 동일하게 드로어를 닫지 않고 새 초안으로 갱신한다.
-      { label: "새 버전", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status !== "draft", path: (r) => "/api/admin/policies/" + r.id + "/new-version", keepSelection: true },
-      // 정책도 프롬프트와 동일하게 버전 기록 + 롤백 + 비교(diff)를 노출한다(잘못 발행된 규칙 복원 경로).
+      // 초안에서는 고정 「수정」이 채움 단추다 - 「발행」까지 채우면 한 영역에 둘이 된다(PA-RC-0023).
+      { label: "발행", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status === "draft" && r.kind !== "legacy", path: (r) => policyPath(r) + "/transition", body: { status: "published" }, confirm: "이 버전을 발행할까요? 다음 AI 요청부터 이 정책이 걸리고, 같은 이름으로 발행돼 있던 버전은 보관됩니다." },
+      { label: "새 버전", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status !== "draft" && r.kind !== "legacy", path: (r) => policyPath(r) + "/new-version", keepSelection: true },
       nameVersionsAction("/api/admin/policies", "정책 버전 기록"),
-      { label: "보관", variant: "danger", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status !== "archived", path: (r) => "/api/admin/policies/" + r.id + "/transition", body: { status: "archived" }, confirm: "이 버전을 보관할까요? 보관하면 더 이상 발행, 사용되지 않지만 이력으로는 목록에 남습니다." },
-      // policies는 감사 로그의 유효한 object_type이고(OBJTYPE_OPTS) 모든 쓰기 액션이 이 타입으로
-      // 기록된다 — 부서·직책과 동일한 딥링크를 추가한다.
-      // operator는 정책 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx SCREEN_ROLES)
-      // — approvals.registry.js:990과 동일한 이유로 admin/system_admin/auditor에만 노출한다.
+      { label: "보관", variant: "danger", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.status !== "archived", path: (r) => policyPath(r) + "/transition", body: { status: "archived" }, confirm: "이 버전을 보관할까요? 발행돼 있던 버전이면 다음 AI 요청부터 이 정책이 걸리지 않습니다." },
+      // operator는 정책 화면엔 들어오지만 /audit 화면엔 못 들어간다 — admin/system_admin/auditor에만 노출한다.
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=policies&object_id=" + r.id },
     ],
   },
@@ -205,34 +271,29 @@ export const AUTHORING_SCREENS = {
     ],
   },
   "policy-usage": {
-    smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
+    smallSet: true, // 정책 이름 수만큼의 줄이라 저장된 뷰가 소음이다(D-506)
     key: "policy-usage", area: "AI", title: "정책 사용 통계",
     endpoint: "/api/admin/policies/usage/stats",
-    help: "정책이 실제로 쓰이고 있는지 이름별로 봅니다. ‘쓰이지 않음’은 이 이름을 참조하는 스케줄이 없다는 뜻입니다.",
+    /* 예전에는 스케줄이 이름을 참조하는가를 셌고 언제나 「쓰이지 않음」이었다. 이제 AI 호출 기록에서 그 정책이 걸린
+       호출을 센다(D-519). */
+    help: "정책마다 지금 발행된 버전과 최근 30일에 그 정책이 걸린 AI 호출 수를 봅니다. 수는 AI 호출 기록에서 셉니다.",
     emptyTitle: "추가된 정책이 없습니다",
-    emptyHelp: "‘정책’ 화면에서 정책을 추가하면 사용 현황이 여기에 표시됩니다.",
+    emptyHelp: "‘정책’ 화면에서 정책을 만들고 발행하면 적용 현황이 여기에 표시됩니다.",
     emptyRelatedLink: { href: "#/policies", label: "정책 화면으로 이동" },
     searchFields: ["name"],
     searchPlaceholder: "정책 이름으로 검색",
-    filters: [{ key: "unused", type: "select", label: "사용 여부", clientFilter: true, options: opt([["true", "쓰이지 않음"], ["false", "쓰이는 중"]]) }],
     columns: [
-      { ...col("name", "이름"), identifier: true },
-      { key: "unused", label: "사용", type: "count", render: (r) => React.createElement(Badge, { value: r.unused ? "쓰이지 않음" : "쓰이는 중", kind: r.unused ? "warn" : "ok" }) },
-      { key: "versions", label: "버전 수", type: "count" },
-      { key: "published_version", label: "발행 버전", type: "count", render: (r) => r.published_version == null ? "없음" : String(r.published_version) },
-      { key: "schedule_refs", label: "스케줄", type: "count" },
+      { key: "name", label: "이름", type: "title" },
+      { key: "kind", label: "종류", type: "enum", render: (r) => r.kind_label || POLICY_KIND_LABEL[r.kind] || r.kind },
+      { key: "applies_to_labels", label: "적용할 기능", type: "text", render: (r) => (r.applies_to_labels || []).join(", ") || "-" },
+      { key: "published_version", label: "발행 버전", type: "code", render: (r) => (r.published_version == null ? "발행 안 함" : "v" + r.published_version) },
+      { key: "applied", label: "30일 적용", type: "count" },
+      dateCol("last_applied_at", "마지막 적용"),
     ],
-    detailFields: [
-      { key: "schedule_names", label: "참조하는 스케줄", render: (r) => (r.schedule_names || []).join(", ") || "없음" },
-      { key: "latest_version", label: "최신 버전" },
-      badgeCol("latest_status", "최신 상태"),
-      dateCol("last_published_at", "마지막 발행"),
-    ],
+    detailFields: [field("versions", "버전 수"), badgeCol("latest_status", "최신 상태")],
     actions: [
-      { label: "이 정책 버전 보기", navigate: (r) => "#/policies?name=" + encodeURIComponent(r.name) },
+      { label: "정책 보기", navigate: (r) => "#/policies?id=" + encodeURIComponent(r.id) },
     ],
-    /* 「프롬프트 사용 통계」 머리 단추를 걷었다(D-501) — 이 화면은 언제나 「AI 사용 통계」 그릇의 탭이라 바로 옆
-       「프롬프트」 탭이 같은 곳으로 간다. */
   },
   /* AI 사용 통계(계획 3.11, D-517). 예전 「사용 통계」는 이름을 참조하는 스케줄이 있는가를 보여 주는 설정 개요였다 -
      실제 호출은 어디에도 없었다. 이제 AI 런타임이 호출마다 남기는 기록(`ai_usage_records`)을 묶어 본다. 부서 범위
