@@ -11,7 +11,7 @@ describe("감사 로그 '대상' 칸 — 새로 채운 object_type 번역", () =
   it.each([
     ["organization", "조직"],
     ["feature_flag", "기능 플래그"],
-    ["ai_quota", "AI 사용 상한"],
+    ["ai_quota", "AI 사용 한도"],
     ["approval_delegation", "승인 위임"],
     ["announcement", "공지"],
     ["offboarding_run", "오프보딩"],

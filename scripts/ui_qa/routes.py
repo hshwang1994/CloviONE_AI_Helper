@@ -358,6 +358,11 @@ ADMIN_ROUTES: tuple[Route, ...] = (
        ("operator", "admin", "system_admin", "auditor")),
     _a("admin_prompt-usage", "/prompt-usage", "프롬프트 사용 통계", "operator",
        ("operator", "admin", "system_admin", "auditor")),
+    # AI 호출 기록을 읽는 두 탭의 옛 주소 모양(D-517). 탭 그릇의 다른 탭처럼 제자리에서 그린다.
+    _a("admin_ai-usage-stats", "/ai-usage-stats", "AI 사용 통계(사용 통계 주소)", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_ai-usage-records", "/ai-usage-records", "AI 사용 통계(호출 기록 주소)", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
     _a("admin_policy-usage", "/policy-usage", "정책 사용 통계", "operator",
        ("operator", "admin", "system_admin", "auditor")),
     # 초기 설정만 여전히 자기 화면이다(SetupWizard.jsx). 나머지 셋과 유지보수는
@@ -383,9 +388,14 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     # ── 탭 그릇의 두 번째 탭 (2026-08-19, W0) ─────────────────────────────────
     # `AdminRoutes.jsx::TAB_GROUPS` 의 `/ai-usage` 그릇은 옛 주소 두 개(/policy-usage,
     # /prompt-usage)로만 하네스에 있었다. 대표 주소와 탭 상태는 별개 Surface 다.
-    _a("admin_ai-usage", "/ai-usage", "AI 사용 통계 — 정책", "operator",
+    # 대표 주소의 첫 탭은 「사용 통계」다(D-517) - 예전에는 「정책」이었다. 정책 탭은 탭 상태로 따로 찍는다.
+    _a("admin_ai-usage", "/ai-usage", "AI 사용 통계 — 사용 통계", "operator",
        ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_ai-usage-records-tab", "/ai-usage?tab=ai-usage-records", "AI 사용 통계 — 호출 기록",
+       "operator", ("operator", "admin", "system_admin", "auditor")),
     _a("admin_ai-usage-prompt", "/ai-usage?tab=prompt-usage", "AI 사용 통계 — 프롬프트",
+       "operator", ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_ai-usage-policy", "/ai-usage?tab=policy-usage", "AI 사용 통계 — 정책",
        "operator", ("operator", "admin", "system_admin", "auditor")),
     # 탭 그릇의 두 번째 탭을 **대표 주소 + 탭 상태**로도 찍는다. 옛 주소(`/restore-drills`
     # 등)는 이미 위에 있지만 그건 다른 주소다 — 둘 다 살아 있어야 한다는 것이
@@ -442,8 +452,10 @@ PUBLIC_ROUTES: tuple[Route, ...] = (
 # 표로 고정한다 — 짐작은 한쪽이 바뀌는 날 조용히 어긋나고, 그러면 증거가 엉뚱한 Surface 에
 # 붙는다. 여기 없는 Route 는 id 가 그대로 Surface id 다.
 SURFACE_ID_OVERRIDES: dict[str, str] = {
-    "admin_ai-usage": "admin_ai-usage__policy-usage",
+    "admin_ai-usage": "admin_ai-usage__ai-usage-stats",
+    "admin_ai-usage-records-tab": "admin_ai-usage__ai-usage-records",
     "admin_ai-usage-prompt": "admin_ai-usage__prompt-usage",
+    "admin_ai-usage-policy": "admin_ai-usage__policy-usage",
     "admin_approvals": "admin_approvals__approvals",
     "admin_approvals-delegations-tab": "admin_approvals__approval-delegations",
     "admin_audit": "admin_audit__audit",

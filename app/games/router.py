@@ -269,15 +269,22 @@ def quiz_generate(
             "AI 생성을 너무 자주 요청했습니다. 잠시 후 다시 시도하세요.",
             retry_after_seconds=request.app.state.game_ai_ratelimiter.retry_after_seconds(limit_key),
         )
+    from app.ai.actions import GAME_QUIZ
     from app.ai.runtime import runtime_for_app
+    from app.quotas import service as ai_quotas
 
-    questions = ai.generate_quiz(
-        runtime_for_app(request.app),
-        db,
-        topic=payload.topic,
-        count=payload.count,
-        num_options=payload.num_options,
-    )
+    # 퀴즈도 사람이 부른 AI 호출이라 AI 사용 한도에 센다(계획 3.10). 예전에는 이 경로만 한도 밖이었다.
+    now = request.app.state.clock.now()
+    with ai_quotas.consume(db, user=me, action_key=GAME_QUIZ, now=now,
+                           session_factory=request.app.state.session_factory):
+        questions = ai.generate_quiz(
+            runtime_for_app(request.app),
+            db,
+            topic=payload.topic,
+            count=payload.count,
+            num_options=payload.num_options,
+            actor=me,
+        )
     return {"questions": questions}
 
 

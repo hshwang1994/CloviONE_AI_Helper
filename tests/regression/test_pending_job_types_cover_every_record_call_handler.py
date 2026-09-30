@@ -1,5 +1,8 @@
-"""UB-09: `quotas.service.pending()`이 세는 job_type 집합이 실제로 `record_call`을
-부르는 잡 핸들러 전부를 덮는지 상시 확인한다.
+"""UB-09: `quotas.service.pending()`이 세는 job_type 집합이 실제로 사람의 이름으로 AI 를 부르는
+잡 핸들러 전부를 덮는지 상시 확인한다.
+
+D-517 부터 한도의 원장은 AI 런타임의 호출 기록이다. 예전의 `record_call(` 은 없어졌고, 잡 핸들러가 AI 를 부르는
+표식은 `runtime_for_worker(` 다. 관리자의 연결 확인처럼 한도 밖인 핸들러는 아래 표에 까닭과 함께 적는다.
 
 `pending()`은 "아직 `usage_events`에 안 남았지만 이미 쓰기로 확정된" AI 호출을 큐에
 쌓인 잡 행으로 센다(`app/quotas/service.py` 모듈 docstring 참조) — 그래야 확인(라우터)과
@@ -38,6 +41,12 @@ _HANDLER_JOB_TYPES = {
 }
 
 
+# 한도 밖에서 AI 를 부르는 핸들러 - 까닭이 곧 면제 근거다.
+_OUTSIDE_QUOTA = {
+    "llm_connection_test.py": "관리자의 연결 확인은 한도에 세지 않는 액션이다(system.connection_test, counts_quota=False)",
+}
+
+
 def test_pending_job_types_cover_every_record_call_handler():
     handler_files = sorted(
         p for p in HANDLERS_DIR.glob("*.py") if p.name != "__init__.py"
@@ -47,7 +56,7 @@ def test_pending_job_types_cover_every_record_call_handler():
     unmapped: list[str] = []
     uncovered: list[tuple[str, str]] = []
     for path in handler_files:
-        if "record_call(" not in path.read_text(encoding="utf-8"):
+        if "runtime_for_worker(" not in path.read_text(encoding="utf-8") or path.name in _OUTSIDE_QUOTA:
             continue
         job_type = _HANDLER_JOB_TYPES.get(path.name)
         if job_type is None:
@@ -57,11 +66,11 @@ def test_pending_job_types_cover_every_record_call_handler():
             uncovered.append((path.name, job_type))
 
     assert not unmapped, (
-        f"이 핸들러 파일들은 record_call을 부르는데 이 시험의 _HANDLER_JOB_TYPES에 매핑이 "
+        f"이 핸들러 파일들은 AI 를 부르는데 이 시험의 _HANDLER_JOB_TYPES에 매핑이 "
         f"없다: {unmapped} — 이 파일 상단에 job_type 매핑을 추가하라."
     )
     assert not uncovered, (
-        f"이 잡 핸들러들은 record_call을 부르는데 PENDING_JOB_TYPES에 없다: {uncovered} — "
+        f"이 잡 핸들러들은 사람의 이름으로 AI 를 부르는데 PENDING_JOB_TYPES에 없다: {uncovered} — "
         "app/quotas/service.py::PENDING_JOB_TYPES에 추가하라. 안 하면 quotas.service.pending()"
-        "이 이 잡의 예약을 놓쳐 동시 요청이 AI 사용 상한을 통과할 수 있다(UB-09)."
+        "이 이 잡의 예약을 놓쳐 동시 요청이 AI 사용 한도를 통과할 수 있다(UB-09)."
     )

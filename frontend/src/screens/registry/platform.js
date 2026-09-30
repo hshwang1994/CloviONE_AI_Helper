@@ -362,7 +362,7 @@ export const PLATFORM_SCREENS = {
   },
   "ai-quotas": {
     smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
-    key: "ai-quotas", area: "AI", title: "AI 사용 상한",
+    key: "ai-quotas", area: "AI", title: "AI 사용 한도",
     endpoint: "/api/admin/ai-quotas",
     /* 범위가 «사용자» 일 때 그 사람을 고르기 위한 후보(W5) — 예전에는 ID 를 복사해 왔다.
        **보관된 계정은 후보가 아니다**(xb-10). 퇴사해서 보관한 사람에게 AI 사용 상한을 거는
@@ -374,20 +374,22 @@ export const PLATFORM_SCREENS = {
     // 상한에 걸렸는지는 안 말한다(그건 아래 표의 각 행 '현재 사용' 대 '상한' 비교, 또는
     // 상세의 '상태' 필드로 본다). 존재하지 않는 기능을 광고하던 문장을 지운다 — 나머지
     // 문장이 이미 카드/표의 실제 의미를 정확히 설명한다.
-    help: "AI 호출을 사용자, 기간별로 제한합니다. 사용자별 상한이 전체 상한보다 우선하고, 상한 행이 하나도 없으면 제한이 없습니다. 취소되거나 실패한 호출은 세지 않습니다. 위 요약 줄은 조직 전체 합계이고, 아래 표의 ‘현재 사용’은 그 행(전체 범위면 가장 많이 쓴 사람 1인, 사용자 범위면 그 1인)의 값입니다. 두 숫자는 서로 다른 것을 셉니다.",
-    emptyTitle: "설정된 상한이 없습니다",
-    emptyHelp: writerEmptyHelp("‘+ 상한 추가’로 하루 또는 한 달 상한을 정하세요. 아무것도 없으면 제한이 없습니다.", "상한은 관리자가 설정합니다."),
-    emptySituation: "AI 호출 비용에 상한이 없어, 한 사람이 많이 써도 알아챌 방법이 없습니다.",
-    emptySteps: ["‘+ 상한 추가’에서 ‘전체’ 범위로 하루 상한을 정합니다.", "특정 사용자만 늘리거나 줄이려면 ‘사용자’ 범위로 한 줄 더 만듭니다.", "목록의 ‘현재 사용’ 열로 소비 상황을 확인합니다."],
-    emptyExpected: "상한에 도달하면 그 사용자의 AI 요청이 거절되고, 언제 풀리는지 안내됩니다.",
-    createLabel: "상한 추가",
+    /* 지원 기준을 화면에 그대로 적는다(계획 3.10). 기본값은 사람마다 같은 수를 주는 것이지 전사 공용 풀이 아니고,
+       조직이나 부서 단위의 공용 풀은 없다 - 없는 기능을 있는 것처럼 읽히지 않게 한 문장으로 밝힌다. */
+    help: "AI 사용을 사람마다 하루 또는 한 달 단위로 제한합니다. 하루는 한국 시간 0시에, 한 달은 매월 1일 0시에 초기화됩니다. 기본값은 모든 사용자에게 같은 한도를 주고, 사용자별 한도가 기본값보다 우선합니다. 성공한 호출만 세고, 한도가 없으면 제한이 없으며, 0은 차단입니다. 위 요약 줄은 조직 전체 합계이고, 표의 ‘현재 사용’은 그 행의 한 사람이 쓴 수입니다. 조직이나 부서가 함께 나눠 쓰는 한도는 지원하지 않습니다.",
+    emptyTitle: "한도가 없으면 제한 없이 사용합니다",
+    emptyHelp: writerEmptyHelp("‘+ 한도 추가’로 하루 또는 한 달 한도를 정하세요. 아무것도 없으면 제한이 없습니다.", "한도는 관리자가 정합니다."),
+    emptySituation: "AI 사용에 한도가 없어 한 사람이 많이 써도 막히지 않습니다.",
+    emptySteps: ["‘+ 한도 추가’에서 ‘기본값(사용자별)’ 범위로 하루 한도를 정합니다.", "특정 사람만 늘리거나 줄이려면 ‘사용자’ 범위로 한 줄 더 만듭니다.", "목록의 ‘현재 사용’과 ‘남음’ 열로 소비 상황을 확인합니다."],
+    emptyExpected: "한도에 닿으면 그 사람의 AI 요청이 거절되고, 언제 초기화되는지 안내됩니다.",
+    createLabel: "한도 추가",
     // 필터가 하나도 없어 사용자별 상한이 쌓이면 '한 달 상한만' 같은 질문에 답할 방법이 없었다.
     // GET /api/admin/ai-quotas는 쿼리 파라미터를 받지 않고 페이지네이션도 하지 않는다
     // (app/quotas/router.py list_quotas — 전체를 한 번에 돌려준다). 받아 온 것이 곧 전부이므로
     // clientFilter가 숨기는 행은 없다. 대상 사람 이름은 clientFilter로 다룰 수 없어(정확 일치
     // 비교라 이름 일부로는 못 찾는다) 검색창에 맡긴다 — 그 검색도 대상 필드를 못박는다.
     filters: [
-      { key: "scope_type", type: "select", label: "범위", clientFilter: true, options: opt([["global", "전체"], ["user", "사용자"]]) },
+      { key: "scope_type", type: "select", label: "범위", clientFilter: true, options: opt([["global", "기본값(사용자별)"], ["user", "사용자"]]) },
       { key: "period", type: "select", label: "기간", clientFilter: true, options: opt([["day", "하루"], ["month", "한 달"]]) },
     ],
     searchFields: ["user_name", "user_email", "note"],
@@ -411,7 +413,7 @@ export const PLATFORM_SCREENS = {
       },
     },
     columns: [
-      mapCol("scope_type", "범위", { global: "전체", user: "사용자" }),
+      mapCol("scope_type", "범위", { global: "기본값(사용자별)", user: "사용자" }),
       // SEM-01: 첫 열(범위)이 mapCol(render 있음)이라 표식 없이는 같은 범위(대부분 "사용자")끼리
       // 전부 "상세 보기"로 동일했다 — 대상 + 기간을 합쳐 실제로 구별되는 이름을 만든다.
       /* 대상 이름 옆에 **그 계정의 상태**를 적는다(R5-01). 서버가 `user_state` 를 함께 주는데
@@ -421,28 +423,29 @@ export const PLATFORM_SCREENS = {
          화면이 정한다 — 서버는 코드만 준다(`file_state` 와 같은 규약). */
       { key: "user_name", label: "대상", identifier: true,
         render: (r) => r.scope_type === "global"
-          ? "(전체)"
+          ? "(모든 사람)"
           : (r.user_name || r.user_id || "-") + (QUOTA_TARGET_STATE[r.user_state] || ""),
-        rowName: (r) => (r.scope_type === "global" ? "전체" : (r.user_name || r.user_id || "-")) + " / " + ({ day: "하루", month: "한 달" }[r.period] || r.period) },
+        rowName: (r) => (r.scope_type === "global" ? "기본값" : (r.user_name || r.user_id || "-")) + " / " + ({ day: "하루", month: "한 달" }[r.period] || r.period) },
       mapCol("period", "기간", { day: "하루", month: "한 달" }),
-      { key: "max_calls", label: "상한", type: "count" },
-      { key: "used", label: "현재 사용", type: "count", render: (r) => (r.used == null ? "-" : r.used + " / " + r.max_calls + (r.scope_type === "global" ? " (최다 사용자 기준)" : "")) },
+      { key: "max_calls", label: "한도", type: "count" },
+      { key: "used", label: "현재 사용", type: "count", render: (r) => (r.used == null ? "-" : r.used + " / " + r.max_calls + (r.scope_type === "global" ? " (가장 많이 쓴 사람)" : "")) },
+      { key: "remaining", label: "남음", type: "count", render: (r) => (r.remaining == null ? "-" : String(r.remaining)) },
       dateCol("resets_at", "초기화"),
     ],
-    detailFields: [field("id", "상한 ID"), field("user_email", "대상 이메일"), field("note", "메모"),
+    detailFields: [field("id", "한도 ID"), field("user_email", "대상 이메일"), field("note", "메모"),
       dateCol("created_at", "생성 일자"), dateCol("updated_at", "수정"),
-      { key: "_over", label: "상태", render: (r) => (r.used != null && r.used >= r.max_calls) ? "상한에 도달했습니다. 이 대상의 AI 요청이 지금 거절됩니다." : "여유가 있습니다." }],
+      { key: "_over", label: "상태", render: (r) => (r.used != null && r.used >= r.max_calls) ? "한도에 닿았습니다. 이 대상의 AI 요청이 지금 거절됩니다." : "여유가 있습니다." }],
     create: { roles: WRITE_ROLES, fields: [
-      { name: "scope_type", label: "범위", type: "select", value: "global", required: true, options: opt([["global", "전체"], ["user", "사용자"]]) },
+      { name: "scope_type", label: "범위", type: "select", value: "global", required: true, options: opt([["global", "기본값(사용자별)"], ["user", "사용자"]]) },
       /* W5: 범위가 «사용자» 면 그 사용자를 **고른다** — ID 를 복사해 오는 자리가 아니다. */
       { name: "user_id", label: "사용자", type: "select", kind: "entity", optionsFromRefList: "people", showIf: (v) => v.scope_type === "user" },
       { name: "period", label: "기간", type: "select", value: "day", required: true, options: opt([["day", "하루"], ["month", "한 달"]]) },
-      { name: "max_calls", label: "상한(횟수)", type: "number", required: true, help: "0이면 차단입니다(무제한이 아닙니다). 무제한으로 두려면 이 줄을 지우세요. 기간 경계는 한국 시간 기준입니다." },
+      { name: "max_calls", label: "한도(횟수)", type: "number", required: true, help: "0이면 차단입니다. 제한을 없애려면 이 줄을 지우세요. 기간 경계는 한국 시간입니다." },
       { name: "note", label: "메모", type: "text" },
     ] },
     editMethod: "PATCH",
     edit: { roles: WRITE_ROLES, fields: [
-      { name: "max_calls", label: "상한(횟수)", type: "number", required: true },
+      { name: "max_calls", label: "한도(횟수)", type: "number", required: true },
       { name: "note", label: "메모", type: "text" },
     ] },
     actions: [
@@ -453,7 +456,7 @@ export const PLATFORM_SCREENS = {
          범위 관리자가 자기 사람들의 상한까지 못 지운다. 행의 범위와 내 범위를 함께 본다. */
       { label: "삭제", variant: "danger", roles: WRITE_ROLES,
         when: (r, ctx) => r.scope_type !== "global" || !ctx || ctx.isGlobalAdmin !== false,
-        method: "DELETE", path: (r) => "/api/admin/ai-quotas/" + r.id, confirm: "이 상한을 지울까요? 지우면 이 범위, 기간에는 제한이 없어집니다." },
+        method: "DELETE", path: (r) => "/api/admin/ai-quotas/" + r.id, confirm: "이 한도를 지울까요? 지우면 이 범위와 기간에는 제한이 없어집니다." },
       // ai_quota는 감사 로그의 유효한 object_type이고(app/quotas/router.py) 이제 OBJ_ROUTE에도
       // 있다 — 조직·기능 플래그와 동일한 딥링크를 추가한다(MEGA CYCLE G).
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=ai_quota&object_id=" + r.id },

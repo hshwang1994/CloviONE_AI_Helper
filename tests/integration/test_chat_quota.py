@@ -52,18 +52,13 @@ def _new_conversation(client, csrf):
 
 def test_the_main_chat_is_inside_the_cap(client, login_as, db, capped):
     """상한을 다 쓴 사람은 채팅을 못 보낸다."""
-    from app.observability.service import record_usage
-    from app.quotas.service import EVENT_AI_CALL
+    from tests.fakes.ai import spend
 
     csrf = login_as("user", email="cap@goodmit.co.kr")
     conv = _new_conversation(client, csrf)
 
-    # 이미 1회 쓴 상태로 만든다(상한 1).
-    record_usage(
-        db, event=EVENT_AI_CALL, user_id=capped.id, org_id=None,
-        object_type="ai", object_id="chat_message", meta={"kind": "chat_message"},
-        now=datetime.now(),
-    )
+    # 이미 1회 쓴 상태로 만든다(한도 1). 원장은 AI 호출 기록이다(D-517).
+    spend(db, capped.id, when=datetime.now())
     db.commit()
 
     r = _send(client, csrf, conv)
@@ -74,8 +69,7 @@ def test_the_main_chat_is_inside_the_cap(client, login_as, db, capped):
 
 def test_retry_goes_through_the_same_door(client, login_as, db, capped):
     """한쪽만 막으면 '다시 시도' 로 우회한다 — 레이트리미터에서 이미 겪은 그 구멍이다."""
-    from app.observability.service import record_usage
-    from app.quotas.service import EVENT_AI_CALL
+    from tests.fakes.ai import spend
 
     csrf = login_as("user", email="cap@goodmit.co.kr")
     conv = _new_conversation(client, csrf)
@@ -84,11 +78,7 @@ def test_retry_goes_through_the_same_door(client, login_as, db, capped):
     assert r.status_code == 202, f"상한 안인데 못 보낸다: {r.status_code} {r.text}"
     message_db_id = r.json()["message"]["id"]
 
-    record_usage(
-        db, event=EVENT_AI_CALL, user_id=capped.id, org_id=None,
-        object_type="ai", object_id="chat_message", meta={"kind": "chat_message"},
-        now=datetime.now(),
-    )
+    spend(db, capped.id, when=datetime.now())
     db.commit()
 
     r = client.post(
@@ -116,15 +106,10 @@ def test_a_user_without_a_quota_row_is_not_capped(client, login_as, make_user):
 def test_my_ai_quota_reports_this_users_own_usage(client, login_as, db, capped):
     """AI-44: 관리자 콘솔의 /api/ai-quotas*는 CONSOLE_READ_ROLES 전용이라 일반 사용자가
     자기 쿼터를 볼 방법이 없었다. 새 자기서비스 경로가 본인의 사용량·상한을 돌려준다."""
-    from app.observability.service import record_usage
-    from app.quotas.service import EVENT_AI_CALL
+    from tests.fakes.ai import spend
 
     csrf = login_as("user", email="cap@goodmit.co.kr")
-    record_usage(
-        db, event=EVENT_AI_CALL, user_id=capped.id, org_id=None,
-        object_type="ai", object_id="chat_message", meta={"kind": "chat_message"},
-        now=datetime.now(),
-    )
+    spend(db, capped.id, when=datetime.now())
     db.commit()
 
     r = client.get("/api/me/ai-quota", headers={"X-CSRF-Token": csrf})
@@ -133,6 +118,7 @@ def test_my_ai_quota_reports_this_users_own_usage(client, login_as, db, capped):
     day = next(p for p in body["periods"] if p["period"] == "day")
     assert day["limit"] == 1
     assert day["used"] == 1
+    assert day["remaining"] == 0, "남은 수를 화면이 계산하지 않게 서버가 준다(계획 3.10)"
 
 
 def test_my_ai_quota_does_not_require_admin_role(client, login_as, make_user):
@@ -151,6 +137,6 @@ def test_the_admin_screen_says_chat_is_enforced(client, login_as):
     """
     login_as("system_admin")
     kinds = {e["kind"] for e in client.get("/api/admin/ai-quotas").json()["enforced_on"]}
-    assert "chat_message" in kinds, (
+    assert "chat.answer" in kinds, (
         f"관리자 화면이 채팅에 상한이 걸린다는 사실을 말하지 않는다: {kinds}"
     )

@@ -141,8 +141,10 @@ export const TAB_GROUPS = [
   {
     path: "/ai-usage", area: "AI", title: "AI 사용 통계",
     tabs: [
-      { key: "policy-usage", label: "정책" },
+      { key: "ai-usage-stats", label: "사용 통계" },
+      { key: "ai-usage-records", label: "호출 기록" },
       { key: "prompt-usage", label: "프롬프트" },
+      { key: "policy-usage", label: "정책" },
     ],
   },
   {

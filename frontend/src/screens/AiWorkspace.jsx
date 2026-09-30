@@ -149,6 +149,10 @@ export function AiWorkspace() {
 
   const capabilities = status.data?.capabilities;
   const canAsk = Boolean(capabilities?.generate?.available);
+  // 한도가 있을 때만 오늘 쓴 양을 보인다(계획 3.10) - 채팅 화면과 같은 값(`/api/me/ai-quota`)을 읽는다.
+  const quota = useQuery({ queryKey: ["ai-quota-self"], queryFn: () => api("/api/me/ai-quota"), retry: false });
+  const quotaDay = quota.data && Array.isArray(quota.data.periods)
+    ? quota.data.periods.find((p) => p.period === "day") : null;
   const semanticOff = capabilities && !capabilities.embed.available;
 
   const search = useMutation({
@@ -244,6 +248,11 @@ export function AiWorkspace() {
             sx={{ mt: 1.5, fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}
           >
             {capabilities.generate.notice} 문서 찾기는 그대로 쓸 수 있습니다.
+          </Typography>
+        ) : null}
+        {canAsk && quotaDay && quotaDay.limit != null ? (
+          <Typography sx={{ mt: 1, textAlign: "right", fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
+            오늘 AI 사용량 {quotaDay.used}/{quotaDay.limit}
           </Typography>
         ) : null}
       </Card>

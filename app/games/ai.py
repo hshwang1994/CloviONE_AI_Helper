@@ -57,7 +57,7 @@ def _parse(text: str) -> list:
     return []
 
 
-def generate_quiz(runtime, db, *, topic: str, count: int, num_options: int) -> list[dict]:
+def generate_quiz(runtime, db, *, topic: str, count: int, num_options: int, actor=None) -> list[dict]:
     """모델을 불러 퀴즈 문제를 생성하고, 앱이 쓸 수 있게 정제·검증한 목록을 돌려준다.
 
     실패는 사용자 친화 메시지(QuizGenerateError)로 올린다. 「아직 설정되지 않았다」만
@@ -71,7 +71,8 @@ def generate_quiz(runtime, db, *, topic: str, count: int, num_options: int) -> l
     }
     from app.ai.actions import GAME_QUIZ
 
-    result = runtime.generate(db, action_key=GAME_QUIZ, task=TASK, data=json.dumps(request, ensure_ascii=False))
+    result = runtime.generate(db, action_key=GAME_QUIZ, task=TASK, data=json.dumps(request, ensure_ascii=False),
+                              actor=actor)
     if not result.ok:
         if result.status in (contract.STATUS_UNCONFIGURED, contract.STATUS_DISABLED,
                              contract.STATUS_CREDENTIAL_ERROR):

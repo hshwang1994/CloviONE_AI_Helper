@@ -404,18 +404,25 @@ def generate_weekly_llm_summary(
 
     완료 시점은 이 응답이 아니라 그 뒤의 GET 이 `saved.source == "llm"` 로 알려 준다.
     """
+    from app.ai.actions import WEEKLY_SUMMARY
+    from app.quotas import service as ai_quotas
+
     now = request.app.state.clock.now()
     project = service.get_scoped_project_or_404(db, project_id, principal)
-    service.request_weekly_llm_summary(
-        db, project,
-        week=_week_from(request, week),
-        user_id=principal.user_id,
-        now=now,
-    )
-    record_audit_from_request(
-        request, db, action="project.weekly_report.llm_summary_requested",
-        object_type="project", object_id=project.id,
-    )
+    # 요청한 사람의 AI 사용 한도에 센다(계획 3.10). 호출은 워커가 하므로 큐에 넣는 것을 예약으로 센다.
+    with ai_quotas.reserve(db, user=request.state.user, action_key=WEEKLY_SUMMARY, now=now,
+                           session_factory=request.app.state.session_factory):
+        service.request_weekly_llm_summary(
+            db, project,
+            week=_week_from(request, week),
+            user_id=principal.user_id,
+            now=now,
+        )
+        record_audit_from_request(
+            request, db, action="project.weekly_report.llm_summary_requested",
+            object_type="project", object_id=project.id,
+        )
+        db.commit()
     return {"ok": True, "queued": True}
 
 

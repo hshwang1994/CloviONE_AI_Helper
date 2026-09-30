@@ -77,6 +77,8 @@ export const SCREEN_ROLES = {
   "approval-delegations": ["operator", "admin", "system_admin", "auditor"],
   "restore-drills": ["operator", "admin", "system_admin", "auditor"],
   "scheduler-calendar": ["operator", "admin", "system_admin", "auditor"],
+  "ai-usage-stats": ["operator", "admin", "system_admin", "auditor"],
+  "ai-usage-records": ["operator", "admin", "system_admin", "auditor"],
   "prompt-usage": ["operator", "admin", "system_admin", "auditor"],
   "policy-usage": ["operator", "admin", "system_admin", "auditor"],
   // 탭 그릇의 대표 경로 — 안에 든 두 탭(policy-usage·prompt-usage)과 같은 집합이어야
@@ -217,7 +219,7 @@ export const NAV = withRoles([
   { group: "AI", icon: SmartToyOutlinedIcon, items: [
     { to: "/prompts", label: "프롬프트" },
     { to: "/policies", label: "정책" },
-    { to: "/ai-quotas", label: "사용 상한" },
+    { to: "/ai-quotas", label: "사용 한도" },
     // 정책 사용 통계와 프롬프트 사용 통계는 같은 모양의 리포트 둘이었다 — 한 화면의 탭이다.
     { to: "/ai-usage", label: "사용 통계" },
   ] },

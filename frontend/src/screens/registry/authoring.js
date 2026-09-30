@@ -14,6 +14,9 @@ import Link from "@mui/material/Link";
 import { Badge, OBJTYPE_OPTS, WRITE_ROLES, badgeCol, col, dateCol, field, jsonField, opt, truncateCol, writerEmptyHelp } from "./shared.js";
 import { nameVersionsAction } from "./actions.js";
 
+// 호출 기록의 결과 배지(D-517). 막힘은 실패와 다른 사실이다 - 제공자에 닿지 않았다.
+const USAGE_STATUS_KIND = { ok: "ok", error: "danger", blocked_quota: "warn", blocked_policy: "warn" };
+
 export const AUTHORING_SCREENS = {
   prompts: {
     smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
@@ -262,5 +265,65 @@ export const AUTHORING_SCREENS = {
     ],
     /* 「프롬프트 사용 통계」 머리 단추를 걷었다(D-501) — 이 화면은 언제나 「AI 사용 통계」 그릇의 탭이라 바로 옆
        「프롬프트」 탭이 같은 곳으로 간다. */
+  },
+  /* AI 사용 통계(계획 3.11, D-517). 예전 「사용 통계」는 이름을 참조하는 스케줄이 있는가를 보여 주는 설정 개요였다 -
+     실제 호출은 어디에도 없었다. 이제 AI 런타임이 호출마다 남기는 기록(`ai_usage_records`)을 묶어 본다. 부서 범위
+     관리자는 자기 범위 사람의 호출만 본다(서버가 거른다). 본문은 기록되지 않는다. */
+  "ai-usage-stats": {
+    smallSet: true, // 묶음 결과는 행이 몇 줄이라 저장된 뷰가 소음이다(D-506)
+    key: "ai-usage-stats", area: "AI", title: "사용 통계",
+    endpoint: "/api/admin/ai/usage/stats",
+    help: "기간 안의 AI 호출을 기능, 사용자, 부서, 제공자, 모델, 결과, 날짜로 묶어 봅니다. 성공률은 제공자까지 간 호출 가운데 성공한 비율이고, 한도나 정책으로 막힌 호출은 따로 셉니다.",
+    emptyTitle: "아직 AI 호출 기록이 없습니다",
+    emptyHelp: "AI 연결을 먼저 설정하세요. 채팅이나 작업 공간에서 AI 를 쓰면 여기에 기록이 쌓입니다.",
+    emptyRelatedLink: { href: "#/settings?tab=ai", label: "AI 설정으로 이동" },
+    filters: [
+      { key: "group_by", type: "select", label: "묶음", value: "action", options: opt([["action", "기능"], ["user", "사용자"], ["department", "부서"], ["provider", "제공자"], ["model", "모델"], ["status", "결과"], ["day", "날짜"]]) },
+      { key: "status", type: "select", label: "결과", options: opt([["ok", "성공"], ["error", "실패"], ["blocked_quota", "한도로 막힘"], ["blocked_policy", "정책으로 막힘"]]) },
+      { key: "from", type: "date", label: "시작일", group: "other" },
+      { key: "to", type: "date", label: "종료일", group: "other" },
+    ],
+    columns: [
+      { key: "label", label: "묶음", type: "title", render: (r) => (r.email ? r.label + " (" + r.email + ")" : r.label) },
+      { key: "calls", label: "호출", type: "count" },
+      { key: "success_rate", label: "성공률", type: "percent", render: (r) => (r.success_rate == null ? "-" : r.success_rate + "%") },
+      { key: "blocked", label: "막힘", type: "count" },
+      { key: "input_tokens", label: "입력 토큰", type: "count" },
+      { key: "output_tokens", label: "출력 토큰", type: "count" },
+      { key: "avg_latency_ms", label: "평균 응답(ms)", type: "number", render: (r) => (r.avg_latency_ms == null ? "-" : String(r.avg_latency_ms)) },
+      dateCol("last_at", "마지막 호출"),
+    ],
+    detailFields: [field("ok", "성공"), field("errors", "실패"), field("blocked", "막힘"), field("key", "묶음 값")],
+  },
+  "ai-usage-records": {
+    key: "ai-usage-records", area: "AI", title: "호출 기록",
+    endpoint: "/api/admin/ai/usage/records",
+    help: "AI 호출 한 번이 한 줄입니다. 누가, 언제, 어떤 기능으로, 어느 모델에 얼마나 썼고 어떻게 끝났는지만 남기고 질문과 답의 본문은 남기지 않습니다. 기록은 180일 동안 둡니다.",
+    emptyTitle: "아직 AI 호출 기록이 없습니다",
+    emptyHelp: "AI 연결을 먼저 설정하세요. 채팅이나 작업 공간에서 AI 를 쓰면 여기에 기록이 쌓입니다.",
+    emptyRelatedLink: { href: "#/settings?tab=ai", label: "AI 설정으로 이동" },
+    paginated: true, pageSize: 50,
+    filters: [
+      { key: "status", type: "select", label: "결과", options: opt([["ok", "성공"], ["error", "실패"], ["blocked_quota", "한도로 막힘"], ["blocked_policy", "정책으로 막힘"]]) },
+      { key: "action", type: "select", label: "기능", options: opt([["chat.answer", "채팅 답변"], ["workspace.ask", "작업 공간 질문"], ["workspace.draft", "작업 공간 문서 초안"], ["report.weekly_summary", "프로젝트 주간 요약"], ["home.narrative", "홈 문장 요약"], ["game.quiz", "게임 퀴즈 만들기"], ["system.connection_test", "연결 확인"]]) },
+      { key: "from", type: "date", label: "시작일", group: "other" },
+      { key: "to", type: "date", label: "종료일", group: "other" },
+    ],
+    serverSort: { keys: ["action_key", "created_at", "input_tokens", "latency_ms", "model", "output_tokens", "status"], default: { key: "created_at", dir: "desc" } },
+    columns: [
+      { ...dateCol("created_at", "시각"), sortable: true, rowName: (r) => (r.action_label || r.action_key) + " / " + (r.user_name || "") },
+      { key: "user_name", label: "사용자", type: "name", render: (r) => r.user_name || "-" },
+      { key: "action_key", label: "기능", type: "enum", sortable: true, render: (r) => r.action_label || r.action_key },
+      { key: "model", label: "모델", type: "identifier", sortable: true, render: (r) => r.model || "-" },
+      { key: "status", label: "결과", type: "status", sortable: true, render: (r) => React.createElement(Badge, { value: r.status_label || r.status, kind: USAGE_STATUS_KIND[r.status] || "neutral" }) },
+      { key: "input_tokens", label: "입력 토큰", type: "count", sortable: true, render: (r) => (r.input_tokens == null ? "-" : String(r.input_tokens)) },
+      { key: "output_tokens", label: "출력 토큰", type: "count", sortable: true, render: (r) => (r.output_tokens == null ? "-" : String(r.output_tokens)) },
+      { key: "latency_ms", label: "응답(ms)", type: "number", sortable: true, render: (r) => (r.latency_ms == null ? "-" : String(r.latency_ms)) },
+    ],
+    detailFields: [
+      field("user_email", "이메일"), field("department_name", "부서"), field("provider", "제공자"),
+      field("error_code", "실패 코드"), { key: "truncated", label: "잘림", render: (r) => (r.truncated ? "입력이나 출력을 한도에 맞춰 잘랐습니다." : "자르지 않았습니다.") },
+      field("id", "기록 ID"),
+    ],
   },
 };

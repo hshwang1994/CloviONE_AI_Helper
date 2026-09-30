@@ -27,6 +27,7 @@ def all_sort_specs() -> dict:
     """
     from datetime import datetime, timezone
 
+    from app.ai.usage import LIST_SORT as ai_usage_records_sort
     from app.announcements.router import _list_sort as announcements_sort
     from app.approvals import service as approvals_service
     from app.audit.repository import LIST_SORT as audit_sort
@@ -53,6 +54,7 @@ def all_sort_specs() -> dict:
         "impersonation": impersonation_sort,
         "offboarding": offboarding_sort,
         "schedule-runs": schedule_runs_sort,
+        "ai-usage-records": ai_usage_records_sort,
     }
     return {
         key: {"keys": list(spec.keys), "default": {"key": spec.default, "dir": spec.default_order}}

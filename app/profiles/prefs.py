@@ -52,7 +52,7 @@ NOTIFICATION_TYPES: dict[str, tuple[str, str]] = {
     # (뮤트해도 알림 자체는 목록에 남는다. 빠지는 것은 배지뿐이다 — 모듈 docstring.)
     "ticket_assigned": ("티켓 배정", "누군가 나를 티켓 담당자로 지정했을 때"),
     "offboarding_handover": ("업무 인수", "퇴사자의 티켓을 내가 넘겨받았을 때"),
-    "ai_quota_exhausted": ("AI 사용 상한 도달", "이번 기간의 AI 호출 상한을 다 썼을 때"),
+    "ai_quota_exhausted": ("AI 사용 한도 도달", "이번 기간의 AI 사용 한도를 다 썼을 때"),
     "backup_failed": ("백업 실패", "예약 또는 수동 백업이 실패했을 때"),
     # NOTI-03 재조사: 발단이었던 chat_invited는 이미 등록돼 있었다(오래전 정정) — 재조사
     # 중 실제로 발신되는데 이 레지스트리에 없는 여섯 유형을 새로 찾았다. 여기 없으면

@@ -1,8 +1,10 @@
-"""AI 쿼터 TOCTOU — 동시 요청이 상한을 **함께** 통과하지 못한다 (Z15).
+"""AI 쿼터 TOCTOU — 동시 요청이 한도를 **함께** 통과하지 못한다 (Z15).
+
+qa-contract-change: 한도의 원장이 AI 호출 기록으로 옮겨져(D-517) 기록이 런타임의 제 세션에서 잠금 안에 곧바로 커밋된다. 그래서 「블록 밖에서 커밋하면 둘 다 통과한다」를 증명하던 시험은 더 성립하지 않고, 그 쌍은 「늦게 커밋해도 둘째가 막힌다」 하나로 바뀌었다.
 
 ## 무엇이 잘못됐나
 
-판정은 두 걸음이었다: `enforce()` 로 지금까지 쓴 수를 **세고**, 나중에 `record_call()` 로
+판정은 두 걸음이었다: `enforce()` 로 지금까지 쓴 수를 **세고**, 나중에 호출을 기록해 수를
 **늘린다.** 그 사이는 잠기지 않은 창이다.
 
     A: used=9 < 10  -> 통과          B: used=9 < 10  -> 통과
@@ -41,6 +43,31 @@ pytestmark = [pytest.mark.integration, pytest.mark.real_db]
 NOW = datetime(2026, 8, 3, 9, 0, 0)
 
 
+def _spent(user_id: str) -> "SimpleNamespace":
+    """문지기에게 넘길 사람. 스레드마다 세션이 다르므로 ORM 객체 대신 id 만 든 값을 넘긴다."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(id=user_id)
+
+
+def _call_succeeded(app, user_id: str) -> None:
+    """AI 호출이 성공했을 때 런타임이 하는 일 - 제 세션으로 기록 한 행을 적고 곧바로 커밋한다(`app/ai/usage.py`)."""
+    from app.ai import usage
+
+    usage.record(app.state.session_factory, actor=usage.Actor(kind="user", user_id=user_id),
+                 action_key="home.narrative", status="ok", now=NOW)
+
+
+def _recorded_ok(db) -> int:
+    from sqlalchemy import func, select
+
+    from app.ai.models import AiUsageRecord
+
+    db.expire_all()
+    return int(db.execute(select(func.count()).select_from(AiUsageRecord)
+                          .where(AiUsageRecord.status == "ok")).scalar_one())
+
+
 @pytest.fixture()
 def capped(db, make_user):
     """하루 1회 상한이 걸린 사용자."""
@@ -71,9 +98,7 @@ def _send(client, csrf, conv_id):
 
 def test_a_queued_call_already_counts_against_the_cap(client, login_as, db, capped):
     """하루 1회인 사람이 워커가 돌기 전에 두 번째를 보내면 막혀야 한다."""
-    from app.quotas.service import EVENT_AI_CALL, used
-    from app.observability.models import UsageEvent
-    from sqlalchemy import func, select
+    from app.quotas.service import used
 
     csrf = login_as("user", email="toctou@goodmit.co.kr")
     conv_id = client.post(
@@ -84,9 +109,7 @@ def test_a_queued_call_already_counts_against_the_cap(client, login_as, db, capp
     assert first.status_code == 202, f"첫 번째가 막혔다: {first.status_code} {first.text}"
 
     # 아직 아무것도 기록되지 않았다 — 이것이 바로 창이 열려 있는 상태다.
-    recorded = db.execute(
-        select(func.count()).select_from(UsageEvent).where(UsageEvent.event == EVENT_AI_CALL)
-    ).scalar_one()
+    recorded = _recorded_ok(db)
     assert recorded == 0, "표본이 사건을 재현하지 못한다(이미 기록돼 있으면 창이 없다)"
     assert used(db, user_id=capped.id, period="day", now=NOW) == 0
 
@@ -95,10 +118,10 @@ def test_a_queued_call_already_counts_against_the_cap(client, login_as, db, capp
         f"상한 1회인데 큐에 든 호출을 세지 않아 두 번째가 그대로 나갔다: "
         f"{second.status_code} {second.text}"
     )
-    # 폭주 차단(초 단위)이 아니라 **상한**에 걸려야 한다. 버스트 20건이라 여기 걸릴 리 없지만,
+    # 폭주 차단(초 단위)이 아니라 **한도**에 걸려야 한다. 버스트 20건이라 여기 걸릴 리 없지만,
     # 이유가 다른 429 로 초록불이 나면 이 테스트는 아무것도 증명하지 못한다.
-    assert "상한" in second.json()["error"]["message"], (
-        f"429 이긴 한데 상한 때문이 아니다: {second.text}"
+    assert "한도" in second.json()["error"]["message"], (
+        f"429 이긴 한데 한도 때문이 아니다: {second.text}"
     )
 
 
@@ -151,14 +174,13 @@ def test_two_concurrent_calls_cannot_both_take_the_last_slot(app, db, capped, mo
     outcomes: list[str] = []
     lock = threading.Lock()
 
+    capped_id = capped.id
+
     def worker():
         session = app.state.session_factory()
         try:
-            with quotas.consume(
-                session, user_id=capped.id, org_id=None,
-                kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
-            ) as slot:
-                slot.record()
+            with quotas.consume(session, user=_spent(capped_id), action_key="home.narrative", now=NOW):
+                _call_succeeded(app, capped_id)
             session.commit()
             result = "ok"
         except RateLimitedError:
@@ -179,16 +201,8 @@ def test_two_concurrent_calls_cannot_both_take_the_last_slot(app, db, capped, mo
         f"상한 1회를 두 요청이 함께 통과했다: {outcomes}"
     )
 
-    from app.observability.models import UsageEvent
-    from sqlalchemy import func, select
-
-    db.expire_all()
-    recorded = db.execute(
-        select(func.count()).select_from(UsageEvent).where(
-            UsageEvent.event == quotas.EVENT_AI_CALL
-        )
-    ).scalar_one()
-    assert recorded == 1, f"상한 1회인데 {recorded}회가 기록됐다"
+    recorded = _recorded_ok(db)
+    assert recorded == 1, f"한도 1회인데 {recorded}회가 기록됐다"
 
 
 # ── 3) UB-08: 잠금 해제 ~ 커밋 사이의 창 ──────────────────────────────────────
@@ -216,41 +230,28 @@ def test_two_concurrent_calls_cannot_both_take_the_last_slot(app, db, capped, mo
 # 시험이 항상 초록불이었다).
 
 
-def test_committing_after_the_with_block_lets_a_second_request_slip_through(app, capped):
-    """UB-08 취약점 자체를 증명한다 — `consume()` 을 부르는 쪽이 `with` 블록 **밖**에서
-    커밋하면, 잠금이 풀린 직후 ~ 커밋 사이에 들어온 같은 사용자의 다른 요청이 아직 안 보이는
-    사용량을 못 보고 상한(1회)을 통과해 **둘 다 성공**할 수 있다.
+def test_a_late_caller_commit_can_no_longer_let_a_second_request_through(app, capped):
+    """UB-08 의 창이 구조로 닫혔다 - 호출 기록은 런타임이 제 세션으로 **잠금 안에서** 커밋한다(D-517).
 
-    **이 시험이 초록인 것이 곧 「이 순서로 쓰면 안 된다」의 증거다.** 아래
-    `test_committing_inside_the_with_block_closes_the_gap` 가 반대쪽(옳은 순서)을 못박는다.
-
-    ## S2 기록 — 이 시험이 한때 거짓 초록이었다
-
-    잠금을 PostgreSQL advisory lock 으로 옮기면서(D-192·D-216) 이 창이 닫혔다고 잠시
-    판단했다. **틀렸다.** 그때 이 시험은 공유 DB 계층에서 돌고 있었고, 두 스레드가 같은
-    커넥션 하나를 나눠 쓰는 바람에 경합 자체가 일어나지 않아 「막혔다」로 보였을 뿐이다.
-    전용 DB(`@pytest.mark.real_db`)로 옮기자마자 둘 다 통과하는 원래 모습이 다시 나왔다.
-
-    잠금 수명이 커밋보다 **앞서 끝난다**는 사실은 저장소를 바꿔도 그대로다 — advisory 잠금은
-    `with` 블록에서 풀리고, 사용량 행은 그 뒤 커밋에서야 다른 트랜잭션에 보인다. 고치는
-    것은 잠금이 아니라 **커밋 위치**이고, 그게 이 시험 쌍이 말하는 전부다.
+    예전에는 사용량 행이 부른 쪽의 요청 세션에 있었고, 부른 쪽이 `with` 블록 밖(잠금이 풀린 뒤)에서 커밋하면 그 틈에
+    들어온 같은 사람의 요청이 아직 안 보이는 사용량을 못 보고 둘 다 통과했다. 이제 부른 쪽이 늦게 커밋해도 둘째는
+    정확히 429 를 받는다 - 커밋 위치를 지켜야 하는 규약이 틀릴 수 없는 구조가 됐다.
     """
+    from app.core.errors import RateLimitedError
     from app.quotas import service as quotas
 
     lock_released = threading.Event()
     second_done = threading.Event()
     outcomes: list[tuple[str, str]] = []
     lock = threading.Lock()
+    capped_id = capped.id
 
     def first():
         session = app.state.session_factory()
         try:
-            with quotas.consume(
-                session, user_id=capped.id, org_id=None,
-                kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
-            ) as slot:
-                slot.record()
-            # 옛 방식: with 블록이 끝난(=잠금이 풀린) 뒤에야 커밋한다.
+            with quotas.consume(session, user=_spent(capped_id), action_key="home.narrative", now=NOW):
+                _call_succeeded(app, capped_id)
+            # 옛 방식처럼 잠금이 풀린 뒤에야 요청 세션을 커밋한다.
             lock_released.set()
             second_done.wait(timeout=5)
             session.commit()
@@ -267,16 +268,13 @@ def test_committing_after_the_with_block_lets_a_second_request_slip_through(app,
         lock_released.wait(timeout=5)
         session = app.state.session_factory()
         try:
-            with quotas.consume(
-                session, user_id=capped.id, org_id=None,
-                kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
-            ) as slot:
-                slot.record()
+            with quotas.consume(session, user=_spent(capped_id), action_key="home.narrative", now=NOW):
+                _call_succeeded(app, capped_id)
             session.commit()
             outcome = "ok"
-        except Exception:
+        except RateLimitedError:
             session.rollback()
-            outcome = "429(정상)"
+            outcome = "429"
         finally:
             second_done.set()
             session.close()
@@ -290,71 +288,8 @@ def test_committing_after_the_with_block_lets_a_second_request_slip_through(app,
     t1.join(timeout=10)
     t2.join(timeout=10)
 
-    oks = [name for name, o in outcomes if o == "ok"]
-    assert len(oks) == 2, (
-        f"이 시험은 취약점(둘 다 통과)을 증명해야 한다 — with 블록 밖 커밋이 실제로는 "
-        f"안전하다면 이 assert 가 실패해야 정상이다: {outcomes}"
-    )
-
-
-def test_committing_inside_the_with_block_closes_the_gap(app, capped):
-    """UB-08 고친 뒤 — `slot.record()` 직후, with 블록이 끝나기 **전에** 커밋하면
-    (assistant/router.py 가 실제로 고친 방식) 잠금이 풀릴 때는 이미
-    커밋이 끝나 있어 두 번째 요청이 정확히 429 를 받는다."""
-    from app.core.errors import RateLimitedError
-    from app.quotas import service as quotas
-
-    lock_released = threading.Event()
-    outcomes: list[tuple[str, str]] = []
-    lock = threading.Lock()
-
-    def first():
-        session = app.state.session_factory()
-        try:
-            with quotas.consume(
-                session, user_id=capped.id, org_id=None,
-                kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
-            ) as slot:
-                slot.record()
-                session.commit()  # 고친 방식: 잠금이 풀리기 전에 커밋
-            outcome = "ok"
-        except Exception:
-            session.rollback()
-            outcome = "error"
-        finally:
-            lock_released.set()
-            session.close()
-        with lock:
-            outcomes.append(("first", outcome))
-
-    def second():
-        lock_released.wait(timeout=5)
-        session = app.state.session_factory()
-        try:
-            with quotas.consume(
-                session, user_id=capped.id, org_id=None,
-                kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
-            ) as slot:
-                slot.record()
-                session.commit()
-            outcome = "ok"
-        except RateLimitedError:
-            session.rollback()
-            outcome = "429"
-        finally:
-            session.close()
-        with lock:
-            outcomes.append(("second", outcome))
-
-    t1 = threading.Thread(target=first)
-    t2 = threading.Thread(target=second)
-    t1.start()
-    t2.start()
-    t1.join(timeout=10)
-    t2.join(timeout=10)
-
     assert sorted(o for _, o in outcomes) == ["429", "ok"], (
-        f"블록 안 커밋으로 고쳤으면 정확히 하나만 통과해야 한다: {outcomes}"
+        f"부른 쪽이 늦게 커밋해도 한도 1회는 정확히 하나만 통과해야 한다: {outcomes}"
     )
 
 
@@ -362,18 +297,44 @@ def test_a_failed_call_does_not_burn_the_slot(app, db, capped):
     """기록은 성공했을 때만 한다 — 러너가 죽은 날 상한까지 잃으면 안 된다."""
     from app.quotas import service as quotas
 
+    from app.ai import usage
+
     session = app.state.session_factory()
     try:
-        with quotas.consume(
-            session, user_id=capped.id, org_id=None,
-            kind=quotas.KIND_ASSISTANT_NARRATIVE, now=NOW,
-        ):
-            pass  # slot.record() 를 부르지 않는다 = 호출이 실패했다
+        with quotas.consume(session, user=_spent(capped.id), action_key="home.narrative", now=NOW):
+            # 호출이 실패했다 - 런타임은 실패 행을 적고, 그 행은 한도에 세지 않는다.
+            usage.record(app.state.session_factory, actor=usage.Actor(kind="user", user_id=capped.id),
+                         action_key="home.narrative", status="error", now=NOW, error_code="timeout")
         session.commit()
     finally:
         session.close()
 
     db.expire_all()
     assert quotas.used(db, user_id=capped.id, period="day", now=NOW) == 0, (
-        "실패한 호출이 상한을 깎았다"
+        "실패한 호출이 한도를 깎았다"
     )
+
+
+def test_a_blocked_request_is_recorded_but_does_not_count(app, db, capped):
+    """한도에 막힌 요청은 제공자에 닿지 않았다 - 통계에는 「한도로 막힘」으로 남고 한도는 더 줄지 않는다."""
+    from sqlalchemy import select
+
+    from app.ai.models import AiUsageRecord
+    from app.core.errors import RateLimitedError
+    from app.quotas import service as quotas
+
+    _call_succeeded(app, capped.id)
+    session = app.state.session_factory()
+    try:
+        with pytest.raises(RateLimitedError):
+            with quotas.consume(session, user=_spent(capped.id), action_key="home.narrative", now=NOW,
+                                session_factory=app.state.session_factory):
+                pass  # pragma: no cover - 들어오지 못한다
+        session.rollback()
+    finally:
+        session.close()
+
+    db.expire_all()
+    statuses = sorted(db.execute(select(AiUsageRecord.status).where(AiUsageRecord.user_id == capped.id)).scalars())
+    assert statuses == ["blocked_quota", "ok"]
+    assert quotas.used(db, user_id=capped.id, period="day", now=NOW) == 1

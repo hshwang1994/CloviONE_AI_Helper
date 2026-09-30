@@ -23,7 +23,7 @@ from app.knowledge.models import (
     DocumentVersion,
     KnowledgeSpace,
 )
-from app.observability.models import UsageEvent
+from app.ai.models import AiUsageRecord
 from app.org.constants import DEFAULT_ORG_ID
 
 pytestmark = pytest.mark.integration
@@ -103,7 +103,8 @@ def seeded(db, app):
 def _ai_calls(db) -> int:
     return int(
         db.execute(
-            select(func.count()).select_from(UsageEvent).where(UsageEvent.event == "ai.call")
+            # 한도의 원장은 AI 호출 기록의 성공 행이다(D-517).
+            select(func.count()).select_from(AiUsageRecord).where(AiUsageRecord.status == "ok")
         ).scalar_one()
     )
 

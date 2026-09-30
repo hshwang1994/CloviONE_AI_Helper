@@ -1,4 +1,11 @@
-"""AI 쿼터 판정 — 소비량은 `usage_events` 에서 센다 (0033, PLAN Phase 6).
+"""AI 사용 한도 판정 — 소비량은 AI 호출 기록(`ai_usage_records`)에서 센다 (계획 3.10, D-517).
+
+예전에는 성공한 호출마다 `usage_events(event='ai.call')` 에 한 줄을 따로 적어 셌다. 이제 AI 런타임이 호출마다 남기는
+기록(`app/ai/usage.py`)이 원장이다 - 한도는 그중 **성공한 호출**이면서 **한도에 세는 액션**(`counts_quota`)인 것만
+센다. 실패한 호출, 막힌 호출, 관리자의 연결 확인은 사람의 한도를 줄이지 않는다.
+
+한도는 사람마다 적용된다. 기본값(전역 행)은 모든 사람에게 같은 수를 주는 것이지 전사 공용 풀이 아니다. 사람의 행이
+기본값을 덮는다. 행이 없으면 제한이 없고, 0 은 막음이다. 조직이나 부서 단위의 공용 풀은 없다(BACKLOG P-114).
 
 기간 경계는 **Asia/Seoul 달력**으로 자른다. UTC 로 자르면 사용자가 체감하는 '오늘'과
 9시간 어긋나 아침 9시 전에 상한이 초기화되는 것처럼 보인다(감사 로그의 날짜 필터가
@@ -15,8 +22,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import RateLimitedError, ValidationAppError
-from app.observability.models import UsageEvent
-from app.observability.service import EVENT_AI_CALL
 from app.quotas import quota_lock
 from app.quotas.models import (
     ALL_PERIODS,
@@ -33,32 +38,17 @@ logger = logging.getLogger("app.quotas")
 
 _KST = ZoneInfo("Asia/Seoul")
 
-# 쿼터가 세는 이벤트. 'AI 호출'이라는 **비용 축**이라 다른 감사성 이벤트(로그인·티켓 생성 등)와
-# 뜻이 다르지만(meta.kind로 어느 기능인지 구분한다), 값 자체는 여전히 observability/service.py
-# 하나에서만 만든다(UB-25) — 예전엔 여기서 별도로 "ai.call"을 다시 정의해서, 그 파일의
-# KNOWN_EVENTS(오타 누적 방지용 집합)가 이 이벤트를 몰랐다. 문자열이 같아도 정의가 둘이면
-# 결국 갈라진다.
-
-KIND_ASSISTANT_NARRATIVE = "assistant_narrative"
-# AI 도우미 채팅 — **가장 큰 비용 축인데 상한 밖에 있었다**(X11).
-KIND_CHAT_MESSAGE = "chat_message"
-# AI 작업공간 (S10). 질의와 문서 초안을 **따로 센다** — 둘은 같은 문(`Gateway.generate`)을
-# 지나지만 비용이 다르고, 한 이름으로 합치면 「누가 무엇을 쓰는가」를 나중에 못 가른다.
-#
-# ⚠️ **검색만 하는 경로(`/api/ai/search`)는 안 센다.** 거기서 도는 임베딩은 서버의 CPU
-# 이지 구독 호출이 아니다(D-200). 쿼터는 비용 축이라 CPU 를 세면 뜻이 달라진다.
-KIND_AI_ASK = "ai_ask"
-KIND_AI_DRAFT = "ai_draft"
-
-# `pending()`이 "아직 record_call이 안 불렸지만 이미 큐에 들어간" 것으로 셀 잡 유형(UB-09).
+# `pending()`이 "아직 기록되지 않았지만 이미 큐에 들어간" 것으로 셀 잡 유형(UB-09).
 # `ai_quotas.reserve()`(확인→큐 적재를 한 덩어리로 묶는 예약형 경로 — consume()과 달리
-# 기록을 워커가 나중에 한다)를 쓰는 잡 유형만 여기 속한다. 새 AI 잡 유형이 reserve()로
+# 호출과 기록을 워커가 나중에 한다)를 쓰는 잡 유형만 여기 속한다. 새 AI 잡 유형이 reserve()로
 # 전환되면 이 집합에도 추가해야 한다 — 안 하면 pending()이 그 잡의 예약을 조용히 놓친다.
 # `tests/regression/test_pending_job_types_cover_every_record_call_handler.py`가
-# `record_call`을 부르는 잡 핸들러 전부가 이 집합에 있는지 상시 대조한다.
+# 사람의 이름으로 AI 를 부르는 잡 핸들러 전부가 이 집합에 있는지 상시 대조한다.
+# 주간 요약은 요청한 사람의 한도에 센다(계획 3.10) - 버튼 한 번이 AI 호출 한 번이다.
 from app.jobs.models import JOB_TYPE_CHAT_MESSAGE  # noqa: E402 — 상수 재수출 목적, 순환 없음
 
-PENDING_JOB_TYPES = frozenset({JOB_TYPE_CHAT_MESSAGE})
+JOB_TYPE_WEEKLY_SUMMARY = "project_weekly_summary"
+PENDING_JOB_TYPES = frozenset({JOB_TYPE_CHAT_MESSAGE, JOB_TYPE_WEEKLY_SUMMARY})
 
 
 def validate(scope_type: str, period: str, max_calls: int) -> None:
@@ -91,17 +81,22 @@ def period_end(period: str, now: datetime) -> datetime:
     return nxt.astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def _ledger():
+    """한도의 원장과 세는 조건 - 성공했고, 한도에 세는 액션이다."""
+    from app.ai.models import USAGE_OK, AiUsageRecord
+    from app.ai.usage import counted_actions
+
+    return AiUsageRecord, (AiUsageRecord.status == USAGE_OK, AiUsageRecord.action_key.in_(counted_actions()))
+
+
 def used(db: Session, *, user_id: str, period: str, now: datetime) -> int:
-    """이번 기간에 이 사용자가 쓴 AI 호출 수."""
+    """이번 기간에 이 사람이 쓴 AI 호출 수(성공한 것만)."""
+    record, counted = _ledger()
     return int(
         db.execute(
             select(func.count())
-            .select_from(UsageEvent)
-            .where(
-                UsageEvent.event == EVENT_AI_CALL,
-                UsageEvent.user_id == user_id,
-                UsageEvent.created_at >= period_start(period, now),
-            )
+            .select_from(record)
+            .where(*counted, record.user_id == user_id, record.created_at >= period_start(period, now))
         ).scalar_one()
     )
 
@@ -116,20 +111,17 @@ def used_batch(db: Session, *, pairs: set[tuple[str, str]], now: datetime) -> di
     """
     if not pairs:
         return {}
+    record, counted = _ledger()
     by_period: dict[str, set[str]] = {}
     for user_id, period in pairs:
         by_period.setdefault(period, set()).add(user_id)
     out: dict[tuple[str, str], int] = {}
     for period, user_ids in by_period.items():
         rows = db.execute(
-            select(UsageEvent.user_id, func.count())
-            .select_from(UsageEvent)
-            .where(
-                UsageEvent.event == EVENT_AI_CALL,
-                UsageEvent.user_id.in_(user_ids),
-                UsageEvent.created_at >= period_start(period, now),
-            )
-            .group_by(UsageEvent.user_id)
+            select(record.user_id, func.count())
+            .select_from(record)
+            .where(*counted, record.user_id.in_(user_ids), record.created_at >= period_start(period, now))
+            .group_by(record.user_id)
         ).all()
         for user_id, count in rows:
             out[(user_id, period)] = int(count)
@@ -142,15 +134,15 @@ def pending(db: Session, *, user_id: str, period: str, now: datetime) -> int:
     ## 왜 이것까지 세야 하나
 
     AI 도우미 채팅은 확인(라우터)과 기록(워커)이 서로 다른 프로세스에 있다. 큐에 들어간
-    호출은 워커가 끝낼 때까지 `usage_events` 어디에도 없으므로, 그동안 `used()` 만 보면
+    호출은 워커가 끝낼 때까지 호출 기록 어디에도 없으므로, 그동안 `used()` 만 보면
     **아무것도 안 쓴 사람**으로 보인다. 하루 상한이 1인 사람도 워커가 도는 사이에 원하는
     만큼 보낼 수 있었다. 잠금으로는 못 막는다. 잠금은 이 프로세스 안 이야기이고, 여기서
     빠져 있는 것은 '이미 확정된 소비' 라는 사실 자체다.
 
     그래서 예약을 **DB 에서** 읽는다. 잡 행이 곧 예약이다: 큐에 들어간 순간 생기고,
-    워커가 끝내면 상태가 바뀌어 사라지고, 그 자리를 `record_call` 이 이어받는다.
-    이중으로 세지 않는 근거가 그것이다. 예약이 사라지는 시점과 기록이 생기는 시점이
-    같은 트랜잭션이다(`app/jobs/handlers/chat_message.py`).
+    워커가 끝내면 상태가 바뀌어 사라지고, 그 자리를 런타임의 호출 기록이 이어받는다. 기록은
+    런타임이 제 세션으로 **먼저** 커밋하고 잡의 끝은 그 뒤에 커밋되므로, 그 짧은 사이에는 한 호출이
+    예약과 기록 두 번으로 보인다 - 더 엄격한 쪽으로 틀리는 것이라 한도를 넘기지는 않는다.
 
     ## 기간 경계로 막는 이유
 
@@ -164,11 +156,10 @@ def pending(db: Session, *, user_id: str, period: str, now: datetime) -> int:
 
     ## 왜 `job_type` 이 하드코딩 하나가 아니라 집합인가 (UB-09)
 
-    이 함수는 "`record_call`을 나중에 부르는 잡 유형 전부"를 세어야 하는데, 예전엔
-    `chat_message` 하나만 봤다. **오늘은 맞다** — `record_call`을 부르는 잡 핸들러는
-    `app/jobs/handlers/chat_message.py` 뿐이다(`tests/regression/
+    이 함수는 "사람의 이름으로 AI 를 부르는 잡 유형 전부"를 세어야 하는데, 예전엔
+    `chat_message` 하나만 봤다. 지금은 채팅과 주간 요약 둘이다(`tests/regression/
     test_pending_job_types_cover_every_record_call_handler.py`가 이 사실 자체를
-    상시 검증한다). 하지만 하드코딩 하나로는 다음 AI 잡 유형이 같은 예약→기록 패턴
+    상시 검증한다). 하드코딩 하나로는 다음 AI 잡 유형이 같은 예약→기록 패턴
     (`ai_quotas.reserve`)을 새로 쓰기 시작해도 이 함수가 **조용히** 그걸 놓친다 —
     증상은 "청구서가 예상보다 크다"로 몇 달 뒤에야 드러난다(모듈이 스스로 적어 둔
     경고). `PENDING_JOB_TYPES`를 한 곳에 모아 두면 새 잡 유형을 추가하는 사람이
@@ -191,14 +182,10 @@ def pending(db: Session, *, user_id: str, period: str, now: datetime) -> int:
 
 
 def used_all(db: Session, *, period: str, now: datetime) -> int:
+    record, counted = _ledger()
     return int(
         db.execute(
-            select(func.count())
-            .select_from(UsageEvent)
-            .where(
-                UsageEvent.event == EVENT_AI_CALL,
-                UsageEvent.created_at >= period_start(period, now),
-            )
+            select(func.count()).select_from(record).where(*counted, record.created_at >= period_start(period, now))
         ).scalar_one()
     )
 
@@ -206,21 +193,16 @@ def used_all(db: Session, *, period: str, now: datetime) -> int:
 def max_user_used(db: Session, *, period: str, now: datetime) -> int:
     """이번 기간에 **가장 많이 쓴 한 사람**의 호출 수 (UB-02).
 
-    `enforce()`는 전역(global) 상한도 `used(user_id=...)`, 즉 **사용자별**로 판정한다
-    (전사 공용 풀이 아니다 — 그러려면 사용자 전원을 아우르는 잠금이 있어야 하는데 지금은
-    사람별 잠금뿐이다). 예전엔 관리 화면 목록이 전역 행의 '현재 사용'에 `used_all`
-    (전 사용자 합계)을 보여줘서, 실제로는 아무도 안 막힌 상황에서도 "150 / 100 — 상한
-    도달"처럼 존재하지 않는 차단을 알리는 화면이 됐다. 여기서는 **실제 판정이 보는 값**과
-    같은 축(개인별 사용량)으로 답한다 — 이 값이 상한에 닿아야 그 사람이 실제로 막힌다.
+    `enforce()`는 기본값(전역 행)도 **사람별**로 판정한다(전사 공용 풀이 아니다). 관리 화면의 기본값 행이
+    전 사용자 합계를 보여 주면 아무도 안 막힌 상황에서도 「한도 도달」을 알리게 된다. 여기서는 **실제 판정이
+    보는 값**과 같은 축(개인별 사용량)으로 답한다 - 이 값이 한도에 닿아야 그 사람이 실제로 막힌다.
     """
+    record, counted = _ledger()
     rows = db.execute(
-        select(UsageEvent.user_id, func.count())
-        .select_from(UsageEvent)
-        .where(
-            UsageEvent.event == EVENT_AI_CALL,
-            UsageEvent.created_at >= period_start(period, now),
-        )
-        .group_by(UsageEvent.user_id)
+        select(record.user_id, func.count())
+        .select_from(record)
+        .where(*counted, record.user_id.is_not(None), record.created_at >= period_start(period, now))
+        .group_by(record.user_id)
     ).all()
     return max((count for _user_id, count in rows), default=0)
 
@@ -269,20 +251,34 @@ def status(db: Session, *, user_id: str, now: datetime) -> dict:
     out = []
     for period in ALL_PERIODS:
         limit = limits.get(period)
+        spent = used(db, user_id=user_id, period=period, now=now)
         out.append(
             {
                 "period": period,
                 "limit": limit[0] if limit else None,
                 "source": limit[1] if limit else None,
-                "used": used(db, user_id=user_id, period=period, now=now),
+                "used": spent,
+                "remaining": remaining(limit[0] if limit else None, spent),
                 "resets_at": period_end(period, now).isoformat(),
             }
         )
     return {"user_id": user_id, "periods": out}
 
 
+def remaining(limit: int | None, used_count: int) -> int | None:
+    """남은 호출 수. 한도가 없으면 모른다가 아니라 제한이 없다(None)."""
+    return None if limit is None else max(0, limit - used_count)
+
+
+def limit_message(period: str) -> str:
+    """한도에 닿았을 때 사람이 읽는 문장 - 오류와 알림이 같은 말을 한다."""
+    if period == PERIOD_DAY:
+        return "오늘 AI 사용 한도에 닿았습니다. 내일 0시에 초기화됩니다."
+    return "이번 달 AI 사용 한도에 닿았습니다. 다음 달 1일 0시에 초기화됩니다."
+
+
 def enforce(db: Session, *, user_id: str, now: datetime) -> None:
-    """상한을 넘었으면 429. 상한 행이 없으면 아무 제한도 없다(fail-open).
+    """한도를 넘었으면 429. 한도 행이 없으면 아무 제한도 없다(fail-open).
 
     **fail-open 인 이유**: 쿼터는 비용 통제 장치이지 보안 장치가 아니다. 표가 비어 있는
     기본 상태에서 AI 기능이 통째로 막히면, 이 기능을 켠 적도 없는 운영자가 원인을 찾느라
@@ -305,36 +301,15 @@ def enforce(db: Session, *, user_id: str, now: datetime) -> None:
         )
         if counted >= max_calls:
             resets = period_end(period, now)
-            label = "하루" if period == PERIOD_DAY else "이번 달"
             raise RateLimitedError(
-                f"{label} AI 사용 상한({max_calls}회)에 도달했습니다. "
-                f"{resets.replace(tzinfo=timezone.utc).astimezone(_KST):%m월 %d일 %H시} 이후 다시 사용할 수 있습니다.",
+                limit_message(period),
+                details={"period": period, "limit": max_calls, "resets_at": resets.isoformat()},
                 retry_after_seconds=max(1, int((resets - now).total_seconds())),
             )
 
 
-def record_call(db: Session, *, user_id: str, org_id: str | None, kind: str, now: datetime) -> None:
-    """AI 호출 한 번을 기록한다. 기록 실패는 요청을 죽이지 않는다(record_usage 규약).
-
-    센 **직후**에 소진 여부를 본다 — 상한에 닿은 순간을 아는 유일한 자리다(아래 함수 참조).
-    """
-    from app.observability.service import record_usage
-
-    record_usage(
-        db,
-        event=EVENT_AI_CALL,
-        user_id=user_id,
-        org_id=org_id,
-        object_type="ai",
-        object_id=kind,
-        meta={"kind": kind},
-        now=now,
-    )
-    _announce_exhausted(db, user_id=user_id, now=now)
-
-
-def _announce_exhausted(db: Session, *, user_id: str, now: datetime) -> None:
-    """상한을 **다 쓴 순간** 알린다 (N2).
+def announce_if_exhausted(db: Session, *, user_id: str, now: datetime) -> None:
+    """한도를 **다 쓴 순간** 알린다 (N2). 호출 기록이 성공한 사람의 호출을 적을 때 부른다(`app/ai/usage.py`).
 
     감사 확인: 사용자는 **쓰려는 순간에야** 상한에 걸린 것을 알았다. 429 를 보고서야 아는
     것은 너무 늦다 — 그때는 이미 하려던 일을 못 한 뒤다. 마지막 한 번을 쓴 직후에 알리면
@@ -349,7 +324,7 @@ def _announce_exhausted(db: Session, *, user_id: str, now: datetime) -> None:
     2. `enforce` 는 막힌 **모든 시도**에서 돈다. 거기서 알리면 상한에 걸린 사람이 새로고침을
        누를 때마다 알림이 쌓여서, 하필 그 사람의 배지만 폭주한다.
 
-    여기(`record_call`)는 성공한 호출의 뒤이고 커밋되는 경로다.
+    여기(호출 기록)는 성공한 호출의 뒤이고 커밋되는 경로다.
 
     ## 중복 방지
 
@@ -382,15 +357,11 @@ def _announce_exhausted(db: Session, *, user_id: str, now: datetime) -> None:
             ).scalar_one()
             if already:
                 continue
-            resets = period_end(period, now)
-            label = "하루" if period == PERIOD_DAY else "이번 달"
+            label = "오늘" if period == PERIOD_DAY else "이번 달"
             notify_user(
                 db, user_id, type_="ai_quota_exhausted",
-                title=f"{label} AI 사용 상한({row.max_calls}회)을 다 썼습니다",
-                body=(
-                    f"{resets.replace(tzinfo=timezone.utc).astimezone(_KST):%m월 %d일 %H시}"
-                    " 이후 다시 사용할 수 있습니다."
-                ),
+                title=f"{label} AI 사용 한도({row.max_calls}회)를 다 썼습니다",
+                body=limit_message(period).split(". ", 1)[1],
                 related=("ai_quota", row.id), now=now,
             )
     except Exception:  # noqa: BLE001 — 알림이 AI 호출 기록을 막으면 안 된다
@@ -405,69 +376,55 @@ def _announce_exhausted(db: Session, *, user_id: str, now: datetime) -> None:
 # `app/quotas/quota_lock.py` 모듈 docstring 에 있다.
 
 
-class consume:
-    """확인 → AI 호출 → 기록을 한 덩어리로 (동기 경로 전용).
+class _Gate:
+    """확인 → (호출 또는 큐 적재)를 한 사람 단위로 직렬화하는 문. 막히면 막힌 사실을 호출 기록에 남긴다."""
 
-        with ai_quotas.consume(db, user_id=…, org_id=…, kind=…, now=now) as slot:
-            result = call_the_ai()
-            if succeeded(result):
-                slot.record()
-                db.commit()   # 기록이 다른 요청에 보여야 뜻이 있다
-
-    **`record()` 를 부르지 않으면 세지 않는다.** 성공한 호출만 센다는 기존 규약 그대로다
-    (러너가 죽은 날 사용자가 답을 못 받고 상한만 잃으면 안 된다). 잠금은 블록을 나갈 때
-    풀리므로, 호출이 오래 걸리는 동안 같은 사람의 다른 요청은 기다린다.
-
-    ⚠️ **`record()` 뒤에는(그리고 블록이 끝나기 전에) 반드시 `db.commit()` 해야 한다** —
-    `reserve` 와 정확히 같은 이유(UB-08)다. SQLite 는 커밋 전 쓰기를 다른 커넥션에 보여
-    주지 않는다. `record()`(→ `record_call`)는 `flush()` 만 하고 커밋은 이 블록을 부른
-    라우터가 요청 맨 끝(`get_db`)에서야 한다 — 그 사이(잠금이 풀린 뒤부터 실제 커밋까지)
-    같은 사용자의 다른 요청이 잠금을 얻어 `enforce()` 를 돌리면, 방금 쓴(아직 커밋 안 된)
-    사용량을 못 보고 상한을 통과할 수 있다. 잠금을 걸어 놓고 그 목적을 못 지키는 것과
-    같다 — `reserve` 의 docstring 이 이미 이 원칙을 못박아 뒀는데 `consume` 의 두 호출부
-    (`documents/router.py`, `assistant/router.py`)만 안 지키고 있었다.
-    """
-
-    def __init__(
-        self,
-        db: Session,
-        *,
-        user_id: str,
-        org_id: str | None,
-        kind: str,
-        now: datetime,
-    ) -> None:
+    def __init__(self, db: Session, *, user, action_key: str, now: datetime, session_factory=None) -> None:
         self._db = db
-        self._user_id = user_id
-        self._org_id = org_id
-        self._kind = kind
+        self._user = user
+        self._action_key = action_key
         self._now = now
-        self._guard = quota_lock.quota_guard(db, user_id)
+        self._session_factory = session_factory
+        self._guard = quota_lock.quota_guard(db, user.id)
 
-    def __enter__(self) -> "consume":
+    def __enter__(self):
         self._guard.__enter__()
         try:
-            enforce(self._db, user_id=self._user_id, now=self._now)
-        except BaseException:
+            enforce(self._db, user_id=self._user.id, now=self._now)
+        except RateLimitedError:
             # 막힌 요청은 블록 안으로 들어가지 못하므로 __exit__ 이 안 불린다.
+            self._guard.__exit__(None, None, None)
+            from app.ai import usage
+
+            usage.record_blocked_quota(self._session_factory, user=self._user, action_key=self._action_key,
+                                       now=self._now)
+            raise
+        except BaseException:
             self._guard.__exit__(None, None, None)
             raise
         return self
-
-    def record(self) -> None:
-        record_call(
-            self._db, user_id=self._user_id, org_id=self._org_id,
-            kind=self._kind, now=self._now,
-        )
 
     def __exit__(self, *exc) -> None:
         self._guard.__exit__(*exc)
 
 
-class reserve:
-    """확인 → 큐 적재를 한 덩어리로 (기록을 워커가 하는 경로 전용).
+class consume(_Gate):
+    """확인 → AI 호출을 한 덩어리로 (동기 경로 전용).
 
-        with ai_quotas.reserve(db, user_id=…, now=now):
+        with ai_quotas.consume(db, user=user, action_key=WORKSPACE_ASK, now=now, session_factory=factory):
+            result = runtime.generate(db, action_key=WORKSPACE_ASK, ..., actor=user)
+
+    **따로 세지 않는다.** 런타임이 호출을 기록하면서 그것이 곧 한 칸이 된다(`app/ai/usage.py`) - 성공한 호출만
+    센다는 규약 그대로다. 기록은 런타임이 제 세션으로 곧바로 커밋하므로, 잠금이 풀리는 순간 같은 사람의 다음
+    요청은 방금 쓴 한 칸을 본다(예전의 「블록 안에서 커밋해야 한다」(UB-08) 규약이 구조로 바뀌었다).
+    잠금은 블록을 나갈 때 풀리므로, 호출이 오래 걸리는 동안 같은 사람의 다른 요청은 기다린다.
+    """
+
+
+class reserve(_Gate):
+    """확인 → 큐 적재를 한 덩어리로 (호출과 기록을 워커가 하는 경로 전용).
+
+        with ai_quotas.reserve(db, user=user, action_key=CHAT_ANSWER, now=now, session_factory=factory):
             message, job = post_user_message(…)
             db.commit()   # 예약(잡 행)이 다른 요청에 보여야 뜻이 있다
 
@@ -479,24 +436,6 @@ class reserve:
     '놓는 것'이 한 순간에 일어나 그 틈 자체가 사라진다 — 순서를 지켜야 하는 규약이
     순서를 틀릴 수 없는 구조가 됐다.
     """
-
-    def __init__(self, db: Session, *, user_id: str, now: datetime) -> None:
-        self._db = db
-        self._user_id = user_id
-        self._now = now
-        self._guard = quota_lock.quota_guard(db, user_id)
-
-    def __enter__(self) -> "reserve":
-        self._guard.__enter__()
-        try:
-            enforce(self._db, user_id=self._user_id, now=self._now)
-        except BaseException:
-            self._guard.__exit__(None, None, None)
-            raise
-        return self
-
-    def __exit__(self, *exc) -> None:
-        self._guard.__exit__(*exc)
 
 
 def view(row: AiQuota, names: dict[str, dict[str, str]] | None = None) -> dict:

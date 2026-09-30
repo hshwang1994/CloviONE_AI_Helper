@@ -11,6 +11,21 @@
       "type"
     ]
   },
+  "ai-usage-records": {
+    "default": {
+      "dir": "desc",
+      "key": "created_at"
+    },
+    "keys": [
+      "action_key",
+      "created_at",
+      "input_tokens",
+      "latency_ms",
+      "model",
+      "output_tokens",
+      "status"
+    ]
+  },
   "announcements": {
     "default": {
       "dir": "desc",

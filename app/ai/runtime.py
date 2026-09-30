@@ -20,6 +20,8 @@
   8. 결과로 연결 상태를 바꾼다(`app/ai/credentials/state.py`). 제 짧은 세션으로 적는다 - 부른 쪽의 트랜잭션이
      실패해도 「방금 성공했다」는 사실이 사라지지 않는다
   9. 출력을 다듬는다. 제어 문자를 지우고 액션의 길이로 자른다. JSON 액션은 자르지 않는다 - 넘으면 실패다
+ 10. 사용 기록 한 행을 남긴다(`app/ai/usage.py`) - 누가, 어떤 기능으로, 어느 모델에, 얼마나 썼고 어떻게 끝났는지.
+     한도의 원장이 이 행이다. 생성이 꺼져 있거나 설정이 비어 아무것도 시도하지 않은 호출은 남기지 않는다
 
 ## 실패는 값이다
 
@@ -232,21 +234,47 @@ class AiRuntime:
     # ── 생성 ─────────────────────────────────────────────────────────────────
 
     def generate(self, db: Session | None, *, action_key: str, task: str, data: str, actor=None,
-                 verify: bool = False) -> contract.GenerateResult:
+                 verify: bool = False, job_id: str | None = None,
+                 request_id: str | None = None) -> contract.GenerateResult:
         """지시(`task`) + **신뢰하지 않는 내용**(`data`) → 문장. 예외를 올리지 않는다.
 
         ``verify`` 는 관리자의 연결 확인이다. 생성이 꺼져 있거나 막힌 상태여도 보낸다 - 막힌 것을 고치는 중인 사람이
         확인 단추를 누르는 것이다. ``db`` 가 없으면(세션 없이 부르는 자리) 제 짧은 세션으로 설정을 읽는다.
+        ``actor`` 는 요청한 사람(`User`)이다. 없으면 시스템의 호출로 기록한다(연결 확인, 주기 작업).
         """
         if db is None and self._session_factory is not None:
             with self._session_factory() as session:
-                return self._generate(session, action_key=action_key, task=task, data=data, verify=verify)
-        return self._generate(db, action_key=action_key, task=task, data=data, verify=verify)
+                config = self.config(session)
+                result = self._generate(session, config, action_key=action_key, task=task, data=data,
+                                        verify=verify)
+        else:
+            config = self.config(db)
+            result = self._generate(db, config, action_key=action_key, task=task, data=data, verify=verify)
+        self._record_usage(config, result, action_key=action_key, actor=None if verify else actor, job_id=job_id,
+                           request_id=request_id)
+        return result
 
-    def _generate(self, db: Session, *, action_key: str, task: str, data: str,
+    def _record_usage(self, config: RuntimeConfig, result: contract.GenerateResult, *, action_key: str, actor,
+                      job_id: str | None, request_id: str | None) -> None:
+        """호출 한 번을 사용 기록에 남긴다. 아무것도 시도하지 않은 호출(꺼짐, 미설정)은 남기지 않는다."""
+        if not self._track_state or result.status in (contract.STATUS_DISABLED, contract.STATUS_UNCONFIGURED):
+            return
+        from app.ai import usage
+        from app.ai.models import USAGE_ERROR, USAGE_OK
+
+        usage.record(
+            self._session_factory, actor=usage.Actor.of(actor), action_key=action_key,
+            status=USAGE_OK if result.ok else USAGE_ERROR, now=self._now(), provider=config.provider,
+            auth_method=config.auth_method, model=config.model,
+            error_code=None if result.ok else (result.error_code or result.status),
+            input_tokens=result.input_tokens, output_tokens=result.output_tokens, latency_ms=result.latency_ms,
+            truncated_input=result.input_truncated, truncated_output=result.output_truncated,
+            request_id=request_id, job_id=job_id,
+        )
+
+    def _generate(self, db: Session, config: RuntimeConfig, *, action_key: str, task: str, data: str,
                   verify: bool) -> contract.GenerateResult:
         action = actions_mod.get_action(action_key)
-        config = self.config(db)
         method = config.method()
         slot = method.secret_slot if method else None
         if not verify and not config.generation_enabled:
@@ -307,6 +335,7 @@ class AiRuntime:
         common = dict(
             model=config.model, delimiter_conflict=built.delimiter_conflict, input_tokens=result.input_tokens,
             output_tokens=result.output_tokens, provider=config.provider, latency_ms=latency_ms,
+            input_truncated=built.truncated,
         )
         if not result.ok:
             return contract.GenerateResult(status=_status_for(result), error_code=result.error_code,
@@ -319,8 +348,10 @@ class AiRuntime:
             if action.json_output:
                 # 자른 JSON 은 쓸 수 없다. 조용히 자르면 부른 쪽의 파서가 원인 모를 실패를 낸다.
                 return contract.GenerateResult(status=contract.STATUS_FAILED, error_code="output_too_long",
-                                               truncated=True, **common)
+                                               truncated=True, output_truncated=True, **common)
             text, truncated = text[: action.max_output_chars], True
+            return contract.GenerateResult(status=contract.STATUS_OK, text=text, truncated=truncated,
+                                           output_truncated=True, **common)
         return contract.GenerateResult(status=contract.STATUS_OK, text=text, truncated=truncated, **common)
 
     def _blocked(self, db: Session, config: RuntimeConfig, slot: str | None) -> bool:

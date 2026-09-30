@@ -135,12 +135,13 @@ def test_ai_call_event_is_known():
     assert EVENT_AI_CALL in KNOWN_EVENTS
 
 
-def test_quotas_imports_the_same_event_constant_not_a_duplicate():
-    """정본이 하나임을 값이 아니라 **정의가 하나**임으로 확인한다 — 문자열만 같으면
-    두 곳에서 각자 정의해도 우연히 통과하지만, 그러면 한쪽만 고쳐도 다시 갈라진다."""
-    from app.quotas import service as quotas_service
+def test_quotas_no_longer_count_the_old_event():
+    """한도의 원장이 AI 호출 기록 표로 옮겨졌다(D-517). 한도가 옛 이벤트를 다시 세기 시작하면 한 호출이 두 원장에서
+    따로 세어지고, 두 원장은 언젠가 갈라진다 - 정본이 하나임을 소스로 확인한다."""
+    from pathlib import Path
 
-    assert quotas_service.EVENT_AI_CALL is EVENT_AI_CALL
+    source = (Path(__file__).resolve().parents[2] / "app" / "quotas" / "service.py").read_text(encoding="utf-8")
+    assert "UsageEvent" not in source and "EVENT_AI_CALL" not in source
 
 
 def test_record_usage_rejects_unknown_event_names(db):

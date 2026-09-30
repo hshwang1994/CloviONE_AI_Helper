@@ -18,6 +18,7 @@ from app.core.scope import Principal
 from app.core.db import is_insert_race
 from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
+from app.ai.actions import ACTIONS
 from app.quotas import service
 from app.quotas.models import (
     ALL_PERIODS,
@@ -100,11 +101,11 @@ def _ensure_target_accepts_a_new_quota(db: Session, user_id: str, principal: Pri
     user = get_scoped_user_or_404(db, user_id, principal.management)
     if user.archived_at is not None:
         raise ValidationAppError(
-            "보관된 계정에는 AI 사용 상한을 걸 수 없습니다. 계정을 복구한 뒤에 지정하세요."
+            "보관된 계정에는 AI 사용 한도를 정할 수 없습니다. 계정을 복구한 뒤에 정하세요."
         )
     if not user.active:
         raise ValidationAppError(
-            "비활성 계정에는 AI 사용 상한을 걸 수 없습니다. 계정을 활성화한 뒤에 지정하세요."
+            "비활성 계정에는 AI 사용 한도를 정할 수 없습니다. 계정을 활성화한 뒤에 정하세요."
         )
 
 
@@ -180,6 +181,7 @@ def list_quotas(
         else:
             item["used"] = used_by_pair.get((row.user_id, row.period), 0)
         item["resets_at"] = service.period_end(row.period, now).isoformat()
+        item["remaining"] = service.remaining(row.max_calls, item["used"])
         # 전역 행에는 대상 계정이 없다 — 모르는 것을 지어내지 않고 None 으로 둔다.
         item["user_state"] = (
             states.get(row.user_id) if row.scope_type == SCOPE_USER and row.user_id else None
@@ -188,9 +190,9 @@ def list_quotas(
     return {
         "items": items,
         # 화면이 "쿼터를 어디에 거는가"를 스스로 지어내지 않게 서버가 말해 준다.
+        # 액션 표에서 계산한다 - 한도에 세는 액션이 늘면 이 목록도 저절로 는다(계획 3.10).
         "enforced_on": [
-            {"kind": service.KIND_ASSISTANT_NARRATIVE, "label": "AI 도우미 문장 생성"},
-            {"kind": service.KIND_CHAT_MESSAGE, "label": "AI 도우미 채팅"},
+            {"kind": key, "label": action.label} for key, action in ACTIONS.items() if action.counts_quota
         ],
         "periods": list(ALL_PERIODS),
     }

@@ -36953,6 +36953,38 @@
      "by": "S21 — scripts/ui_qa/s21_e2e.py (실 브라우저 Chromium · 로컬 PostgreSQL 씨앗)"
     }
    ]
+  },
+  {
+   "surface": "admin_ai-usage__ai-usage-stats",
+   "console": "admin",
+   "inventory_status": "NOT_INVENTORIED",
+   "inventoried_at": null,
+   "inventoried_by": null,
+   "flows": []
+  },
+  {
+   "surface": "admin_ai-usage__ai-usage-records",
+   "console": "admin",
+   "inventory_status": "NOT_INVENTORIED",
+   "inventoried_at": null,
+   "inventoried_by": null,
+   "flows": []
+  },
+  {
+   "surface": "admin_ai-usage-stats",
+   "console": "admin",
+   "inventory_status": "NOT_INVENTORIED",
+   "inventoried_at": null,
+   "inventoried_by": null,
+   "flows": []
+  },
+  {
+   "surface": "admin_ai-usage-records",
+   "console": "admin",
+   "inventory_status": "NOT_INVENTORIED",
+   "inventoried_at": null,
+   "inventoried_by": null,
+   "flows": []
   }
  ]
 }

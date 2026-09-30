@@ -75,10 +75,11 @@ def _with_narrative(
 
     # 확인과 기록 **사이에 AI 호출이 통째로 들어 있다** — 그 몇 초가 동시 요청 둘이 같은
     # 숫자를 읽는 창이었다 (Z15). 이제 한 사람의 판정은 한 번에 하나만 지난다.
+    from app.ai.actions import HOME_NARRATIVE
+
     with ai_quotas.consume(
-        db, user_id=user.id, org_id=getattr(user, "org_id", None),
-        kind=ai_quotas.KIND_ASSISTANT_NARRATIVE, now=now,
-    ) as slot:
+        db, user=user, action_key=HOME_NARRATIVE, now=now, session_factory=request.app.state.session_factory,
+    ):
         # DBTX: 아웃바운드(러너) 호출 앞에서 커밋해 스냅샷을 새로 뜬다. 이 잠금은
         # quota_lock.quota_guard(순수 프로세스 내 뮤텍스)가 지킨다 — DB 트랜잭션을
         # 열어 두는 것과 무관하다(consume.__init__ 참고), 그러니 여기서 커밋해도 Z15가
@@ -88,14 +89,8 @@ def _with_narrative(
         # 실측 사고와 같은 근거) — enforce()가 이미 위 __enter__에서 판정을 끝냈으므로
         # 여기서 커밋해도 그 판정을 다시 열지 않는다.
         db.commit()
+        # 세는 것은 런타임의 호출 기록이다 - 문장이 실제로 나온 호출만 한 칸이 된다(D-517).
         narrative = _call()
-        # 성공한 호출만 센다. narrate()는 예외를 던지지 않고 {"enabled","text","error"}를
-        # 돌려주므로, 실제로 문장이 나온 경우(text 가 있고 error 가 없음)만 쿼터를 깎는다 —
-        # 러너가 죽은 날 사용자가 아무것도 못 받고 상한만 잃으면 안 된다.
-        if (narrative or {}).get("text") and not (narrative or {}).get("error"):
-            slot.record()
-            # UB-08: 잠금이 풀리기 전에 커밋한다(app/quotas/service.py의 consume 문서 참조).
-            db.commit()
     return {**body, "narrative": narrative}
 
 

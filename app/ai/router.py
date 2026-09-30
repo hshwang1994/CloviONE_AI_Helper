@@ -28,7 +28,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from app.ai.actions import WORKSPACE_ASK
+from app.ai.actions import WORKSPACE_ASK, WORKSPACE_DRAFT
 from app.ai.gateway import contract, registry
 from app.ai.index import service as index_service
 from app.ai.retrieval import answer as answer_mod
@@ -130,18 +130,13 @@ def ai_ask(
 ) -> dict:
     """질문 → 근거 + 답변. 근거는 언제나 나가고 답변은 될 때만 나간다.
 
-    쿼터는 **모델을 부르기 전에** 본다. 부른 뒤에 막으면 이미 구독 호출을 쓴 뒤라 상한의
-    뜻이 없다. 그리고 성공한 호출만 센다(`record()`) — 모델이 죽은 날 사용자가 답을 못
-    받고 상한만 잃으면 안 된다.
+    한도는 **모델을 부르기 전에** 본다. 부른 뒤에 막으면 이미 호출을 쓴 뒤라 한도의 뜻이 없다. 세는 것은 런타임의
+    호출 기록이다 - 성공한 호출만 한 칸이 된다(모델이 죽은 날 사용자가 답을 못 받고 한도만 잃으면 안 된다).
     """
     now = request.app.state.clock.now()
     with ai_quotas.consume(
-        db,
-        user_id=user.id,
-        org_id=getattr(user, "org_id", None),
-        kind=ai_quotas.KIND_AI_ASK,
-        now=now,
-    ) as slot:
+        db, user=user, action_key=WORKSPACE_ASK, now=now, session_factory=request.app.state.session_factory,
+    ):
         result = answer_mod.answer(
             db, user,
             raw_query=payload.question,
@@ -150,11 +145,6 @@ def ai_ask(
             action_key=WORKSPACE_ASK,
             top_k=payload.top_k or retrieval_service.TOP_K,
         )
-        if result.ok:
-            slot.record()
-            # ⚠️ 잠금 안에서 커밋해야 뜻이 있다(UB-08). 잠금을 놓은 뒤에 커밋하면 그
-            # 사이에 들어온 같은 사람의 요청이 방금 쓴 사용량을 못 보고 통과한다.
-            db.commit()
     return result.as_dict()
 
 
@@ -174,12 +164,8 @@ def ai_draft_document(
 
     now = request.app.state.clock.now()
     with ai_quotas.consume(
-        db,
-        user_id=user.id,
-        org_id=getattr(user, "org_id", None),
-        kind=ai_quotas.KIND_AI_DRAFT,
-        now=now,
-    ) as slot:
+        db, user=user, action_key=WORKSPACE_DRAFT, now=now, session_factory=request.app.state.session_factory,
+    ):
         result = answer_mod.draft_document(
             db, user,
             instruction=payload.instruction,
@@ -205,7 +191,6 @@ def ai_draft_document(
             object_type="knowledge_document", object_id=document.id,
             after={"space_id": document.space_id, "citations": len(result.retrieval.citations)},
         )
-        slot.record()
         db.commit()
     return {
         **result.as_dict(),

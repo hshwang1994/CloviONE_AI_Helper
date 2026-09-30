@@ -34,6 +34,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Computed,
     DateTime,
@@ -415,3 +416,54 @@ class AiOAuthTransaction(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+# ── AI 호출 기록 (계획 3.10 · 3.11, D-517) ────────────────────────────────────
+
+USAGE_OK = "ok"
+USAGE_ERROR = "error"
+USAGE_BLOCKED_QUOTA = "blocked_quota"
+USAGE_BLOCKED_POLICY = "blocked_policy"
+USAGE_STATUSES = (USAGE_OK, USAGE_ERROR, USAGE_BLOCKED_QUOTA, USAGE_BLOCKED_POLICY)
+
+
+class AiUsageRecord(Base):
+    """AI 호출 한 번. 한도의 원장이고 사용 통계의 원천이다. 규칙은 `app/ai/usage.py` 에 있다.
+
+    프롬프트 본문과 응답 본문은 두지 않는다 - 누가, 언제, 어떤 기능으로, 어느 모델에, 얼마나 썼고 어떻게 끝났는지만
+    둔다. 계정이 보관되거나 지워져도 집계는 남아야 하므로 사용자에 외래 키를 걸지 않는다(감사 로그와 같은 판단).
+    부서 이름은 그때의 이름을 남긴다 - 부서 이름이 바뀌어도 지난달 통계가 새 이름으로 바뀌지 않는다.
+    """
+
+    __tablename__ = "ai_usage_records"
+    __table_args__ = (
+        Index("ix_ai_usage_records_created_at", "created_at"),
+        Index("ix_ai_usage_records_user_created", "user_id", "created_at"),
+        Index("ix_ai_usage_records_action_created", "action_key", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    #: user(사람의 요청) · system(주기 작업, 연결 확인)
+    actor_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    user_id: Mapped[str | None] = mapped_column(String(36))
+    org_id: Mapped[str | None] = mapped_column(String(36))
+    department_id: Mapped[str | None] = mapped_column(String(36))
+    department_name: Mapped[str | None] = mapped_column(String(200))
+    action_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(32))
+    auth_method: Mapped[str | None] = mapped_column(String(32))
+    model: Mapped[str | None] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    prompt_slot: Mapped[str | None] = mapped_column(String(64))
+    prompt_version: Mapped[int | None] = mapped_column(Integer)
+    prompt_source: Mapped[str | None] = mapped_column(String(16))
+    policy_ids_json: Mapped[str | None] = mapped_column(Text)
+    truncated_input: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    truncated_output: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    job_id: Mapped[str | None] = mapped_column(String(36))

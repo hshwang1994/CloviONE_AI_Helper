@@ -13,9 +13,8 @@ from datetime import datetime
 
 import pytest
 
-from app.observability.models import UsageEvent
 from app.quotas.models import AiQuota
-from app.quotas.service import EVENT_AI_CALL
+from tests.fakes.ai import spend
 
 pytestmark = pytest.mark.integration
 
@@ -27,8 +26,8 @@ def _h(csrf):
 
 
 def _events(db, *, user_id, count, when=NOW):
-    for _ in range(count):
-        db.add(UsageEvent(user_id=user_id, event=EVENT_AI_CALL, created_at=when))
+    # 한도의 원장은 AI 호출 기록이다(D-517) - 성공한 호출을 적는다.
+    spend(db, user_id, count, when=when)
 
 
 def test_global_row_used_is_the_busiest_users_count_not_the_sum(

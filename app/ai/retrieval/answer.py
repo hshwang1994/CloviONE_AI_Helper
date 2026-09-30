@@ -99,8 +99,10 @@ def _payload(question: str, retrieval: retrieval_service.RetrievalResult) -> str
     ])
 
 
-def _generate(db: Session, runtime, *, action_key: str, task: str, question: str, retrieval, actor) -> Answer:
-    result = runtime.generate(db, action_key=action_key, task=task, data=_payload(question, retrieval), actor=actor)
+def _generate(db: Session, runtime, *, action_key: str, task: str, question: str, retrieval, actor,
+              job_id: str | None = None) -> Answer:
+    result = runtime.generate(db, action_key=action_key, task=task, data=_payload(question, retrieval), actor=actor,
+                              job_id=job_id)
     return Answer(
         retrieval=retrieval,
         status=result.status,
@@ -120,6 +122,7 @@ def answer(
     runtime,
     action_key: str = actions.CHAT_ANSWER,
     top_k: int = retrieval_service.TOP_K,
+    job_id: str | None = None,
 ) -> Answer:
     """질문 → (인용, 답변). 인용은 언제나 나가고 답변은 될 때만 나간다.
 
@@ -134,7 +137,7 @@ def answer(
         # 그 문장에는 인용이 하나도 안 붙는다 — 사람은 그것을 답으로 읽는다.
         return Answer(retrieval=retrieval, status=contract.STATUS_EMPTY)
     return _generate(db, runtime, action_key=action_key, task=TASK_ANSWER, question=retrieval.query,
-                     retrieval=retrieval, actor=user)
+                     retrieval=retrieval, actor=user, job_id=job_id)
 
 
 def draft_document(

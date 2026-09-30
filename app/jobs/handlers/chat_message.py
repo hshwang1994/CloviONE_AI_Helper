@@ -195,7 +195,7 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
 
     ans = answer_mod.answer(
         db, user, raw_query=payload.get("content"), gateway=_gateway(ctx),
-        runtime=runtime_for_worker(ctx), action_key=CHAT_ANSWER,
+        runtime=runtime_for_worker(ctx), action_key=CHAT_ANSWER, job_id=job.id,
     )
     text, stored, answered = _reply(ans, had_attachments=_has_attachments(payload))
 
@@ -235,19 +235,7 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
         message.error_code = None
     conversation.updated_at = ctx.clock.now()
 
-    # 쿼터는 **모델이 실제로 답한 경우만** 센다. 검색은 서버 CPU 이지 구독 호출이 아니고
-    # (S10), 우리 쪽 실패를 사용자에게 청구하지 않는다.
-    if answered:
-        from app.quotas.service import KIND_CHAT_MESSAGE, record_call
-
-        owner = db.get(User, conversation.user_id)
-        record_call(
-            db, user_id=conversation.user_id,
-            # 조직은 사람에게서 읽는다 — `conversations` 에는 org 컬럼이 없다(0024 가 제외).
-            # 멀티테넌트에서 사용량 집계가 조직 없이 쌓이면 나중에 되살릴 수가 없다.
-            org_id=getattr(owner, "org_id", None),
-            kind=KIND_CHAT_MESSAGE, now=ctx.clock.now(),
-        )
+    # 한도는 런타임의 호출 기록이 센다(D-517) - 모델이 실제로 답한 호출만 한 칸이 된다. 여기서 따로 적지 않는다.
 
     strip_attachment_bytes(job, payload)  # terminal path — no bytes at rest
     db.flush()

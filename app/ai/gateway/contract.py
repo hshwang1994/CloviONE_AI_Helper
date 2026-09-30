@@ -200,6 +200,9 @@ class GenerateResult:
     input_tokens: int | None = None
     output_tokens: int | None = None
     latency_ms: int | None = None
+    #: 입력(검색된 문맥)을 한도에 맞춰 잘랐는가, 출력을 액션의 길이로 잘랐는가. 사용 기록이 따로 남긴다(D-517).
+    input_truncated: bool = False
+    output_truncated: bool = False
 
     @property
     def ok(self) -> bool:

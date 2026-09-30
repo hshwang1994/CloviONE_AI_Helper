@@ -142,3 +142,15 @@ def offline_runtime(adapter, *, enabled=True, model=DEFAULT_MODEL, lock_factory=
         adapter_factory=lambda provider, auth_method: adapter,
         lock_factory=lock_factory or (lambda config: FreeLock()), track_state=False,
     )
+
+
+def spend(db, user_id, count=1, *, when, action="chat.answer", status="ok"):
+    """한도의 원장(AI 호출 기록, D-517)에 이 사람의 호출을 `count` 번 적는다 - 시험이 「이미 쓴 상태」를 만든다."""
+    import uuid
+
+    from app.ai.models import AiUsageRecord
+
+    for _ in range(count):
+        db.add(AiUsageRecord(id=str(uuid.uuid4()), created_at=when, actor_kind="user", user_id=user_id,
+                             action_key=action, status=status))
+    db.flush()

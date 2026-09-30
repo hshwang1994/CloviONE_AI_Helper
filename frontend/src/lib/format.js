@@ -240,7 +240,7 @@ export const OBJECT_KO = {
   // 사전)엔 한 번도 안 들어와 있었다 — 감사 로그 '대상' 칸에 영어 원문이 샜다. ai_quota/
   // approval_delegation/announcement/offboarding(액션 접두사)/offboarding_run(object_type)은
   // MEGA CYCLE G에서 크로스링크와 함께 발견(같은 결함 부류, 표시만 다르다).
-  organization: "조직", feature_flag: "기능 플래그", ai_quota: "AI 사용 상한",
+  organization: "조직", feature_flag: "기능 플래그", ai_quota: "AI 사용 한도",
   approval_delegation: "승인 위임", announcement: "공지", offboarding: "오프보딩",
   offboarding_run: "오프보딩",
   // AI 설정의 감사 동작(D-515 · D-516). 동작 이름의 앞부분이 대상이다(`ai.oauth.start` 는 「ChatGPT 계정 연결, 시작」).
@@ -333,7 +333,7 @@ export const TYPE_KO = {
   // 퇴사자의 티켓·방을 넘겨받은 후임에게 **요약 한 건**(app/offboarding/service.py).
   offboarding_handover: "업무 인수",
   // 이번 기간의 AI 호출 상한을 다 쓴 순간 본인에게(app/quotas/service.py).
-  ai_quota_exhausted: "AI 사용 상한 도달",
+  ai_quota_exhausted: "AI 사용 한도 도달",
   // 예약 백업 실패를 관리자에게(app/backups/service.py). 메일과 별개로 앱 안에도 남긴다.
   backup_failed: "백업 실패",
   // AI 제공자 연결이 막히거나 오래 불안정하거나 복구됐을 때 관리자에게(app/ai/credentials/state.py, D-515).

@@ -72,7 +72,12 @@ def handle_project_weekly_summary(db: Session, job: Job, ctx: WorkerContext) -> 
     # "database is locked"로 거부될 수 있다(app/core/db.py의 "begin" 이벤트 주석,
     # app/jobs/handlers/chat_message.py의 실측 사고와 같은 근거).
     db.commit()
-    result = runtime.generate(db, action_key=WEEKLY_SUMMARY, task=TASK_WEEKLY, data=body)
+    # 요청한 사람의 이름으로 부른다 - 그 사람의 한도에 세고 사용 기록에 남는다(D-517).
+    from app.users.models import User
+
+    requester = db.get(User, job.user_id) if job.user_id else None
+    result = runtime.generate(db, action_key=WEEKLY_SUMMARY, task=TASK_WEEKLY, data=body, actor=requester,
+                              job_id=job.id)
     if not result.ok:
         logger.warning(
             "프로젝트 %s %s주 AI 요약 실패: %s", project_id, week_of, result.status

@@ -307,6 +307,12 @@ def purge_stale_rate_limit_buckets(db: Session, *, now: datetime, max_age_hours:
     return int(result.rowcount or 0)
 
 
+def _purge_ai_usage(db: Session, *, now: datetime) -> int:
+    from app.ai.usage import purge_old
+
+    return purge_old(db, now=now)
+
+
 def run_retention(db: Session, *, now: datetime, settings_cache, outbound=None, settings=None) -> dict:
     values = settings_cache.current()
     conv_days = int(values.get("conversation_retention_days", 365))
@@ -332,6 +338,8 @@ def run_retention(db: Session, *, now: datetime, settings_cache, outbound=None, 
         "reset_tokens": purge_used_reset_tokens(db, now=now),
         # 다 찬 rate limit 버킷(D-192). 표로 옮긴 대가가 무한 성장이 되지 않게 한다.
         "rate_limit_buckets": purge_stale_rate_limit_buckets(db, now=now),
+        # AI 호출 기록(D-517). 180일이 지난 것을 지운다 - 한도는 한 달보다 길게 보지 않고, 통계는 반년이면 충분하다.
+        "ai_usage_records": _purge_ai_usage(db, now=now),
     }
     # 도달할 수 없는 업로드 파일 (C7).
     #

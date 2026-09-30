@@ -38,6 +38,7 @@ from app.core.deps import (
 )
 from app.core.errors import NotFoundError, RateLimitedError
 from app.core.feature_flags import db_flag
+from app.ai.actions import CHAT_ANSWER
 from app.quotas import service as ai_quotas
 from app.settings.gate import block_if_maintenance
 from app.users.models import User
@@ -213,7 +214,8 @@ def post_message(
     message = job = None
     for _attempt in range(_CHAT_WRITE_RETRIES):
         try:
-            with ai_quotas.reserve(db, user_id=user.id, now=request.app.state.clock.now()):
+            with ai_quotas.reserve(db, user=user, action_key=CHAT_ANSWER, now=request.app.state.clock.now(),
+                                   session_factory=request.app.state.session_factory):
                 conversation = get_owned_conversation(db, user, conversation_id)
                 message, job = post_user_message(
                     db,
@@ -267,7 +269,8 @@ def retry(
     # 아무도 막지 않는 값이었다. 레이트리미터(폭주 차단)와는 다른 일이다: 저쪽은 초 단위
     # 버스트, 이쪽은 하루·한 달 총량이다.
     # 전송과 **같은 문지기**를 지난다 (Z15) — 한쪽만 묶으면 '다시 시도' 로 우회한다.
-    with ai_quotas.reserve(db, user_id=user.id, now=request.app.state.clock.now()):
+    with ai_quotas.reserve(db, user=user, action_key=CHAT_ANSWER, now=request.app.state.clock.now(),
+                                   session_factory=request.app.state.session_factory):
         message, job = retry_message(
             db,
             user,
@@ -299,7 +302,8 @@ def regenerate(
                 chat_limit_key
             ),
         )
-    with ai_quotas.reserve(db, user_id=user.id, now=request.app.state.clock.now()):
+    with ai_quotas.reserve(db, user=user, action_key=CHAT_ANSWER, now=request.app.state.clock.now(),
+                                   session_factory=request.app.state.session_factory):
         message, job = regenerate_message(
             db,
             user,

@@ -814,6 +814,262 @@
    "status_note": "S22 전량 실행에서 아직 실패하는 검사가 있다: brand_presence, dead_blank_region. 승격 검사는 아니라 Release 를 막지 않지만, 열린 Finding 을 든 화면을 「완료」라고 적지 않는다."
   },
   {
+   "id": "admin_ai-usage__ai-usage-stats",
+   "kind": "tab",
+   "route": "/ai-usage?tab=ai-usage-stats",
+   "console": "admin",
+   "host_surface": "admin_ai-usage",
+   "component": "frontend/src/screens/DataScreen.jsx",
+   "render_engine": "DataScreen",
+   "registry_key": "ai-usage-stats",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "report_board",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /ai-usage)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [
+    "R-3",
+    "R-10",
+    "R-18",
+    "R-31",
+    "R-41",
+    "R-42",
+    "R-44",
+    "R-46",
+    "R-51",
+    "R-66",
+    "R-74",
+    "R-80",
+    "R-85",
+    "R-91",
+    "R-93"
+   ],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W12",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {
+    "items": [],
+    "build_index_sha256": [],
+    "qa_run": {}
+   },
+   "in_harness": true,
+   "archetype_current": "list_table",
+   "component_loc": null,
+   "purpose": "AI 호출을 기능, 사람, 부서, 제공자, 모델, 결과, 날짜로 묶어 얼마나 쓰고 얼마나 성공하는지 본다.",
+   "source_evidence": [
+    "frontend/src/app/AdminRoutes.jsx",
+    "frontend/src/screens/registry/authoring.js"
+   ],
+   "derivation_notes": "D-517 이 더한 AI 호출 기록 화면이다. 레지스트리 키 `ai-usage-stats`(authoring.js)를 DataScreen 이 그린다.",
+   "harness_id": "admin_ai-usage",
+   "requirements_why": "사용 한도의 원장과 같은 기록을 보이는 화면이다. 숫자가 한도 목록의 「현재 사용」과 같은 원천인지(R-93)와 기록이 없는 설치의 빈 화면 안내(R-18)가 결정적이다.",
+   "status_note": "A4(D-517)가 만든 화면이다. 아직 누구도 감사하지 않았다 - 증거, 캡처, Flow 가 없고 Acceptance 회차가 이 행을 본다."
+  },
+  {
+   "id": "admin_ai-usage__ai-usage-records",
+   "kind": "tab",
+   "route": "/ai-usage?tab=ai-usage-records",
+   "console": "admin",
+   "host_surface": "admin_ai-usage",
+   "component": "frontend/src/screens/DataScreen.jsx",
+   "render_engine": "DataScreen",
+   "registry_key": "ai-usage-records",
+   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "alias_of": null,
+   "archetype": "report_board",
+   "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /ai-usage)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [
+    "R-3",
+    "R-10",
+    "R-18",
+    "R-31",
+    "R-41",
+    "R-42",
+    "R-44",
+    "R-46",
+    "R-51",
+    "R-66",
+    "R-74",
+    "R-80",
+    "R-85",
+    "R-91",
+    "R-93"
+   ],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W12",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {
+    "items": [],
+    "build_index_sha256": [],
+    "qa_run": {}
+   },
+   "in_harness": true,
+   "archetype_current": "list_table",
+   "component_loc": null,
+   "purpose": "AI 호출 한 번이 한 줄인 기록을 기간과 조건으로 좁혀 누가 언제 무엇으로 썼는지 확인한다.",
+   "source_evidence": [
+    "frontend/src/app/AdminRoutes.jsx",
+    "frontend/src/screens/registry/authoring.js"
+   ],
+   "derivation_notes": "D-517 이 더한 AI 호출 기록 화면이다. 레지스트리 키 `ai-usage-records`(authoring.js)를 DataScreen 이 그린다.",
+   "harness_id": "admin_ai-usage-records-tab",
+   "requirements_why": "사용 한도의 원장과 같은 기록을 보이는 화면이다. 숫자가 한도 목록의 「현재 사용」과 같은 원천인지(R-93)와 기록이 없는 설치의 빈 화면 안내(R-18)가 결정적이다.",
+   "status_note": "A4(D-517)가 만든 화면이다. 아직 누구도 감사하지 않았다 - 증거, 캡처, Flow 가 없고 Acceptance 회차가 이 행을 본다."
+  },
+  {
    "id": "admin_ai-usage__policy-usage",
    "kind": "tab",
    "route": "/ai-usage?tab=policy-usage",
@@ -1153,7 +1409,7 @@
     "frontend/src/screens/registry/authoring.js:405"
    ],
    "derivation_notes": "옛 주소 Route admin_policy-usage 와 같은 내용을 그리는 탭 Surface 다. headerAction '프롬프트 사용 통계'(authoring.js:409)가 형제 탭을 가리켜 중복 이동이다.",
-   "harness_id": "admin_ai-usage",
+   "harness_id": "admin_ai-usage-policy",
    "requirements_why": "지시서가 '`정책 사용 통계`가 독립 페이지를 유지해야 하는가'를 이름으로 지목한 화면이라 R-41·R-51·R-46 이 1순위다. 사용처 0건이 '정리 후보'라는 의미를 갖는 Empty 라 R-18, 사용 횟수 우정렬과 이름 컬럼 폭이 R-74·R-10, unused 1축 clientFilter 의 정당성과 결과 정확성이 R-80·R-85·R-91, 통계 숫자가 /policies 실제 목록·발행 상태와 맞아야 하는 것이 R-93 이다. / TabShell 탭 본문 예외. report_board 탭에 List용 PageHeader·Filter Surface를 강제하지 않는다는 판단이 이 화면에서 검수된다.",
    "advisory": {
     "surface_repetition": {
@@ -11409,6 +11665,260 @@
     }
    },
    "status_note": "S22 전량 실행에서 아직 실패하는 검사가 있다: brand_presence, dead_blank_region. 승격 검사는 아니라 Release 를 막지 않지만, 열린 Finding 을 든 화면을 「완료」라고 적지 않는다."
+  },
+  {
+   "id": "admin_ai-usage-stats",
+   "kind": "route",
+   "route": "/ai-usage-stats",
+   "console": "admin",
+   "host_surface": null,
+   "component": "frontend/src/screens/DataScreen.jsx",
+   "render_engine": "DataScreen",
+   "registry_key": "ai-usage-stats",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "report_board",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [
+    "R-10",
+    "R-18",
+    "R-30",
+    "R-31",
+    "R-41",
+    "R-44",
+    "R-46",
+    "R-62",
+    "R-74",
+    "R-77",
+    "R-82",
+    "R-85",
+    "R-86",
+    "R-93"
+   ],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W12",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {
+    "items": [],
+    "build_index_sha256": [],
+    "qa_run": {}
+   },
+   "in_harness": true,
+   "archetype_current": "list_table",
+   "component_loc": null,
+   "purpose": "AI 호출을 기능, 사람, 부서, 제공자, 모델, 결과, 날짜로 묶어 얼마나 쓰고 얼마나 성공하는지 본다.",
+   "source_evidence": [
+    "frontend/src/app/AdminRoutes.jsx",
+    "frontend/src/screens/registry/authoring.js"
+   ],
+   "derivation_notes": "D-517 이 더한 AI 호출 기록 화면이다. 레지스트리 키 `ai-usage-stats`(authoring.js)를 DataScreen 이 그린다.",
+   "harness_id": "admin_ai-usage-stats",
+   "requirements_why": "사용 한도의 원장과 같은 기록을 보이는 화면이다. 숫자가 한도 목록의 「현재 사용」과 같은 원천인지(R-93)와 기록이 없는 설치의 빈 화면 안내(R-18)가 결정적이다.",
+   "status_note": "A4(D-517)가 만든 화면이다. 아직 누구도 감사하지 않았다 - 증거, 캡처, Flow 가 없고 Acceptance 회차가 이 행을 본다."
+  },
+  {
+   "id": "admin_ai-usage-records",
+   "kind": "route",
+   "route": "/ai-usage-records",
+   "console": "admin",
+   "host_surface": null,
+   "component": "frontend/src/screens/DataScreen.jsx",
+   "render_engine": "DataScreen",
+   "registry_key": "ai-usage-records",
+   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "alias_of": null,
+   "archetype": "report_board",
+   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [
+    "R-10",
+    "R-18",
+    "R-30",
+    "R-31",
+    "R-41",
+    "R-44",
+    "R-46",
+    "R-62",
+    "R-74",
+    "R-77",
+    "R-82",
+    "R-85",
+    "R-86",
+    "R-93"
+   ],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W12",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {
+    "items": [],
+    "build_index_sha256": [],
+    "qa_run": {}
+   },
+   "in_harness": true,
+   "archetype_current": "list_table",
+   "component_loc": null,
+   "purpose": "AI 호출 한 번이 한 줄인 기록을 기간과 조건으로 좁혀 누가 언제 무엇으로 썼는지 확인한다.",
+   "source_evidence": [
+    "frontend/src/app/AdminRoutes.jsx",
+    "frontend/src/screens/registry/authoring.js"
+   ],
+   "derivation_notes": "D-517 이 더한 AI 호출 기록 화면이다. 레지스트리 키 `ai-usage-records`(authoring.js)를 DataScreen 이 그린다.",
+   "harness_id": "admin_ai-usage-records",
+   "requirements_why": "사용 한도의 원장과 같은 기록을 보이는 화면이다. 숫자가 한도 목록의 「현재 사용」과 같은 원천인지(R-93)와 기록이 없는 설치의 빈 화면 안내(R-18)가 결정적이다.",
+   "status_note": "A4(D-517)가 만든 화면이다. 아직 누구도 감사하지 않았다 - 증거, 캡처, Flow 가 없고 Acceptance 회차가 이 행을 본다."
   },
   {
    "id": "admin_prompt-usage",
