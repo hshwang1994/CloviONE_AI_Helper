@@ -15,12 +15,13 @@ the config_versions rollback endpoint.
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import time
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
@@ -31,15 +32,22 @@ from app.settings.registry import REGISTRY, SettingSpec, get_spec, validate_valu
 
 OBJECT_TYPE = "app_setting"
 
+logger = logging.getLogger("app.settings")
 
-# 캐시가 최대 이만큼 낡을 수 있다(초). **워커가 여럿일 때만 의미가 있는 값이다** —
-# 설정을 바꾼 프로세스는 그 자리에서 캐시를 새로 채우지만, 다른 워커 프로세스는 자기
-# 메모리에 옛 값을 들고 있다. 그 프로세스들이 이 간격으로 다시 읽는다(D-192).
-#
-# 30초인 이유: 설정 변경은 드물고 즉시성이 필요한 종류가 아니다(세션 정책·보존 기간·
-# 동기화 간격). 더 짧게 잡으면 요청마다 DB 를 한 번 더 보게 되는 구간이 늘고, 더 길게
-# 잡으면 관리자가 값을 바꾼 뒤 "안 먹는다" 고 느끼는 창이 길어진다.
+
+# 판 번호를 읽지 못할 때만 쓰는 예전 나이 규칙(초, D-192). 평소에는 아래 판 번호가 다른 프로세스의 저장을 바로
+# 따라잡는다(D-532).
 DEFAULT_CACHE_TTL_SECONDS = 30.0
+
+# 같은 프로세스 안에서 판 번호를 이보다 자주 묻지 않는다(초). 요청 길목과 워커가 부르므로 바쁜 웹 프로세스도
+# 초당 질의 하나를 넘지 않는다.
+STAMP_CHECK_INTERVAL_SECONDS = 1.0
+
+# 설정 표 전체의 지문. 시각(`updated_at`)이 아니라 **내용**으로 만든다 - 시계를 멈춘 시험이나 같은 마이크로초에 들어온
+# 두 저장도 가른다. 행은 수십 개라 초당 한 번 훑어도 싸다. 이 제품은 PostgreSQL 전용이다.
+_STAMP_SQL = text(
+    "SELECT md5(coalesce(string_agg(key || '=' || value_json::text, '|' ORDER BY key), '')) FROM app_settings"
+)
 
 
 class SettingsCache:
@@ -48,35 +56,61 @@ class SettingsCache:
     시작할 때 한 번 읽고 쓰기가 있을 때마다 새로 채운다. 그래서 소비자는 DB 세션 없이
     (``current()``) 유효 설정을 읽을 수 있다.
 
-    **워커가 여럿이면 그것만으로는 부족하다**(D-192). 값을 바꾼 것은 한 프로세스인데
-    나머지는 자기 메모리의 옛 값을 계속 들고 있고, 그 사실이 아무 데도 안 드러난다 —
-    관리자는 설정을 바꿨는데 요청이 어느 워커로 가느냐에 따라 새 값과 옛 값이 번갈아
-    적용되는 것을 본다. 그래서 스냅숏에 나이를 달아 두고 ``refresh_if_stale()`` 이
-    ``DEFAULT_CACHE_TTL_SECONDS`` 마다 다시 읽는다.
+    **프로세스가 여럿이면 그것만으로는 부족하다**(D-192 · D-532). 값을 바꾼 것은 한 프로세스(웹 워커 넷 중 하나)인데
+    나머지 웹 워커 · 배치와 대화형 워커 · 스케줄러는 자기 메모리의 옛 값을 계속 들고 있다. 예전에는 30초 나이 규칙만
+    있어서 「사용하지 않음」을 누른 뒤 다시 읽으면 「안 됨」이 보이거나, 메일 상태 응답 한 번 안에서 옛 값과 새 값이
+    섞였다. 이제 ``refresh_if_stale()`` 이 설정 표의 **판 번호**(내용의 지문)를 프로세스당 초당 한 번 확인하고, 다르면
+    그 자리에서 다시 읽는다 - 다른 프로세스의 저장을 다음 요청에서 따라잡는다. 판 번호를 못 읽으면 예전 나이 규칙으로
+    떨어진다.
 
-    나이를 재는 데 `time.monotonic()` 을 쓴다 — 주입된 `Clock` 이 아니다. 이건 도메인
-    시각이 아니라 "이 메모리가 얼마나 오래됐나" 이고, 시계를 멈춰 둔 시험에서 캐시가
-    영원히 안 늙거나 매번 늙는 쪽으로 기울면 안 된다.
+    시각을 재는 데 `time.monotonic()` 을 쓴다 — 주입된 `Clock` 이 아니다. 이건 도메인 시각이 아니라 "이 메모리를 언제
+    확인했나" 이고, 시계를 멈춰 둔 시험에서 확인이 영원히 안 일어나거나 매번 일어나면 안 된다.
     """
 
-    def __init__(self, settings=None, *, ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS) -> None:
+    def __init__(
+        self, settings=None, *, ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS,
+        stamp_interval_seconds: float = STAMP_CHECK_INTERVAL_SECONDS,
+    ) -> None:
         self._lock = threading.Lock()
         self._values: dict[str, Any] | None = None
         self._loaded_at: float | None = None
         self._ttl = float(ttl_seconds)
+        self._stamp: str | None = None
+        self._checked_at: float | None = None
+        self._stamp_interval = float(stamp_interval_seconds)
         # 살아 있는 `Settings` 객체(선택). 예전에는 load 마다 AI 설정을 그 위에 얹었다. AI 런타임이 캐시를 직접
         # 읽게 되면서(D-515) 얹을 값이 없다 - 부르는 쪽의 모양을 바꾸지 않으려고 받기만 한다.
         self._settings = settings
 
+    @staticmethod
+    def stamp(db: Session) -> str | None:
+        """설정 표의 판 번호(내용의 지문). 질의 하나다. 못 읽으면 None 이다.
+
+        세이브포인트 안에서 묻는다 - 저장 직후(`apply_setting` 이 같은 트랜잭션에서 `load` 를 부른다) 이 질의가 실패해도
+        그 저장까지 되감지 않는다.
+        """
+        try:
+            with db.begin_nested():
+                return str(db.execute(_STAMP_SQL).scalar_one())
+        except Exception:  # noqa: BLE001 - 판 번호가 없으면 부르는 쪽이 나이 규칙으로 떨어진다
+            logger.warning("설정 판 번호를 읽지 못했다", exc_info=True)
+            return None
+
     def load(self, db: Session) -> dict[str, Any]:
+        # 판 번호를 **먼저** 읽는다. 둘 사이에 다른 프로세스가 저장하면 값이 판 번호보다 새것이 되고, 다음 확인이
+        # 한 번 더 읽을 뿐이다. 순서가 반대면 새 판 번호에 옛 값을 묶어 그 저장을 영영 못 따라잡는다.
+        stamp = self.stamp(db)
         values = {key: spec.default for key, spec in REGISTRY.items()}
         rows = db.execute(select(AppSetting)).scalars().all()
         for row in rows:
             if row.key in REGISTRY:
                 values[row.key] = json.loads(row.value_json)
+        now = time.monotonic()
         with self._lock:
             self._values = values
-            self._loaded_at = time.monotonic()
+            self._loaded_at = now
+            self._stamp = stamp
+            self._checked_at = now
         return values
 
     def get_all(self, db: Session) -> dict[str, Any]:
@@ -120,14 +154,30 @@ class SettingsCache:
             return (time.monotonic() - self._loaded_at) >= self._ttl
 
     def refresh_if_stale(self, db: Session) -> None:
-        """TTL 이 지났으면 DB 에서 다시 읽는다. 안 지났으면 아무 일도 안 한다.
+        """다른 프로세스가 설정을 바꿨으면 다시 읽는다(D-532).
 
-        요청 길목(`app/core/deps.py::get_db`)이 부른다 — 그래야 웹 프로세스가 여럿이어도
-        각자 이 간격으로 따라잡는다. 대부분의 호출은 타임스탬프 비교 하나로 끝난다.
+        요청 길목(`app/core/deps.py::get_db`)과 워커(잡 직전 · 반복마다)가 부른다. 같은 프로세스 안에서는
+        ``STAMP_CHECK_INTERVAL_SECONDS`` 에 한 번만 판 번호를 묻고, 대부분의 호출은 시각 비교 하나로 끝난다.
+        판 번호를 못 읽으면 예전 나이 규칙(``DEFAULT_CACHE_TTL_SECONDS``)으로 떨어진다.
         """
-        if not self.is_stale():
+        now = time.monotonic()
+        with self._lock:
+            empty = self._values is None
+            if not empty and self._checked_at is not None and now - self._checked_at < self._stamp_interval:
+                return
+            self._checked_at = now
+            known = self._stamp
+        if empty:
+            self.load(db)
             return
-        self.load(db)
+        current = self.stamp(db)
+        if current is None:
+            # 판 번호를 못 읽으면 예전 나이 규칙으로 판정한다.
+            if self.is_stale():
+                self.load(db)
+            return
+        if current != known:
+            self.load(db)
 
 
 def effective_settings(db: Session, cache: SettingsCache) -> dict[str, Any]:

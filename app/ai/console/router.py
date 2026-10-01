@@ -67,9 +67,9 @@ def _actor_and_session(request: Request) -> tuple[str, str | None]:
 def _fresh_settings(request: Request, db: Session) -> None:
     """설정 캐시를 DB 에서 다시 읽는다. 이 화면의 조회는 드물고, 방금 저장한 값을 봐야 하는 자리다.
 
-    웹은 프로세스가 여럿이고 설정 캐시는 프로세스마다 30초(TTL)마다 새로 읽는다. 저장을 받은 프로세스만 새 값을 알고, 다른
-    프로세스는 30초 동안 옛 값을 보인다. 그래서 저장하고 연결 확인을 누르면 확인 결과는 맞는데(「API 키가 거부되었습니다」)
-    같은 응답의 연결 상태 칸은 「미설정」이었다(Release 리허설 실측). 한 번의 SELECT 가 그 어긋남보다 싸다.
+    웹은 프로세스가 여럿이다. 예전에는 설정 캐시가 프로세스마다 30초(TTL)마다 새로 읽어서, 저장하고 연결 확인을 누르면 확인
+    결과는 맞는데(「API 키가 거부되었습니다」) 같은 응답의 연결 상태 칸은 「미설정」이었다(Release 리허설 실측). 이제 캐시가 판
+    번호로 다른 프로세스의 저장을 다음 요청에서 따라잡는다(D-532). 이 자리의 직접 읽기는 남겨도 무해한 보험이다.
     """
     cache = request.app.state.settings_cache
     if cache is not None:

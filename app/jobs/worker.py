@@ -104,6 +104,15 @@ class Worker:
             # 아웃바운드 호출 바로 앞에서 같은 이유로 커밋한다(chat_message.py 등) — 여기는
             # 그 규율이 없는 핸들러를 위한 보험이다. 아직 아무 것도 안 썼으니(위에서 읽기만
             # 했다) 커밋해도 잃을 것이 없다.
+            #
+            # 잡을 돌리기 전에 다른 프로세스의 설정 저장을 따라잡는다(D-532) - 관리자가 웹에서 메일 · AI 설정을 저장하고
+            # 곧바로 「연결 확인」을 누르면 그 잡이 옛 값을 읽지 않게. 판 번호 확인은 초당 한 번뿐이다.
+            cache = (self._ctx.extras or {}).get("settings_cache")
+            if cache is not None:
+                try:
+                    cache.refresh_if_stale(db)
+                except Exception:  # noqa: BLE001 - 낡은 설정으로 도는 것이 잡을 못 돌리는 것보다 낫다
+                    logger.warning("설정 캐시를 따라잡지 못했다. 이 잡은 가진 값으로 돈다", exc_info=True)
             db.commit()
             try:
                 handler(db, job, self._ctx)

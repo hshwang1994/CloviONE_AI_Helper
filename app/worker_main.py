@@ -542,17 +542,13 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
     # 최대 600초 동안 옛 DB 를 읽어 그 결과를 같은 미러에 계속 써 넣었다(두 소스가 섞인
     # 미러). 60초는 가장 짧은 소비 주기(티켓 동기화 180초)보다 확실히 촘촘해, 그 다음 동기화
     # 틱은 항상 최근 값을 본다.
-    _last_settings_reload: list = [None]
-    SETTINGS_RELOAD_INTERVAL_SECONDS = 60.0
-
+    #
+    # D-532: 60초마다 통째로 다시 읽던 것을 판 번호 확인으로 바꿨다. 반복마다 부르지만 캐시가 스스로 초당 한 번만 묻고,
+    # 바뀌었을 때만 다시 읽는다 - 관리자가 저장한 값을 다음 반복이 바로 본다.
     def settings_cache_tick(now):
-        if (_last_settings_reload[0] is not None
-                and (now - _last_settings_reload[0]).total_seconds() < SETTINGS_RELOAD_INTERVAL_SECONDS):
-            return
-        _last_settings_reload[0] = now
         try:
             with session_factory() as db:
-                settings_cache.load(db)
+                settings_cache.refresh_if_stale(db)
         except Exception:
             logger.exception("settings cache reload tick failed")
 
