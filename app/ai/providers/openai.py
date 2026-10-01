@@ -341,6 +341,58 @@ class OpenAIAdapter:
         except Exception as exc:  # noqa: BLE001
             return _exception_result(exc, chatgpt=True, proxied=self._proxied())
 
+    # ── 대화(도구) ───────────────────────────────────────────────────────────
+
+    def converse(self, *, system: str, turns, tools, tool_choice: str, model: str, max_output_tokens: int,
+                 timeout: float) -> base.ConverseResult:
+        """도구를 쓰는 한 번의 호출(D-535). 계정 연결은 호출마다 401 을 한 번 갱신해 다시 보낸다(`generate()` 와 같다)."""
+        if self._outbound is None:
+            return base.converse_failure(base.ERROR_CONFIG, "no_outbound")
+        blocked = self._ready()
+        if blocked is not None:
+            return base.converse_from_failure(blocked)
+        body = converse_body(system=system, turns=turns, tools=tools, tool_choice=tool_choice, model=model,
+                             max_output_tokens=max_output_tokens, chatgpt=self._chatgpt)
+        deadline = self._clock() + float(timeout)
+        if not self._chatgpt:
+            return self._converse_plain(body, timeout)
+        result = self._converse_stream(body, timeout, deadline)
+        if result.http_status == 401 and self._tokens is not None:
+            refreshed = self._tokens.force_refresh()
+            if not refreshed.ok:
+                return base.converse_failure(refreshed.kind, refreshed.code)
+            result = self._converse_stream(body, timeout, deadline)
+        return result
+
+    def _converse_plain(self, body: dict, timeout: float) -> base.ConverseResult:
+        try:
+            response = self._outbound.request(
+                "POST", RESPONSES_URL, allowlist=ALLOWLIST, json=body, timeout=float(timeout), **self._auth(),
+            )
+        except Exception as exc:  # noqa: BLE001 - 실패는 값으로 돌려준다
+            return base.converse_from_failure(_exception_result(exc, chatgpt=False, proxied=self._proxied()))
+        if response.status_code >= 400:
+            return base.converse_from_failure(classify_status(response, chatgpt=False))
+        try:
+            data = response.json()
+        except ValueError:
+            return base.converse_failure(base.ERROR_TRANSIENT, "bad_json")
+        return read_output(data)
+
+    def _converse_stream(self, body: dict, timeout: float, deadline: float) -> base.ConverseResult:
+        remaining = max(1.0, deadline - self._clock())
+        try:
+            with self._outbound.stream(
+                "POST", RESPONSES_URL, allowlist=ALLOWLIST, json=body, headers={"Accept": "text/event-stream"},
+                timeout=min(float(timeout), remaining), **self._auth(),
+            ) as response:
+                if response.status_code >= 400:
+                    response.read()
+                    return base.converse_from_failure(classify_status(response, chatgpt=True))
+                return assemble_turn(response.iter_lines(), deadline=deadline, clock=self._clock)
+        except Exception as exc:  # noqa: BLE001
+            return base.converse_from_failure(_exception_result(exc, chatgpt=True, proxied=self._proxied()))
+
     # ── 모델 목록 ─────────────────────────────────────────────────────────────
 
     def list_models(self, *, timeout: float) -> base.ModelList:
@@ -364,3 +416,149 @@ class OpenAIAdapter:
         except ValueError:
             return base.ModelList(ok=False, error_kind=base.ERROR_TRANSIENT, error_code="bad_json")
         return base.ModelList(ok=True, models=parse_models(data))
+
+
+# ── 대화 — 도구를 쓰는 차례 (D-535) ───────────────────────────────────────────
+#
+# Responses API 의 함수 도구다: 요청 `tools[{type:"function", name, description, parameters, strict:true}]` · `tool_choice` ·
+# `parallel_tool_calls`, 응답의 `function_call{call_id, name, arguments}` 항목, 다음 요청의 `function_call_output{call_id, output}`.
+# `store=false` 라 제공자가 지난 응답을 기억하지 않는다 — 직전 응답의 output 항목을 **그대로** 다음 input 에 되싣는다. 추론 모델의
+# 추론 항목은 암호화된 내용(`include: ["reasoning.encrypted_content"]`)과 함께 되돌려 보내야 다음 차례가 이어진다(공식 안내).
+#
+# 계정 연결(ChatGPT 요금제)은 미리보기 계약대로 `stream=true` 이고 `max_output_tokens` · `include` 를 보내지 않는다 — 암호화된 추론을
+# 받지 못하므로 그 갈래에서는 추론 항목을 되싣지 않는다. 요금제가 함수 도구를 거절하면 400
+# `subscription_sharing_unsupported_capability`(`unsupported_capability`)이고, 런타임이 그 사실을 적고 도구 없는 갈래로 접는다.
+
+
+def tool_choice_value(choice: str):
+    if isinstance(choice, str) and choice.startswith(base.TOOL_CHOICE_PREFIX):
+        return {"type": "function", "name": choice[len(base.TOOL_CHOICE_PREFIX):]}
+    if choice in (base.TOOL_CHOICE_NONE, base.TOOL_CHOICE_REQUIRED):
+        return choice
+    return base.TOOL_CHOICE_AUTO
+
+
+def converse_input(turns, *, chatgpt: bool) -> list[dict]:
+    """차례 → `input` 항목. assistant 차례는 받은 output 항목을 그대로 되싣는다."""
+    items: list[dict] = []
+    for turn in turns:
+        if isinstance(turn, base.UserTurn):
+            items.append({"role": "user", "content": [{"type": "input_text", "text": turn.text}]})
+        elif isinstance(turn, base.AssistantTurn):
+            if turn.replay:
+                for item in turn.replay:
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("type") == "reasoning" and (chatgpt or not item.get("encrypted_content")):
+                        # 암호화된 내용이 없는 추론 항목은 store=false 에서 되실을 수 없다(제공자가 그 항목을 기억하지 않는다).
+                        continue
+                    items.append(dict(item))
+            else:
+                if turn.text:
+                    items.append({"role": "assistant", "content": [{"type": "output_text", "text": turn.text}]})
+                for call in turn.tool_calls:
+                    items.append({
+                        "type": "function_call", "call_id": call.id, "name": call.name,
+                        "arguments": call.raw_arguments or json.dumps(call.arguments or {}, ensure_ascii=False),
+                    })
+        elif isinstance(turn, base.ToolResultsTurn):
+            items.extend({"type": "function_call_output", "call_id": r.call_id, "output": r.content} for r in turn.results)
+    return items
+
+
+def converse_body(*, system: str, turns, tools, tool_choice: str, model: str, max_output_tokens: int,
+                  chatgpt: bool) -> dict:
+    body = {
+        "model": model,
+        "instructions": system,
+        "input": converse_input(turns, chatgpt=chatgpt),
+        "store": False,
+    }
+    if tools:
+        body["tools"] = [
+            {"type": "function", "name": t.name, "description": t.description, "parameters": t.parameters, "strict": True}
+            for t in tools
+        ]
+        body["tool_choice"] = tool_choice_value(tool_choice)
+        body["parallel_tool_calls"] = True
+    if chatgpt:
+        body["stream"] = True
+    else:
+        body["max_output_tokens"] = max(int(max_output_tokens), MIN_OUTPUT_TOKENS)
+        body["include"] = ["reasoning.encrypted_content"]
+    return body
+
+
+def read_output(data, *, streamed_text: str = "") -> base.ConverseResult:
+    """응답 본문(또는 완료 이벤트의 response) → 결과. 함수 호출 항목이 도구 호출이고, output 전체가 되실을 항목이다."""
+    if not isinstance(data, dict):
+        return base.converse_failure(base.ERROR_TRANSIENT, "bad_shape")
+    output = tuple(item for item in (data.get("output") or []) if isinstance(item, dict))
+    calls = tuple(
+        base.ToolCall(
+            id=str(item.get("call_id") or item.get("id") or ""), name=str(item.get("name") or ""),
+            arguments=base.parse_arguments(item.get("arguments")),
+            raw_arguments=item.get("arguments") if isinstance(item.get("arguments"), str) else "",
+        )
+        for item in output if item.get("type") == "function_call"
+    )
+    text = streamed_text or extract_output_text(data)
+    stop = base.STOP_MAX_TOKENS if data.get("status") == "incomplete" else None
+    input_tokens, output_tokens = usage_of(data)
+    return base.finish(text or None, calls, output, stop_reason=stop,
+                       input_tokens=input_tokens, output_tokens=output_tokens)
+
+
+def assemble_turn(lines, *, deadline: float | None = None, clock=time.monotonic) -> base.ConverseResult:
+    """SSE 줄들 → 대화 결과(계정 연결). `assemble_stream` 과 같은 표로 실패를 읽는다.
+
+    글은 `response.output_text.delta` 로, 항목은 `response.output_item.added` · `…done` 으로, 함수 인자는
+    `response.function_call_arguments.delta` · `…done` 으로 모은다. 완료 이벤트(`response.completed`)의 output 이 정본이고, 그것이
+    비어 있으면 모은 항목으로 대신한다. 완료 없이 끊기면 받은 것이 있어도 실패다.
+    """
+    text: list[str] = []
+    items: dict[int, dict] = {}
+    for raw in lines:
+        if deadline is not None and clock() > deadline:
+            return base.converse_failure(base.ERROR_TRANSIENT, "timeout")
+        line = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else str(raw)
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[len("data:"):].strip()
+        if not payload or payload == "[DONE]":
+            continue
+        try:
+            event = json.loads(payload)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        kind = event.get("type")
+        index = event.get("output_index")
+        if kind == "response.output_text.delta" and isinstance(event.get("delta"), str):
+            text.append(event["delta"])
+        elif kind in ("response.output_item.added", "response.output_item.done") and isinstance(event.get("item"), dict):
+            item = dict(event["item"])
+            if kind == "response.output_item.added" and isinstance(index, int) and index in items:
+                item = {**items[index], **item}
+            if isinstance(index, int):
+                items[index] = item
+        elif kind == "response.function_call_arguments.delta" and isinstance(index, int) and isinstance(event.get("delta"), str):
+            current = items.setdefault(index, {"type": "function_call"})
+            current["arguments"] = str(current.get("arguments") or "") + event["delta"]
+        elif kind == "response.function_call_arguments.done" and isinstance(index, int) and isinstance(event.get("arguments"), str):
+            items.setdefault(index, {"type": "function_call"})["arguments"] = event["arguments"]
+        elif kind == "response.completed":
+            completed = dict(event.get("response")) if isinstance(event.get("response"), dict) else {}
+            if not completed.get("output"):
+                completed["output"] = [items[k] for k in sorted(items)]
+            return read_output(completed, streamed_text="".join(text))
+        elif kind == "response.failed":
+            response = event.get("response") if isinstance(event.get("response"), dict) else {}
+            return base.converse_from_failure(_stream_failure(response.get("error")))
+        elif kind == "response.incomplete":
+            return base.converse_failure(base.ERROR_REQUEST, "incomplete")
+        elif kind == "error":
+            return base.converse_from_failure(_stream_failure(event.get("error") if isinstance(event.get("error"), dict) else event))
+    return base.converse_failure(base.ERROR_TRANSIENT, "stream_incomplete")

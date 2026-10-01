@@ -23,11 +23,12 @@
 | P4 표 열 배분(`columnPlan.planColumns` — 바닥 · 비중 · 상한 · 머리글 · 값 길이, 열 등급 essential · secondary · context, 필수 열만으로 모자라면 가로 굴림 + 붙박이 첫 열, 화면 폭 덮어쓰기 약 50자리를 min · max · 등급 · 값으로) | `361878f0` | D-529 |
 | P5 필터 칸 선택지 폭 · 검색 칸 계단 · 「기간」 칸 하나(`PeriodFilter`, KST) · 보기 기준(`role: "view"`) · 켬/끔 조건 자리 · 목록 상태 일곱 갈래(`resolveListState` · `ListStateView`) · 빈 표의 머리 아래 띠 · 상태 자리(`StateRegion`) · 기능 깃발 문 `feature_disabled` · 정합성 짧은 이름 · P4 값 길이 결함(id) 수정 | `b22fe969` | D-530 |
 | P6 채움 모드(`ui/Workspace.jsx` — 고른 화면이 등록하고 창 1200 · 600 이상이면 main 이 창 높이, 판마다 몸만 굴러감) · `DataTable fill` · 스크롤 창 문맥(`scrollRoot.js`) · 견본 `#/kit/workspace` · 실브라우저 `workspace_e2e.py`(34/34 + 반례) | `4096e98a` | D-531 |
-| P7 조직 관리 작업 공간(트리 모델 · 판 머리 동작 · 까닭 붙은 비활성 메뉴 · 「상세 정보」 창 · `/impact` 영향 창 · 회차 막음과 떼어 냄 · 「개」 단위와 조사 · 조직 인원은 쓸 수 있는 계정 · 부서 구성원 기본 하위 포함 · 표 채움은 채움 작업 공간에서만) · 큰 조직 시드 · `workspace_e2e --target org` · `hostile_data --modes tree` | 이 커밋 | D-533 |
+| P7 조직 관리 작업 공간(트리 모델 · 판 머리 동작 · 까닭 붙은 비활성 메뉴 · 「상세 정보」 창 · `/impact` 영향 창 · 회차 막음과 떼어 냄 · 「개」 단위와 조사 · 조직 인원은 쓸 수 있는 계정 · 부서 구성원 기본 하위 포함 · 표 채움은 채움 작업 공간에서만) · 큰 조직 시드 · `workspace_e2e --target org` · `hostile_data --modes tree` | `c5789e84` | D-533 |
+| P8 AI 검색 낱말(`search_text.keywords` — 질문에서 낱말을 뽑아 두 레인에 OR, 맞은 낱말 점수, 모델에는 질문 원문) · 제공자 대화 계약 `converse()`(Anthropic · OpenAI API 키 · ChatGPT SSE, 아직 런타임에 잇지 않음) · 측정 `retrieval_keywords.py`(문장 질문 Recall@5 = 기준의 1.004 배) | 이 커밋 | D-536 |
 
 - P3 ~ P6 묶음 끝 `verify.py --full`(HEAD `4096e98a`, 2026-10-01 21:49 ~ 23:11): 정적 전량 · 백엔드 단위 · 회귀 · 보안 · 통합 네 청크 통과, 프런트 전량 4,100 / 4,102. 남은 둘(`home.test.jsx` · `projects.test.jsx` 각 1건)은 메모리 여유 약 1GB 에서 20초 시간 초과였고 단독 재실행 86 / 86 통과다.
 - P7 실측: `workspace_e2e --target org`(큰 조직 시드) 46 / 46 · 견본 34 / 34 · 반례 시험 통과, 캡처 `dist/ui-qa/p7-org` · `dist/ui-qa/org-workspace-e2e`(1366 · 1920 을 눈으로 봤다).
-- 다음: P8 AI 검색 낱말 · 어댑터 `converse`(A1 의 검색 개선과 제공자 계약, 아직 제품에 배선하지 않는다, D-536).
+- 다음: P9 AI 도우미 런타임 · 도구 · 핸들러 · 채팅 화면(A1 · A2, 0044, AI 보안 시험 전부, D-535 · D-537 · D-538).
 
 ## 끝남 — 공통 스위치 개편 (2026-10-01)
 

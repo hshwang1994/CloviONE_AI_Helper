@@ -16205,3 +16205,32 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
   트리 키보드). `hostile_data --modes tree`(조직도 응답을 5단계 · 200줄 · 긴 이름 트리로).
 - **넘긴 것**: Acceptance 흐름(`s21_admin_org.py` · `pilot_b11.py`)의 옛 조작(사용 선택 칸 · 정보 구획 · 페이지 머리 동작 · 셋째 판)은 이번에 옮기지 않았다 —
   BACKLOG P-122(구현 완료 조건이 아니다, CLAUDE.md §7.0).
+
+### D-536. AI 검색은 사람이 쓴 질문에서 낱말을 뽑아 OR 순위로 찾고, 모델에는 질문 원문이 간다 (UI/UX · AI · 메일 회차 P8 · D-209 · D-260 의 AI 검색 범위를 넓힌다)
+
+- **원인**: AI 의 검색(채팅의 근거 · 「문서에서 찾기」 · 초안)은 검색창과 같은 규칙이었다 — 트라이그램 레인은 접은 질의 한 덩이이거나 낱말이 **전부 3자
+  이상**일 때만 낱말별 AND, FTS 레인은 `plainto_tsquery` 로 모든 어절의 AND. 사람이 AI 에게 쓰는 문장은 그 규칙으로 0건이었다: 「연차 신청은 어떻게
+  하나요?」는 2자 낱말(「연차」)이 AND 조합을 끄고 「어떻게」 · 「하나요」가 FTS 의 AND 를 깼다. 그리고 질문은 표시형(100자)으로 잘려 모델에 갔다.
+- **결정**:
+  - `app/core/search_text.py::keywords()` — NFKC · 소문자 · `[0-9a-z가-힣]` 낱말만, 부탁 말(해줘 · 알려줘 · 찾아줘 · 보여줘 · 주세요 · 하나요 · 인가요 …)과
+    잇는 말(관련 · 관한 · 대한 · 문서 · 자료 · 내용 · 정보 · 좀 · 혹시 · 의문사 · 대명사 …)을 걷고, 조사와 꾸미는 어미(은 · 는 · 이 · 가 · 을 · 를 · 의 · 에 ·
+    에서 · 으로 · 까지 · 부터 … · 할 · 한 · 된 · 인)는 **남는 어간이 2자 이상일 때만** 걷는다(「회의」 · 「휴가」 · 「확인」이 한 글자가 되지 않는다).
+    2자 이상, 순서대로, 중복 없이, 여섯 개까지. 형태소 분석기는 쓰지 않는다(폐쇄망 설치 · 사전 판 관리).
+  - 레인(`app/ai/retrieval/query.py`): 낱말이 있으면 트라이그램 레인은 기존 가지에 낱말별 `LIKE` 를 **OR** 로 더하고 점수에 맞은 낱말 수 × 0.5 를 더한다.
+    FTS 레인은 `to_tsquery('simple', '낱말:* | …')`(앞부분 일치의 OR). 낱말은 레인이 한 번 더 거른다(`safe_keywords`) — 사람이 친 글은 여전히
+    `to_tsquery` 에 들어가지 않는다. 낱말이 없으면 두 레인은 예전 그대로다. RRF 융합 · 권한 조건(`LIMIT` 앞)은 그대로다.
+  - `retrieve()` 는 낱말을 표시형이 아니라 질문 원문(`normalize_question` — NFC · 공백 정리 · 4,000자)에서 뽑고, 결과가 `question` · `keywords` 를 든다
+    (「무엇을 찾았는데 없었나」를 말할 자리). 답변 · 초안은 모델에 질문 원문을 넘긴다.
+  - **통합 검색 화면(`app/search`)은 바꾸지 않는다** — 그쪽 AND 는 기억나는 구절에 맞고, 바꾸는 것은 따로 정할 일이다(BACKLOG).
+- **제공자 대화 계약(이 묶음은 계약만)**: `app/ai/providers/base.py` 에 `converse()` 와 차례 · 도구 · 결과 모양(`UserTurn` · `AssistantTurn(replay)` ·
+  `ToolResultsTurn` · `ToolSpec` · `ToolCall` · `ConverseResult`)을 더했다. Anthropic 은 Messages API 의 `tools` · `tool_choice` · `tool_use` · `tool_result`
+  (content 블록을 그대로 되싣는다), OpenAI API 키는 Responses API 의 함수 도구(`strict:true` · `parallel_tool_calls` · `include:["reasoning.encrypted_content"]`,
+  직전 output 항목을 그대로 되싣는다), ChatGPT 요금제는 같은 본문 + `stream:true`(금지 인자 · `include` 없음, 추론 항목은 되싣지 않는다, `assemble_turn` 이 SSE 의
+  항목 · 인자 조각을 모은다). 실패는 `generate()` 와 한 표다(요금제가 도구를 거절하면 `unsupported_capability`). 런타임에는 아직 잇지 않는다 — P9(D-535).
+- **잰 것**: `tests/unit/test_search_keywords.py`(좋은 · 나쁜 경우 표, 한 글자 어간은 원래 낱말, 질의 문법 · LIKE 메타문자가 낱말이 될 수 없음, 여섯 개 상한, 질문 원문은
+  100자로 자르지 않음) · `test_retrieval_keyword_lanes.py`(조립된 SQL — 낱말별 LIKE · 맞은 낱말 점수 · `to_tsquery` 의 OR, 적대 낱말 거름, 낱말 없으면 예전 레인) ·
+  `tests/integration/test_ai_retrieval_keywords.py`(실 PG — 문장 질문이 걸리고 같은 질문을 낱말 없이 돌리면 0건, 맞은 낱말이 많은 chunk 가 위, 빈 결과가 낱말을 말함,
+  모델이 질문 원문을 받음, 낱말 가지도 권한 조건 안) · `test_anthropic_tools.py` · `test_openai_tools.py`(요청 본문 · 되싣기 순서 · SSE 조립 · 오류 표 · 401 갱신 한 번).
+  측정 `scripts/bench/retrieval_keywords.py`(이 저장소의 한국어 문서 1526 chunk, 질문 300개, 벡터 없이 낱말 두 레인 + RRF):
+  옛 레인에 문장 질문 Recall@1 0.000 · Recall@5 0.000 · MRR@10 0.000, 낱말 레인에 문장 질문 Recall@1 0.630 · Recall@5 0.957 · MRR@10 0.761, 낱말 레인에 낱말 질문(기준) Recall@1 0.617 · Recall@5 0.953 · MRR@10 0.759 —
+  문장 질문의 Recall@5 가 기준의 1.004 배다(관문 0.8). 기술 문서라 절대값이 아니라 갈래 사이의 비교로 읽는다.

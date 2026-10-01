@@ -11,8 +11,16 @@
 
 | 레인 | 무엇을 하나 | 왜 필요한가 |
 |---|---|---|
-| `trgm` | `text_fold LIKE '%접은 질의%'` | **후보 생성의 정본.** 한국어 어절 내부 부분일치를 이것만 한다 |
-| `fts` | `to_tsvector @@ plainto_tsquery` | 어절 단위로 걸고 **낱말 뭉치의 순위를 매긴다.** 사람이 기억나는 대로 친 질의를 이 레인이 혼자 짊어진다(D-260) |
+| `trgm` | `text_fold LIKE '%접은 질의%'` + 낱말별 `LIKE` 의 OR | **후보 생성의 정본.** 한국어 어절 내부 부분일치를 이것만 한다 |
+| `fts` | `to_tsvector @@ to_tsquery(낱말마다 앞부분 일치의 OR)`(낱말이 없으면 `plainto_tsquery`) | 어절 단위로 걸고 **낱말 뭉치의 순위를 매긴다.** 사람이 기억나는 대로 친 질의를 이 레인이 혼자 짊어진다(D-260) |
+
+## 질문에서 뽑은 낱말 (D-536)
+
+AI 에게는 사람이 **문장**을 쓴다(「연차 신청은 어떻게 하나요?」). 검색창 규칙(접은 질의 한 덩이 · 3자 이상 낱말의 AND)으로는
+그 문장이 0건이다. 그래서 두 레인이 `search_text.keywords()` 가 뽑은 낱말(조사 · 어미 · 부탁 말 · 잇는 말을 걷은 2자 이상 낱말,
+최대 여섯)을 **OR 로** 더 건다: 트라이그램 레인은 낱말마다 `LIKE` 가지를 붙이고 점수에 맞은 낱말 수의 절반을 더하며, FTS 레인은
+낱말마다 앞부분 일치(`낱말:*`)를 `|` 로 잇는다. 낱말은 `[0-9a-z가-힣]` 뿐이라 질의 문법이 들어갈 길이 없다 — 여기서 한 번 더 본다.
+통합 검색 화면(`app/search`)은 이 규칙을 쓰지 않는다.
 | `vector` | `embedding <=> 질의벡터` | 글자가 안 겹쳐도 뜻이 가까운 것. 모델이 없으면 이 레인은 그냥 없다 |
 
 ## 벡터를 문자열로 넘긴다
@@ -25,13 +33,15 @@ psycopg 는 파이썬 문자열을 `text` 로 보내므로, 캐스팅을 안 하
 
 from __future__ import annotations
 
-from sqlalchemy import Float, cast, func, literal, literal_column, select
+import re
+
+from sqlalchemy import Float, Integer, case, cast, func, literal, literal_column, or_, select
 from sqlalchemy.sql import Select
 
 from app.ai.catalog import FTS_CONFIG, VECTOR_DIM
 from app.ai.models import DocumentChunk, Vector
 from app.ai.retrieval import fusion
-from app.core.search_text import fold, like_folded
+from app.core.search_text import fold, like_folded, like_pattern
 
 # 질의 정규화와 트라이그램 가지의 정본은 검색 모듈이다. 두 검색창이 같은 문장을 다르게
 # 다루면 「검색에서는 나오는데 AI 는 못 찾는다」가 되고, 그 차이는 아무 오류도 안 낸다.
@@ -52,6 +62,18 @@ __all__ = [
 #: 한 레인이 융합에 내놓는 후보 수. 셋을 합쳐도 150 건이라 파이썬에서 접기에 가볍고,
 #: 한 레인이 혼자 상위를 다 차지해도 다른 레인의 상위가 밀려나지 않을 만큼은 넉넉하다.
 LANE_CANDIDATES = 50
+
+#: 트라이그램 점수에 더하는 「맞은 낱말 하나」의 몫. 유사도(0 ~ 1)는 긴 chunk 에서 작아지므로, 질문의 낱말을 여럿 담은 chunk 가
+#: 낱말 하나만 우연히 닮은 짧은 chunk 를 이기게 한다.
+KEYWORD_HIT_WEIGHT = 0.5
+
+#: 낱말이 될 수 있는 글자 — `search_text.keywords()` 와 같은 표다. FTS 질의 문자열에 넣기 전에 한 번 더 본다.
+_SAFE_KEYWORD = re.compile(r"[0-9a-z가-힣]+")
+
+
+def safe_keywords(keywords) -> tuple[str, ...]:
+    """질의 문법이 섞일 수 없는 낱말만 남긴다(`& | ! : * ( ) ' % _` · 역슬래시 · 공백이 든 것은 버린다)."""
+    return tuple(k for k in (keywords or ()) if isinstance(k, str) and _SAFE_KEYWORD.fullmatch(k))
 
 
 def normalize_query(raw: str | None) -> str:
@@ -79,7 +101,7 @@ def _contains(pattern: str):
     return like_folded(DocumentChunk.text_fold, pattern, stored=True)
 
 
-def trgm_lane(query: str, *, narrowing=None, limit: int = LANE_CANDIDATES) -> Select:
+def trgm_lane(query: str, *, keywords=(), narrowing=None, limit: int = LANE_CANDIDATES) -> Select:
     """트라이그램 레인. `ix_chunk_text_fold_trgm` 이 받는 모양이다.
 
     조건은 검색창과 **같은 가지**를 쓴다(`trgm_condition`): 접은 질의 전체 한 덩이, 그리고
@@ -87,12 +109,22 @@ def trgm_lane(query: str, *, narrowing=None, limit: int = LANE_CANDIDATES) -> Se
     사람이 기억나는 대로 친 질의(`스프린트 정리`)를 이 레인이 통째로 놓친다 — S10 실측에서
     그 질의군의 MRR 이 **0.01** 이었다. 점수도 접힌 값끼리 잰다.
 
+    `keywords` 를 주면(AI 의 질문, D-536) 낱말마다 `LIKE` 가지를 OR 로 더 붙이고 맞은 낱말 수의 절반을 점수에 더한다.
+
     `narrowing` 은 권한 조건이고 **`LIMIT` 앞에** 들어간다. 없으면(전역 관리자) 안 건다.
     """
+    words = [fold(k) for k in safe_keywords(keywords)]
+    hits = [_contains(like_pattern(word)) for word in words if word]
     score = func.similarity(DocumentChunk.text_fold, fold(query))
-    stmt = select(DocumentChunk.id, cast(score, Float).label("score")).where(
-        trgm_condition(query, _contains)
-    )
+    if hits:
+        matched = cast(case((hits[0], 1), else_=0), Integer)
+        for hit in hits[1:]:
+            matched = matched + cast(case((hit, 1), else_=0), Integer)
+        score = score + KEYWORD_HIT_WEIGHT * matched
+        condition = or_(trgm_condition(query, _contains), *hits)
+    else:
+        condition = trgm_condition(query, _contains)
+    stmt = select(DocumentChunk.id, cast(score, Float).label("score")).where(condition)
     if narrowing is not None:
         stmt = stmt.where(narrowing)
     return _ordered(stmt.order_by(score.desc())).limit(limit)
@@ -114,13 +146,16 @@ if not FTS_CONFIG.isalpha():
 _FTS_REGCONFIG = literal_column(f"'{FTS_CONFIG}'")
 
 
-def _tsquery(query: str):
-    """질의 → `tsquery`. `plainto_tsquery` 는 사용자가 친 글을 그대로 받는다.
+def _tsquery(query: str, keywords=()):
+    """질의 → `tsquery`. 낱말이 없으면 `plainto_tsquery` 가 사용자가 친 글을 그대로 받는다.
 
-    `to_tsquery` 를 안 쓴다 — 그쪽은 `&`·`|`·`!` 를 문법으로 읽어서, 사람이 검색창에
-    친 `A & B` 같은 글자가 **문법 오류로 500** 을 만든다. 사용자가 친 것은 질의어이지
-    질의 문법이 아니다.
+    사람이 친 글은 `to_tsquery` 에 넣지 않는다 — 그쪽은 `&`·`|`·`!` 를 문법으로 읽어서, 검색창에 친 `A & B` 같은 글자가
+    **문법 오류로 500** 을 만든다. 낱말(`keywords`)은 다르다: `[0-9a-z가-힣]` 만 남은 낱말이라(`safe_keywords`) 문법이 될 글자가
+    없고, 낱말마다 앞부분 일치(`낱말:*` — 「신청」이 「신청은」에 걸린다)를 `|` 로 이어 하나라도 맞으면 건다(D-536).
     """
+    words = safe_keywords(keywords)
+    if words:
+        return func.to_tsquery(_FTS_REGCONFIG, literal(" | ".join(f"{w}:*" for w in words)))
     return func.plainto_tsquery(_FTS_REGCONFIG, query)
 
 
@@ -129,10 +164,10 @@ def _tsvector():
     return func.to_tsvector(_FTS_REGCONFIG, DocumentChunk.text_body)
 
 
-def fts_lane(query: str, *, narrowing=None, limit: int = LANE_CANDIDATES) -> Select:
-    """전문검색 레인. 어절 정확일치를 판별한다 — 후보 생성은 트라이그램의 몫이다."""
+def fts_lane(query: str, *, keywords=(), narrowing=None, limit: int = LANE_CANDIDATES) -> Select:
+    """전문검색 레인. 어절 정확일치를 판별한다 — 후보 생성은 트라이그램의 몫이다. 낱말을 주면 OR 앞부분 일치다."""
     vector = _tsvector()
-    tsquery = _tsquery(query)
+    tsquery = _tsquery(query, keywords)
     score = func.ts_rank(vector, tsquery)
     stmt = select(DocumentChunk.id, cast(score, Float).label("score")).where(
         vector.op("@@")(tsquery)

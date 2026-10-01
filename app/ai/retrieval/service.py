@@ -48,6 +48,8 @@ from app.authz.visibility import (
     context_for_user,
     effective_visibility_clause,
 )
+from app.core.search_text import keywords as question_keywords
+from app.core.search_text import normalize_question
 from app.knowledge.models import Document
 from app.storage.models import File
 
@@ -72,6 +74,10 @@ class RetrievalResult:
 
     query: str
     citations: tuple[citation_mod.Citation, ...] = ()
+    #: 모델에 가는 질문 원문(NFC · 공백 정리, 100자로 자르지 않는다). `query` 는 화면에 다시 싣는 표시형이다.
+    question: str = ""
+    #: 질문에서 뽑아 두 낱말 레인에 OR 로 건 낱말(D-536). 「무엇을 찾았는데 없었나」를 말할 때 쓴다.
+    keywords: tuple[str, ...] = ()
     #: 세 레인이 각각 몇 건을 냈는가. 「왜 안 나오지」에 답하는 유일한 값이다.
     lane_counts: dict[str, int] = field(default_factory=dict)
     #: 벡터 레인이 안 돈 이유. 돌았으면 None 이다.
@@ -104,6 +110,7 @@ class RetrievalResult:
         return {
             "query": self.query,
             "citations": [c.as_dict() for c in self.citations],
+            "keywords": list(self.keywords),
             "lane_counts": dict(self.lane_counts),
             "semantic": self.semantic,
             "vector_notice": (
@@ -165,16 +172,19 @@ def retrieve(
     text = query_mod.normalize_query(raw_query)
     if not text:
         return RetrievalResult(query="")
+    # 낱말은 표시형(100자)이 아니라 질문 원문에서 뽑는다 — 긴 질문의 뒤쪽 낱말이 잘려 나가지 않게(D-536).
+    question = normalize_question(raw_query)
+    words = question_keywords(question)
 
     top_k = max(1, min(int(top_k or TOP_K), MAX_TOP_K))
     narrowing = _narrowing(db, user)
 
     rankings: dict[str, list[str]] = {
         fusion.LANE_TRGM: _rank(
-            db, query_mod.trgm_lane(text, narrowing=narrowing, limit=lane_candidates)
+            db, query_mod.trgm_lane(text, keywords=words, narrowing=narrowing, limit=lane_candidates)
         ),
         fusion.LANE_FTS: _rank(
-            db, query_mod.fts_lane(text, narrowing=narrowing, limit=lane_candidates)
+            db, query_mod.fts_lane(text, keywords=words, narrowing=narrowing, limit=lane_candidates)
         ),
     }
 
@@ -196,11 +206,13 @@ def retrieve(
     fused = fusion.fuse(rankings, limit=top_k)
     lane_counts = {lane: len(keys) for lane, keys in rankings.items()}
     if not fused:
-        return RetrievalResult(query=text, lane_counts=lane_counts, vector_status=vector_status)
+        return RetrievalResult(query=text, question=question, keywords=words, lane_counts=lane_counts,
+                               vector_status=vector_status)
 
     citations = _load_citations(db, fused)
     return RetrievalResult(
-        query=text, citations=citations, lane_counts=lane_counts, vector_status=vector_status
+        query=text, question=question, keywords=words, citations=citations, lane_counts=lane_counts,
+        vector_status=vector_status,
     )
 
 

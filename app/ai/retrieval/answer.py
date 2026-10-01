@@ -123,8 +123,9 @@ def answer(
         # 근거가 없으면 부르지 않는다. 빈 Context 로 부르면 모델은 무언가를 지어내고,
         # 그 문장에는 인용이 하나도 안 붙는다 — 사람은 그것을 답으로 읽는다.
         return Answer(retrieval=retrieval, status=contract.STATUS_EMPTY)
-    return _generate(db, runtime, action_key=action_key, question=retrieval.query, retrieval=retrieval, actor=user,
-                     job_id=job_id)
+    # 모델에는 표시형(100자)이 아니라 질문 원문이 간다 — 잘린 질문은 뒤의 조건을 잃는다(D-536).
+    return _generate(db, runtime, action_key=action_key, question=retrieval.question or retrieval.query,
+                     retrieval=retrieval, actor=user, job_id=job_id)
 
 
 def draft_document(
@@ -146,5 +147,5 @@ def draft_document(
     )
     if retrieval.empty:
         return Answer(retrieval=retrieval, status=contract.STATUS_EMPTY)
-    return _generate(db, runtime, action_key=actions.WORKSPACE_DRAFT, question=retrieval.query, retrieval=retrieval,
-                     actor=user)
+    return _generate(db, runtime, action_key=actions.WORKSPACE_DRAFT, question=retrieval.question or retrieval.query,
+                     retrieval=retrieval, actor=user)

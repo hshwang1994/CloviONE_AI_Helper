@@ -42,6 +42,7 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from typing import Iterable
 
@@ -169,3 +170,86 @@ def matches_folded(haystack: str | None, raw: str | None) -> bool:
     if not needle:
         return True
     return needle in fold(haystack)
+
+
+# ── 사람이 쓴 질문 → 찾을 낱말 (D-536) ─────────────────────────────────────────
+#
+# 검색창은 기억나는 구절을 받는다 — 「스프린트 회의록」. AI 에게는 사람이 **문장**을 쓴다 — 「연차 신청은 어떻게 하나요?」,
+# 「인프라 정비 관련 문서 찾아줘」. 검색창 규칙(접은 질의 한 덩이 · 낱말이 모두 3자 이상이면 낱말별 AND)으로는 그 문장이 0건이다:
+# 2자 낱말(「연차」)이 AND 조합을 끄고, 조사 · 어미(「신청은」 · 「하나요」)와 부탁 말(「찾아줘」)이 통짜 가지와 FTS 의 AND 를
+# 깬다. 그래서 AI 검색과 도우미의 검색 도구만 질문에서 낱말을 뽑아 **OR 로** 찾고 맞은 낱말 수로 순위를 매긴다. 통합 검색 화면은
+# 그대로다 — 그쪽 AND 는 기억나는 구절에 맞고, 바꾸는 것은 따로 정할 일이다.
+#
+# 형태소 분석기를 쓰지 않는다(폐쇄망 설치 · 사전 판 관리). 아래 표는 **뜻을 바꾸지 않는 쪽으로만** 걷는다: 조사는 걷고 남는 어간이
+# 2자 이상일 때만 걷는다 — 「회의」의 「의」, 「휴가」의 「가」를 조사로 읽어 한 글자만 남기지 않는다. 낱말은 `[0-9a-z가-힣]` 만
+# 남는다 — FTS 질의 문법(`& | ! : * ( )`)과 LIKE 메타문자(`% _ \`)가 낱말에 들어갈 길이 없다.
+
+#: 모델에 그대로 가는 질문의 상한. 표시형(`MAX_QUERY_CHARS`)과 따로다 — 질문을 100자로 자르면 뒤의 조건이 모델에 안 간다.
+MAX_QUESTION_CHARS = 4000
+
+#: 질문 하나에서 뽑는 낱말 수의 상한. 낱말마다 LIKE 가지가 하나씩 붙는다(2자 낱말은 인덱스를 못 탄다).
+MAX_KEYWORDS = 6
+
+#: 낱말 끝에서 걷는 조사와 꾸미는 어미(「결재할」 · 「변경된」 · 「마감인」) — 긴 것부터 맞춘다.
+KEYWORD_PARTICLES: tuple[str, ...] = (
+    "에서는", "에게서", "으로는", "에서", "으로", "에게", "한테", "까지", "부터", "처럼", "보다", "에는", "하는", "되는",
+    "은", "는", "이", "가", "을", "를", "의", "에", "도", "만", "와", "과", "로", "할", "한", "된", "인",
+)
+
+#: 문장 끝의 부탁 · 물음. 낱말 전체가 이것이면 걷고, 낱말 끝이 이것이면 떼어 낸다(남는 어간이 2자 이상일 때).
+KEYWORD_TAILS: tuple[str, ...] = (
+    "해주세요", "알려주세요", "찾아주세요", "보여주세요", "해줘", "알려줘", "찾아줘", "보여줘", "주세요",
+    "하나요", "인가요", "할까요", "있나요", "되나요", "뭐예요", "뭐야",
+)
+
+#: 찾는 대상이 아니라 문장을 잇는 말 — 낱말째 걷는다(조사를 걷기 전과 뒤 둘 다 본다).
+KEYWORD_STOPWORDS: frozenset[str] = frozenset((
+    "관련", "관한", "대한", "대해", "대해서", "문서", "자료", "내용", "정보", "좀", "혹시", "사내", "방법",
+    "어떻게", "무엇", "뭐", "뭔가", "언제", "어디", "어디서", "누가", "누구", "왜", "어느", "무슨",
+    "알려", "찾아", "보여", "주세요", "있는", "있어", "있나", "하는", "됐어", "없어", "해서",
+    "내", "내가", "제가", "나는", "저는", "우리", "이번", "지금", "그", "것", "거", "수", "때", "중",
+    "그리고", "그런데", "하지만", "또는", "및", "또",
+))
+
+_KEYWORD_TOKEN = re.compile(r"[0-9a-z가-힣]+")
+
+
+def normalize_question(raw: str | None) -> str:
+    """모델에 가는 질문 — NFC · 앞뒤 공백 제거 · 연속 공백 한 칸 · `MAX_QUESTION_CHARS` 상한. 표시형과 달리 100자로 자르지 않는다."""
+    text = unicodedata.normalize("NFC", str(raw or ""))
+    return " ".join(text.split())[:MAX_QUESTION_CHARS]
+
+
+def _strip_tail(word: str, tails: tuple[str, ...]) -> str | None:
+    """`word` 끝의 꼬리 하나를 걷는다. 낱말 전체가 꼬리면 None(버린다), 걷고 남는 것이 2자 미만이면 그대로 둔다."""
+    for tail in tails:
+        if word == tail:
+            return None
+        if word.endswith(tail) and len(word) - len(tail) >= 2:
+            return word[: -len(tail)]
+    return word
+
+
+def keywords(raw: str | None, *, limit: int = MAX_KEYWORDS) -> tuple[str, ...]:
+    """사람이 쓴 질문 → 찾을 낱말(순서대로, 중복 없이, 2자 이상, 최대 `limit` 개).
+
+    「인프라 정비 관련 문서 찾아줘」 → `("인프라", "정비")`, 「연차 신청은 어떻게 하나요?」 → `("연차", "신청")`.
+    낱말은 NFKC · 소문자 · `[0-9a-z가-힣]` 뿐이다(FTS 질의 문법과 LIKE 메타문자가 들어갈 수 없다).
+    """
+    text = unicodedata.normalize("NFKC", str(raw or "")).replace("İ", "i").lower()
+    out: list[str] = []
+    for token in _KEYWORD_TOKEN.findall(text):
+        if token in KEYWORD_STOPWORDS:
+            continue
+        word = _strip_tail(token, KEYWORD_TAILS)
+        if word is None or word in KEYWORD_STOPWORDS:
+            continue
+        stripped = _strip_tail(word, KEYWORD_PARTICLES)
+        if stripped is not None:
+            word = stripped
+        if word in KEYWORD_STOPWORDS or len(word) < 2 or word in out:
+            continue
+        out.append(word)
+        if len(out) >= limit:
+            break
+    return tuple(out)
