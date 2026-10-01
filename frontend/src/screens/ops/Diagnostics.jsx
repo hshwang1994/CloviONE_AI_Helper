@@ -287,7 +287,7 @@ export function Diagnostics() {
                       /* 설정 이름은 짧다(「계정 생성 허용 도메인」) — 폭을 적어 남는 폭을 산문에 넘긴다(D-501). 폭을 안 적은 제목은
                          남는 폭을 다 먹어 1,300px 칸에 열한 글자가 서고, 옆의 「설정하지 않으면」은 스무 글자에서 잘렸다. 설정 표의
                          「항목명」과 같은 폭이다(`settings/SettingsMain.jsx`). */
-                      { key: "label", label: "설정", type: "title", width: "13rem" },
+                      { key: "label", label: "설정", type: "title", max: "13rem" },
                       /* 안 채운 항목만 "그래서 무슨 일이 벌어지는가"를 붙인다. 다 채운 항목에까지 설명을 달면
                          경고가 묻힌다. 고칠 자리(환경 변수 이름)도 같이 준다. 읽는 산문이라 남는 폭을 갖는다(`grow`). */
                       { key: "when_unset", label: "설정하지 않으면", type: "text", grow: true, overflow: OVERFLOW.word,

@@ -531,7 +531,7 @@ export function Users() {
     // 동일했다 — 이미 화면에 보이는 이메일로 실제로 구별되는 이름을 만든다.
     // PA-RC-0029: 이메일이 이 표의 유일한 고유 식별자인데 131px로 20/20행이 잘렸다(필요
     // 198px) — 같은 표의 '역할'(295px)·'최근 로그인'(287px)이 내용량과 무관하게 더 넓었다.
-    // identifier:true가 kit.jsx DataTable의 바닥 폭(12.5rem)을 자동으로 준다.
+    // identifier:true 가 식별자 바닥(11rem)과 남는 폭의 몫(비중 2, 상한 22rem)을 준다(D-529).
     { key: "email", label: "이메일", identifier: true, sortable: true, rowName: (r) => r.display_name || r.email },
     { key: "display_name", label: "이름", type: "name", sortable: true },
     {
@@ -545,10 +545,8 @@ export function Users() {
       // purple은 이미 검증된 톤(다크모드·대비 확인됨, EXTRA_TONE_VARS)이면서 상태 팔레트
       // (ok/danger/warn/info)와 안 겹쳐 "특별한 등급"을 상태와 안 헷갈리게 표현한다.
       key: "role", label: "역할", type: "enum",
-      // PA-RC-0029: 배지 1~2개(짧은 한국어 라벨)만 담는데 295px를 썼다 — 내용량과 무관한
-      // 폭이었다. width는 auto 레이아웃의 힌트일 뿐 강제 상한이 아니라(HOST-01/VIS-73
-      // 참고), 두 배지가 실제로 안 들어가면 flexWrap이 다음 줄로 넘긴다.
-      width: "9rem",
+      // PA-RC-0029: 배지 1~2개(짧은 한국어 라벨)만 담는데 295px를 썼다 — 내용량과 무관한 폭이었다. 이제 폭은 그린
+      // 글자(`hint` — 역할 이름과 관리 범위 배지)의 가장 긴 것이 정한다(D-529, 열 배분의 값 길이).
       /* 잘린 칸의 hover 글자는 그린 이름이다 — 원래 값(`system_admin`)이 아니다(`kit.jsx::columnCellHint`). */
       hint: (r) => [ROLE_KO[r.role] || r.role, adminConcept(r) && adminConcept(r).label].filter(Boolean).join(", "),
       // admin 역할은 admin_scope 조합으로 실제 성격이 갈린다(조직관리자/부서관리자/전체
@@ -586,8 +584,9 @@ export function Users() {
     },
     // 상세 드로어(Row label="부서"/"직책")는 inactiveSuffix로 '(비활성)'을 붙이는데 목록 열은
     // render 없이 원시 텍스트만 보여줘 같은 화면 안에서 같은 사실이 다르게 보였다 — 같은 헬퍼로 맞춘다.
-    { key: "department", label: "부서", type: "enum", render: (r) => r.department ? r.department + inactiveSuffix(dept, r.department_id) : "-" },
-    { key: "title", label: "직책", type: "enum", render: (r) => r.title ? r.title + inactiveSuffix(title, r.title_id) : "-" },
+    /* 부서 · 직책은 보조 열이다 — 좁으면 최근 로그인 · 생성 일자 다음으로 숨는다. 이름 · 이메일 · 상태 · 역할은 필수다(D-529). */
+    { key: "department", label: "부서", type: "enum", tier: "secondary", render: (r) => r.department ? r.department + inactiveSuffix(dept, r.department_id) : "-" },
+    { key: "title", label: "직책", type: "enum", tier: "secondary", render: (r) => r.title ? r.title + inactiveSuffix(title, r.title_id) : "-" },
     // RESP-01: 900~1200 구간(사이드바 아직 안 접힘)에서 열을 전부 채우면 TableContainer가
     // 가로 스크롤을 겪는다(실측, /users). 이메일·이름·역할·상태·부서·직책은 훑어보기의
     // 핵심이지만 아래 둘은 상세에서도 바로 확인되는 부가 정보라 그 구간에서만 뺀다.
@@ -595,7 +594,7 @@ export function Users() {
     // 3:24"처럼 길어 287px를 자연스럽게 요구했다 — 이메일보다 우선순위가 낮은 보조 열이라
     // width로 줄인다. overflowWrap:anywhere가 이미 있어(kit.jsx) 좁아지면 두 줄로 접힐 뿐
     // 잘리지 않는다.
-    { key: "last_login_at", label: "최근 로그인", type: "datetime", width: "11rem", nowrap: true, render: (r) => <DateCell value={r.last_login_at} />, hideNarrow: true },
+    { key: "last_login_at", label: "최근 로그인", type: "datetime", nowrap: true, render: (r) => <DateCell value={r.last_login_at} />, hideNarrow: true },
     { key: "created_at", label: "생성 일자", type: "datetime", sortable: true, nowrap: true, render: (r) => <DateCell value={r.created_at} />, hideNarrow: true },
   ];
 

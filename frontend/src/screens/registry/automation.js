@@ -361,7 +361,7 @@ export const AUTOMATION_SCREENS = {
       // 대기 중인데 실행 예정 시각이 이미 지났으면 지연(백로그) 신호 — 워커 정체를 이 화면에서 바로 감지.
       // 값이 「지연 622시간 38분」처럼 길다 — 남는 폭은 「오류」가 가져가므로(D-501) 이 열은 그 값이 한 줄로 서는
       // 바닥을 스스로 든다. 개수 바닥(6rem)이면 값이 옆 칸 위로 넘친다.
-      { key: "available_at", label: "대기", type: "count", minWidth: "10rem", render: (r) => {
+      { key: "available_at", label: "대기", type: "count", min: "10rem", render: (r) => {
         if (r.status !== "queued" || !r.available_at) return "-";
         const s = String(r.available_at); const iso = /[zZ]$|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z";
         const t = new Date(iso).getTime(); if (Number.isNaN(t)) return "-";

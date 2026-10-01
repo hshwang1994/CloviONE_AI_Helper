@@ -8,7 +8,7 @@ import { selectionColumn } from "./bulkSelect.jsx";
 
 /* 좁은 칸에서 표가 열을 뺄 때 **하는 말이 사실인가**.
  *
- * 「행을 열면 전체 정보를 볼 수 있습니다」는 행을 열 수 있는 표에서만 사실이다. 이 저장소에는
+ * 「행을 열면 숨긴 값도 볼 수 있습니다」는 행을 열 수 있는 표에서만 사실이다. 이 저장소에는
  * `onRow` 를 안 주는 표가 여럿 있고(휴지통이 그렇다) 거기서는 열 방법이 아예 없다 —
  * 그 문장을 읽은 사람은 없는 길을 찾아다닌다. 안내가 없는 것보다 **없는 길을 가리키는
  * 안내**가 더 나쁘다.
@@ -22,7 +22,8 @@ const HIDDEN = [{ key: "deleted_by", label: "삭제한 사람" }, { key: "delete
 describe("숨긴 열 안내", () => {
   it("행을 열 수 있는 표에서는 그렇게 말한다", () => {
     render(<HiddenColumnsNote columns={HIDDEN} openable />);
-    expect(screen.getByText(/행을 열면 전체 정보를 볼 수 있습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/표 폭이 좁아 .* 열을 숨겼습니다\./)).toBeInTheDocument();
+    expect(screen.getByText(/행을 열면 숨긴 값도 볼 수 있습니다/)).toBeInTheDocument();
   });
 
   it("🔴 행을 열 수 없는 표에서는 **없는 길을 가리키지 않는다**", () => {

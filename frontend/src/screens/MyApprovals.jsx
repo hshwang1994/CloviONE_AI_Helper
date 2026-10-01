@@ -201,11 +201,11 @@ export function MyApprovals() {
     /* 요청 종류는 닫힌 집합이다 — 식별자가 아니라 낱말이라 `enum` 이다. 예전에는
        `identifier: true` 라 12.5rem 바닥을 받고 그 폭의 29% 만 채웠다(실측). */
     {
-      key: "request_type", label: "요청", type: "enum", minWidth: "9rem",
+      key: "request_type", label: "요청", type: "enum", min: "9rem",
       render: (r) => actionKo(r.request_type) || r.request_type,
     },
     {
-      key: "requested_by", label: "요청자", type: "name", minWidth: "13rem",
+      key: "requested_by", label: "요청자", type: "name", min: "13rem",
       // 사람이 나오는 자리에는 **조직 경로를 함께** 보여 준다(0060 §5) — 동명이인을 구별할
       // 방법이 화면에 없으면 잘못된 요청을 승인하게 된다.
       /* 이 칸은 두 줄로 쌓인다(이름 + 조직 경로). 칸의 정렬은 `text-align` 하나뿐이라

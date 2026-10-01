@@ -699,11 +699,11 @@ describe("DataTable", () => {
    * 위의 모든 테스트가 그 예)은 렌더 결과가 바뀌지 않아야 한다 — 그 회귀 방지가 이 테스트의
    * 목적이다(required_tests: "열 우선순위 미지정 화면의 스냅샷 회귀"). */
   describe("identifier 열의 최소 폭 (PA-RC-0029/0037)", () => {
-    it("identifier:true면 기본 바닥 폭(4.5rem) 대신 더 넓은 식별자 바닥 폭(12.5rem)을 받는다", () => {
+    it("identifier:true면 기본 바닥 폭(4.5rem) 대신 더 넓은 식별자 바닥 폭(11rem, D-529)을 받는다", () => {
       ui(<DataTable columns={[{ key: "email", label: "이메일", identifier: true }]}
         rows={[{ id: 1, email: "a@b.co" }]} rowKey={(r) => r.id} />);
       const header = screen.getByRole("columnheader", { name: "이메일" });
-      expect(header).toHaveStyle({ minWidth: "12.5rem" });
+      expect(header).toHaveStyle({ minWidth: "11rem" });
     });
 
     it("identifier:true여도 c.minWidth를 명시하면 그 값이 이긴다(설정 화면의 항목명처럼 더 좁은 값이 필요할 수 있다)", () => {

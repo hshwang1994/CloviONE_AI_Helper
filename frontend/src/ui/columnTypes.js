@@ -39,7 +39,9 @@ export function columnLayoutWidth(col) {
   const c = col || {};
   const s = resolveColumn(c);
   if (c.grow) return undefined;
-  if (s.type === "title" && c.width == null) return undefined;
+  /* 상한(`max`)을 적은 제목 열은 첫 그림에서도 그 폭에 선다 — 짧은 이름 열(설정 「항목명」)이 남는 폭을 다 먹지 않는다. 칸을
+     잰 뒤의 폭은 열 배분(`columnPlan.planColumns`)이 정한다. */
+  if (s.type === "title" && c.width == null) return c.max != null ? c.max : undefined;
   const explicit = c.width != null ? c.width : s.width;
   if (explicit && explicit !== SHRINK) return explicit;
   return s.minWidth;
@@ -54,7 +56,7 @@ export function columnLayoutWidth(col) {
  * 「오류」 실측).
  *
  * 그래서 남는 폭을 먹는 열이 없는 표에서는 **마지막 산문 열(`type: "text"`)** 이 그 폭을 갖는다. 뒤에
- * 선 산문 열을 고르는 이유는 표가 왼쪽에서 오른쪽으로 중요도가 낮아지게 적히고(`planNarrowColumns`),
+ * 선 산문 열을 고르는 이유는 표가 왼쪽에서 오른쪽으로 중요도가 낮아지게 적히고,
  * 긴 설명은 대개 끝에 서기 때문이다. 호출부가 `width` 를 적은 산문 열은 고르지 않는다 — 그 폭은
  * 호출부의 결정이다(열 접기가 「우연히 같다」로 줄인 열도 `width` 를 받는다). 산문 열이 없으면 예전처럼
  * 브라우저가 비례로 나눈다. 정렬(D-471)은 바꾸지 않는다 — 폭의 주인만 정한다.
@@ -117,12 +119,10 @@ export function tableMinWidth(columns) {
   return parts.length === 1 ? parts[0] : `calc(${parts.join(" + ")})`;
 }
 
-/* ── 바닥을 **숫자로** 도 알아야 한다 (좁은 칸에서 열을 접으려면) ────────────────
+/* ── 길이를 **숫자로** (열 배분이 렌더 전에 판단하려면) ────────────────────────
  *
- * 위 `tableMinWidth` 는 CSS 에 거는 문자열이라 브라우저가 더한다. 그런데 「이 칸에
- * 들어가는가」는 우리가 **렌더 전에** 판단해야 한다 — 안 들어가면 열을 빼야 하고, 그
- * 결정은 CSS 가 대신 못 한다. 그래서 같은 폭을 px 로도 낸다. 두 값이 갈리지 않게
- * 둘 다 `columnLayoutWidth` 하나에서 나온다.
+ * 위 `tableMinWidth` 는 CSS 에 거는 문자열이라 브라우저가 더한다. 그런데 「이 칸에 들어가는가」 · 「남는 폭이 얼마인가」는
+ * 우리가 **렌더 전에** 판단해야 한다(`columnPlan.planColumns`). 그래서 rem · px 길이를 px 숫자로 바꾼다.
  *
  * rem 은 루트 폰트사이즈로 곱한다 — 2200/3000 에서 그 값이 커지므로(`styles/root.css`)
  * 16 을 상수로 박으면 4K 에서 「들어간다」고 잘못 센다. */
@@ -137,61 +137,9 @@ export function lengthToPx(token, rootPx) {
   return m[2] === "px" || !m[2] ? n : n * root;
 }
 
-/** 열 하나가 지키려는 폭(px). 못 읽는 단위는 0 으로 센다 — 없는 것보다 낮게 잡는다. */
-export function columnFloorPx(col, rootPx) {
-  const s = resolveColumn(col);
-  const w = columnLayoutWidth(col) || s.minWidth || DEFAULT_COL_MIN_WIDTH;
-  return lengthToPx(w, rootPx) || 0;
-}
-
-/** 이 열 목록으로 그린 표의 바닥 폭(px). `tableMinWidth` 와 **같은 폭**이다. */
-export function tableFloorPx(columns, rootPx) {
-  let sum = 0;
-  for (const c of columns || []) if (c) sum += columnFloorPx(c, rootPx);
-  return sum;
-}
-
-/* 칸에 안 들어가면 `hideNarrow` 열을 **필요한 만큼만** 뺀다 (2026-09-01).
- *
- * 예전 규칙은 「뷰포트가 900~1200 이면 `hideNarrow` 열을 전부 뺀다」였다. 그것은 두
- * 방향으로 틀렸다.
- *
- *   ① **뷰포트는 칸이 아니다.** 문서 목록의 표는 1920 에서도 자기 칸이 902px 이라
- *      66px 넘쳤는데, 뷰포트가 1200 을 넘으니 아무 열도 안 뺐다.
- *   ② **전부 아니면 전무였다.** 「내 티켓」은 1920 에서 218px 만 모자란데 규칙이 참이면
- *      부가 열 다섯을 한꺼번에 잃는다. 90px 때문에 열 다섯을 지울 이유가 없다.
- *
- * 그래서 판단의 입력을 **그 표가 실제로 받은 폭**으로 바꾸고, 들어갈 때까지 **하나씩**
- * 뺀다. 빼는 순서는 열 목록의 **뒤에서부터**다 — 표는 왼쪽에서 오른쪽으로 중요도가
- * 낮아지게 적는 것이 이 저장소의 관행이고(제목이 앞, 부가 수치가 뒤), 순서를 뜻으로
- * 읽으면 열마다 우선순위 숫자를 손으로 매길 필요가 없다.
- *
- * 폭을 아직 못 쟀으면(`availablePx` 가 없다 — 첫 그림) **아무 것도 안 뺀다.** 열이
- * 사라졌다 돌아오는 것보다 한 프레임 넘치는 편이 낫다.
- *
- * 돌려주는 `shown` 은 **그릴 열 그대로**이고, 남는 폭의 주인까지 정해져 있다(`assignLeftoverWidth`).
- * 주인은 빼고 남은 열 가운데서 고른다 — 산문 열이 좁은 칸에서 빠지면 그 폭은 다음 산문 열의 것이다.
- * `DataTable` 과 `GroupedTickets` 가 이 한 함수로 열을 정하므로 두 표가 같은 규칙을 본다. */
-export function planNarrowColumns(columns, availablePx, rootPx) {
-  const cols = (columns || []).filter(Boolean);
-  const empty = { shown: assignLeftoverWidth(cols), hidden: [] };
-  if (!(availablePx > 0)) return empty;
-  let floor = tableFloorPx(cols, rootPx);
-  if (floor <= availablePx) return empty;
-
-  const shown = cols.slice();
-  const hidden = [];
-  for (let i = cols.length - 1; i >= 0 && floor > availablePx; i -= 1) {
-    const c = cols[i];
-    if (!c.hideNarrow) continue;
-    floor -= columnFloorPx(c, rootPx);
-    shown.splice(shown.indexOf(c), 1);
-    hidden.push(c);
-  }
-  // 뺀 순서(뒤→앞)가 아니라 **표에 적힌 순서**로 알린다 — 사용자가 읽는 순서다.
-  hidden.reverse();
-  return { shown: assignLeftoverWidth(shown), hidden };
-}
+/* 칸에 안 들어가면 열을 **필요한 만큼만** 숨기는 판단과 폭 배분은 `columnPlan.js::planColumns` 하나다(D-529). 예전 이 자리의
+ * `planNarrowColumns` 는 「뷰포트가 아니라 그 표가 받은 칸」 · 「전부가 아니라 하나씩」을 처음 세운 함수였고, 그 두 규칙은
+ * 배분이 그대로 잇는다 — 숨기는 순서가 열 순서에서 등급(문맥 → 보조) · priority · 오른쪽 순서로 바뀌었다. */
 
 /** 지금 루트 폰트사이즈(px). 4K 에서 커진다(`styles/root.css`). */
 export function rootFontPx(doc) {
@@ -212,9 +160,6 @@ export const ANYWHERE_BREAK = { overflowWrap: "anywhere" };
 /* 열이 안 정해 주면 이 바닥값이 붙는다. 없으면 좁은 컨테이너에서 `overflowWrap:anywhere`
  * 가 열 폭을 '한 글자'까지 줄여 제목이 세로로 무너진다(DS-06 · VIS-73). */
 export const DEFAULT_COL_MIN_WIDTH = "4.5rem";
-
-/** 행을 식별하는 열(이메일·항목명·코드)은 폭이 모자랄 때 **가장 먼저 보호**된다. */
-export const IDENTIFIER_COL_MIN_WIDTH = "12.5rem";
 
 /* 넘침 처리 어휘.
  *   `ellipsis`  한 줄로 자르고 `title` 로 전체를 남긴다
@@ -266,34 +211,34 @@ export function headerAlignOf(column) {
  * 화면은 `align` 을 직접 적지 않는다(`resolveColumn` 이 호출부 값을 보지 않는다). 예외가 필요하면
  * 그 뜻을 가진 타입을 이 표에 더한다 - 화면마다 정렬을 고르면 같은 뜻의 열이 화면마다 다른 축에 선다.
  */
+/* 폭 배분의 세 갈래(D-529, `columnPlan.js`) — 「늘어나는 글」은 바닥(`minWidth`) · 비중(`weight`) · 상한(`maxWidth`)을 갖고
+   남는 폭을 비중대로 상한까지 나눠 받는다. 「내용 길이」(`content`)는 바닥 · 머리글 · 값 가운데 가장 긴 것이 폭이다. 나머지는
+   고정 폭이다. 머리글이 한 줄로 서는 폭(이름 + 정렬 · 필터 표지)은 열마다 따로 재서 바닥에 더하므로, 여기 바닥은 머리글을
+   어림한 값이 아니다. */
 export const COLUMN_TYPES = {
-  /* 표당 **하나**다. 그 행이 무엇인지 말하는 열이고, 폭 경쟁에서 가장 세다 — 호출부가 `width` 를
-     적지 않으면 남는 폭을 갖는다(`columnLayoutWidth`). */
-  title: { align: "left", numeric: false, minWidth: "16rem", overflow: OVERFLOW.word, identifying: true },
-  /* 사람·프로젝트·조직 이름. 제목보다 짧고 한 줄로 읽힌다.
-     **폭 경쟁에 나서지 않는다**(`width: SHRINK`). 남는 폭은 읽는 열(제목, 그다음 산문)의 것이다(D-501). */
-  name: { align: "left", numeric: false, width: SHRINK, minWidth: "9rem", overflow: OVERFLOW.ellipsis, identifying: true },
-  /* 이메일 · UUID · 파일 이름처럼 글자 단위로 끊어도 되는 긴 토큰. 짧은 코드(티켓 번호 · 버전)는 `code` 다. */
-  identifier: { align: "left", numeric: false, minWidth: IDENTIFIER_COL_MIN_WIDTH, overflow: OVERFLOW.anywhere, identifying: true },
-  /* 티켓 번호 · 버전 · Cron 식처럼 짧고 모양이 정해진 코드. 크기를 비교하지 않는다. */
-  code: { align: "center", numeric: true, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap, identifying: true },
-  /* 설명·오류 원문. 전 행이 비면 수축 후보다(§collapse). 남는 폭을 먹는 열이 없는 표에서는
-     마지막 산문 열이 그 폭을 갖는다(`assignLeftoverWidth`) — 읽어야 하는 글이 잘리는 자리다. */
-  text: { align: "left", numeric: false, minWidth: "12rem", overflow: OVERFLOW.ellipsis, collapsible: true },
+  /* 표당 **하나**다. 그 행이 무엇인지 말하는 열이고, 남는 폭을 가장 많이 받는다(비중 3). 혼자 다 먹지는 않는다(상한 36rem). */
+  title: { align: "left", numeric: false, minWidth: "14rem", weight: 3, maxWidth: "36rem", overflow: OVERFLOW.word, identifying: true },
+  /* 사람·프로젝트·조직 이름. 제목보다 짧고 한 줄로 읽힌다(비중 2, 상한 18rem). */
+  name: { align: "left", numeric: false, width: SHRINK, minWidth: "9rem", weight: 2, maxWidth: "18rem", overflow: OVERFLOW.ellipsis, identifying: true },
+  /* 이메일 · UUID · 파일 이름 · 모델 id 처럼 글자 단위로 끊어도 되는 긴 토큰. 짧은 코드(티켓 번호 · 버전)는 `code` 다. */
+  identifier: { align: "left", numeric: false, minWidth: "11rem", weight: 2, maxWidth: "22rem", overflow: OVERFLOW.anywhere, identifying: true },
+  /* 티켓 번호 · 버전 · Cron 식처럼 짧고 모양이 정해진 코드. 크기를 비교하지 않는다. 폭은 값 길이가 정한다. */
+  code: { align: "center", numeric: true, width: SHRINK, minWidth: "6.5rem", content: true, overflow: OVERFLOW.nowrap, identifying: true },
+  /* 설명·오류 원문. 전 행이 비면 수축 후보다(§collapse). 남는 폭을 제목과 같은 비중으로 받는다(상한 48rem). */
+  text: { align: "left", numeric: false, minWidth: "12rem", weight: 3, maxWidth: "48rem", overflow: OVERFLOW.ellipsis, collapsible: true },
   /* 부서 경로 · 폴더 경로. 앞이 같고 뒤가 갈리는 값이라 왼쪽 모서리가 비교 수단이다. */
-  path: { align: "left", numeric: false, minWidth: "12rem", overflow: OVERFLOW.ellipsis },
-  /* 상태 배지. 머리글이 「우선순위」처럼 네 글자면 5rem 으로는 정렬 화살표와 겹친다. */
-  status: { align: "center", numeric: false, width: SHRINK, minWidth: "7.5rem", overflow: OVERFLOW.nowrap },
-  /* 짧은 닫힌 집합(종류·범위·대상). 머리글 「난이도」+정렬이 한 줄로 서는 폭. */
-  enum: { align: "center", numeric: false, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
-  /* 개수. **오른쪽 + 자릿수 고정.** 머리글 「조회」+정렬이 한 줄로 서는 폭. */
+  path: { align: "left", numeric: false, minWidth: "10rem", weight: 2, maxWidth: "24rem", overflow: OVERFLOW.ellipsis },
+  /* 상태 배지. 폭은 바닥 · 머리글(「우선순위」 + 정렬 · 필터) · 가장 긴 상태 낱말 가운데 가장 긴 것이다. */
+  status: { align: "center", numeric: false, width: SHRINK, minWidth: "6rem", content: true, overflow: OVERFLOW.nowrap },
+  /* 짧은 닫힌 집합(종류·범위·대상·역할). 폭은 선택지 라벨(`values`)이나 받은 값의 가장 긴 낱말이 정한다. */
+  enum: { align: "center", numeric: false, width: SHRINK, minWidth: "6.5rem", content: true, overflow: OVERFLOW.nowrap },
+  /* 개수. **오른쪽 + 자릿수 고정.** */
   count: { align: "right", numeric: true, width: SHRINK, minWidth: "6rem", overflow: OVERFLOW.nowrap },
-  /* 크기·금액·공수처럼 단위가 붙는 수치. 머리글이 「예상 WD」처럼 두 토막이면 4rem 으로는
-     이름+정렬 화살표가 칸을 넘쳐 옆 열과 겹친다(`table-layout:fixed`). */
-  number: { align: "right", numeric: true, width: SHRINK, minWidth: "8rem", overflow: OVERFLOW.nowrap },
-  /* 비율·점수. 머리글 「진행률」+정렬이 한 줄로 서는 폭. */
-  percent: { align: "right", numeric: true, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
-  score: { align: "right", numeric: true, width: SHRINK, minWidth: "6.5rem", overflow: OVERFLOW.nowrap },
+  /* 크기·금액·공수처럼 단위가 붙는 수치. 머리글 「예상 WD」 + 정렬은 머리글 폭 계산이 따로 지킨다. */
+  number: { align: "right", numeric: true, width: SHRINK, minWidth: "7rem", overflow: OVERFLOW.nowrap },
+  /* 비율·점수. */
+  percent: { align: "right", numeric: true, width: SHRINK, minWidth: "6rem", overflow: OVERFLOW.nowrap },
+  score: { align: "right", numeric: true, width: SHRINK, minWidth: "6rem", overflow: OVERFLOW.nowrap },
   /* 날짜·시각. 폭이 고정된 짧은 값이라 가운데다. 자릿수 고정은 그대로 붙는다. */
   date: { align: "center", numeric: true, width: SHRINK, minWidth: "8.5rem", overflow: OVERFLOW.nowrap },
   datetime: { align: "center", numeric: true, width: SHRINK, minWidth: "11rem", overflow: OVERFLOW.nowrap },
@@ -329,8 +274,9 @@ export function resolveColumn(col) {
   const key = c.type && COLUMN_TYPES[c.type] ? c.type : (c.identifier ? "identifier" : null);
   const spec = key ? COLUMN_TYPES[key] : UNTYPED;
   const identifierLike = key === "identifier" || key === "code" || !!c.identifier;
-  /* **호출부가 폭을 적었으면 타입의 바닥값을 안 씌운다.** 바닥값을 원하면 `minWidth` 로 직접 적는다. */
-  const floor = c.minWidth != null ? c.minWidth
+  /* **호출부가 폭을 적었으면 타입의 바닥값을 안 씌운다.** 바닥값을 원하면 `min`(또는 옛 `minWidth`)으로 직접 적는다. */
+  const own = c.min != null ? c.min : c.minWidth;
+  const floor = own != null ? (typeof own === "number" ? `${own}rem` : own)
     : (c.width != null ? DEFAULT_COL_MIN_WIDTH : spec.minWidth);
   return {
     type: key,

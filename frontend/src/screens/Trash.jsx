@@ -293,12 +293,12 @@ export function Trash() {
    *
    * 🔴 **`hideNarrow` 가 하나도 없었다.** 이 열들의 바닥 폭 합이 83.5rem(1336px)이라
    * 1920 미만 어느 해상도에서도 표가 칸을 넘쳐 가로로 굴러갔고, 오른쪽 끝의 복원·영구삭제
-   * 단추가 화면 밖으로 나갔다. `planNarrowColumns` 는 **뒤에서부터 필요한 만큼만** 빼므로
-   * 부가 열 셋에 표시를 달면 1536 에서는 하나만, 1280 에서는 셋 다 빠진다.
+   * 단추가 화면 밖으로 나갔다. 열 배분(`columnPlan.planColumns`)은 보조 열을 **오른쪽부터 필요한 만큼만** 숨기므로
+   * 부가 열 셋에 표시를 달면 좁아지는 만큼 하나씩 빠진다.
    * 「삭제 예정」은 **절대 안 뺀다** — 24시간 안에 사라지는지가 이 화면의 판단 근거다. */
   const columns = [
     selCol,
-    { key: "type_label", label: "종류", type: "status", minWidth: "7rem", render: (r) => <Badge value={r.type_label} kind={typeKind(r.item_type)} /> },
+    { key: "type_label", label: "종류", type: "status", render: (r) => <Badge value={r.type_label} kind={typeKind(r.item_type)} /> },
     {
       key: "title", label: "제목", type: "title", sortable: true,
       // rowName: 휴지통에서 행을 구별하는 값은 제목이다(ui/rowName.js). 여기가 영구 삭제를
@@ -347,7 +347,7 @@ export function Trash() {
          없는 표에서 왔다. 없는 값을 「-」로 지어내지 않고 자리를 비운다.
          🔴 `key` 가 `"place"` 였다. 데이터 필드는 `space` 라, 그 한 글자 때문에 이 칸만
          말줄임 힌트(`columnCellHint` 가 `row[c.key]` 를 읽는다)를 못 받았다. */
-      key: "space", label: "프로젝트", type: "name", minWidth: "10rem", hideNarrow: true,
+      key: "space", label: "프로젝트", type: "name", min: "10rem", hideNarrow: true,
       /* 폴더 줄은 걷었다 — 폴더 축이 화면에서 사라져(문서 개편 1·5번) 복원한 뒤 그
          폴더를 볼 자리가 없다. 응답의 `folder` 는 그대로 온다. */
       render: (r) => (r.space ? <Typography variant="body2">{r.space}</Typography> : ""),
@@ -355,7 +355,7 @@ export function Trash() {
     {
       /* 값이 없을 때의 표기를 「프로젝트」 열과 맞춘다 — 한 표 안에서 빈칸과 「-」가
          섞이면 그 둘이 다른 뜻처럼 읽힌다(옛 미러 항목은 둘 다 「모른다」다). */
-      key: "deleted_by", label: "삭제한 사람", type: "name", minWidth: "11rem", hideNarrow: true,
+      key: "deleted_by", label: "삭제한 사람", type: "name", min: "11rem", hideNarrow: true,
       render: (r) => (r.deleted_by ? <Typography variant="body2">{r.deleted_by}</Typography> : ""),
     },
     {
@@ -377,7 +377,7 @@ export function Trash() {
          카드 뷰에서는 이름 칸이 통째로 비었다. 그리고 셀은 가운데 정렬 계약(`actions`)인데
          내용만 `flex-end` 라 권한 없는 줄의 「권한 없음」과 좌우가 어긋났다 — 한 축으로 모은다.
          폭도 14rem 이었다: 실제 내용은 단추 둘 + 간격 + 셀 여백으로 11.75rem 이다. */
-      key: "_actions", label: "작업", type: "actions", minWidth: "11.5rem",
+      key: "_actions", label: "작업", type: "actions", min: "11.5rem",
       /* 행 동작은 `RowActions` 다 — 「복원」은 30 보조, 「영구 삭제」는 파괴 단추다. 「복원」이 행마다 채움이었을 때
          휴지통 한 화면에 채움이 스무 개 섰다(조합 계약 C-4). */
       render: (r) => (r.can_manage ? (

@@ -139,8 +139,10 @@ export const AUTHORING_SCREENS = {
       { key: "status", type: "select", label: "상태", options: opt([["draft", "초안"], ["published", "사용 중"], ["archived", "보관"]]) },
     ],
     columns: [
-      { ...col("name", "이름", "title"), rowName: (r) => r.name + (r.version ? " v" + r.version : "") },
-      { key: "slot_label", label: "사용처", type: "enum", render: (r) => r.slot_label || "정하지 않음" },
+      /* 지시문 이름과 사용처(기능 이름)는 짧은 이름이라 이름 열이다(D-529, 상한 18rem) — 예전 제목 열은 1920 에서 600px 넘게
+         비었다. 행을 여는 링크는 이름 열이 갖는다(`rowLink`). */
+      { ...col("name", "이름", "name"), rowLink: true, rowName: (r) => r.name + (r.version ? " v" + r.version : "") },
+      { key: "slot_label", label: "사용처", type: "name", render: (r) => r.slot_label || "정하지 않음" },
       { key: "source", label: "출처", type: "enum", render: (r) => PROMPT_SOURCE[r.source] || r.source },
       { key: "version", label: "버전", type: "code", render: (r) => (r.version == null ? "-" : "v" + r.version) },
       { key: "status", label: "상태", type: "status", render: (r) => { const [value, kind] = promptStatus(r); return React.createElement(Badge, { value, kind }); } },
@@ -206,7 +208,7 @@ export const AUTHORING_SCREENS = {
     columns: [
       { ...col("name", "이름", "title"), rowName: (r) => r.name + " v" + r.version },
       // 가장 긴 종류 이름(「개인정보 가리기」, 여덟 글자)이 한 줄에 서는 폭이다. enum 의 바닥 폭(6.5rem)에서는 잘렸다.
-      { key: "kind", label: "종류", type: "enum", width: "9rem", render: (r) => r.kind_label || POLICY_KIND_LABEL[r.kind] || r.kind },
+      { key: "kind", label: "종류", type: "enum", values: Object.values(POLICY_KIND_LABEL), render: (r) => r.kind_label || POLICY_KIND_LABEL[r.kind] || r.kind },
       { key: "applies_to_labels", label: "적용할 기능", type: "text", render: (r) => (r.applies_to_labels || []).join(", ") || "-" },
       { key: "version", label: "버전", type: "code", render: (r) => "v" + r.version },
       badgeCol("status", "상태"),
@@ -260,7 +262,8 @@ export const AUTHORING_SCREENS = {
     emptyTitle: "사용처가 없습니다",
     emptyHelp: "프롬프트 사용처는 제품이 정합니다. 목록이 비었다면 서버 응답을 확인하세요.",
     columns: [
-      { key: "label", label: "사용처", type: "title" },
+      /* 프롬프트의 「사용처」는 기능 이름이다 — 이름 열(상한 18rem)이라 600px 을 혼자 먹지 않는다(D-529). */
+      { key: "label", label: "사용처", type: "name" },
       { key: "current_name", label: "지금 쓰는 지시문", type: "name", render: (r) => (r.current_source === "admin" ? r.current_name + " v" + r.current_version : "기본 제공") },
       { key: "calls", label: "30일 호출", type: "count" },
       { key: "failure_rate", label: "실패율", type: "percent", render: (r) => (r.failure_rate == null ? "-" : r.failure_rate + "%") },
@@ -286,7 +289,7 @@ export const AUTHORING_SCREENS = {
     columns: [
       { key: "name", label: "이름", type: "title" },
       // 가장 긴 종류 이름(「개인정보 가리기」, 여덟 글자)이 한 줄에 서는 폭이다. enum 의 바닥 폭(6.5rem)에서는 잘렸다.
-      { key: "kind", label: "종류", type: "enum", width: "9rem", render: (r) => r.kind_label || POLICY_KIND_LABEL[r.kind] || r.kind },
+      { key: "kind", label: "종류", type: "enum", values: Object.values(POLICY_KIND_LABEL), render: (r) => r.kind_label || POLICY_KIND_LABEL[r.kind] || r.kind },
       { key: "applies_to_labels", label: "적용할 기능", type: "text", render: (r) => (r.applies_to_labels || []).join(", ") || "-" },
       { key: "published_version", label: "발행 버전", type: "code", render: (r) => (r.published_version == null ? "발행 안 함" : "v" + r.published_version) },
       { key: "applied", label: "30일 적용", type: "count" },
@@ -315,7 +318,8 @@ export const AUTHORING_SCREENS = {
       { key: "to", type: "date", label: "종료일", group: "other" },
     ],
     columns: [
-      { key: "label", label: "묶음", type: "title", render: (r) => (r.email ? r.label + " (" + r.email + ")" : r.label) },
+      /* 묶음 이름은 기능 · 사람 · 부서 · 모델 이름이라 제목이 아니라 이름이다(D-529, 상한 18rem) — 예전에는 다섯 글자 열이 800px 이었다. */
+      { key: "label", label: "묶음", type: "name", render: (r) => (r.email ? r.label + " (" + r.email + ")" : r.label) },
       { key: "calls", label: "호출", type: "count" },
       { key: "success_rate", label: "성공률", type: "percent", render: (r) => (r.success_rate == null ? "-" : r.success_rate + "%") },
       { key: "blocked", label: "막힘", type: "count" },

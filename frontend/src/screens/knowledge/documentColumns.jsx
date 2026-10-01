@@ -31,7 +31,7 @@ const TAG_LIMIT = 4;
 export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, confirm }) {
   return [
     {
-      key: "star", label: "별", type: "select", width: "3rem",
+      key: "star", label: "별", type: "select", min: "3rem",
       render: (doc) => (
         <Box
           component="button"
@@ -54,7 +54,7 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
       ),
     },
     {
-      key: "title", label: "제목", type: "title", minWidth: "20rem", rowName: (d) => d.title,
+      key: "title", label: "제목", type: "title", min: "20rem", rowName: (d) => d.title,
       render: (doc) => {
         const tags = doc.tags || [];
         return (
@@ -95,7 +95,7 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
        무슨 종류인가(분류). 뒤 둘은 칸이 좁아지면 접힌다(`hideNarrow`) — 접힌 사실은 표가
        한 줄로 알린다. */
     {
-      key: "place", label: "프로젝트", type: "name", width: "11rem",
+      key: "place", label: "프로젝트", type: "name", max: "11rem",
       render: (doc) => (
         <Typography variant="body2" sx={KO_WORD_BREAK}>
           {doc.project ? doc.project.name : PROJECT_UNASSIGNED_LABEL}
@@ -109,7 +109,7 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
       /* 분류는 칩이 아니라 **점 + 낱말**이다(§11.3 · 핸드오프 계획 P-22) — 태그와 섞이면 "이 문서가 다루는 기술"과
          "이 문서의 종류"가 같은 모양으로 보인다. 점은 중립이고 면이 없다. 정본은 분류(0026)이고, 분류가
          없는 이관 문서만 옛 doc_type 이 그대로 보인다. 둘 다 없으면 점 없이 「-」다. */
-      key: "category", label: "분류", type: "name", width: "9.25rem", hideNarrow: true,
+      key: "category", label: "분류", type: "name", max: "9.25rem", hideNarrow: true,
       render: (doc) => {
         const name = doc.category?.name || doc.doc_type;
         return name ? <DotLabel label={name} /> : (
@@ -123,7 +123,7 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
          섰고 — 화면이 「이 사람이 524건을 썼다」고 거짓말했다. Confluence 는 작성자의
          이메일을 안 주므로(실측: 8명 중 1명, 그마저 우리 계정에 없다) 우리 계정으로
          이을 수 없다. 이름만 남기고, 그것이 우리 사용자가 아니라는 것도 함께 보인다. */
-      key: "author", label: "작성자", type: "name", width: "8.125rem", hideNarrow: true,
+      key: "author", label: "작성자", type: "name", min: "8.125rem", max: "8.125rem", hideNarrow: true,
       render: (doc) => (
         <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
           {/* 표 사람 칸의 얼굴은 22(`xs`)다 — 핸드오프 README §6. */}
@@ -135,14 +135,14 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
       ),
     },
     {
-      key: "updated_at", label: "최종 수정", type: "datetime", width: "8.25rem", hideNarrow: true,
+      key: "updated_at", label: "최종 수정", type: "datetime", min: "8.25rem", hideNarrow: true,
       render: (doc) => fmtDateTimeCompact(doc.updated_at),
     },
     {
       /* 첨부와 댓글이 있다는 사실은 **문서를 고르는 근거**다. 열어 봐야 아는 값이면
          목록에서 못 고른다. 0 은 안 그린다 — 대부분이 0 이라 그리면 소음이다.
          셋 중 **가장 먼저 접히는** 열이다 (D-380). */
-      key: "counts", label: "첨부, 댓글", type: "enum", width: "6rem", hideNarrow: true,
+      key: "counts", label: "첨부, 댓글", type: "enum", min: "6rem", hideNarrow: true,
       render: (doc) => {
         const c = doc.counts || {};
         const parts = [];
@@ -155,7 +155,7 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
       },
     },
     {
-      key: "more", label: "작업", type: "actions", width: "4rem",
+      key: "more", label: "작업", type: "actions", min: "4rem",
       render: (doc) => (
         /* 행 동작은 작은 단추(30)다 — 두 줄 행 안에서 34 는 칸보다 크게 선다(핸드오프 J2 「작업 30」). */
         <OverflowMenu

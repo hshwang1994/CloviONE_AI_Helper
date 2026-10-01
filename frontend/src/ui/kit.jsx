@@ -44,7 +44,8 @@ import { MASCOT_PLACE, mascotBoxSx } from "./Mascot.jsx";
 import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi, objectParticle, topicParticle } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
-import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, rootFontPx, tableMinWidth } from "./columnTypes.js";
+import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, resolveColumn, rootFontPx, tableMinWidth } from "./columnTypes.js";
+import { planColumns } from "./columnPlan.js";
 import { CONTROL, densityVars, EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, LINE_HEIGHT, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, remPx, stickyTopSx } from "./theme.js";
 import { CARD_PADDING, CARD_PADDING_COMPACT, SECTION_GAP, FORM_FIELD_CONTAINER, FORM_FIELD_GAP, FORM_FIELD_GRID_12, fieldSpan } from "./density.js";
 import { FlowStack, HeadRow } from "./layout.jsx";
@@ -228,7 +229,9 @@ export function Badge({ value, kind, emphasis }) {
            글자가 잘렸다(내 티켓 실측: 칸 126px 인데 알약 34.4px). 알약은 칸 하나에서
            "상태"를 나르는 유일한 표지라 줄어들 값이 아니다 — 칸이 좁으면 칸을 넓히지,
            알약을 안 줄인다. */
-        flexShrink: 0, minWidth: "max-content",
+        /* 칸보다 길면 칸 폭 안에서 말줄임이다 — 예전 `minWidth: max-content` 는 긴 상태 낱말이 옆 칸 위로 넘쳤다(계획 6절 9).
+           줄어들지는 않는다(`flexShrink: 0`): 칸이 넉넉하면 언제나 라벨 전체 폭이다. 칸 폭은 열 배분(D-529)이 값 길이로 정한다. */
+        flexShrink: 0, minWidth: 0, maxWidth: "100%",
         fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.medium, lineHeight: 1.4,
         whiteSpace: "nowrap",
         color: extra ? extra.fg : palette ? `${palette}.strong` : "text.secondary",
@@ -2170,7 +2173,14 @@ export const TABLE_FIXED_LAYOUT_SX = { tableLayout: "fixed", width: "100%" };
  *
  * **열이 정해진 뒤에 부른다.** 좁은 화면에서 빠지는 열(`hideNarrow`)까지 세면 바닥이
  * 실제보다 넓어져, 안 그려지는 열 때문에 표가 가로로 밀린다. */
-export function tableLayoutSx(columns) {
+export function tableLayoutSx(columns, plan) {
+  /* 열 배분(D-529)을 쟀으면 그 폭이 정본이다 — 칸에 들어가면 표 폭 = 칸 폭(100%), 필수 열 바닥 합이 칸보다 크면 표가 그
+     합 폭으로 서고 표 상자가 가로로 굴린다. 못 쟀으면(첫 그림) 옛 바닥(`tableMinWidth`)이다. */
+  if (plan && plan.widths) {
+    return plan.scroll
+      ? { tableLayout: "fixed", width: `${plan.tableWidth}px`, minWidth: `${plan.tableWidth}px` }
+      : { ...TABLE_FIXED_LAYOUT_SX, minWidth: `${plan.tableWidth}px` };
+  }
   return { ...TABLE_FIXED_LAYOUT_SX, minWidth: tableMinWidth(columns) };
 }
 
@@ -2184,8 +2194,8 @@ export function tableLayoutSx(columns) {
  * 하므로(폭은 바깥 배치가 정한다) 열을 빼도 되먹임이 없다 — 행 높이도 안 변한다, 긴 값은
  * 접히지 않고 말줄임이기 때문이다.
  *
- * 못 재는 동안에는 아무 것도 안 뺀다(`planNarrowColumns` 참고). */
-export function useFittedColumns(columns, boxEl) {
+ * 못 재는 동안에는 아무 것도 안 빼고 폭도 나누지 않는다(`columnPlan.planColumns` — 첫 그림은 옛 바닥 배치다). */
+export function useFittedColumns(columns, boxEl, { sortKey, sortGlyph = false, filterGlyph = false, rows } = {}) {
   const [avail, setAvail] = React.useState(0);
   const [rootPx, setRootPx] = React.useState(() => rootFontPx());
   React.useLayoutEffect(() => {
@@ -2205,9 +2215,16 @@ export function useFittedColumns(columns, boxEl) {
     ro.observe(boxEl);
     return () => { live = false; ro.disconnect(); };
   }, [boxEl]);
+  /* 열 배분(D-529) — 바닥 · 비중 · 상한과 머리글 · 값 길이로 폭을 나누고, 좁으면 등급 순서(문맥 → 보조)대로 숨긴다. 머리글의
+     정렬 · 필터 표지는 그 표에서 실제로 서는 것만 센다(`TableHeaderCell` 과 같은 조건). */
   return React.useMemo(
-    () => planNarrowColumns(columns, avail, rootPx),
-    [columns, avail, rootPx],
+    () => planColumns(columns, avail, {
+      rootPx,
+      sortKey,
+      rows,
+      glyphsOf: (c) => (sortGlyph && c.sortable ? 1 : 0) + (filterGlyph && c.filter ? 1 : 0),
+    }),
+    [columns, avail, rootPx, sortKey, sortGlyph, filterGlyph, rows],
   );
 }
 
@@ -2230,8 +2247,8 @@ export function HiddenColumnsNote({ columns, openable = false, inline = false })
       data-hidden-columns={inline ? "" : undefined}
       sx={inline ? { display: "inline" } : { display: "block", px: 2, pt: 1.5 }}
     >
-      칸이 좁아 {names.join(", ")} 열을 숨겼습니다.{" "}
-      {openable ? "행을 열면 전체 정보를 볼 수 있습니다." : "창을 넓히면 다시 보입니다."}
+      표 폭이 좁아 {names.join(", ")} 열을 숨겼습니다.{" "}
+      {openable ? "행을 열면 숨긴 값도 볼 수 있습니다." : "창을 넓히면 다시 보입니다."}
     </Typography>
   );
 }
@@ -2250,6 +2267,9 @@ export function HiddenColumnsNote({ columns, openable = false, inline = false })
 export function columnShouldTruncate(col, ellipsis) {
   const c = col || {};
   if (c.type === "actions" || c.type === "select") return false;
+  /* 호출부가 낱말 단위 접기(`overflow: "word"`)를 **직접 적은** 산문 열은 자르지 않고 접는다. 예전에는 이 함수가 산문 열을
+     언제나 말줄임으로 보내 그 설정이 한 번도 적용되지 않았다(계획 6절 9). 타입의 기본 넘침(제목의 word)은 그대로 말줄임이다. */
+  if (c.overflow === OVERFLOW.word) return false;
   return !!(ellipsis || !c.render || c.type === "title" || c.type === "name" || c.type === "text" || c.type === "enum");
 }
 
@@ -2276,16 +2296,31 @@ export function columnCellHint(col, row, ctx, { truncate, raw, plain } = {}) {
   return undefined;
 }
 
-export function TableColGroup({ columns }) {
+export function TableColGroup({ columns, widths }) {
   const cols = Array.isArray(columns) ? columns : [];
   return (
     <colgroup>
       {cols.map((c) => {
-        const w = columnLayoutWidth(c);
+        /* 배분 폭(px, D-529)이 있으면 그것이 정본이고, 못 쟀으면(첫 그림) 옛 바닥 폭이다. */
+        const w = widths && widths[c.key] != null ? `${widths[c.key]}px` : columnLayoutWidth(c);
         return <col key={c.key} style={w ? { width: w } : undefined} />;
       })}
     </colgroup>
   );
+}
+
+/* 가로로 굴러가는 표(필수 열만으로도 칸이 모자람)의 첫 열은 붙박이다 — 행이 무엇인지 말하는 열이 굴리는 동안 사라지지 않는다.
+   선택 칸이 앞에 있으면 그 칸까지 붙박이고, 왼쪽 자리는 배분 폭(px)으로 정한다. */
+function stickyColumnsOf(cols, plan) {
+  if (!plan || !plan.scroll || !plan.widths) return null;
+  const out = {};
+  let left = 0;
+  for (const c of cols) {
+    out[c.key] = left;
+    left += plan.widths[c.key] || 0;
+    if (resolveColumn(c).type !== "select") break;
+  }
+  return out;
 }
 
 const ELLIPSIS_CELL_SX = {
@@ -2745,21 +2780,16 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
      안 뺐다. 카드 뷰는 안 건드린다: 폭 제약이 없는 카드에서 열을 빼면 정보만 준다. */
   /* 🔴 **지금 정렬 중인 열은 숨기지 않는다.**
    *
-   * `planNarrowColumns` 는 칸이 좁으면 `hideNarrow` 열을 뒤에서부터 뺀다. 그런데 그 열이
-   * 지금 목록을 세우고 있는 축이면, 머리행이 `wideCols` 로만 그려지므로 **정렬 화살표와
-   * 정렬 단추와 `aria-sort` 가 통째로 사라진다** — 목록은 그 축으로 서 있는데 화면에는
-   * 그렇게 말하는 자리가 없고, 방향을 되돌릴 방법도 없다. 휴지통에서 기본 축(삭제일)이
-   * 정확히 그렇게 가장 먼저 빠졌다.
-   *
-   * 접히는 후보에서만 뺀다 — 그 열이 자리를 차지하므로 다른 `hideNarrow` 열이 대신 접힌다. */
+   * 열 배분(`planColumns`)은 칸이 좁으면 문맥 · 보조 열을 숨긴다. 그런데 그 열이 지금 목록을 세우고 있는 축이면, 머리행이
+   * `wideCols` 로만 그려지므로 **정렬 화살표와 정렬 단추와 `aria-sort` 가 통째로 사라진다** — 휴지통에서 기본 축(삭제일)이
+   * 정확히 그렇게 가장 먼저 빠졌다. 정렬 중인 열은 필수 등급이다(`columnPlan.columnTier`) — 그 열이 자리를 차지하므로 다른
+   * 보조 열이 대신 숨는다. */
   const sortKey = sort && sort.key;
-  const fitCols = React.useMemo(
-    () => (sortKey ? baseCols.map((c) => (c.key === sortKey && c.hideNarrow ? { ...c, hideNarrow: false } : c)) : baseCols),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [baseCols, sortKey],
-  );
-  const fit = useFittedColumns(fitCols, narrow ? null : scrollEl);
+  const fit = useFittedColumns(baseCols, narrow ? null : scrollEl, {
+    sortKey, sortGlyph: !!onSort, filterGlyph: !!onFilter, rows: safeRows,
+  });
   const wideCols = fit.shown;
+  const stickyCols = stickyColumnsOf(wideCols, fit);
   // 값 자체는 행을 열면(onRow) 상세에서 그대로 보인다 — 여기서는 "더 있다"는 사실만 알린다.
   const hiddenCols = fit.hidden;
 
@@ -2947,7 +2977,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
               {cols.map((c) => {
                 /* `overflowWrap:anywhere` 만 걸면 한글이 음절 단위로 끊긴다 - 영문에서는
                    안 생기는 일이라 눈에 잘 안 띈다. 단어는 지키고 긴 토큰만 끊는다. */
-                const value = rowHref && onRow && c.type === "title" ? (
+                const value = rowHref && onRow && (c.type === "title" || c.rowLink) ? (
                   <Box
                     component="a"
                     {...rowAnchorProps(rowHref(row), () => onRow(row))}
@@ -3032,7 +3062,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           const hint = columnCellHint(c, row, ctx, { truncate, raw, plain });
           const content = raw != null ? raw : cellValue(c, row, ctx);
           const body = wrapTableCellContent(
-            rowHref && onRow && c.type === "title" ? (
+            rowHref && onRow && (c.type === "title" || c.rowLink) ? (
               <Box
                 component="a"
                 {...rowAnchorProps(rowHref(row), () => onRow(row))}
@@ -3043,13 +3073,20 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
             ) : content,
             { truncate, hint },
           );
+          const sticky = stickyCols && stickyCols[c.key] != null
+            ? { position: "sticky", left: stickyCols[c.key], zIndex: 1 } : null;
           return (
             <TableCell
               key={c.key}
               align={resolveColumn(c).align}
               data-col-role={colRole(c)}
+              data-sticky-col={sticky ? "" : undefined}
               title={!truncate && hint ? hint : undefined}
-              sx={rowHeight === "tall" ? { ...colCellSx(c, { truncate }), height: remPx(CONTROL.tableRowTall) } : colCellSx(c, { truncate })}
+              sx={{
+                ...colCellSx(c, { truncate }),
+                ...(rowHeight === "tall" ? { height: remPx(CONTROL.tableRowTall) } : null),
+                ...sticky,
+              }}
             >
               {body}
             </TableCell>
@@ -3160,8 +3197,13 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
            `ui/virtual-rows.test.jsx` 와 `scripts/ui_qa/assertions.py` 가 함께 깨진다. */
         data-list-total={total != null ? total : undefined}
         sx={{
-          ...tableLayoutSx(wideCols),
+          ...tableLayoutSx(wideCols, fit),
           "& td, & th": { borderInline: 0 },
+          /* 붙박이 첫 열 — 굴러가는 칸이 비치지 않게 판 면을 깔고, hover · 선택 행에서는 행과 같은 면이다. */
+          ...(stickyCols ? {
+            "& tbody td[data-sticky-col]": { bgcolor: "background.paper" },
+            "& tbody tr.MuiTableRow-hover:hover td[data-sticky-col], & tbody tr.Mui-selected td[data-sticky-col]": { bgcolor: "background.inset" },
+          } : null),
           "& tbody tr:last-of-type td": { borderBottom: 0 },
           "& tbody tr": { transition: `background-color ${MOTION.instant} ${MOTION.ease}` },
           "& tbody tr.MuiTableRow-hover:hover": { bgcolor: "background.inset" },
@@ -3182,7 +3224,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           } : null),
         }}
       >
-        <TableColGroup columns={wideCols} />
+        <TableColGroup columns={wideCols} widths={fit.widths} />
         <TableHead>
           <TableRow>
             {wideCols.map((c) => (
@@ -3222,6 +3264,9 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
                      비치지 않게 판 면(`background.paper`)으로 덮어, 고정 머리를 켠 표(사용자 · 감사 · 문서)만 머리가
                      흰 줄로 섰다. 함몰면도 불투명 토큰이라 행이 비치지 않는다. */
                   ...(stickyHeader ? { bgcolor: "background.inset", ...stickyTopSx() } : null),
+                  ...(stickyCols && stickyCols[c.key] != null ? {
+                    position: "sticky", left: stickyCols[c.key], zIndex: stickyHeader ? 3 : 2, bgcolor: "background.inset",
+                  } : null),
                 }}
               />
             ))}

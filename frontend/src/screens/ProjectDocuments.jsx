@@ -73,7 +73,7 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
 
   const columns = React.useMemo(() => [
     {
-      key: "title", label: "제목", type: "title", minWidth: "16rem", rowName: (d) => d.title,
+      key: "title", label: "제목", type: "title", rowName: (d) => d.title,
       render: (doc) => (
         <Box sx={{ display: "grid", gap: 0.25, minWidth: 0 }}>
           {/* 제목은 행을 여는 이름이라 링크색 600 이다(`TitleCell`, 조합 계약 C-3). */}
@@ -93,7 +93,7 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
       ),
     },
     {
-      key: "author", label: "작성자", type: "name", minWidth: "8rem",
+      key: "author", label: "작성자", type: "name",
       render: (doc) => (
         <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
           <UserAvatar person={doc.author} size="sm" />
@@ -102,7 +102,7 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
       ),
     },
     {
-      key: "updated_at", label: "최종 수정", type: "datetime", minWidth: "9.5rem",
+      key: "updated_at", label: "최종 수정", type: "datetime", min: "9.5rem",
       render: (doc) => fmtDateTimeCompact(doc.updated_at),
     },
   ], []);

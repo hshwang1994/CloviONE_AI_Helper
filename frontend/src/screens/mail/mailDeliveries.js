@@ -65,18 +65,19 @@ export const MAIL_DELIVERIES = {
   pollWhile: (r) => r.status === "queued" || r.status === "retrying",
   columns: [
     { ...dateCol("created_at", "발생"), sortable: true, rowName: (r) => (r.kind_label || r.kind) + " / " + (r.to_email || "") },
-    { key: "kind", label: "종류", type: "enum", sortable: true, render: (r) => r.kind_label || MAIL_KIND_LABEL[r.kind] || r.kind },
+    { key: "kind", label: "종류", type: "enum", sortable: true, values: Object.values(MAIL_KIND_LABEL), render: (r) => r.kind_label || MAIL_KIND_LABEL[r.kind] || r.kind },
     { key: "to_email", label: "받는 사람", type: "identifier", sortable: true },
     { key: "subject", label: "제목", type: "title" },
     {
-      key: "status", label: "상태", type: "status", sortable: true,
+      key: "status", label: "상태", type: "status", sortable: true, values: Object.values(MAIL_STATUS_LABEL),
       render: (r) => React.createElement(Badge, {
         value: r.status_label || MAIL_STATUS_LABEL[r.status] || r.status, kind: STATUS_KIND[r.status] || "neutral",
       }),
     },
     /* 실패한 횟수다(보낸 한 번은 세지 않는다) — 「시도」라고 부르면 보낸 메일도 0 이라 틀린 말이 된다. */
-    { key: "attempt_count", label: "실패", type: "count", sortable: true },
-    { key: "reason", label: "원인", type: "text", render: reasonOf },
+    /* 받는 사람 · 종류 · 상태 · 시각(과 제목)이 필수다. 실패 횟수 · 원인은 보조라 좁으면 숨고, 행을 열면 상세가 보인다(D-529). */
+    { key: "attempt_count", label: "실패", type: "count", sortable: true, tier: "secondary" },
+    { key: "reason", label: "원인", type: "text", tier: "secondary", render: reasonOf },
   ],
   detailFields: [
     field("to_email", "받는 사람"),

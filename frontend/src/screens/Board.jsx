@@ -513,7 +513,7 @@ function BoardScreen({ kind = "free" }) {
       key: "author_name",
       label: "작성자",
       // 이름 자리다. 바닥값 9rem 이면 소속이 붙는 순간 첫 두 글자만 남아 더 넓게 잡는다.
-      type: "name", minWidth: "16rem",
+      type: "name", min: "16rem",
       render: (p) => <AuthorLine name={p.author_name} person={people[p.author_user_id]} />,
     },
     /* 좁은 화면(900~1200)에서 먼저 접히는 둘. 분류는 바로 위 칩이 이미 말하고, 조회 수는

@@ -121,7 +121,7 @@ export function devLabel(d) {
 }
 
 const devNameCol = {
-  key: "name", label: "개발자", type: "name", minWidth: "10rem", rowName: (d) => devLabel(d),
+  key: "name", label: "개발자", type: "name", min: "10rem", rowName: (d) => devLabel(d),
   help: "티켓 담당자입니다. 같은 이름이 둘이면 이메일로 구별합니다.",
   render: (d) => (
     <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
@@ -137,7 +137,7 @@ const devNameCol = {
 function devSummaryColumns(defs) {
   return [
     devNameCol,
-    { key: "_bar", label: "상태 구성", type: "text", minWidth: "14rem",
+    { key: "_bar", label: "상태 구성", type: "text", min: "14rem",
       help: "담당한 티켓의 상태 비율을 색 막대로 나타냅니다. 색은 이 표 위 범례와 같습니다.",
       render: (d) => <StatusBar d={d} /> },
     { key: "done", label: "완료", type: "count", help: "마감일이 이 달인 티켓 중 완료 상태인 티켓 수입니다.",
@@ -209,7 +209,7 @@ function devCompletedColumns(defs) {
 const DEV_TICKET_COLUMNS = [
   { key: "key", label: "번호", type: "code", help: "티켓 이름입니다(프로젝트 코드와 순번).",
     render: (t) => t.key || "-" },
-  { key: "title", label: "제목", type: "title", minWidth: "14rem", rowName: (t) => t.title },
+  { key: "title", label: "제목", type: "title", rowName: (t) => t.title },
   { key: "status", label: "상태", type: "status", help: "티켓의 진행 상태입니다.",
     render: (t) => <Badge value={t.status || "-"} /> },
   { key: "due", label: "마감일", type: "date", help: "티켓 마감일입니다.", render: (t) => t.due || "-" },

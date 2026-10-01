@@ -11,7 +11,7 @@ import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
  * 두 가지를 함께 잰다. 둘 다 부품 하나만 따로 재면 안 보이는 것이다 —
  * 실제 결함이 그 배선에 있었기 때문이다.
  *
- *   ① 안내 문구가 이 표에서 사실인가. 「행을 열면 전체 정보를 볼 수 있습니다」는 행을
+ *   ① 안내 문구가 이 표에서 사실인가. 「행을 열면 숨긴 값도 볼 수 있습니다」는 행을
  *      열 수 있는 표에서만 사실인데, `DataTable` 이 그 조건(`onRow`)을 안 넘기고 있었다.
  *   ② 🔴 **지금 정렬 중인 열은 안 숨긴다.** 머리행은 남은 열로만 그려지므로, 정렬 축이
  *      빠지면 화살표와 정렬 단추와 `aria-sort` 가 통째로 사라진다 — 목록은 그 축으로
@@ -63,14 +63,15 @@ function draw(props) {
 describe("좁은 칸에서 열을 뺄 때", () => {
   it("🔴 행을 열 수 없는 표는 「행을 열면」이라고 말하지 않는다", () => {
     draw({});
-    expect(screen.getByText(/칸이 좁아/)).toBeInTheDocument();
+    // 판단 기준은 창이 아니라 그 표가 받은 폭이라 「표 폭」이라고 말한다(D-529).
+    expect(screen.getByText(/표 폭이 좁아/)).toBeInTheDocument();
     expect(screen.queryByText(/행을 열면/)).toBeNull();
     expect(screen.getByText(/창을 넓히면 다시 보입니다/)).toBeInTheDocument();
   });
 
   it("반례 — 행을 열 수 있는 표에서는 그렇게 말한다", () => {
     draw({ onRow: () => {} });
-    expect(screen.getByText(/행을 열면 전체 정보를 볼 수 있습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/행을 열면 숨긴 값도 볼 수 있습니다/)).toBeInTheDocument();
   });
 
   it("🔴 지금 정렬 중인 열은 좁아도 안 숨긴다 — 화살표까지 같이 사라진다", () => {

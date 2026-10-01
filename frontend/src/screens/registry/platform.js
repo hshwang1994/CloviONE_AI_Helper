@@ -313,7 +313,7 @@ export const PLATFORM_SCREENS = {
         value: ({ info: "안내", warning: "주의", critical: "긴급" })[r.level] || r.level,
         kind: r.level === "critical" ? "danger" : r.level === "warning" ? "warn" : "info",
       }) },
-      { ...mapCol("audience", "대상", { all: "모든 사용자", admin: "관리자군에게만" }), minWidth: "8.5rem" },
+      mapCol("audience", "대상", { all: "모든 사용자", admin: "관리자군에게만" }),
       activeCol("사용"),
       dateCol("starts_at", "시작"), dateCol("ends_at", "종료"),
     ],
@@ -495,11 +495,11 @@ export const PLATFORM_SCREENS = {
        열이 자기 바닥 폭으로 서므로, 값이 긴 둘은 그 값이 한 줄로 서는 바닥을 든다 — 가장 긴 플래그 이름
        (`limited_service_actions_enabled`)과 「없음(읽는 코드 없음)」이다. */
     columns: [
-      { ...col("name", "플래그"), identifier: true, minWidth: "16rem" },
+      { ...col("name", "플래그"), identifier: true },
       { key: "value", label: "현재", type: "enum", render: (r) => React.createElement(Badge, { value: r.value ? "활성" : "비활성", kind: r.value === r.default ? (r.value ? "ok" : "neutral") : "warn" }) },
       { key: "default", label: "기본값", type: "enum", render: (r) => React.createElement(Badge, { value: r.default ? "활성" : "비활성", kind: "neutral" }) },
       mapCol("owner", "값의 주인", { file: "파일", db: "설정 화면" }),
-      { key: "has_consumer", label: "실제 효과", type: "enum", minWidth: "11rem", render: (r) => r.has_consumer ? "있음" : "없음(읽는 코드 없음)" },
+      { key: "has_consumer", label: "실제 효과", type: "enum", values: ["있음", "없음(읽는 코드 없음)"], render: (r) => r.has_consumer ? "있음" : "없음(읽는 코드 없음)" },
       truncateCol("description", "설명", 70),
     ],
     // description은 이미 목록 열이지만 그 열은 truncateCol(70자 말줄임, hover title로만 전체 확인)이다

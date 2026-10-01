@@ -137,7 +137,8 @@ export function Settings({ embedded = false } = {}) {
      항목명이 1,000px 칸을 차지하고 옆 「설명」은 스무 글자에서 잘렸다. 항목명은 가장 긴 이름(「문서 휴지통 자동 영구
      삭제」)이 한 줄로 서는 폭을 적고, 남는 폭은 「현재 값」과 「설명」이 나눈다(`grow`). */
   const columns = [
-    { key: "label", label: "항목명", type: "title", width: "13rem", minWidth: "10rem" },
+    /* 항목명은 짧은 이름이라 13rem 에서 멈추고, 남는 폭은 설명 열이 받는다(D-529 — 고정 폭 대신 상한). */
+    { key: "label", label: "항목명", type: "title", min: "10rem", max: "13rem" },
     // PA-RC-0022: 백엔드 키는 기본 숨김이다 — showKey가 꺼져 있으면 이 열 자체를 안 만든다
     // (렌더는 하고 CSS로 숨기지 않는다, 스크린리더가 안 쓰는 열까지 훑지 않게).
     ...(showKey ? [{ key: "key", label: "키", render: (r) => <Typography component="span" variant="caption" color="text.secondary">{r.key}</Typography> }] : []),

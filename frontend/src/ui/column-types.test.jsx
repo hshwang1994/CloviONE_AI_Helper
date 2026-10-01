@@ -15,9 +15,13 @@ import { render, screen } from "@testing-library/react";
  *
  * qa-contract-change: 핸드오프 D-3 · ACCEPTANCE E2 가 「머리글은 언제나 가운데」를 「제목 열만 왼쪽, 나머지 가운데 — 머리와 행이 같다」로 뒤집었다.
  * 제목 열 머리글 단언이 alignCenter 에서 alignLeft 로 옮겼고, 머리와 몸이 열마다 같은 축인지 단언을 더했다.
+ * qa-contract-change: 열 폭 배분(D-529)이 「제목 열이 남는 폭을 다 먹고 나머지는 바닥 rem 이 곧 폭」을 「바닥 · 비중 · 상한과 머리글 ·
+ * 값 길이로 나눈다」로 바꿨다. 타입 바닥 값(제목 16→14 · 식별자 12.5→11 · 상태 7.5→6 · 수치 8→7)의 단언을 옮기고, 머리글이 한 줄로
+ * 서는지는 바닥 숫자 대신 머리글 필요 폭 계산으로 단언한다. 좁은 칸 숨김은 `planNarrowColumns` 대신 `planColumns` 로 단언한다.
  */
 
-import { COLUMN_TYPES, assignLeftoverWidth, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, tableMinWidth, ALIGN_BY_TYPE } from "./columnTypes.js";
+import { COLUMN_TYPES, assignLeftoverWidth, columnLayoutWidth, planColumnCollapse, resolveColumn, tableMinWidth, ALIGN_BY_TYPE } from "./columnTypes.js";
+import { columnSpec, headerNeedRem, planColumns } from "./columnPlan.js";
 import { DataTable, tableLayoutSx } from "./kit.jsx";
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
 
@@ -46,7 +50,7 @@ describe("표는 바닥 아래로 줄지 않는다 — 대신 가로로 민다",
 
   it("🔴 바닥은 제목 열의 바닥까지 **포함한** 합이다", () => {
     // 제목을 빼고 더하면 제목이 0 이 되는 그 폭이 바닥이 된다 — 고치기 전과 같아진다.
-    expect(tableMinWidth(COLS)).toBe("calc(10rem + 16rem + 7.5rem + 8.5rem)");
+    expect(tableMinWidth(COLS)).toBe("calc(10rem + 14rem + 7.5rem + 8.5rem)");
   });
 
   it("바닥은 `type` 이 정한 폭에서 나온다 — 화면이 숫자를 다시 적지 않는다", () => {
@@ -81,7 +85,7 @@ describe("표는 바닥 아래로 줄지 않는다 — 대신 가로로 민다",
     const table = container.querySelector("table");
     expect(table).toBeTruthy();
     expect(table.style.minWidth || getComputedStyle(table).minWidth)
-      .toContain("16rem");
+      .toContain("14rem");
   });
 });
 
@@ -136,9 +140,11 @@ describe("남는 폭은 읽는 열이 갖는다 (D-501)", () => {
       { key: "a", label: "오류", type: "text" },
       { key: "b", label: "메모", type: "text", hideNarrow: true },
     ];
-    const plan = planNarrowColumns(cols, 250, 16);
+    const plan = planColumns(cols, 250, { rootPx: 16 });
     expect(plan.hidden.map((c) => c.key)).toEqual(["b"]);
-    expect(plan.shown.map((c) => [c.key, !!c.grow])).toEqual([["a", true]]);
+    expect(plan.shown.map((c) => c.key)).toEqual(["a"]);
+    // 남은 산문 열이 칸 전체를 받는다(바닥 192 + 남는 58).
+    expect(plan.widths).toEqual({ a: 250 });
   });
 
   it("🔴 그려진 표에서 산문 열의 `<col>` 만 폭이 비고 나머지는 자기 바닥 폭을 든다", () => {
@@ -151,7 +157,8 @@ describe("남는 폭은 읽는 열이 갖는다 (D-501)", () => {
       rows={[{ name: "board_enabled", value: "활성", desc: "자유게시판 모듈입니다." }]}
       rowKey={(r) => r.name}
     />);
-    expect(colWidths(container)).toEqual(["12.5rem", "6.5rem", ""]);
+    // 첫 그림(칸 폭을 아직 못 잼)은 옛 바닥 배치다 — 식별자 바닥은 11rem(D-529).
+    expect(colWidths(container)).toEqual(["11rem", "6.5rem", ""]);
     // 머리 칸도 같은 폭을 말한다 — `<col>` 과 머리 칸이 갈리면 브라우저마다 다른 폭이 선다.
     expect(getComputedStyle(screen.getByText("현재").closest("th")).width).toBe("6.5rem");
     expect(getComputedStyle(screen.getByText("설명").closest("th")).width).not.toBe("12rem");
@@ -292,16 +299,24 @@ describe("열 어휘 — 폭·정렬·자릿수는 의미에서 나온다", () =
     }
   });
 
-  it("수치 열은 「예상 WD」 머리글이 한 줄로 설 바닥 폭을 갖는다", () => {
-    expect(COLUMN_TYPES.number.minWidth).toBe("8rem");
+  it("수치 열은 「예상 WD」 머리글이 정렬 표지와 함께 한 줄로 서는 폭을 받는다", () => {
+    expect(COLUMN_TYPES.number.minWidth).toBe("7rem");
+    const spec = columnSpec({ key: "wd", label: "예상 WD", type: "number" }, { glyphs: 1 });
+    expect(spec.min).toBeGreaterThanOrEqual(headerNeedRem("예상 WD", 1));
+    expect(spec.min).toBe(7);
   });
 
-  it("상태·닫힌 집합·개수·시각 열도 머리글+정렬이 한 줄로 설 바닥 폭을 갖는다", () => {
-    expect(COLUMN_TYPES.status.minWidth).toBe("7.5rem");
+  it("상태 · 닫힌 집합 · 개수 · 시각 열은 머리글 + 정렬 · 필터 표지가 한 줄로 서는 폭을 받는다", () => {
+    expect(COLUMN_TYPES.status.minWidth).toBe("6rem");
     expect(COLUMN_TYPES.enum.minWidth).toBe("6.5rem");
     expect(COLUMN_TYPES.count.minWidth).toBe("6rem");
     expect(COLUMN_TYPES.datetime.minWidth).toBe("11rem");
     expect(COLUMN_TYPES.actions.minWidth).toBe("6.5rem");
+    // 바닥보다 머리글이 길면 머리글 폭이 이긴다 — 「우선순위」 + 정렬 + 필터는 8rem 이다.
+    expect(columnSpec({ key: "p", label: "우선순위", type: "status" }, { glyphs: 2 }).min).toBe(8);
+    expect(columnSpec({ key: "n", label: "조회", type: "count" }, { glyphs: 1 }).min).toBe(6);
+    expect(columnSpec({ key: "at", label: "마지막 로그인 시각", type: "datetime" }, { glyphs: 1 }).min)
+      .toBeGreaterThanOrEqual(headerNeedRem("마지막 로그인 시각", 1));
   });
 });
 

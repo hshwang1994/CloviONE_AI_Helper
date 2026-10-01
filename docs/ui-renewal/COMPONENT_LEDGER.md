@@ -703,6 +703,15 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - **시각 규율 프로브**: `scripts/ui_qa/visual_probes.py`(`nested_card` · `brand_area` · `first_data_visible` + 보고 셋), 견본
   `scripts/ui_qa/fixtures/visual/{good,bad}.html`, 대조표 `scripts/ui_qa/visual_review.py`.
 
+## 0-20. 표 열 폭 배분 (D-529)
+
+- **정본**: `frontend/src/ui/columnPlan.js::planColumns` — `DataTable` 의 `useFittedColumns` 가 그 표가 받은 칸 폭으로 부르고, `<col>` 에
+  px 폭을 건다. 타입의 바닥 · 비중 · 상한은 `columnTypes.COLUMN_TYPES` 하나다(`weight` · `maxWidth` · `content`).
+- **열 속성**: `tier`(essential · secondary · context) · `priority` · `values`(선택지 라벨 전부) · `value(row)`(화면 낱말) · `min` · `max`
+  (rem 문자열) · `actionCount`(동작 칸 단추 수) · `rowLink`(이름 열의 행 링크). 화면이 `width` · `minWidth` 숫자로 폭을 덮지 않는다
+  (내 업무량 「달」 하나만 보호 화면이라 남겼다).
+- **표 발**: 숨긴 열은 「표 폭이 좁아 … 열을 숨겼습니다.」, 필수 열만으로도 모자라면 표 상자가 가로로 굴리고 첫 열이 붙박이다.
+
 ## 1. 신설한 부품
 
 ### `ContextBar` (2026-09-21, D-497)

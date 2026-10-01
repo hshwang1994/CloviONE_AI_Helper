@@ -321,7 +321,7 @@ function Summary({ query, filters, onFilter }) {
 function columns(deptNames) {
   return [
     {
-      key: "name", label: "이름", type: "title", minWidth: "12rem", sortable: true,
+      key: "name", label: "이름", type: "title", min: "12rem", sortable: true,
       // 표의 어느 열이 '이 행이 무엇인가' 를 말하는지 알려 준다(kit.jsx::rowOpenLabel).
       rowName: (p) => p.name,
       /* 이름은 행을 여는 제목 칸이다 — 링크색 600 한 줄(`TitleCell`, 조합 계약 C-3). 행에 `<a href>` 가 걸려 있어 색만
@@ -336,7 +336,7 @@ function columns(deptNames) {
       ),
     },
     {
-      key: "status", label: "상태", minWidth: "8rem",
+      key: "status", label: "상태", min: "8rem",
       render: (p) => (
         <Stack direction="row" gap={0.5} sx={{ flexWrap: "wrap", alignItems: "center" }}>
           <Badge value={PROJECT_STATUS_KO[p.status] || p.status} />
@@ -347,7 +347,7 @@ function columns(deptNames) {
       ),
     },
     {
-      key: "dept_id", label: "부서", minWidth: "7rem",
+      key: "dept_id", label: "부서", min: "7rem",
       render: (p) => deptLabel(p, deptNames) || "-",
     },
     {
@@ -359,7 +359,7 @@ function columns(deptNames) {
          값은 「2026-06-01 ~ 2026-12-31」 한 줄(157px)이고 칸 안쪽 여백이 2rem 이라 13px 이
          모자랐다 — `render` 가 있는 nowrap 열에는 `overflow:hidden` 이 안 붙어서
          (`kit.jsx::colCellSx`), 모자란 폭이 잘림이 아니라 **옆 칸 침범**으로 나온다. */
-      key: "period", label: "기간", type: "date", minWidth: "12.5rem",
+      key: "period", label: "기간", type: "date", min: "12.5rem",
       render: (p) => periodText(p.starts_on, p.ends_on),
     },
     {

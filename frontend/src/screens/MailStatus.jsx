@@ -145,11 +145,11 @@ function FailureReason({ row }) {
    「발송 불가(설정 없음)」 표지가 옆 칸 위로 넘친다. 바닥 합이 1366 화면의 목록 폭보다 조금 넓어서
    그 폭에서는 「시도」가 숨는다(`hideNarrow`, 발이 그 사실을 말한다). */
 const FAILURE_COLUMNS = [
-  { key: "kind_label", label: "종류", type: "enum", minWidth: "8rem" },
-  { key: "to_email", label: "받는 사람", type: "name", minWidth: "10rem" },
-  { key: "subject", label: "제목", type: "title", minWidth: "12rem" },
+  { key: "kind_label", label: "종류", type: "enum" },
+  { key: "to_email", label: "받는 사람", type: "identifier" },
+  { key: "subject", label: "제목", type: "title" },
   {
-    key: "status_label", label: "상태", type: "status", minWidth: "10.5rem",
+    key: "status_label", label: "상태", type: "status", min: "10.5rem",
     /* 끝난 실패만 danger 다. 설정 없음과 다시 보내는 중은 아직 고치면 나갈 메일이라 warn 이다. */
     render: (r) => <Badge value={r.status_label} kind={r.status === "failed" ? "danger" : "warn"} />,
   },

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
-import { roleLabel } from "../../lib/roles.js";
+import { ROLE_LABELS, roleLabel } from "../../lib/roles.js";
 import { useInfiniteList } from "../../lib/useInfiniteList.js";
 import { Badge, CountChip, DataTable, ErrorState, Section } from "../../ui/kit.jsx";
 import { FilterBar, FilterToggle } from "../../ui/FilterBar.jsx";
@@ -44,7 +44,9 @@ function stateOf(user) {
 function columnsFor({ showDepartment, duplicateNames }) {
   return [
     {
-      key: "display_name", label: "이름", type: "title",
+      /* 사람 이름은 제목이 아니라 이름이다(D-529) — 남는 폭을 다른 늘어나는 열(이메일 · 부서)과 같은 비중으로 나누고
+         18rem 에서 멈춘다. 예전에는 제목 열이라 1920 에서 이 칸 500px 대부분이 비고 이메일이 잘렸다. */
+      key: "display_name", label: "이름", type: "name", rowLink: true,
       rowName: (u) => u.display_name || u.email,
       render: (u) => (
         <Box sx={{ minWidth: 0 }}>
@@ -65,13 +67,15 @@ function columnsFor({ showDepartment, duplicateNames }) {
       ),
     },
     { key: "email", label: "이메일", type: "identifier" },
-    { key: "title", label: "직책", type: "enum", render: (u) => u.title || "-" },
+    { key: "title", label: "직책", type: "enum", tier: "secondary", render: (u) => u.title || "-" },
     showDepartment ? { key: "department", label: "부서", type: "path", render: (u) => u.department || "-" } : null,
     {
       key: "state", label: "상태", type: "status",
+      hint: (u) => stateOf(u).label,
       render: (u) => { const s = stateOf(u); return <Badge value={s.label} kind={s.kind} />; },
     },
-    { key: "role", label: "역할", type: "enum", render: (u) => roleLabel(u.role) },
+    /* 역할 폭은 역할 이름 전부가 정한다 — 이 쪽에 없는 「시스템 관리자」도 잘리지 않는다. hover 는 그린 이름이다. */
+    { key: "role", label: "역할", type: "enum", values: Object.values(ROLE_LABELS), hint: (u) => roleLabel(u.role), render: (u) => roleLabel(u.role) },
   ].filter(Boolean);
 }
 

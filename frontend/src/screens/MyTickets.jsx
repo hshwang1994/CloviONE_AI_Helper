@@ -169,17 +169,17 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, claimingId = null
     /* 번호는 `AAAAAA-123456` 같이 접두 여섯 + 숫자 여섯까지 한 줄이다. 예전 7rem 은
        접두가 긴 값이 두 줄로 접혀 행 높이가 들쭉날쭉했다. 식별자 기본(anywhere)은
        끄고, 폭이 모자라면 표를 가로로 민다. */
+    /* 폭은 티켓 번호 길이가 정한다(코드 열 — 값 길이, D-529). 예전 고정 10rem 은 「MQHENX-8」 옆이 비었다. */
     { key: "tid", label: "티켓", type: "code",
-      width: compact ? "8.5rem" : "10rem", minWidth: compact ? "8.5rem" : "10rem",
       nowrap: true, sortable: true, render: (t) => ticketId(t) },
     // minWidth: 제목 열이 절대 그 아래로 줄지 않는 폭. 나머지 열이 전부 고정폭 + nowrap 이라,
     // 컨테이너가 좁으면(홈의 2단 배치, 1366 화면) 제목만 남은 폭을 다 먹히고 24px 로 눌려
     // 글자가 한 음절씩 세로로 무너졌다(QA vertical_text_collapse 가 실제로 잡았다).
     // rowName: 이 표에서 행을 구별하는 값은 제목이다(ui/rowName.js). 선택 체크박스와 상세
     // 열기 버튼이 이 값을 접근 이름에 쓴다 — 없으면 스무 행이 전부 "이 항목 선택"으로 읽힌다.
-    { key: "title", label: "제목", type: "title", minWidth: compact ? "11rem" : "16rem", sortable: true, rowName: (t) => t.title || "제목 없음",
+    { key: "title", label: "제목", type: "title", min: compact ? "11rem" : undefined, sortable: true, rowName: (t) => t.title || "제목 없음",
       render: (t) => ticketTitleCell(t, onOpen) },
-    { key: "status", label: "상태", type: "status", width: "7.5rem", sortable: true, filter: { kind: "enum", field: "status" },
+    { key: "status", label: "상태", type: "status", sortable: true, filter: { kind: "enum", field: "status" },
       render: (t) => (t.status
         ? (
           <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
@@ -203,7 +203,7 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, claimingId = null
           </Box>
         )
         : "-") },
-    { key: "priority", label: "우선순위", type: "status", width: "7.5rem", sortable: true, hideNarrow: true, filter: { kind: "enum", field: "priority" }, render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
+    { key: "priority", label: "우선순위", type: "status", sortable: true, hideNarrow: true, filter: { kind: "enum", field: "priority" }, render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
   ];
   /* ── 칸이 좁을 때 **접히는 열** (`hideNarrow` · D-380) ──────────────────────
    *
@@ -219,7 +219,8 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, claimingId = null
     /* 신호는 상태와 **다른 축**이라 다른 열이다 (D-349). 한 칸에 넣으면 「진행 중」과
        「차단됨」이 한 낱말처럼 읽히고, 정렬·필터도 둘을 못 가른다. */
     cols.push({
-      key: "_signals", label: "신호", type: "status", width: "9rem", nowrap: true,
+      /* 신호는 둘이 함께 설 수 있다(「차단됨」 · 「지연」) — 바닥 9rem 이 둘을 한 줄에 세운다. */
+      key: "_signals", label: "신호", type: "status", min: "9rem", nowrap: true,
       render: (t) => <TicketSignals signals={marksOf(t)} />,
     });
     cols.push(
@@ -229,7 +230,7 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, claimingId = null
       { key: "act_wd", label: "실제 WD", type: "number", sortable: true, hideNarrow: true, filter: { kind: "number", field: "act_wd" }, render: (t) => <NumberCell value={t.act_wd} /> },
     );
   }
-  cols.push({ key: "due", label: "마감", type: "date", width: "8.5rem", sortable: true, render: (t) => (t.due || "-") });
+  cols.push({ key: "due", label: "마감", type: "date", sortable: true, render: (t) => (t.due || "-") });
   if (!compact) {
     /* 「추가」는 무엇을 추가했다는 말인지 알 수 없었다 — 이 값은 티켓이 만들어진 날이다. */
     cols.push({ key: "created_at", label: "생성 일자", type: "datetime", sortable: true, hideNarrow: true, filter: { kind: "date", field: "created_at" }, render: (t) => <DateCell value={t.created_at} /> });
@@ -240,7 +241,7 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, claimingId = null
     // 이유와 같다, 위 주석 참고). 담당자가 많아 셀이 넓어지면 이 표도 다른 nowrap 열처럼
     // 가로 스크롤로 넘긴다 — 읽을 수 없는 표보다 낫다는 같은 트레이드오프.
     cols.push({
-      key: "assignee_names", label: "담당자", type: "name", width: "12rem", nowrap: true,
+      key: "assignee_names", label: "담당자", type: "name", nowrap: true,
       filter: filterAssignee ? { kind: "entity", field: "assignee_user_id" } : undefined,
       render: (t) => {
         const people = Array.isArray(t.assignee_people) ? t.assignee_people : [];
@@ -270,7 +271,7 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, claimingId = null
   if (onEdit || onClaim) {
     cols.push({
       key: "_actions", label: "", type: "actions",
-      width: onClaim ? "13rem" : compact ? "3.5rem" : "6rem",
+      min: onClaim ? "13rem" : compact ? "3.5rem" : "6rem",
       nowrap: true,
       /* 행 동작은 `RowActions` 다 — 30 보조 단추이고 채움이 없다(조합 계약 C-4). 「나에게 배정」이 행마다 채움이었을 때
          미할당 목록 한 화면에 채움이 스무 개 섰다. 좁은 열(홈의 핵심 열 표)에서 수정은 글자 대신 아이콘이고 이름은

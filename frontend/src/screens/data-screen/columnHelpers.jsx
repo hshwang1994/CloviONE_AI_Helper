@@ -11,7 +11,8 @@ import { JsonBlock } from "./JsonBlock.jsx";
 const blankOf = (key) => (r) => r[key] == null || r[key] === "";
 /* 두 열은 값을 **이름으로 바꿔** 그린다 — 잘린 칸의 hover 글자도 그린 이름이어야 한다(`kit.jsx::columnCellHint` 의 `hint`). */
 export const badgeCol = (key, label) => ({ key, label, type: "status", isEmpty: blankOf(key), hint: (r) => statusText(r[key]), render: (r) => <Badge value={r[key]} /> });
-export const mapCol = (key, label, map) => ({ key, label, type: "enum", hint: (r) => map[r[key]] || (r[key] == null ? "" : String(r[key])), render: (r) => map[r[key]] || (r[key] == null ? "-" : String(r[key])) });
+/* 선택지 라벨 전부(`values`)가 열 폭을 정한다(D-529) — 지금 쪽에 없는 긴 라벨도 잘리지 않는다. */
+export const mapCol = (key, label, map) => ({ key, label, type: "enum", values: Object.values(map), hint: (r) => map[r[key]] || (r[key] == null ? "" : String(r[key])), render: (r) => map[r[key]] || (r[key] == null ? "-" : String(r[key])) });
 /* 표의 날짜는 한 줄로 고정한다 — 접히면 행 높이가 들쭉날쭉해 세로로 훑을 수 없다(지시 16).
  *
  * 날짜 열은 **정렬 대상이다**(지시 10). "언제 추가됐나 / 무엇이 가장 오래됐나"는 목록에서

@@ -58,15 +58,25 @@ function renderUsers() {
 }
 
 describe("Users 목록 — 이메일 열의 최소 폭 (PA-RC-0029)", () => {
-  it("이메일 열 머리글이 기본 바닥 폭(4.5rem)이 아니라 식별자 바닥 폭(12.5rem)을 받는다", async () => {
+  it("이메일 열 머리글이 기본 바닥 폭(4.5rem)이 아니라 식별자 바닥 폭(11rem, D-529)을 받는다", async () => {
     renderUsers();
     const header = await screen.findByRole("columnheader", { name: "이메일" });
-    expect(header).toHaveStyle({ minWidth: "12.5rem" });
+    expect(header).toHaveStyle({ minWidth: "11rem" });
   });
 
-  it("역할 열은 좁힌 폭 힌트(9rem)를 받는다 — 배지 1~2개만 담는데 내용량과 무관하게 넓던 것을 회수", async () => {
+  it("역할 열은 폭 숫자를 적지 않는다 — 그린 이름(역할 · 관리 범위)의 길이가 폭을 정한다(D-529)", async () => {
     renderUsers();
     const header = await screen.findByRole("columnheader", { name: "역할" });
-    expect(header).toHaveStyle({ width: "9rem" });
+    // 칸을 재기 전 첫 그림은 닫힌 집합의 바닥(6.5rem)이다 — 예전 고정 힌트 9rem 이 아니다.
+    expect(header).toHaveStyle({ width: "6.5rem" });
+    expect(header).not.toHaveStyle({ width: "9rem" });
+  });
+
+  it("부서 · 직책은 보조 열이라 좁으면 숨는다 — 이름 · 이메일 · 상태 · 역할은 필수다", async () => {
+    renderUsers();
+    await screen.findByRole("columnheader", { name: "이메일" });
+    for (const name of ["이메일", "이름", "역할", "상태"]) {
+      expect(screen.getByRole("columnheader", { name })).toBeInTheDocument();
+    }
   });
 });

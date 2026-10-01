@@ -428,12 +428,11 @@ export const GOVERNANCE_SCREENS = {
         value: ({ high: "높음", medium: "보통", low: "낮음" })[r.severity] || r.severity,
         kind: r.severity === "high" ? "danger" : r.severity === "medium" ? "warn" : "info",
       }) },
-      /* 「요약」(산문)이 남는 폭을 갖는다(D-501) — 이 열은 자기 바닥으로 서므로 가장 긴 값(「권한, 계정 변경」 ·
-         「처음 하는 동작」)이 한 줄로 서는 바닥을 든다. */
-      { ...mapCol("kind", "유형", {
+      /* 폭은 가장 긴 유형 이름(「권한, 계정 변경」 · 「처음 하는 동작」)이 정한다 — `mapCol` 이 선택지 라벨을 값으로 넘긴다(D-529). */
+      mapCol("kind", "유형", {
         failure_burst: "실패 급증", volume_spike: "동작 급증", off_hours: "심야 변경",
         critical_action: "권한, 계정 변경", new_actor_action: "처음 하는 동작",
-      }), minWidth: "8.5rem" },
+      }),
       { key: "actor_name", label: "행위자", type: "name", identifier: true, render: (r) => r.actor_name || r.actor_id || "시스템" },
       /* SEM-01: 첫 열(중요도)이 render라 표식 없이는 전부 "상세 보기"였다 — 처음엔 서버가
        * 만들어 주는 요약 문장(title)을 그대로 rowName으로 썼는데(app/audit/anomalies.py의
