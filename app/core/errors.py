@@ -124,6 +124,18 @@ class NotFoundError(AppError):
     default_message = "Resource not found"
 
 
+class FeatureDisabledError(NotFoundError):
+    """기능 깃발이 꺼진 기능의 문(D-530).
+
+    상태는 404 그대로다 - 꺼진 기능은 로그인 여부와 무관하게 없는 것이어야 한다(`app/core/feature_gate.py`). 다만 코드가
+    그 까닭을 말한다: 목록 화면은 이 코드를 보고 「찾을 수 없습니다」 대신 「이 기능이 꺼져 있습니다」를 그린다
+    (`frontend/src/ui/listState.js::DISABLED_CODES`). 문장은 어느 기능이 꺼졌는지 말한다.
+    """
+
+    code = "feature_disabled"
+    default_message = "이 기능이 꺼져 있습니다."
+
+
 class ConflictError(AppError):
     status_code = 409
     code = "conflict"

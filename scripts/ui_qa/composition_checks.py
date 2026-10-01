@@ -40,7 +40,7 @@ from __future__ import annotations
 COMPOSITION_CHECKS = (
     "filter_composition", "filter_cell_anatomy", "list_surface", "list_wrapper",
     "primary_budget", "row_actions", "table_head_glyph", "footer_alignment",
-    "editor_box", "page_fill", "chat_composition",
+    "editor_box", "page_fill", "chat_composition", "table_empty_band",
 )
 
 # 조합 계약의 값. 여기 숫자를 바꾸는 것은 계약을 바꾸는 일이다(`docs/DECISIONS.md` D-488 ~ D-494).
@@ -55,11 +55,19 @@ COMPOSITION_CONTRACT = {
         "entity": [13, 13],
         "entityWide": [13, 20],
         "tag": [13, 13],
-        "enum": [8, 13],
+        # 닫힌 집합은 선택지로 폭을 잰다(D-530) — 8 ~ 16rem(S 8 · M 10 · L 13 · XL 16).
+        "enum": [8, 16],
         "text": [11, 24],
         "date": [11, 11],
         "datetime": [18, 18],
+        # 「기간」 칸 하나(`PeriodFilter`, D-530).
+        "period": [13, 13],
     },
+    # 검색 칸 계단 — [필터 면 내용 폭 rem 이상, 칸 폭 rem], 큰 계단부터. 어느 계단에도 못 미치면 제 줄 전체다(D-530).
+    # 프런트 `FilterBar.jsx::SEARCH_SLOT_STEPS` 와 같은 수다(`test_composition_scan.py` 가 대조한다).
+    "searchSlotSteps": [[64, 20], [44, 16]],
+    # 표 안 빈 띠의 높이(px, 루트 16 기준) — 한 줄이면 56, 도움말이 접혀도 72 를 넘지 않는다(D-530).
+    "emptyBand": [56, 72],
     # wide Entity 칸의 계단 — [필터 면 내용 폭 rem 이상, 칸 폭 rem], 큰 계단부터. 어느 계단에도 못 미치면 `rowKind` 바닥(13)이다.
     # 프런트 `filters.jsx::ROW_KIND.entityWide` 의 컨테이너 질의와 같은 수다(`test_composition_scan.py` 가 대조한다).
     "entityWideSteps": [[96, 20], [76, 16]],
@@ -227,6 +235,19 @@ COMPOSITION_JS = r"""
       if (nextFirst && rect(nextFirst).width <= free + tol) {
         problems.push('검색 줄에 자리가 있는데 필터가 다음 줄(' + Math.round(free) + 'px 비어 있음)');
         break;
+      }
+    }
+    // (7) 검색 칸 계단(D-530) — 면 내용 폭 64rem 이상 20rem · 44 ~ 64rem 16rem · 그보다 좁으면 제 줄 전체. 검색은 남는 폭을 먹지 않는다.
+    if (!E.callerWidths) {
+      const sbox = all('[data-search-slot] > [data-filter-kind="search"]', s)[0];
+      if (sbox) {
+        const scs = getComputedStyle(s);
+        const inner = (s.clientWidth - px(scs.paddingLeft) - px(scs.paddingRight)) / rootPx;
+        const step = C.searchSlotSteps.find(([min]) => inner >= min);
+        const rowW = rect(sbox.parentElement).width;
+        const want = Math.min(step ? step[1] * rootPx : rowW, rowW);
+        const got = rect(sbox).width;
+        if (!near(got, want, 1.5)) problems.push('검색 칸 폭 ' + Math.round(got) + 'px(면 ' + inner.toFixed(1) + 'rem, 기대 ' + Math.round(want) + ')');
       }
     }
     if (problems.length) fail('filter_composition', { ...where(s), problems: problems.slice(0, 6) });
@@ -398,6 +419,21 @@ COMPOSITION_JS = r"""
       check('list_surface').checked++;
       fail('list_surface', { ...where(f), problem: '목록 발이 판 밖' });
     }
+  }
+
+  // ── 표 안 빈 띠 (D-530) ─────────────────────────────────────────────────
+  /* 빈 표는 머리 아래 한 줄 띠다 — 높이 56 ~ 72(루트 비례), 그림 없음, 머리가 서 있다. 판을 흰 면으로 채우거나 큰 그림을 세우면 실패다. */
+  for (const band of all('[data-empty-band]')) {
+    if (inOverlay(band)) continue;
+    check('table_empty_band').checked++;
+    const problems = [];
+    const h = rect(band).height;
+    if (h < C.emptyBand[0] * R - 1 || h > C.emptyBand[1] * R + 1) problems.push('높이 ' + Math.round(h));
+    if (band.querySelector('img')) problems.push('그림');
+    const tbl = band.closest('table');
+    const head = tbl && tbl.querySelector('thead tr');
+    if (!head || !shown(head)) problems.push('머리 없음');
+    if (problems.length) fail('table_empty_band', { ...where(band), problems });
   }
 
   // ── 채움 단추 수 ─────────────────────────────────────────────────────────
@@ -637,6 +673,7 @@ def selftest_html() -> str:
       ${gridHead('우선순위', 4)}
       ${table('surface', true, 0, true, false, '<svg width="12" height="12" style="margin-left:4px"></svg><svg width="12" height="12" style="margin-left:4px"></svg>', false)}
       <div data-list-surface="" data-table-placement="surface" data-list-state="empty" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:20px;overflow:visible"><div>조건에 맞는 항목이 없습니다</div></div>
+      <div data-table-placement="plain"><table class="MuiTable-root" style="width:100%;border-collapse:collapse"><thead><tr style="height:40px"><th style="background:#f5f6fb">이름</th></tr></thead><tbody><tr data-empty-band=""><td style="padding:0"><div class="k-empty" data-empty-layout="band" style="min-height:56px;display:flex;align-items:center">조건에 맞는 항목이 없습니다.</div></td></tr></tbody></table></div>
       <div class="MuiCard-root" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:20px"><div data-table-placement="card" style="margin:0 -20px"><div class="MuiTableContainer-root"><table class="MuiTable-root" style="width:100%;border-collapse:collapse"><thead><tr style="height:40px"><th style="background:#f5f6fb">이름</th></tr></thead><tbody><tr style="height:48px"><td>항목</td></tr></tbody></table></div><div data-list-footer="" style="height:44px;border-top:1px solid #dcdfec">2건 중 2건을 받았습니다.</div></div></div>
       <div data-action-footer="card" style="display:flex;justify-content:flex-end;padding:12px 20px;background:#f5f6fb;border-top:1px solid #e5e8f3"><button style="height:34px">티켓 추가</button></div>
       <div data-editor-box="" style="border:1px solid #dcdfec;border-radius:6px">
@@ -685,6 +722,14 @@ def selftest_html() -> str:
       ${wideSurface(1600, 208)}
       ${wideContext(1600, 208)}
       ${gridHead('난이도', 14)}
+      <div style="width:0;overflow:visible">
+        <div data-filter-surface="" style="width:600px;display:grid;gap:12px;padding-bottom:16px;border-bottom:1px solid #dcdfec">
+          <div data-filter-row="" data-search-slot="" style="display:flex;flex-wrap:wrap;gap:12px;width:100%">
+            <div data-filter-kind="search" style="width:320px;height:34px;border:1px solid #ccc"></div>
+          </div>
+        </div>
+      </div>
+      <div data-table-placement="plain"><table class="MuiTable-root" style="width:100%;border-collapse:collapse"><thead><tr style="height:40px"><th style="background:#f5f6fb">이름</th></tr></thead><tbody><tr data-empty-band=""><td style="padding:0"><div class="k-empty" style="height:120px"><img alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" style="width:80px;height:80px"></div></td></tr></tbody></table></div>
     </div>`;
   document.body.appendChild(box);
   return true;
@@ -697,12 +742,12 @@ def selftest_html() -> str:
 SELFTEST_EXPECT_BAD = {
     "filter_composition": 1, "filter_cell_anatomy": 4, "list_surface": 3, "list_wrapper": 2,
     "primary_budget": 2, "row_actions": 1, "table_head_glyph": 2, "footer_alignment": 1,
-    "editor_box": 1, "chat_composition": 1, "page_fill": 1,
+    "editor_box": 1, "chat_composition": 1, "page_fill": 1, "table_empty_band": 1,
 }
 
 # 틀린 견본의 실패 사유 안에 반드시 나와야 하는 낱말 — 개수만 맞고 엉뚱한 이유로 걸리는 것을 막는다.
 SELFTEST_EXPECT_REASONS = {
-    "filter_composition": ["면 밖 결과 줄", "면 밖 조건 칩", "줄 끝 지우기", "아래 실선 없음", "검색 줄에 자리가 있는데"],
+    "filter_composition": ["면 밖 결과 줄", "면 밖 조건 칩", "줄 끝 지우기", "아래 실선 없음", "검색 줄에 자리가 있는데", "검색 칸 폭"],
     "filter_cell_anatomy": ["칸 안 칩", "접두 들여쓰기", "접두-값 간격", "값 굵기", "폭 ", "wide 계단"],
     "list_surface": ["목록 발이 판 밖", "sticky 발 안에 무한 스크롤 센티널", "빈 · 불러오는 판 여백"],
     "list_wrapper": ["표 판 계약 표식 없음", "여백 판이 한 번 더 감쌈"],
@@ -713,6 +758,7 @@ SELFTEST_EXPECT_REASONS = {
     "editor_box": ["테두리", "도구 줄이 함몰면이 아님", "도구 단추 34", "다시 실행이 오른쪽 끝이 아님", "본문 120"],
     "chat_composition": ["로그 아래 정렬", "날짜선 폭", "입력 도킹 영역 없음"],
     "page_fill": ["높이 고정 판이 화면을 넘음"],
+    "table_empty_band": ["높이", "그림"],
 }
 
 

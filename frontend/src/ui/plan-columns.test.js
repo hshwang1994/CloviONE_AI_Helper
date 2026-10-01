@@ -196,6 +196,18 @@ describe("머리글과 값 길이", () => {
     expect(columnValueText({ key: "o" }, { o: { a: 1 } })).toBeNull();
   });
 
+  it("id 는 화면 글이 아니다 — 그리는 함수가 있는 열은 서버가 준 화면 낱말(*_label · *_name · *_title)만 잰다", () => {
+    const uuid = "62134ac8-831e-4071-bb07-d7c3144d85eb";
+    // 부서 열은 부서 id 를 들고 이름을 그린다 — id 길이로 재면 바닥이 20rem 을 넘어 1366 프로젝트 표가 가로로 굴렀다(P5 캡처).
+    expect(columnValueText({ key: "dept_id", render: () => "플랫폼개발팀" }, { dept_id: uuid })).toBeNull();
+    expect(columnValueText({ key: "id" }, { id: uuid })).toBeNull();
+    expect(columnValueText({ key: "kind", render: () => "초대" }, { kind: "invite" })).toBeNull();
+    expect(columnValueText({ key: "status_label", render: () => null }, { status_label: "수신측이 거부함" })).toBe("수신측이 거부함");
+    expect(columnValueText({ key: "dept_id", render: () => null, value: () => "플랫폼개발팀" }, { dept_id: uuid })).toBe("플랫폼개발팀");
+    const rows = [{ dept_id: uuid }];
+    expect(columnSpec({ key: "dept_id", label: "부서", min: "7rem", render: () => "플랫폼개발팀" }, { rows }).min).toBe(7);
+  });
+
   it("받은 행은 앞 VALUE_SAMPLE_ROWS 행만 잰다 — 무한 받기 목록이 길어져도 계산이 커지지 않는다", () => {
     const rows = Array.from({ length: VALUE_SAMPLE_ROWS + 10 }, (_, i) => ({ s: i === VALUE_SAMPLE_ROWS + 5 ? "아주 긴 상태 낱말이 끝에 있다" : "짧음" }));
     expect(columnSpec({ key: "s", label: "상태", type: "status" }, { rows }).min).toBe(6);

@@ -31,6 +31,7 @@ const ISO_FMT = "YYYY-MM-DD";
 
 export default function DateFieldInner({
   id, value, onChange, label, minDate, maxDate, disabled, error, helperText, required, size = "small", sx,
+  disablePortal = false,
   ...rest
 }) {
   const parsed = value ? dayjs(value, ISO_FMT, true) : null;
@@ -63,6 +64,9 @@ export default function DateFieldInner({
           // 최상위 `inputLabel` 슬롯으로 옮겨야 실제로 적용된다. 구간형 필드는 비어 있어도
           // YYYY/MM/DD 자리표시가 항상 차 있어 보여 라벨이 안 줄어들면 값과 겹친다.
           inputLabel: label ? { shrink: true } : undefined,
+          /* 떠 있는 판(기간 칸의 팝오버) 안에서는 달력을 그 판 안에 그린다 — 몸(body)에 그리면 판이 그 누름을 바깥 누름으로
+             읽고 닫힌다. */
+          popper: disablePortal ? { disablePortal: true } : undefined,
         }}
       />
     </LocalizationProvider>

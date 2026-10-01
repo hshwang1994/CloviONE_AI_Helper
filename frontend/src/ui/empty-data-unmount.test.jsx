@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -19,6 +19,7 @@ import { Donut } from "./charts/Donut.jsx";
 import { LineSeries } from "./charts/LineSeries.jsx";
 import { Sparkline } from "./charts/Sparkline.jsx";
 
+/* qa-contract-change: 조건 때문에 0건인 목록은 표를 언마운트하지 않고 머리 아래 한 줄 띠로 「조건에 맞는 항목이 없습니다.」를 말한다(D-530 목록 상태 일곱 갈래 — 조건을 바꿔도 머리가 제자리에 있고 판을 흰 면으로 채우지 않는다). 조건 없이 정말 0건인 목록의 언마운트(머리 행 · 「0건 중 0건」을 남기지 않음)는 그대로 단언하고, 클라이언트 필터 예외는 「더 보기」가 남고 행이 없으며 띠가 머리 아래 줄이라는 단언으로 옮긴다. */
 /* qa-contract-change: 판독 줄(MetricStrip)이 핸드오프 RULES §6 에 따라 걷혀, 그 부품의 「전부 비면 원인을 대신 그린다」 계약(emptyCause · data-metrics-empty — 제품 소비처 0)을 그 줄을 이은 측정값 줄(StatusKpiStrip)의 「항목이 없으면 그릇을 남기지 않는다」로 옮긴다. */
 
 /* 값이 0건일 때 **그리지 않는가** (PLAN «빈 데이터 규칙», 지시 0-10).
@@ -189,6 +190,13 @@ describe("0건이면 표와 페이저를 언마운트한다", () => {
     }));
     await waitFor(() => expect(apiMock).toHaveBeenCalled());
     await screen.findByRole("button", { name: "더 보기" });
-    expect(container.querySelector("table")).toBeNull();
+    /* 조건 때문에 0건 — 머리는 서 있고 그 아래 한 줄 띠가 사실을 말한다(D-530). 받아 둔 행은 하나도 그려지지 않는다. */
+    const table = container.querySelector("table");
+    expect(table).not.toBeNull();
+    const rows = [...table.querySelectorAll("tbody tr")];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].hasAttribute("data-empty-band")).toBe(true);
+    expect(within(rows[0]).getByRole("heading", { name: "조건에 맞는 항목이 없습니다." })).toBeInTheDocument();
+    expect(screen.queryByText("행 1")).toBeNull();
   });
 });

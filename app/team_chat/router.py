@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.core import people, uploads
 from app.core.audit import record_audit_from_request
 from app.core.deps import AuthContext, get_current_auth, get_current_user, get_db, require_csrf
-from app.core.errors import ForbiddenError, NotFoundError, RateLimitedError
+from app.core.errors import FeatureDisabledError, ForbiddenError, NotFoundError, RateLimitedError
 from app.core.etag import etag_json_response
 from app.core.feature_flags import load_feature_flags
 from app.team_chat import repository, service
@@ -40,7 +40,7 @@ from app.settings.gate import block_if_maintenance
 def require_team_chat_enabled(request: Request) -> None:
     flags = load_feature_flags(request.app.state.settings.config_dir)
     if not flags.get("team_chat_enabled", True):
-        raise NotFoundError("팀 채팅 기능이 비활성화되어 있습니다.")
+        raise FeatureDisabledError("팀 채팅 기능이 비활성화되어 있습니다.")
 
 
 router = APIRouter(

@@ -43,7 +43,7 @@ from app.board.schemas import (
 from app.core import people, uploads
 from app.core.audit import audit_failure_on_exception, record_audit_from_request
 from app.core.deps import get_current_user, get_db, require_csrf
-from app.core.errors import ForbiddenError, NotFoundError
+from app.core.errors import FeatureDisabledError, ForbiddenError, NotFoundError
 from app.core.feature_flags import load_feature_flags
 from app.core.pagination import PageParams
 from app.users.models import User
@@ -83,7 +83,7 @@ def _kind_of(value: str | None) -> str:
 def require_board_enabled(request: Request) -> None:
     flags = load_feature_flags(request.app.state.settings.config_dir)
     if not flags.get("board_enabled", True):
-        raise NotFoundError("자유게시판 기능이 비활성화되어 있습니다.")
+        raise FeatureDisabledError("자유게시판 기능이 비활성화되어 있습니다.")
 
 
 router = APIRouter(

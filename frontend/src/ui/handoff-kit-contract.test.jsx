@@ -21,6 +21,9 @@ import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
  * 부품마다 **이 부품이 없던 때 무엇이 틀렸는가**를 단언으로 적는다. 여기 있는 것은 전부 화면이
  * 부르는 공통 부품이다 — 화면 시험이 아니라 부품 시험이라, 이 파일이 초록이면 그 부품을 쓰는
  * 자리 전부가 같은 계약을 받는다(소비처 목록은 `docs/ui-renewal/COMPONENT_LEDGER.md`).
+ *
+ * qa-contract-change: 빈 표가 판 안 빈 상태 부품(region)이 아니라 머리 아래 한 줄 띠(band)로 선다(D-530 — 판을 흰 면으로 채우지 않는다).
+ * 문구 단언은 그대로 두고, 띠가 표의 줄이며 머리가 서 있고 그림이 없다는 단언을 더한다.
  */
 
 function ui(node) {
@@ -303,9 +306,15 @@ describe("표 · 폼 · 오류 · 메시지 박스", () => {
     expect(getComputedStyle(td).height).toBe(remPx(CONTROL.tableRowTall));
   });
 
-  it("빈 표는 판 안 빈 상태 부품(region)으로 선다 — 문구는 그대로다", () => {
+  it("빈 표는 머리 아래 한 줄 띠로 선다 — 문구는 그대로다(D-530)", () => {
     const { container } = ui(<DataTable columns={[{ key: "t", label: "제목" }]} rows={[]} rowKey={() => "r"} empty="휴지통이 비어 있습니다." />);
-    expect(container.querySelector('[data-empty-layout="region"]')).not.toBeNull();
+    const band = container.querySelector('[data-empty-layout="band"]');
+    expect(band).not.toBeNull();
+    // 띠는 표의 줄이고 머리가 그 위에 서 있다 — 판을 흰 면으로 채우는 빈 상태(region)가 아니다.
+    expect(band.closest("tr[data-empty-band]")).not.toBeNull();
+    expect(screen.getByRole("columnheader", { name: "제목" })).toBeInTheDocument();
+    expect(container.querySelector('[data-empty-layout="region"]')).toBeNull();
+    expect(band.querySelector("img")).toBeNull();
     expect(screen.getByText("휴지통이 비어 있습니다.")).toBeInTheDocument();
   });
 

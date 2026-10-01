@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import { useAuth } from "../app/auth.jsx";
-import { Button, Card, CountChip, EmptyState, ErrorState, PageHeader, Skeleton } from "./kit.jsx";
+import { Button, Card, CountChip, EmptyState, ErrorState, PageHeader, Skeleton, StateRegion } from "./kit.jsx";
 import { FlowStack } from "./layout.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "./HeaderSlot.jsx";
@@ -163,7 +163,8 @@ function TabShellBody({
       ) : (
         /* 탭 판도 흐름이다(D-528) - 탭 화면의 덩어리 사이 간격 16 을 판이 주고, 덩어리마다 손으로 적던 위아래 여백을 걷는다. */
         <FlowStack role="tabpanel" id={panelId(activeKey)} aria-labelledby={tabId(activeKey)} tabIndex={0}>
-          {activeDef.render()}
+          {/* 탭 판 안의 빈 상태 · 오류 상태는 그 판의 한 칸이다(D-530 — 기본 배치는 담는 쪽이 정한다). */}
+          <StateRegion>{activeDef.render()}</StateRegion>
         </FlowStack>
       )}
     </Box>

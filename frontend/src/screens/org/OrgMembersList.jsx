@@ -140,7 +140,8 @@ export function OrgMembersList({ scope, title = "구성원", membership = "", on
       <Box sx={{ display: "grid", rowGap: 2 }}>
         <FilterBar
           search={<SearchBox value={q} onSearch={setQ} placeholder="이름, 이메일 검색" ariaLabel={`${title} 검색`} />}
-          end={isDept ? (
+          /* 켬/끔 조건은 조건 칸 바로 뒤다(D-530) — 줄 오른쪽 끝에 멀리 떨어져 있지 않다. */
+          toggles={isDept ? (
             <FilterToggle pressed={descendants} onClick={() => setDescendants((v) => !v)}>하위 부서 포함</FilterToggle>
           ) : null}
           conditions={chips.length ? {

@@ -128,8 +128,18 @@ export function columnValueText(col, row) {
     return null;
   }
   const raw = row[c.key];
-  return typeof raw === "string" || typeof raw === "number" ? String(raw) : null;
+  if (typeof raw !== "string" && typeof raw !== "number") return null;
+  const text = String(raw);
+  /* id 는 화면 글이 아니다 — 부서 열은 부서 id(UUID)를 들고 이름을 그린다. 그 길이로 재면 열 바닥이 20rem 을 넘어 1366 프로젝트 표가
+     가로로 굴렀다(P5 캡처). 그리는 함수(`render`)가 있는 열은 원래 값이 화면 글이 아닐 수 있어, 서버가 준 화면 낱말(`*_label` ·
+     `*_name` · `*_title`)만 잰다. 다른 화면 글은 `value(row)` · `hint` 로 말한다. */
+  if (OPAQUE_VALUE.test(text.trim())) return null;
+  if (typeof c.render === "function" && !DISPLAY_KEY.test(String(c.key || ""))) return null;
+  return text;
 }
+
+const OPAQUE_VALUE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$|^[0-9a-f]{32}$/i;
+const DISPLAY_KEY = /(_label|_name|_title)$/;
 
 function toRem(token, rootPx) {
   if (token == null) return null;

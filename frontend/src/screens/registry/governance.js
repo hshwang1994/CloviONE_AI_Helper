@@ -344,10 +344,9 @@ export const GOVERNANCE_SCREENS = {
       { key: "request_id", type: "text", label: "문의 번호(요청 ID)",
         freeTextReason: "외부에서 받아 적는 번호다. 이 제품 안에 후보 목록이 없다." },
       // 백엔드 _parse_boundary(app/audit/router.py)는 하루 단위가 아니라 시각(오프셋 포함 ISO-8601)까지
-      // 정밀하게 필터할 수 있는데, <input type="date">로는 하루 경계만 만들 수 있어 그 정밀도가
-      // 화면에서 닿지 않았다 — datetime-local로 바꿔 시:분까지 지정하고 KST(+09:00)로 변환해 보낸다.
-      { key: "since", type: "datetime-local", label: "시작 시각(KST)" },
-      { key: "until", type: "datetime-local", label: "종료 시각(KST)" },
+      // 정밀하게 필터할 수 있다 — 기간 칸 하나가 시각 쌍을 고른다(D-530): 최근 1시간 · 24시간 · 7일 · 전체, 또는 시:분까지 직접.
+      // 값은 KST 벽시계이고 서버로 갈 때 +09:00 이 붙는다(DataScreen.buildUrl).
+      { key: "since", endKey: "until", type: "period", mode: "datetime", label: "기간" },
     ],
     // 행위자는 이름 → 이메일 → (UUID) 순으로 표시하고, user_id가 없으면 시스템/CLI 동작이므로 '시스템'.
     // SEM-01: 첫 열(시각)이 dateCol(render 있음)이라 표식 없이는 페이지 100건이 전부 "상세

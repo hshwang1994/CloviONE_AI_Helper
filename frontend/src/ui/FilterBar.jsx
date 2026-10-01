@@ -99,17 +99,33 @@ export function FilterSurface({ children, divider = true, sx, ...rest }) {
   );
 }
 
-/* ── 검색 슬롯 — desktop 에서 **320 고정**, 남는 폭을 먹지 않는다 (핸드오프 D-5 · README §3) ──
+/* ── 검색 슬롯 — **남는 폭을 먹지 않는다**, 필터 면의 폭으로 세 계단 (핸드오프 D-5 · README §3 · D-530) ──
  *
  * 폭은 `SearchBox` 가 아니라 **필터 바의 줄**이 정한다. 같은 검색창이 좁은 판 · 모달 · 채팅 목록
- * (296)에 서면 그 부모 폭을 그대로 써야 하고(`layout="fill"`), 320 을 부품에 박으면 그 자리마다
+ * (296)에 서면 그 부모 폭을 그대로 써야 하고(`layout="fill"`), 폭을 부품에 박으면 그 자리마다
  * 넘친다. 그래서 줄 부품 둘(`ToolbarRow` · `FilterRow`)이 자기 **직계** 검색 칸에만 슬롯을 준다.
- * `sm` 미만에서는 한 줄을 다 쓴다. `max-width: 100%` 는 줄이 320 보다 좁아지는 드문 경우의 안전선이다. */
-function searchSlotSx() {
+ *
+ * 계단은 필터 면(`FILTER_SURFACE_CONTAINER`)의 폭이 고른다: 64rem 이상 20rem · 44 ~ 64rem 16rem · 그보다 좁으면 제 줄 전체.
+ * 검색은 늘어나지 않는다(`flex-grow 0`) — 검색이 줄 대부분을 먹고 조건 칸이 바닥 폭으로 눌리는 모양을 막는다. 남는 폭은 조건 칸과
+ * 오른쪽 끝 묶음 사이의 빈 공간이 된다. 다른 칸과 한 줄에 서는 동안에는 계단 폭 그대로라 12rem 밑으로 줄지 않는다.
+ * 계단은 폭을 직접 말하지 않고 사용자 정의 속성(`--search-slot`) 하나만 바꾼다(`filters.jsx::ROW_KIND.entityWide` 와 같은 까닭 —
+ * 컨테이너 질의 규칙이 평범한 규칙보다 뒤에 실려 호출부 폭까지 덮지 않게). 필터 면 밖의 줄(면 없이 선 도구 줄)은 계단을 못
+ * 보므로 `sm` 미만 미디어 규칙이 한 줄 전체로 내린다. */
+export const SEARCH_SLOT_STEPS = Object.freeze([[64, "20rem"], [44, "16rem"]]);
+
+function searchSlotSx(inSurface = true) {
   /* 🔴 MUI 는 sx 안의 미디어 규칙을 **평범한 규칙보다 앞에** 싣는다(실측: 생성된 CSS 순서). 같은
      특이도면 뒤의 것이 이기므로, 좁은 화면 규칙은 선택자를 한 단 더 세게(`&&`) 적는다. */
   return {
-    "& > [data-filter-kind=search]": { flex: "0 0 20rem", width: "20rem", maxWidth: "100%", minWidth: 0 },
+    /* 면 안이면 가장 좁은 계단(제 줄 전체)에서 시작해 면이 넓을수록 올라간다. 면 밖이면 계단을 못 보므로 20rem 이다. */
+    "--search-slot": inSurface ? "100%" : SEARCH_SLOT_STEPS[0][1],
+    [`@container filter-surface (min-width: ${SEARCH_SLOT_STEPS[1][0]}rem)`]: { "--search-slot": SEARCH_SLOT_STEPS[1][1] },
+    [`@container filter-surface (min-width: ${SEARCH_SLOT_STEPS[0][0]}rem)`]: { "--search-slot": SEARCH_SLOT_STEPS[0][1] },
+    /* 낱개 속성으로 적는다 — 검색 칸 자신의 `flex: 1 1 20rem` 을 이 줄의 규칙이 이기고, 변수가 든 줄임 속성을 못 읽는 해석기
+       (jsdom)에서도 「자라지 않는다」는 사실이 남는다. */
+    "& > [data-filter-kind=search]": {
+      flexGrow: 0, flexShrink: 0, flexBasis: "var(--search-slot, 20rem)", width: "var(--search-slot, 20rem)", maxWidth: "100%", minWidth: 0,
+    },
     [`@media (max-width:${BREAKPOINTS.sm - 0.05}px)`]: {
       "&& > [data-filter-kind=search]": { flex: "1 1 100%", width: "100%" },
     },
@@ -126,8 +142,9 @@ function searchSlotSx() {
  * 아래 `FilterRow` 로 내려간다. 두 줄이면 충분하고, 각 줄이 한 가지 질문만 답한다.
  */
 export function ToolbarRow({ children, sx }) {
+  const inSurface = React.useContext(FilterRowContext);
   return (
-    <Box data-search-slot="" sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", ...searchSlotSx(), ...sx }}>
+    <Box data-search-slot="" sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", ...searchSlotSx(inSurface), ...sx }}>
       {children}
     </Box>
   );
@@ -162,6 +179,7 @@ export function ToolbarEnd({ children, sx }) {
  * 상자 높이가 같고, 텍스트 버튼처럼 높이가 다른 것은 중심으로 맞춘다.
  */
 export function FilterRow({ children, sx, ...rest }) {
+  const inSurface = React.useContext(FilterRowContext);
   return (
     <Box
       data-filter-row=""
@@ -172,7 +190,7 @@ export function FilterRow({ children, sx, ...rest }) {
          「스프린트」가 11.4px 어긋나 있었고(QA `control_baseline_mismatch`), 사용자에게는
          두 상자가 층이 진 것으로 보였다. 위로 맞추면 입력칸의 윗변이 한 줄로 서고 설명은
          그 아래에 매달린다. */
-      sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 1.5, width: "100%", ...searchSlotSx(), ...sx }}
+      sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 1.5, width: "100%", ...searchSlotSx(inSurface), ...sx }}
       {...rest}
     >
       {children}
@@ -350,8 +368,8 @@ export function FilterConditionLine({ total, unit = "건", noun = "결과", chip
  * 검색만 한 줄을 쓰고 필터를 다음 줄로 내렸고(1920 에서도 두 줄), 「필터 지우기」는 줄 끝 동작 묶음에서
  * 화면마다 다른 크기로 섰다. 부품은 전부 정본인데 조합이 화면마다 달랐다.
  *
- * 이 부품이 조합을 정한다: 한 줄 = 검색(20rem 슬롯) → 내용 필터 칸 → 빈 공간 → `end`(정렬 · 보기 · 켬/끔 ·
- * 저장된 뷰), 아래 1px 실선. 조건 칩이 하나라도 있으면 같은 면 안 둘째 줄이 조건 줄이다. 좁아지면 순서를
+ * 이 부품이 조합을 정한다: 한 줄 = 검색(20rem 슬롯) → 내용 필터 칸 → 켬/끔 조건(`toggles`) → 빈 공간 → `end`(보기 기준 ·
+ * 정렬 · 저장된 뷰), 아래 1px 실선. 조건 칩이 하나라도 있으면 같은 면 안 둘째 줄이 조건 줄이다. 좁아지면 순서를
  * 지킨 채 줄바꿈하고 `end` 는 묶음째 내려간다. 화면은 칸과 칩만 넘긴다.
  *
  *   search      `SearchBox` 하나(없으면 생략)
@@ -362,7 +380,9 @@ export function FilterConditionLine({ total, unit = "건", noun = "결과", chip
  *
  * 낱개 부품은 이 조합 안에서만 쓴다. 대장 예외(`docs/ui-renewal/COMPONENT_LEDGER.md` 「조합 예외」)만 낱개를
  * 직접 조립한다 — `scripts/check_composition.py` 가 그 표와 대조한다. */
-export function FilterBar({ search, children, end, conditions, divider = true, flush = false, sx, ...rest }) {
+/* `toggles` — 「하위 부서 포함」 · 「보관 포함」처럼 목록을 넓히거나 좁히는 켬/끔 **조건**이다(D-530). 조건이라 조건 칸 바로 뒤에
+   서고 칩을 만든다(호출부가 `conditions.chips` 에 싣는다). 보기 방식(보기 기준 · 정렬)은 조건이 아니라 `end` 다. */
+export function FilterBar({ search, children, toggles, end, conditions, divider = true, flush = false, sx, ...rest }) {
   /* `flush` — 아래 간격을 걷는다. 그릇(흐름 · 판)이 간격을 주는 자리다(화면이 숫자 여백을 적지 않는다). */
   const merged = flush ? { mb: 0, ...sx } : sx;
   return (
@@ -370,6 +390,7 @@ export function FilterBar({ search, children, end, conditions, divider = true, f
       <FilterRow>
         {search || null}
         {children}
+        {toggles || null}
         {end ? <ToolbarEnd>{end}</ToolbarEnd> : null}
       </FilterRow>
       {conditions ? <FilterConditionLine {...conditions} /> : null}

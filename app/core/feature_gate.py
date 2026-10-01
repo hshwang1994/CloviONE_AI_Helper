@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from fastapi import Request
 
-from app.core.errors import NotFoundError
+from app.core.errors import FeatureDisabledError
 from app.core.feature_flags import load_feature_flags
 
 
@@ -47,4 +47,4 @@ def require_team_docs_enabled(request: Request) -> None:
     """
     flags = load_feature_flags(request.app.state.settings.config_dir)
     if not flags.get("team_docs_enabled", True):
-        raise NotFoundError("문서 기능이 비활성화되어 있습니다.")
+        raise FeatureDisabledError("문서 기능이 비활성화되어 있습니다.")

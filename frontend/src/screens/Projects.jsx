@@ -514,9 +514,9 @@ export function Projects() {
         onFilter={(patch) => setFilters(patch)}
       />
 
-      {/* 탐색 줄은 **판이 아니다** (지시 80 · W5). 검색 · 부서 · 상태가 한 줄에 서고 「보관한 프로젝트 포함」은 보기 방식이라
-          그 줄 오른쪽 끝이다(조합 계약 C-1). 예전에는 검색만 한 줄을 쓰고 부서 · 상태가 다음 줄로 내려갔고, 결과 수는 면 밖
-          한 줄이 말했다. 걸린 조건(요약 카드를 눌러 켠 「Health 하위」 · 「지연 마일스톤」 포함)은 모두 조건 줄의 칩이다. */}
+      {/* 탐색 줄은 **판이 아니다** (지시 80 · W5). 검색 · 부서 · 상태가 한 줄에 서고 「보관한 프로젝트 포함」은 결과를 바꾸는
+          켬/끔 조건이라 조건 칸 바로 뒤에 서고 칩을 만든다(D-530). 예전에는 검색만 한 줄을 쓰고 부서 · 상태가 다음 줄로 내려갔고,
+          결과 수는 면 밖 한 줄이 말했다. 걸린 조건(요약 카드를 눌러 켠 「Health 하위」 · 「지연 마일스톤」 포함)은 모두 조건 줄의 칩이다. */}
       <FilterBar
         search={(
           <SearchBox
@@ -527,7 +527,7 @@ export function Projects() {
           />
         )}
         /* 필터 바의 켬/끔은 스위치가 아니라 34 중립 단추다 — 켜져 있을 때만 눌린 면이다(핸드오프 RULES §3 · 계획 P-14). */
-        end={(
+        toggles={(
           <FilterToggle pressed={!!filters.archived} onClick={() => setFilters({ archived: !filters.archived })}>
             보관한 프로젝트 포함
           </FilterToggle>

@@ -10,6 +10,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import { foldedFilterOptions, normalizeQuery } from "../lib/search.js";
 import { CONTROL, DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, ICON, controlHeight, remPx } from "./theme.js";
+import { stepUp, textRem } from "./columnPlan.js";
 
 /* 목록 화면들이 함께 쓰는 필터 입력 부품.
  *
@@ -92,7 +93,11 @@ export const ROW_KIND = {
     "@container filter-surface (min-width: 76rem)": { "--filter-wide": "16rem" },
     "@container filter-surface (min-width: 96rem)": { "--filter-wide": "20rem" },
   },
-  enum: { flex: "0 0 auto", minWidth: "8rem", maxWidth: "13rem" },
+  /* 닫힌 집합의 칸 폭은 **선택지**가 정한다(`selectWidthRem`, D-530) — 지금 값이 아니라 가장 긴 선택지로 재서 값을 바꿔도 칸이
+     흔들리지 않는다. 범위는 8 ~ 16rem 이다(예전 상한 13rem 에서 「문제 종류」 값이 여섯 글자에서 잘렸다). */
+  enum: { flex: "0 0 auto", minWidth: "8rem", maxWidth: "16rem" },
+  /* 「기간」 칸 하나(`PeriodFilter`) — 날짜 칸 둘을 대신한다. 값은 「최근 7일」 · 「9월 2일 ~ 10월 1일」 길이다. */
+  period: { flex: "0 0 13rem", width: "13rem", minWidth: 0, maxWidth: "100%" },
   /* 자유 입력은 **값 자리 6rem + 이름**이다 — 이름이 긴 칸(감사 「작업(정확히, 예: user.update)」)을 11rem 에 가두면 이름이
      칸을 다 먹어 친 글자가 안 보인다. 짧은 이름은 11rem 바닥에 선다. */
   text: { flex: "0 0 auto", minWidth: "11rem", maxWidth: "min(24rem, 100%)", "& .MuiInputBase-input": { width: "6rem", minWidth: 0 } },
@@ -491,12 +496,15 @@ export const DebouncedTextField = React.memo(function DebouncedTextField({
  * (담당자는 앱 user_id 로 나가고 화면에는 이름이 보인다)가 있어서 둘 다 받는다. */
 export function FilterSelect({
   label, value, onChange, options, allLabel, disabled, sx, kind = "enum", multiple = false,
-  layout, noAllOption = false,
+  layout, noAllOption = false, size,
 }) {
   /* `noAllOption` — 「전체」가 답이 될 수 없는 축(정렬 · 연도 · 월). 빈 항목을 세우지 않는다 —
      세우면 고를 수 없던 값(정렬 없음)이 메뉴에 생긴다. `EntityCombobox` 와 같은 이름이다. */
   const list = normalizeOptions(options);
   const row = useRowCell(layout);
+  /* 줄 칸의 폭 — 닫힌 집합(`enum`)이거나 호출부가 크기를 말한 칸만 선택지로 잰다(Entity 처럼 종류가 폭을 정하는 칸은 그대로다). */
+  const cellRem = row && (kind === "enum" || size) ? selectWidthRem({ label, options: list, allLabel, noAllOption, size }) : null;
+  const rowSx = withCellWidth(cellRem, sx);
   if (multiple) {
     const selected = Array.isArray(value) ? value.map(String) : (value ? [String(value)] : []);
     for (const item of selected) {
@@ -514,7 +522,7 @@ export function FilterSelect({
       <TextField
         select size="small" label={row ? undefined : label} value={selected} disabled={disabled}
         data-filter-kind={kind}
-        sx={row ? kindSx(kind, sx, layout, row) : withLabelAbove(kindSx(kind, sx, layout, row))}
+        sx={row ? kindSx(kind, rowSx, layout, row) : withLabelAbove(kindSx(kind, sx, layout, row))}
         onChange={(e) => onChange(Array.isArray(e.target.value) ? e.target.value : [])}
         InputLabelProps={row ? undefined : { shrink: true }}
         inputProps={row ? { "aria-label": label } : undefined}
@@ -555,7 +563,7 @@ export function FilterSelect({
       <TextField
         select size="small" value={value == null ? "" : value} disabled={disabled}
         data-filter-kind={kind}
-        sx={kindSx(kind, sx, layout, true)}
+        sx={kindSx(kind, rowSx, layout, true)}
         onChange={(e) => onChange(e.target.value)}
         inputProps={{ "aria-label": label }}
         SelectProps={{
@@ -587,6 +595,39 @@ export function FilterSelect({
       {list.map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
     </TextField>
   );
+}
+
+/* ── 닫힌 집합 칸의 폭 — 선택지로 정한다 (F4 · D-530) ─────────────────────────────────────────
+ *
+ * 예전 칸은 `flex: 0 0 auto` 라 **지금 고른 값**의 길이가 폭을 정했다 — 「전체」에서 「담당자를 포털 계정으로 연결하지 못한 티켓」
+ * 으로 바꾸는 순간 칸이 늘어 옆 칸을 밀었고, 상한(13rem)에 닿은 긴 값은 여섯 글자에서 잘렸다. 폭은 선택지 전부를 보고 한 번 정한다:
+ * 왼쪽 여백 14 + 칸 안 이름 + 간격 6 + 가장 긴 선택지(600) + 화살표 자리 32 + 2(테두리 · 반올림 여유)를 0.5rem 단위로 올리고
+ * [8, 16]rem 으로 묶는다. 넘치는 값은 칸 안에서 말줄임이고 전체 값은 `title` 이 든다. 호출부가 크기를 말하면(`size`) 그 표가 이긴다:
+ * S 8 · M 10 · L 13 · XL 16rem. */
+export const FILTER_SELECT_SIZES = Object.freeze({ S: 8, M: 10, L: 13, XL: 16 });
+export const SELECT_WIDTH_RANGE_REM = Object.freeze([8, 16]);
+/* 칸 글자는 입력 글자(body1, 0.9375rem)다. 여백은 MUI 선택 상자의 실제 값(왼쪽 14 · 오른쪽 32)에 접두 간격 6 과 여유 2 를 더한 것이다. */
+const CELL_FONT_REM = 0.9375;
+const SELECT_CELL_CHROME_REM = (14 + 6 + 32 + 2) / 16;
+
+/** 선택지로 정한 줄 칸 폭(rem 숫자). `size` 를 주면 그 크기다. */
+export function selectWidthRem({ label, options, allLabel, noAllOption = false, size } = {}) {
+  if (size && FILTER_SELECT_SIZES[size]) return FILTER_SELECT_SIZES[size];
+  const list = normalizeOptions(options);
+  const words = list.map((o) => (o && o.label != null ? String(o.label) : String((o && o.value) ?? "")));
+  if (!noAllOption) words.push(rowAllText(label, allLabel));
+  const longest = words.reduce((m, w) => Math.max(m, textRem(w, CELL_FONT_REM, 600)), 0);
+  const need = SELECT_CELL_CHROME_REM + (label ? textRem(label, CELL_FONT_REM, 400) : 0) + longest;
+  const [lo, hi] = SELECT_WIDTH_RANGE_REM;
+  return Math.min(hi, Math.max(lo, stepUp(need)));
+}
+
+/* 칸 폭 선언을 호출부 `sx` 아래에 깐다 — 호출부가 폭을 말하면 그것이 이긴다. */
+function withCellWidth(rem, sx) {
+  if (rem == null) return sx;
+  const width = { flex: `0 0 ${rem}rem`, width: `${rem}rem` };
+  if (typeof sx === "function") return (theme) => ({ ...width, ...sx(theme) });
+  return { ...width, ...sx };
 }
 
 /** `["가","나"]` 와 `[{value,label,secondary}]` 를 한 모양으로 편다. */

@@ -56,6 +56,8 @@ CANONICAL_HOSTS = {
     "ui/TagPicker.jsx": {"Chip", "Autocomplete"},
     "ui/TableHeaderCell.jsx": {"TableCell"},
     "ui/VirtualRows.jsx": {"TableCell", "TableRow"},
+    # 「기간」 칸의 정본(D-530) — 팝오버 안 프리셋 목록이 화살표 키로 움직이는 메뉴 목록이다.
+    "ui/PeriodFilter.jsx": {"MenuList"},
 }
 
 IMPORT_DEFAULT = re.compile(r"""import\s+(\w+)\s+from\s+["']@mui/material/(\w+)["']""")

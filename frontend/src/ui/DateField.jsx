@@ -23,7 +23,7 @@ const Inner = React.lazy(() => import("./DateFieldInner.jsx"));
  * 속성뿐이다 — 로딩 중에도 QA 프로브가 같은 종류로 인식하게 그대로 흘려보낸다. */
 function DateFieldFallback({
   id, label, size = "small", sx,
-  value, onChange, minDate, maxDate, disabled, error, helperText, required,
+  value, onChange, minDate, maxDate, disabled, error, helperText, required, disablePortal,
   ...rest
 }) {
   return (

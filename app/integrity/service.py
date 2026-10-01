@@ -90,6 +90,9 @@ class Check:
     remedy: str
     items: Callable[[Session], list[dict]]
     fixes: tuple[str, ...] = ()
+    # 「문제 종류」 칸에 서는 짧은 이름(D-530) - `title` 은 문장이라 필터 칸에서 여섯 글자 뒤로 잘렸다. 화면은 칸과 메뉴에 이것을,
+    # 고른 검사의 머리에 `title` 을 쓴다.
+    short: str = ""
 
 
 def _search_text(*parts) -> str:
@@ -448,47 +451,47 @@ CHECKS: tuple[Check, ...] = (
     Check("users_without_membership", TAB_PEOPLE, "user", "소속이 지정되지 않은 사용자",
           "부서도 조직 직속도 지정되지 않았습니다. 이 계정은 조직 데이터(프로젝트, 티켓, 문서)를 아무것도 볼 수 없습니다.",
           "부서를 지정하거나, 부서 없이 조직 전체를 보는 자리라면 '조직 직속'으로 지정하세요.",
-          _users_without_membership, (FIX_MEMBERSHIP,)),
+          _users_without_membership, (FIX_MEMBERSHIP,), short="소속 없음"),
     Check("users_on_inactive_department", TAB_PEOPLE, "user", "비활성 부서에 속한 사용자",
           "비활성 부서는 새로 고를 수 없을 뿐 기존 연결은 그대로 동작합니다. 조직 개편 때 이 사람들이 잊히기 쉽습니다.",
           "활성 부서로 옮기거나, 부서를 다시 활성화하세요.",
-          _users_on_inactive_department, (FIX_MEMBERSHIP,)),
+          _users_on_inactive_department, (FIX_MEMBERSHIP,), short="비활성 부서 소속"),
     Check("tickets_without_one_project", TAB_TICKETS, "ticket", "프로젝트가 정확히 하나가 아닌 티켓",
           "티켓의 조직 소속은 프로젝트가 정합니다. 프로젝트가 없거나 둘 이상이면 전체 관리자 외에는 아무에게도 보이지 않습니다.",
           "프로젝트를 정확히 하나로 지정하세요. 서버가 임의로 하나를 고르지 않습니다.",
-          _tickets_without_one_project, (FIX_TICKET_PROJECT,)),
+          _tickets_without_one_project, (FIX_TICKET_PROJECT,), short="프로젝트 지정 오류"),
     Check("tickets_with_unmapped_assignees", TAB_TICKETS, "ticket", "담당자를 포털 계정으로 연결하지 못한 티켓",
           "이관해 온 담당자 값이 이 포털의 계정 어느 것과도 맞지 않습니다. '내 티켓'과 담당자별 집계에 잡히지 않습니다.",
           "티켓 상세에서 담당자를 지금 있는 계정으로 다시 지정하세요.",
-          _tickets_with_unmapped_assignees),
+          _tickets_with_unmapped_assignees, short="담당자 미연결"),
     Check("tickets_assigned_to_closed_accounts", TAB_TICKETS, "ticket", "닫힌 계정이 담당인 티켓",
           "담당자가 보관되었거나 비활성인 계정입니다. 이 일은 어느 대기열에서도 눈에 띄지 않습니다. 끝난 티켓은 세지 않습니다.",
           "퇴사한 사람의 일은 오프보딩 화면에서 한 번에 넘기고, 한 건씩은 티켓 상세에서 담당자를 다시 지정하세요.",
-          _tickets_assigned_to_closed_accounts),
+          _tickets_assigned_to_closed_accounts, short="닫힌 계정 담당"),
     Check("open_sprint_tickets_off_team", TAB_TICKETS, "ticket", "열린 회차에 담긴 다른 팀의 티켓",
           "회차에는 같은 팀 프로젝트의 티켓만 담깁니다. 팀이 어긋난 티켓은 그 팀의 회의에서 우리 일이 아닌 항목으로 보입니다.",
           "회차에서 빼거나, 프로젝트의 부서를 회차의 팀에 맞추세요.",
-          _open_sprint_tickets_off_team, (FIX_REMOVE_FROM_SPRINT,)),
+          _open_sprint_tickets_off_team, (FIX_REMOVE_FROM_SPRINT,), short="다른 팀 회차"),
     Check("projects_without_scope", TAB_RESOURCES, "project", "조직이 지정되지 않은 프로젝트",
           "조직이 없으면 소속을 판정할 수 없어 전체 관리자만 볼 수 있고, 그 프로젝트의 티켓도 함께 닫힙니다.",
           "업그레이드가 기본 조직으로 채웁니다. 그 뒤에도 남으면 데이터를 직접 확인해야 합니다.",
-          _projects_without_scope),
+          _projects_without_scope, short="조직 없음"),
     Check("projects_on_inactive_department", TAB_RESOURCES, "project", "비활성 부서의 프로젝트",
           "비활성 부서는 새로 고를 수 없을 뿐 기존 연결은 그대로 동작합니다. 조직 개편 때 잊히기 쉽습니다.",
           "부서를 활성 부서로 바꾸세요. 열린 회차에 담긴 티켓이 있는 프로젝트는 먼저 회차에서 빼야 합니다.",
-          _projects_on_inactive_department, (FIX_PROJECT_DEPARTMENT,)),
+          _projects_on_inactive_department, (FIX_PROJECT_DEPARTMENT,), short="비활성 부서 프로젝트"),
     Check("spaces_without_ownership", TAB_RESOURCES, "space", "소속이 지정되지 않은 지식 공간",
           "이 공간이 어느 부서나 프로젝트 것인지 알 수 없어, 전체 관리자 외에는 이 공간의 문서가 보이지 않습니다.",
           "소속을 부서나 조직 공통으로 지정하세요. 문서 화면에는 공간의 소속을 고치는 자리가 없어 여기서 지정합니다.",
-          _spaces_without_ownership, (FIX_SPACE_OWNER,)),
+          _spaces_without_ownership, (FIX_SPACE_OWNER,), short="공간 소속 없음"),
     Check("spaces_on_inactive_department", TAB_RESOURCES, "space", "비활성 부서의 지식 공간",
           "비활성 부서의 공간은 그대로 보이지만 조직 개편 때 잊히기 쉽습니다.",
           "소속을 활성 부서나 조직 공통으로 바꾸세요.",
-          _spaces_on_inactive_department, (FIX_SPACE_OWNER,)),
+          _spaces_on_inactive_department, (FIX_SPACE_OWNER,), short="비활성 부서 공간"),
     Check("sprints_without_team", TAB_SPRINTS, "sprint", "팀이 정해지지 않은 열린 회차",
           "회차는 팀이 운영하는 주기입니다. 팀이 없으면 팀 사용자에게 보이지 않고 티켓을 담거나 회차를 열 수 없습니다.",
           "회차를 운영할 팀을 지정하세요. 팀이 없는 회차는 작업 보드에 뜨지 않아 여기서 지정합니다.",
-          _sprints_without_team, (FIX_SPRINT_TEAM,)),
+          _sprints_without_team, (FIX_SPRINT_TEAM,), short="팀 없는 회차"),
 )
 CHECK_BY_KEY = {c.key: c for c in CHECKS}
 
@@ -525,7 +528,7 @@ def report(db: Session) -> dict:
         items = check.items(db)
         tab_counts[check.tab] += len(items)
         findings.append({
-            "key": check.key, "tab": check.tab, "kind": check.kind, "title": check.title,
+            "key": check.key, "tab": check.tab, "kind": check.kind, "title": check.title, "short": check.short or check.title,
             "why": check.why, "remedy": check.remedy, "count": len(items),
             "fixes": list(check.fixes), "fixable_here": bool(check.fixes),
             "items": [_public(i) for i in items[:SAMPLE_LIMIT]],

@@ -8,6 +8,7 @@
   `local_capture --harness kit_measure --selftest`).
 
 qa-contract-change: 줄 칸 자유 입력 폭을 고정 11rem 에서 「이름 + 값 자리 6rem, 11rem 바닥 · 24rem 상한」으로 옮긴다. 감사 로그 「작업(정확히, 예: user.update)」 칸이 11rem 에서 이름만으로 칸을 다 먹어 친 글자가 안 보이던 것을 캡처 눈 대조로 찾았다. 표의 상한 18 은 자유 입력만 24 로 풀고, 나머지 종류 값과 프런트 ROW_KIND 와의 일치를 새로 고정한다.
+qa-contract-change: 닫힌 집합 칸의 상한을 13rem 에서 16rem 으로 올리고(선택지로 폭을 잰다, D-530), 「기간」 칸 하나(13rem)와 검색 칸 계단(면 64rem 이상 20 · 44 ~ 64rem 16 · 그 아래 줄 전체)과 표 안 빈 띠 검사를 더한다. 「문제 종류」 값이 13rem 칸에서 여섯 글자 뒤로 잘렸고, 날짜 칸 둘이 필터 줄에서 혼자 높이가 달랐다.
 qa-contract-change: 줄 칸 Entity 폭을 「13rem 하나」에서 「기본 13rem, 값이 긴 축의 wide 칸은 필터 면 폭의 계단 13 · 16 · 20rem」으로 옮긴다. 1920 팀 티켓의 프로젝트 칸이 208px 이라 긴 이름이 앞에서 잘렸다. 표에 `entityWide` [13, 20] 과 계단 표 `entityWideSteps` 를 더하고 고정 폭 18rem 상한에서 wide 칸을 뺀다. 프런트 `ROW_KIND.entityWide` 의 컨테이너 질의 · 면의 크기 컨테이너 선언과 같은 수를 말하는지 새로 대조한다.
 """
 
@@ -244,7 +245,7 @@ def test_browser_composition_tables_agree():
     route_ids = {r.id for r in ALL_ROUTES}
     assert set(cc.SELFTEST_EXPECT_BAD) <= set(cc.COMPOSITION_CHECKS)
     assert set(cc.SELFTEST_EXPECT_REASONS) <= set(cc.COMPOSITION_CHECKS)
-    assert len(cc.COMPOSITION_CHECKS) == len(set(cc.COMPOSITION_CHECKS)) == 11
+    assert len(cc.COMPOSITION_CHECKS) == len(set(cc.COMPOSITION_CHECKS)) == 12
     unknown = sorted(set(cc.ROUTE_EXPECT) - route_ids)
     assert unknown == [], f"ROUTE_EXPECT 에 없는 경로 id: {unknown}"
     allowed = {"listSurface", "editorBox", "pageFill", "chat", "skipBudget", "callerWidths", "filterExempt", "footerExempt"}
@@ -254,14 +255,15 @@ def test_browser_composition_tables_agree():
     # 고정 폭 종류는 18rem 을 넘지 않는다. 자유 입력은 이름 길이를 따라 11~24rem 사이에 서고(값 자리 6rem),
     # wide Entity 는 필터 면 폭의 계단이라 13~20rem 사이에 선다.
     row_kind = cc.COMPOSITION_CONTRACT["rowKind"]
-    assert set(row_kind) == {"entity", "entityWide", "tag", "enum", "text", "date", "datetime"}
+    assert set(row_kind) == {"entity", "entityWide", "tag", "enum", "text", "date", "datetime", "period"}
     for kind, (lo, hi) in row_kind.items():
         assert 0 < lo <= hi, kind
         if kind not in ("text", "entityWide"):
             assert hi <= 18, kind
     assert row_kind["entity"] == [13, 13] and row_kind["tag"] == [13, 13]
     assert row_kind["entityWide"] == [13, 20]
-    assert row_kind["enum"] == [8, 13]
+    assert row_kind["enum"] == [8, 16]
+    assert row_kind["period"] == [13, 13]
     assert row_kind["date"] == [11, 11] and row_kind["datetime"] == [18, 18]
     assert row_kind["text"] == [11, 24]
     # wide 계단 — 큰 계단부터 적는다. 면이 넓을수록 칸이 넓고, 가장 넓은 계단이 표의 상한이며, 계단 밖(좁은 면)은 기본 칸과
@@ -284,7 +286,11 @@ def test_browser_composition_tables_agree():
     assert 'entity: { flex: "0 0 13rem", width: "13rem"' in filters_src
     assert 'date: { flex: "0 0 11rem", width: "11rem"' in filters_src
     assert 'datetime: { flex: "0 0 18rem", width: "18rem"' in filters_src
-    assert 'enum: { flex: "0 0 auto", minWidth: "8rem", maxWidth: "13rem" }' in filters_src
+    assert 'enum: { flex: "0 0 auto", minWidth: "8rem", maxWidth: "16rem" }' in filters_src
+    assert 'period: { flex: "0 0 13rem", width: "13rem"' in filters_src
+    # 선택지 폭의 크기 표와 범위가 브라우저 검사의 enum 범위와 같다.
+    assert 'export const FILTER_SELECT_SIZES = Object.freeze({ S: 8, M: 10, L: 13, XL: 16 });' in whole_src
+    assert 'export const SELECT_WIDTH_RANGE_REM = Object.freeze([8, 16]);' in whole_src
     # wide 칸 — 바닥은 기본 칸과 같은 13rem 이고, 계단은 필터 면(이름 붙은 크기 컨테이너)의 폭을 묻는다. 폭은 사용자 정의 속성
     # 하나로 말한다(계단이 `width` 를 직접 말하면 호출부 sx 의 폭까지 덮는다).
     wide_start = filters_src.index("entityWide: {")
@@ -300,6 +306,11 @@ def test_browser_composition_tables_agree():
     surface_at = bar_src.index("export function FilterSurface(")
     surface_fn = bar_src[surface_at : bar_src.index("export function", surface_at + 1)]
     assert "...FILTER_SURFACE_CONTAINER," in surface_fn, "필터 면이 크기 컨테이너를 열지 않으면 wide 계단이 늘 바닥에 머문다"
+    # 검색 칸 계단 — 프런트 `SEARCH_SLOT_STEPS` 와 같은 수이고, 필터 면의 컨테이너 질의로 선다(남는 폭을 먹지 않는다).
+    assert cc.COMPOSITION_CONTRACT["searchSlotSteps"] == [[64, 20], [44, 16]]
+    assert 'export const SEARCH_SLOT_STEPS = Object.freeze([[64, "20rem"], [44, "16rem"]]);' in bar_src
+    assert 'flexGrow: 0, flexShrink: 0, flexBasis: "var(--search-slot, 20rem)"' in bar_src
+    assert cc.COMPOSITION_CONTRACT["emptyBand"] == [56, 72]
     assert cc.COMPOSITION_CONTRACT["filterCell"] == 34
     assert cc.COMPOSITION_CONTRACT["prefixInset"] == 14 and cc.COMPOSITION_CONTRACT["prefixGap"] == 6
     assert cc.COMPOSITION_CONTRACT["rowAction"] == 30 and cc.COMPOSITION_CONTRACT["cardPadding"] == 20

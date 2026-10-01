@@ -177,8 +177,9 @@ function CheckList({ finding, findings, q, onIssue, onSearch, canFix }) {
         } : undefined}
       >
         <FilterSelect
-          label="문제 종류" value={finding.key} onChange={onIssue} noAllOption
-          options={findings.map((f) => ({ value: f.key, label: `${f.title} ${f.count}건` }))}
+          label="문제 종류" value={finding.key} onChange={onIssue} noAllOption size="XL"
+          /* 칸에는 짧은 이름이 선다(D-530 — 검사 제목은 문장이라 칸에서 여섯 글자 뒤로 잘렸다). 고른 검사의 문장은 아래 머리가 말한다. */
+          options={findings.map((f) => ({ value: f.key, label: `${f.short || f.title} ${f.count}건` }))}
         />
       </FilterBar>
       <Callout tone="info" variant="inline">{finding.why} {finding.remedy}</Callout>

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import AuthContext, get_current_auth, get_current_user, get_db, require_csrf
 from app.core.etag import etag_json_response
-from app.core.errors import NotFoundError, RateLimitedError
+from app.core.errors import FeatureDisabledError, NotFoundError, RateLimitedError
 from app.core.feature_flags import db_flag, load_feature_flags
 from app.games import ai, repository, service
 from app.games.models import EV_CHAT, ROLE_SPECTATOR
@@ -27,14 +27,14 @@ from app.settings.gate import block_if_maintenance
 def require_games_enabled(request: Request) -> None:
     flags = load_feature_flags(request.app.state.settings.config_dir)
     if not flags.get("games_enabled", True):
-        raise NotFoundError("놀이 기능이 비활성화되어 있습니다.")
+        raise FeatureDisabledError("놀이 기능이 비활성화되어 있습니다.")
 
 
 def require_game_ai_enabled(request: Request) -> None:
     # fail-closed: 기본값 False. 켜지 않으면 AI 생성 엔드포인트는 404(나머지 놀이는 그대로 동작).
     # DB 소유 플래그다(D-507) - AI 설정 화면에서 켜고 끈다.
     if not db_flag(getattr(request.app.state, "settings_cache", None), "game_ai_enabled"):
-        raise NotFoundError("AI 퀴즈 생성 기능이 비활성화되어 있습니다.")
+        raise FeatureDisabledError("AI 퀴즈 생성 기능이 비활성화되어 있습니다.")
 
 
 router = APIRouter(

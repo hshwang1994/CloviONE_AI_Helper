@@ -712,6 +712,15 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   (내 업무량 「달」 하나만 보호 화면이라 남겼다).
 - **표 발**: 숨긴 열은 「표 폭이 좁아 … 열을 숨겼습니다.」, 필수 열만으로도 모자라면 표 상자가 가로로 굴리고 첫 열이 붙박이다.
 
+## 0-21. 필터 · 기간 · 보기 기준 · 목록 상태 (D-530)
+
+- **필터 칸 폭**: 닫힌 집합은 `filters.jsx::selectWidthRem`(선택지 · [8, 16]rem · 크기 S · M · L · XL)이고, 검색 칸은 필터 면 폭의 계단
+  (`FilterBar.jsx::SEARCH_SLOT_STEPS` — 20 · 16rem · 줄 전체)이다. 화면이 폭 숫자를 적지 않는다.
+- **기간**: `ui/PeriodFilter.jsx` 하나(레지스트리 `{ key, endKey, type: "period", mode?, presets?, emptyPreset? }`). 날짜 칸 둘을 필터 줄에 세우지 않는다.
+- **보기 기준**: 레지스트리 `role: "view"` — 필터 바 오른쪽 끝, 조건이 아니다. **켬/끔 조건**은 `FilterBar toggles`(조건 칸 바로 뒤, 칩을 만든다).
+- **목록 상태**: 판정은 `ui/listState.js::resolveListState` 하나, 실패 넷은 `ui/ListStateView.jsx`, 빈 표는 `DataTable` 의 머리 아래 띠(`empty` ·
+  `emptyAction` · `emptyState`), 상태 자리는 `kit.jsx::StateRegion`(판 · 탭 판 · 모달 안이면 region).
+
 ## 1. 신설한 부품
 
 ### `ContextBar` (2026-09-21, D-497)

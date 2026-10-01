@@ -9,10 +9,14 @@
  * datascreen-search.test.jsx와 같은 방식으로 합성 config를 직접 DataScreen에 꽂아
  * 공유 컴포넌트의 분기 로직 자체를 검사한다 — 이래야 새 REGISTRY 화면이 생겨도
  * 이 계약이 자동으로 적용된다.
+ *
+ * qa-contract-change: 조건 때문에 0건인 빈 상태가 「검색 결과가 없습니다」 + 「검색, 필터 지우기」 판에서 표 머리 아래 한 줄 띠
+ * 「조건에 맞는 항목이 없습니다.」 + 30 「필터 지우기」로 바뀌었다(D-530 목록 상태 일곱 갈래). 가르는 계약(필터 때문 대 정말 없음)과
+ * 지운 뒤 전체로 돌아가는 계약은 그대로 단언하고, 띠가 표 머리 아래 줄이라는 사실을 새로 단언한다.
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -71,6 +75,17 @@ beforeEach(() => {
   apiMock.mockReset();
 });
 
+/* 조건 때문에 0건 — 표 머리 아래 한 줄 띠(D-530)가 문장과 30 「필터 지우기」를 든다. 조건 줄에도 같은 이름의 단추가 있어 띠 안에서 찾는다. */
+async function findEmptyBand() {
+  const heading = await screen.findByRole("heading", { name: "조건에 맞는 항목이 없습니다." });
+  const band = heading.closest("[data-empty-layout='band']");
+  expect(band).not.toBeNull();
+  // 띠는 표 머리 아래 줄이다 — 판을 흰 면으로 채우는 빈 상태가 아니다.
+  expect(band.closest("tr[data-empty-band]")).not.toBeNull();
+  expect(band.closest("table").querySelector("thead")).not.toBeNull();
+  return band;
+}
+
 describe("DataScreen — 기본 필터가 걸린 화면의 빈 상태 (PA-RC-0038)", () => {
   it("기본 필터로 0건이면 무조건형 온보딩이 아니라 '필터 때문' 문구 + 필터 지우기를 보인다", async () => {
     apiMock.mockImplementation((url) =>
@@ -79,10 +94,10 @@ describe("DataScreen — 기본 필터가 걸린 화면의 빈 상태 (PA-RC-003
         : Promise.reject(new Error("unexpected url: " + url))));
     renderScreen(CONFIG_WITH_DEFAULT_FILTER);
 
-    expect(await screen.findByText("검색 결과가 없습니다")).toBeInTheDocument();
+    const band = await findEmptyBand();
     // 기본값 제외 로직이 되살아나면 이 온보딩 문구가 대신 뜬다 — 반드시 없어야 한다.
     expect(screen.queryByText("검사 요청이 없습니다")).toBeNull();
-    expect(screen.getByRole("button", { name: "검색, 필터 지우기" })).toBeInTheDocument();
+    expect(within(band).getByRole("button", { name: "필터 지우기" })).toBeInTheDocument();
   });
 
   it("빈 화면이 아니어도 기본 필터만으로 툴바에 '필터 지우기'가 뜬다(acceptance 2)", async () => {
@@ -101,8 +116,8 @@ describe("DataScreen — 기본 필터가 걸린 화면의 빈 상태 (PA-RC-003
     const user = userEvent.setup();
     renderScreen(CONFIG_WITH_DEFAULT_FILTER);
 
-    await screen.findByText("검색 결과가 없습니다");
-    await user.click(screen.getByRole("button", { name: "검색, 필터 지우기" }));
+    const band = await findEmptyBand();
+    await user.click(within(band).getByRole("button", { name: "필터 지우기" }));
 
     // 지운 뒤 재요청이 status= 파라미터 없이 나갔다(기본값으로 되돌아간 게 아니라 진짜 전체).
     expect(apiMock.mock.calls.some(([u]) => !String(u).includes("status="))).toBe(true);
@@ -114,7 +129,7 @@ describe("DataScreen — 기본 필터가 걸린 화면의 빈 상태 (PA-RC-003
     renderScreen(CONFIG_NO_FILTER);
 
     expect(await screen.findByText("표시할 항목이 없습니다(검사용)")).toBeInTheDocument();
-    expect(screen.queryByText("검색 결과가 없습니다")).toBeNull();
+    expect(screen.queryByText("조건에 맞는 항목이 없습니다.")).toBeNull();
     expect(screen.queryByRole("button", { name: /필터 지우기/ })).toBeNull();
   });
 
@@ -124,8 +139,8 @@ describe("DataScreen — 기본 필터가 걸린 화면의 빈 상태 (PA-RC-003
     const user = userEvent.setup();
     renderScreen(CONFIG_WITH_DEFAULT_FILTER);
 
-    await screen.findByText("검색 결과가 없습니다");
-    await user.click(screen.getByRole("button", { name: "검색, 필터 지우기" }));
+    const band = await findEmptyBand();
+    await user.click(within(band).getByRole("button", { name: "필터 지우기" }));
 
     expect(await screen.findByText("검사 요청이 없습니다")).toBeInTheDocument();
   });

@@ -298,7 +298,8 @@ def test_feature_flag_off_hides_the_canonical_knowledge_api_too(db_url, tmp_path
             r = c.get(path)
             assert r.status_code == 404, f"{path} 가 깃발이 꺼졌는데 열려 있다: {r.status_code} {r.text[:200]}"
             body = r.json()
-            assert body["error"]["code"] == "not_found", body
+            # 상태는 404 그대로(꺼진 기능은 없는 것), 코드가 까닭을 말한다(D-530 - 목록 화면이 「기능이 꺼져 있습니다」를 그린다).
+            assert body["error"]["code"] == "feature_disabled", body
             assert body["error"]["message"] == "문서 기능이 비활성화되어 있습니다.", body
         me = c.get("/api/me")
         assert me.status_code == 200

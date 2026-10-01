@@ -312,10 +312,12 @@ export const AUTHORING_SCREENS = {
     emptyHelp: "AI 연결을 먼저 설정하세요. 채팅이나 작업 공간에서 AI 를 쓰면 여기에 기록이 쌓입니다.",
     emptyRelatedLink: { href: "#/settings?tab=ai", label: "AI 설정으로 이동" },
     filters: [
-      { key: "group_by", type: "select", label: "묶음", value: "action", options: opt([["action", "기능"], ["user", "사용자"], ["department", "부서"], ["provider", "제공자"], ["model", "모델"], ["status", "결과"], ["day", "날짜"]]) },
+      /* 묶음 기준은 조건이 아니라 **보기 기준**이다(D-530) — 필터 바 오른쪽 끝에 서고 조건 수 · 칩 · 「필터 지우기」에 들지 않는다. */
+      { key: "group_by", type: "select", role: "view", label: "보기 기준", value: "action", options: opt([["action", "기능"], ["user", "사용자"], ["department", "부서"], ["provider", "제공자"], ["model", "모델"], ["status", "결과"], ["day", "날짜"]]) },
       { key: "status", type: "select", label: "결과", options: opt([["ok", "성공"], ["error", "실패"], ["blocked_quota", "한도로 막힘"], ["blocked_policy", "정책으로 막힘"]]) },
-      { key: "from", type: "date", label: "시작일", group: "other" },
-      { key: "to", type: "date", label: "종료일", group: "other" },
+      /* 기간 칸 하나(D-530). 서버는 빈 값을 「최근 30일」(KST 달력일)로 읽고 한 번에 366일까지 받으므로 「전체」 프리셋이 없다 —
+         빈 값의 이름이 서버 기본값 그대로다(`app/ai/usage_router.py::_range`). */
+      { key: "from", endKey: "to", type: "period", label: "기간", presets: ["today", "7d", "30d", "thisMonth", "lastMonth"], emptyPreset: "30d" },
     ],
     columns: [
       /* 묶음 이름은 기능 · 사람 · 부서 · 모델 이름이라 제목이 아니라 이름이다(D-529, 상한 18rem) — 예전에는 다섯 글자 열이 800px 이었다. */
@@ -340,9 +342,9 @@ export const AUTHORING_SCREENS = {
     paginated: true, pageSize: 50,
     filters: [
       { key: "status", type: "select", label: "결과", options: opt([["ok", "성공"], ["error", "실패"], ["blocked_quota", "한도로 막힘"], ["blocked_policy", "정책으로 막힘"]]) },
-      { key: "action", type: "select", label: "기능", options: opt([["chat.answer", "채팅 답변"], ["workspace.ask", "작업 공간 질문"], ["workspace.draft", "작업 공간 문서 초안"], ["report.weekly_summary", "프로젝트 주간 요약"], ["home.narrative", "홈 문장 요약"], ["game.quiz", "게임 퀴즈 만들기"], ["system.connection_test", "연결 확인"]]) },
-      { key: "from", type: "date", label: "시작일", group: "other" },
-      { key: "to", type: "date", label: "종료일", group: "other" },
+      /* 기능은 분류 축이다 — 키 이름(`action`)이 그룹 표에 없어 「기타」로 떨어지면 기간 칸 뒤에 섰다(좁히는 순서: 분류 → 결과 → 기간). */
+      { key: "action", type: "select", label: "기능", group: "category", options: opt([["chat.answer", "채팅 답변"], ["workspace.ask", "작업 공간 질문"], ["workspace.draft", "작업 공간 문서 초안"], ["report.weekly_summary", "프로젝트 주간 요약"], ["home.narrative", "홈 문장 요약"], ["game.quiz", "게임 퀴즈 만들기"], ["system.connection_test", "연결 확인"]]) },
+      { key: "from", endKey: "to", type: "period", label: "기간", presets: ["today", "7d", "30d", "thisMonth", "lastMonth"], emptyPreset: "30d" },
     ],
     serverSort: { keys: ["action_key", "created_at", "input_tokens", "latency_ms", "model", "output_tokens", "status"], default: { key: "created_at", dir: "desc" } },
     columns: [

@@ -183,7 +183,9 @@ describe("줄 칸 폭 — 늘어나지 않는다", () => {
     expect(kindSx("text", undefined, undefined, true)["& .MuiInputBase-input"]).toMatchObject({ width: "6rem" });
     expect(kindSx("date", undefined, undefined, true)).toMatchObject({ flex: "0 0 11rem", width: "11rem" });
     expect(kindSx("datetime", undefined, undefined, true)).toMatchObject({ flex: "0 0 18rem", width: "18rem" });
-    expect(kindSx("enum", undefined, undefined, true)).toMatchObject({ flex: "0 0 auto", minWidth: "8rem", maxWidth: "13rem" });
+    // 닫힌 집합의 상한은 16rem 이다 — 칸 폭은 선택지로 재고(D-530) 이 표는 그 범위다. 「기간」 칸은 13rem 하나다.
+    expect(kindSx("enum", undefined, undefined, true)).toMatchObject({ flex: "0 0 auto", minWidth: "8rem", maxWidth: "16rem" });
+    expect(kindSx("period", undefined, undefined, true)).toMatchObject({ flex: "0 0 13rem", width: "13rem" });
     expect(kindSx("entity", undefined).flex).toBe(CONTROL_KIND.entity.flex);
     expect(kindSx("entity", undefined, "form").width).toBe("100%");
   });

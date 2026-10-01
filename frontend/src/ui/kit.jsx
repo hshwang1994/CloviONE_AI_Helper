@@ -38,6 +38,7 @@ import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlin
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import Collapse from "@mui/material/Collapse";
+import { keyframes } from "@mui/system";
 import GlobalStyles from "@mui/material/GlobalStyles";
 import { ART } from "../lib/assets.js";
 import { MASCOT_PLACE, mascotBoxSx } from "./Mascot.jsx";
@@ -809,6 +810,30 @@ export const TONE_ACCENT = {
 /* 지금 이 자리가 판 안인가. 0 = 캔버스 위. */
 const SurfaceDepthCtx = React.createContext(0);
 
+/* ── 상태 자리 — 빈 상태 · 오류 상태의 기본 배치는 **담는 쪽**이 정한다 (F4 · D-530) ─────────────────────────
+ *
+ * 판(카드 · 구획 · 목록 판) · 판 안 묶음 · 탭 판 · 모달 · 표 틀 안에 선 상태는 그 자리의 한 칸이다(region — 왼쪽 · 위 정렬,
+ * 작은 그림). 그 밖(화면 본문에 바로 선 상태)은 화면 전체가 그 상태다(page — 가운데, 큰 그림). 예전에는 `ErrorState` 의 기본이
+ * 언제나 page 라 판 안에서 실패한 목록(조직 구성원 · 정합성 목록)이 판 가운데에 큰 오류로 섰다. 자리를 아는 부품(`Surface` ·
+ * `SubGroup` · `TabShell` 의 탭 판 · `Modal`)이 이 문맥을 깔고, 상태 부품은 `layout` 을 안 받으면 문맥을 본다. */
+const StateRegionCtx = React.createContext(false);
+
+/** 이 아래의 빈 상태 · 오류 상태는 자리의 한 칸(region)이다. */
+export function StateRegion({ children }) {
+  return <StateRegionCtx.Provider value>{children}</StateRegionCtx.Provider>;
+}
+
+/** 지금 자리가 판 · 탭 판 · 모달 안인가. */
+export function useStateRegion() {
+  return React.useContext(StateRegionCtx);
+}
+
+/* 표 안 빈 띠 — `DataTable` 이 빈 표의 머리 아래 줄(또는 좁은 화면의 판)에 깐다. 그 안의 `EmptyState` 는 어떤 `layout` 을
+   받았든 한 줄 띠로 선다(D-530 — 판을 흰 면으로 채우지 않는다). `inset` 이면 판 여백 안이라 띠가 좌우 여백을 따로 두지 않는다. */
+const TableEmptyBandCtx = React.createContext(null);
+const BAND_IN_CELL = Object.freeze({ inset: false });
+const BAND_IN_PLATE = Object.freeze({ inset: true });
+
 function surfaceSx(theme, spec) {
   return {
     ...(spec.fill ? { bgcolor: spec.fill } : null),
@@ -855,7 +880,7 @@ export function Surface({ tone = "plate", component, className, children, sx, ..
         sx={merged}
         {...rest}
       >
-        {children}
+        <StateRegionCtx.Provider value>{children}</StateRegionCtx.Provider>
       </Comp>
     </SurfaceDepthCtx.Provider>
   );
@@ -870,7 +895,12 @@ export function useSurfaceDepth() {
  * 아니다. React Context 는 Portal 을 통과하므로 이 초기화가 없으면 판 위에서 연 모달의
  * 카드가 조용히 사라진다. `Modal` 이 이것을 쓴다. */
 export function SurfaceReset({ children }) {
-  return <SurfaceDepthCtx.Provider value={0}>{children}</SurfaceDepthCtx.Provider>;
+  /* 떠 있는 판(모달)의 안도 그 판의 한 칸이다 — 상태는 region 으로 선다. */
+  return (
+    <SurfaceDepthCtx.Provider value={0}>
+      <StateRegionCtx.Provider value>{children}</StateRegionCtx.Provider>
+    </SurfaceDepthCtx.Provider>
+  );
 }
 
 /* 판 — `Surface tone="plate"` 에 판 안쪽 여백을 더한 것. 소비처 170여 곳이 이 이름을 쓴다.
@@ -1424,6 +1454,18 @@ export function MetaBar({ items, ariaLabel, sx }) {
  *
  * 스켈레톤 자체는 장식(aria-hidden)이라 스크린리더엔 침묵이다 - 별도 live 노드로 낭독한다.
  */
+/* 늦게 드러내기 — 뼈대가 빠른 응답에 번쩍였다 사라지지 않게 300ms 뒤에 보인다(D-530). 자리는 처음부터 차지해 내용이 들어와도
+   높이가 튀지 않는다. 시간은 CSS 애니메이션 지연이 잰다(타이머 · 상태가 없다). */
+const REVEAL = keyframes`from { opacity: 0; } to { opacity: 1; }`;
+
+export function DelayedReveal({ children, delayMs = 300 }) {
+  return (
+    <Box data-delayed-reveal="" sx={{ animation: `${REVEAL} 1ms linear ${delayMs}ms both` }}>
+      {children}
+    </Box>
+  );
+}
+
 export function Skeleton({ kind = "section", lines = 3, rows = 5, cols = 4, height = "9rem" }) {
   const live = <span className="sr-only" aria-live="polite">불러오는 중…</span>;
 
@@ -1626,6 +1668,7 @@ export function EmptyState(props) {
     steps, expected, action, relatedLink, art, size, layout = "region",
     ...rest
   } = props;
+  const band = React.useContext(TableEmptyBandCtx);
   /* 🔴 **모르는 prop 은 개발 모드에서 조용히 사라지지 않는다** (A2 · RC2).
    *
    * `screens/Sprint.jsx` 가 이 컴포넌트에 없는 `hint` 를 넘겼는데, 구조 분해는 목록에
@@ -1643,6 +1686,15 @@ export function EmptyState(props) {
         `기존 prop(help/action 등)으로 옮겨야 한다.`,
       );
     }
+  }
+  /* 표 안이면 어떤 자리를 말했든 한 줄 띠다(위 `TableEmptyBandCtx`). 그림 · 절차는 그리지 않는다. */
+  if (band || layout === "band") {
+    return (
+      <EmptyBand
+        title={title} help={situation || help} action={action} relatedLink={relatedLink}
+        icon={typeof icon === "string" ? null : icon} inset={!!(band && band.inset)}
+      />
+    );
   }
   /* `layout` — **이 빈 상태가 무엇을 대신하는가** (PLAN «C1»).
    *
@@ -1781,6 +1833,44 @@ export function EmptyState(props) {
   );
 }
 
+/* 표 안 빈 띠 (F4 · D-530) — [아이콘 16] [한 문장 + 짧은 도움말] [30 동작], 표의 왼쪽 축에 선다. 높이는 56 ~ 72 다(한 줄이면
+   56, 도움말이 접혀도 두 줄). 판을 흰 면으로 채우지 않는다 — 머리는 그대로 서 있고, 그 아래 한 줄이 「왜 비었는지 · 무엇을 하면
+   되는지」를 말한다. 큰 그림은 화면 전체가 빈 page 상태에서만 쓴다. */
+const EMPTY_BAND_MIN_HEIGHT = remPx(56);
+
+function EmptyBand({ title, help, action, relatedLink, icon, inset }) {
+  return (
+    <Box
+      className="k-empty"
+      role="status"
+      aria-live="polite"
+      data-empty-layout="band"
+      sx={{
+        display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1.5, rowGap: 0.5,
+        minHeight: EMPTY_BAND_MIN_HEIGHT, py: 1, px: inset ? 0 : 2,
+      }}
+    >
+      <Box aria-hidden="true" sx={{ display: "inline-flex", flexShrink: 0, color: "text.secondary", "& svg": { fontSize: remPx(ICON.mark) } }}>
+        {icon || <InfoOutlinedIcon />}
+      </Box>
+      <Box sx={{ minWidth: 0, flex: "1 1 16rem", display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: 1 }}>
+        <Typography role="heading" aria-level={2} sx={{ fontWeight: FONT_WEIGHT.semibold, fontSize: FONT_SIZE.body, ...KO_WORD_BREAK }}>
+          {title}
+        </Typography>
+        {help ? <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>{help}</Typography> : null}
+      </Box>
+      {action || (relatedLink && relatedLink.href) ? (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexShrink: 0 }}>
+          {action}
+          {relatedLink && relatedLink.href ? (
+            <Link href={relatedLink.href} underline="hover" sx={{ fontSize: FONT_SIZE.bodySm }}>{relatedLink.label || "관련 화면으로"}</Link>
+          ) : null}
+        </Box>
+      ) : null}
+    </Box>
+  );
+}
+
 /* 429 의 두 부류를 가르는 경계(초). 앱 리미터의 retry_after 는 「토큰 하나 회복 시간」이라
  * 구조적으로 12초 이내이고(login 6s · chat 2s · game_ai 12s · narrate 5s), AI 사용 상한은
  * 자정·월초까지라 시간~월 단위다. 코드가 둘 다 rate_limited 여서 시간으로만 가를 수 있다. */
@@ -1807,7 +1897,14 @@ const ERROR_STATE_LAYOUTS = ["page", "card", "region", "inline"];
  *           사라진 경우다 — 다시 시도가 아니라 새로고침이 답이다
  * `secondaryAction` — 주 동작 옆의 보조 동작 하나(렌더 실패의 「새로고침」).
  * `retryLabel` — 「다시 시도」가 실제로 하는 일이 다를 때의 이름(되감을 수 없는 셸 경계는 「새로고침」). */
-export function ErrorState({ error, onRetry, size, layout = "page", secondaryAction, retryLabel = "다시 시도" }) {
+/* 자리를 안 말하면 **담는 쪽**이 정한다(위 `StateRegionCtx`, D-530) — 판 · 탭 판 · 모달 안이면 region, 화면 본문에 바로 서면 page 다.
+   `title` · `help` · `action` 은 그 자리가 더 정확한 말을 아는 때(목록 상태 일곱 갈래 — `ListStateView`)에만 준다. */
+export function ErrorState({
+  error, onRetry, size, layout: layoutProp, secondaryAction, retryLabel = "다시 시도",
+  title: titleProp, help: helpProp, action: actionProp,
+}) {
+  const inRegion = React.useContext(StateRegionCtx);
+  const layout = layoutProp || (inRegion ? "region" : "page");
   /* 모르는 크기 · 자리는 개발 모드에서 멈춘다 — `size="sm"` 은 조용히 전면 오류 크기로 떨어져
      판 안에서 96px 여백의 가운데 오류가 섰다(`EmptyState` 의 모르는 prop 검사와 같은 규율). */
   if (import.meta.env.DEV) {
@@ -1856,7 +1953,7 @@ export function ErrorState({ error, onRetry, size, layout = "page", secondaryAct
   }, [waitSeconds, error]);
   // 401/403/404는 재시도해도 같은 실패가 반복된다 — '다시 시도'는 일시적 오류에만 준다.
   const noRetry = isAuth || isForbidden || isGone || isQuota;
-  const title = isAuth ? "로그인이 필요합니다"
+  const title = titleProp != null ? titleProp : isAuth ? "로그인이 필요합니다"
     : isPwChange ? "비밀번호 변경이 필요합니다"
     : isForbidden ? "권한이 없습니다"
     : isGone ? "찾을 수 없습니다"
@@ -1865,7 +1962,7 @@ export function ErrorState({ error, onRetry, size, layout = "page", secondaryAct
     : isChunk ? "새 버전이 배포됐습니다"
     : isRender ? "화면을 표시하지 못했습니다"
     : "불러오지 못했습니다";
-  const help = isPwChange ? msg
+  const help = helpProp != null ? helpProp : isPwChange ? msg
     : isForbidden ? "이 항목에 접근할 권한이 없습니다. 관리자에게 문의하세요."
     : isGone ? "요청한 항목을 찾을 수 없습니다. 이미 삭제되었거나 이동했을 수 있습니다."
     : isQuota ? msg
@@ -1920,7 +2017,7 @@ export function ErrorState({ error, onRetry, size, layout = "page", secondaryAct
      동작이다(핸드오프 ACCEPTANCE I2: 다시 시도 30). 채움은 화면 전체가 막혔을 때(page)만 준다 —
      판 하나의 오류가 그 화면의 주 행동을 가져가지 않는다. */
   const actionVariant = layout === "page" ? "primary" : "default";
-  const action = isAuth
+  const action = actionProp !== undefined ? actionProp : isAuth
     /* 되돌아올 곳을 실어 보낸다 — 재로그인 뒤 보던 화면으로 돌아온다(지시 19). */
     ? <Button variant={actionVariant} size="sm" href={loginUrl()}>로그인 화면으로</Button>
     // "홈으로"(#/)는 이 SPA 안이라 다시 같은 403을 부른다 — 실제 페이지 이동이 필요하다.
@@ -2686,7 +2783,7 @@ export function RowActions({ actions, ariaLabel = "행 작업 더 보기", max =
  *   selection  `{ count, onClear, actions }` — 고른 행에 할 일(`SelectionBar`).
  *   note       발 왼쪽에 덧붙는 한 토막(프로젝트 문서의 「총 N건 가운데 …」 같은 결과 문장).
  * 발에 그릴 것이 하나도 없으면 발 줄 자체를 안 그린다. */
-export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, empty, emptyState, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total, rowHeight, placement = "plain", list, selection, note }) {
+export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, empty, emptyState, emptyAction, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total, rowHeight, placement = "plain", list, selection, note }) {
   // §15.1 재검수 — `VirtualTableBody` 는 스크롤 창을 스스로 안 만든다(문서 전체가 표
   // 흐름을 지키게, `VirtualRows`와 다른 이유는 그 부품 docblock 참고). 이 상자가 그 창
   // 이다 — `virtualize` 를 안 쓰면 아무도 안 읽는다(회귀 0).
@@ -2847,7 +2944,9 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
   ) : null;
   /* 판 — surface 는 표 상자 자체, card 는 판 여백을 거슬러 가장자리까지 편 띠. `state` 가 있으면(불러오는 중 · 빈 목록)
      안에 표가 없으므로 판 여백 20 안에 선다. */
-  const frame = (children, state) => {
+  /* `padded` — 판 여백 안에 서는가. 표가 없는 상태(불러오는 중)는 여백 안이고, 표가 있으면(빈 표의 머리 + 빈 띠 포함) 표가
+     판 가장자리에 붙는다. */
+  const frame = (children, state, padded = !!state) => {
     if (placement === "surface") {
       return (
         <Surface
@@ -2855,7 +2954,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           data-list-surface=""
           data-table-placement="surface"
           data-list-state={state}
-          sx={{ p: state ? CARD_PADDING : 0, overflow: "visible", minWidth: 0 }}
+          sx={{ p: padded ? CARD_PADDING : 0, overflow: "visible", minWidth: 0 }}
         >
           {children}
         </Surface>
@@ -2868,30 +2967,34 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           data-list-state={state}
           /* 좌우만 판 여백을 거스른다. 아래를 함께 거스르면(`:last-child` 음수 여백) 표를 감싼 상자 뒤에 오는 줄을 20px
              끌어올려 겹친다 — 판 아래 여백은 판의 것으로 둔다. */
-          sx={state ? { minWidth: 0 } : { minWidth: 0, mx: `calc(-1 * ${CARD_PADDING})` }}
+          sx={padded ? { minWidth: 0 } : { minWidth: 0, mx: `calc(-1 * ${CARD_PADDING})` }}
         >
           {children}
         </Box>
       );
     }
-    return state ? children : <Box data-table-placement="plain" sx={{ minWidth: 0 }}>{children}</Box>;
+    return padded ? children : <Box data-table-placement="plain" data-list-state={state} sx={{ minWidth: 0 }}>{children}</Box>;
   };
 
   /* 로딩 모양을 표가 스스로 안다 (지시 20). 호출부가 각자 `<Skeleton lines={6} />` 을 두면
      열 수도 행 높이도 표와 다르고, 무엇보다 **빈 목록과 아직 안 온 목록이 같아 보인다** -
      "없다"와 "아직 모른다"는 다른 사실이다. */
-  if (loading) return frame(<Skeleton kind="table" cols={wideCols.length || baseCols.length} />, "loading");
+  /* 뼈대는 300ms 뒤에 보인다(D-530) — 빠른 응답에 뼈대가 번쩍였다 사라지지 않게. 자리는 처음부터 차지한다. */
+  if (loading) return frame(<DelayedReveal><Skeleton kind="table" cols={wideCols.length || baseCols.length} /></DelayedReveal>, "loading");
 
-  if (safeRows.length === 0) {
-    /* 「정말 없다」와 「필터 때문에 없다」는 다른 사실이고, 그 판정은 필터를 든 화면이
-       안다 — `emptyState` 를 주면 그것을 그대로 그린다. 안 주면 예전의 한 줄이다. */
-    /* 이 묶음이 통째로 걸러져 비었는데 서버에 더 있으면 「더 보기」는 남긴다 — 키보드 · 스크린리더 사용자는 무한 스크롤에
-       닿을 수 없다. */
+  /* 빈 표 (F4 · D-530) — 머리는 그대로 서고, 그 아래 한 줄 띠가 「왜 비었는지 · 무엇을 하면 되는지」를 말한다.
+     「정말 없다」와 「조건 때문에 없다」는 다른 사실이고, 그 판정은 필터를 든 화면이 안다 — `emptyState` 를 주면 그것을 띠 자리에
+     그리고(그 안의 `EmptyState` 는 띠로 선다), 안 주면 `empty` 문장과 `emptyAction`(30 단추)이다. 예전에는 머리 없이 판 안에 빈 상태
+     부품이 섰고, 화면마다 큰 그림 · 긴 설명이 판을 흰 면으로 채웠다. */
+  const isEmpty = safeRows.length === 0;
+  const bandContent = isEmpty
+    ? (emptyState || <EmptyState title={empty || "표시할 항목이 없습니다."} action={emptyAction} />)
+    : null;
+  if (isEmpty && narrow) {
+    /* 좁은 화면(카드 목록)에는 머리가 없다 — 판 여백 안에 띠만 선다. 이 묶음이 통째로 걸러져 비었는데 서버에 더 있으면
+       「더 보기」는 남긴다 — 키보드 · 스크린리더 사용자는 무한 스크롤에 닿을 수 없다. */
     const emptyFoot = foot.hasNext ? <>{sentinel}{footBar(false)}</> : null;
-    if (emptyState) return frame(<>{emptyState}{emptyFoot}</>, "empty");
-    /* 안 주면 **빈 상태 부품**이 선다 — 판 안의 빈 목록은 왼쪽 · 위 정렬(region)이다(핸드오프
-       RULES §1 · ACCEPTANCE I1). 예전에는 가운데 정렬 회색 문장 한 줄을 표가 손으로 그렸다. */
-    return frame(<><EmptyState layout="region" size="compact" title={empty || "표시할 항목이 없습니다."} />{emptyFoot}</>, "empty");
+    return frame(<><TableEmptyBandCtx.Provider value={BAND_IN_PLATE}>{bandContent}</TableEmptyBandCtx.Provider>{emptyFoot}</>, "empty");
   }
 
   /* 행을 묶음 순서로 훑어 «머리행이 설 자리»를 찾는다 — 표와 카드가 **같은 계산**을 본다.
@@ -3273,7 +3376,13 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           </TableRow>
         </TableHead>
         <TableBody>
-          {virtualWindow ? (
+          {isEmpty ? (
+            <TableRow data-empty-band="">
+              <TableCell colSpan={wideCols.length || 1} sx={{ p: 0, borderBottom: 0 }}>
+                <TableEmptyBandCtx.Provider value={BAND_IN_CELL}>{bandContent}</TableEmptyBandCtx.Provider>
+              </TableCell>
+            </TableRow>
+          ) : virtualWindow ? (
             <WindowVirtualTableBody
               items={safeRows}
               estimateSize={virtualize.estimateSize}
@@ -3297,10 +3406,11 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
         </TableBody>
       </Table>
       </TableContainer>
-      {/* 발은 가로로 굴러가는 표 상자 **밖**, 판 안 마지막 줄이다 — 넓은 표를 가로로 굴려도 건수와 「더 보기」가 제자리다. */}
+      {/* 발은 가로로 굴러가는 표 상자 **밖**, 판 안 마지막 줄이다 — 넓은 표를 가로로 굴려도 건수와 「더 보기」가 제자리다.
+          빈 표는 「더 보기」가 남을 때만 발을 그린다(받은 0건을 문장으로 다시 말하지 않는다). */}
       {sentinel}
-      {footBar(placement === "surface")}
-      </>)}
+      {isEmpty ? (foot.hasNext ? footBar(false) : null) : footBar(placement === "surface")}
+      </>, isEmpty ? "empty" : undefined, false)}
     </FlatBadgeSurface>
   );
 }
@@ -4513,7 +4623,7 @@ export function SubGroup({ title, help, component = "h3", first = false, spacing
       {help ? (
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25, ...KO_WORD_BREAK }}>{help}</Typography>
       ) : null}
-      {children}
+      <StateRegionCtx.Provider value>{children}</StateRegionCtx.Provider>
     </Box>
   );
 }

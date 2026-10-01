@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -12,6 +12,9 @@ import { MemoryRouter } from "react-router-dom";
  * 기본 필터 + emptyTitle/emptyHelp/emptyRelatedLink)를 그대로 꽂아 실제 화면 설정이
  * 그 분기에 올바르게 걸리는지 확인한다 — 합성 config 시험이 통과해도 실제 설정에서
  * 필터 key 오타 등으로 다시 깨질 수 있다.
+ *
+ * qa-contract-change: 조건 때문에 0건은 「검색 결과가 없습니다」 + 「검색, 필터 지우기」 판이 아니라 표 머리 아래 한 줄 띠 「조건에 맞는 항목이
+ * 없습니다.」 + 30 「필터 지우기」다(D-530 목록 상태 일곱 갈래). 「필터 때문 대 정말 없음」 판정과 지운 뒤 전체 조회 단언은 그대로다.
  */
 
 const apiMock = vi.fn();
@@ -24,6 +27,13 @@ import { REGISTRY } from "./registry.js";
 import { DataScreen } from "./DataScreen.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
+
+const FILTERED_EMPTY = "조건에 맞는 항목이 없습니다.";
+/* 조건 때문에 0건의 띠 — 조건 줄에도 같은 이름의 「필터 지우기」가 있어 띠 안에서 찾는다. */
+async function bandClear() {
+  const heading = await screen.findByRole("heading", { name: FILTERED_EMPTY });
+  return within(heading.closest("[data-empty-layout='band']")).getByRole("button", { name: "필터 지우기" });
+}
 
 function renderApprovals() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -52,9 +62,9 @@ describe("/approvals — 기본 필터(status=pending) 0건일 때 빈 상태", 
         : Promise.reject(new Error("unexpected url: " + url))));
     renderApprovals();
 
-    expect(await screen.findByText("검색 결과가 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText(FILTERED_EMPTY)).toBeInTheDocument();
     expect(screen.queryByText("승인 요청이 없습니다")).toBeNull();
-    expect(screen.getByRole("button", { name: "검색, 필터 지우기" })).toBeInTheDocument();
+    expect(await bandClear()).toBeInTheDocument();
   });
 
   it("'필터 지우기'를 누르면 대기가 아닌 처리된 요청도 보인다(전체 조회, 기본값 복귀 아님)", async () => {
@@ -65,13 +75,12 @@ describe("/approvals — 기본 필터(status=pending) 0건일 때 빈 상태", 
     const user = userEvent.setup();
     renderApprovals();
 
-    await screen.findByText("검색 결과가 없습니다");
-    await user.click(screen.getByRole("button", { name: "검색, 필터 지우기" }));
+    await user.click(await bandClear());
 
     expect(apiMock.mock.calls.some(([u]) => !String(u).includes("status="))).toBe(true);
     // 기본값(status=pending)으로 되돌아갔다면 재요청도 빈 결과라 이 문구가 그대로 남는다 —
     // 실제로 사라지는 것이 "전체 조회"가 됐다는 증거다.
-    await waitFor(() => expect(screen.queryByText("검색 결과가 없습니다")).toBeNull());
+    await waitFor(() => expect(screen.queryByText(FILTERED_EMPTY)).toBeNull());
     expect(screen.getByText("승인됨")).toBeInTheDocument(); // badgeCol("status") — approved 행이 실제로 그려졌다
   });
 
@@ -80,8 +89,7 @@ describe("/approvals — 기본 필터(status=pending) 0건일 때 빈 상태", 
     const user = userEvent.setup();
     renderApprovals();
 
-    await screen.findByText("검색 결과가 없습니다");
-    await user.click(screen.getByRole("button", { name: "검색, 필터 지우기" }));
+    await user.click(await bandClear());
 
     expect(await screen.findByText("승인 요청이 없습니다")).toBeInTheDocument();
     expect(screen.getByText("부재 시 대리 승인자 설정")).toBeInTheDocument(); // emptyRelatedLink 회귀 없음

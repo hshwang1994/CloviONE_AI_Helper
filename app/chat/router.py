@@ -36,7 +36,7 @@ from app.core.deps import (
     get_page_auth,
     require_csrf,
 )
-from app.core.errors import NotFoundError, RateLimitedError
+from app.core.errors import FeatureDisabledError, RateLimitedError
 from app.core.feature_flags import db_flag
 from app.ai.actions import CHAT_ANSWER
 from app.quotas import service as ai_quotas
@@ -53,7 +53,7 @@ router = APIRouter(tags=["chat"])
 def require_chat_enabled(request: Request) -> None:
     # DB 소유 플래그다(D-507) - 관리 화면에서 바꾼 값이 설정 캐시를 거쳐 바로 온다.
     if not db_flag(getattr(request.app.state, "settings_cache", None), "chat_enabled"):
-        raise NotFoundError("AI 도우미 채팅 기능이 비활성화되어 있습니다.")
+        raise FeatureDisabledError("AI 도우미 채팅 기능이 비활성화되어 있습니다.")
 
 
 @router.get("/")

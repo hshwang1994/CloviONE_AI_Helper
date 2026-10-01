@@ -1,3 +1,5 @@
+import { periodLabel } from "../ui/period.js";
+
 /* 목록 화면의 '지금 보고 있는 뷰' ↔ URL 쿼리 변환 (순수 함수).
  *
  * 왜 URL 인가: 관리자 화면들은 이미 필터를 **API URL** 로 조립한다(DataScreen 의 buildUrl).
@@ -56,9 +58,20 @@ export function withQuery(endpoint, parts) {
   return base + (base.includes("?") ? "&" : "?") + q;
 }
 
+/** 필터 정의 하나가 차지하는 상태 키 — 「기간」(`type: "period"`)은 `key` · `endKey` 둘이다(D-530). */
+export function filterStateKeys(f) {
+  if (!f || !f.key) return [];
+  return f.type === "period" && f.endKey ? [f.key, f.endKey] : [f.key];
+}
+
+/** 보기 기준(`role: "view"`)인가 — 표를 어떻게 묶어 볼지 고르는 축이라 조건이 아니다(D-530). */
+export function isViewFilter(f) {
+  return !!f && f.role === "view";
+}
+
 /** config.filters 의 키 집합. filters 가 없으면 빈 배열. */
 function filterKeys(config) {
-  return ((config && config.filters) || []).map((f) => f.key).filter(Boolean);
+  return ((config && config.filters) || []).flatMap(filterStateKeys);
 }
 
 /**
@@ -172,6 +185,13 @@ export function describeView(query, config) {
   const bits = [];
   if (view.q) bits.push(`검색 "${view.q}"`);
   ((config && config.filters) || []).forEach((f) => {
+    if (f.type === "period") {
+      const range = { from: view.filters[f.key] || "", to: view.filters[f.endKey] || "" };
+      if (range.from || range.to) {
+        bits.push(`${f.label || f.key}: ${periodLabel(range, { mode: f.mode, presets: f.presets, emptyPreset: f.emptyPreset, emptyLabel: f.emptyLabel })}`);
+      }
+      return;
+    }
     const value = view.filters[f.key];
     if (value == null || value === "") return;
     // options 는 배열이지만 화면에 따라 함수(optionsFrom)나 undefined 일 수 있다 —

@@ -24,6 +24,9 @@ import "@testing-library/jest-dom/vitest";
  *
  * qa-contract-change: 안 읽음 수는 전폭 큰 숫자 카드가 아니라 필터 바 끝의 켬/끔 단추 「안 읽음만 보기 N」이 든다(D-501 — 숫자 하나에 판을 세우지
  * 않고, 같은 뜻의 셀렉트와 카드가 두 자리에 있던 것을 하나로). 값 하나 카드 두 단언은 그 단추의 이름 · 눌림 · 서버 조건 · 칩 단언으로 옮겼다.
+ *
+ * qa-contract-change: 조건 때문에 0건은 판 안 「검색 결과가 없습니다」 + 「검색, 필터 지우기」가 아니라 표 머리 아래 한 줄 띠 「조건에 맞는 항목이
+ * 없습니다.」 + 30 「필터 지우기」다(D-530 목록 상태 일곱 갈래). 띠가 표의 줄이라는 사실과 단추 이름을 단언한다.
  */
 
 const apiMock = vi.fn();
@@ -310,9 +313,11 @@ describe("빈 상태는 '데이터 없음'과 '검색 결과 없음'을 구분�
     expect(await screen.findByRole("heading", { name: "감사 로그가 없습니다" })).toBeInTheDocument();
 
     await user.type(screen.getByRole("searchbox"), "없는값");
-    expect(await screen.findByRole("heading", { name: "검색 결과가 없습니다" })).toBeInTheDocument();
-    // 빈 상태 안의 CTA. 툴바에도 '필터 지우기'가 함께 떠 있으므로 이름을 정확히 지정한다.
-    expect(screen.getByRole("button", { name: "검색, 필터 지우기" })).toBeInTheDocument();
+    /* 조건 때문에 0건 — 표 머리 아래 한 줄 띠(D-530). 툴바(조건 줄)에도 같은 이름의 '필터 지우기'가 있으므로 띠 안에서 찾는다. */
+    const heading = await screen.findByRole("heading", { name: "조건에 맞는 항목이 없습니다." });
+    const band = heading.closest("[data-empty-layout='band']");
+    expect(band.closest("tr[data-empty-band]")).not.toBeNull();
+    expect(band.querySelector("button")).toHaveTextContent("필터 지우기");
   });
 
   /* 조합 계약 C-4 — 정말 빈 화면에서도 화면의 채움은 머리 동작 하나다. 빈 상태의 만드는 단추는 같은 일을 하는 30 보조다

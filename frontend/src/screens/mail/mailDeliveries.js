@@ -58,8 +58,8 @@ export const MAIL_DELIVERIES = {
   filters: [
     { key: "status", type: "select", label: "상태", options: opt(Object.entries(MAIL_STATUS_LABEL)) },
     { key: "kind", type: "select", label: "종류", options: opt(Object.entries(MAIL_KIND_LABEL)) },
-    { key: "since", type: "date", label: "시작일", group: "other" },
-    { key: "until", type: "date", label: "종료일", group: "other" },
+    /* 기간 칸 하나(D-530). 서버는 날짜를 KST 달력일로 읽고(`app/core/dates.py::parse_kst_boundary`) 빈 값은 전체다. */
+    { key: "since", endKey: "until", type: "period", label: "기간" },
   ],
   serverSort: { keys: ["created_at", "status", "kind", "to_email", "attempt_count"], default: { key: "created_at", dir: "desc" } },
   pollWhile: (r) => r.status === "queued" || r.status === "retrying",

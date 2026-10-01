@@ -20,9 +20,10 @@
 | P1 메일 보안 핵심(`smtp` 시스템 관리자 전용 · 비밀 칸 고정 · 0042 · 설치기 옛 비밀 복사 · 발송 기록 받는 사람 범위 · 0043 · 모든 종류 받는 사람 재검사 · 열람 권한 fail-closed) | `65aec555` | D-545 · D-547 |
 | P2 설정 캐시 판 번호(요청 길목 · 워커 잡 직전 · 반복마다, 초당 한 번) | `175cc7cc` | D-532 |
 | P3 컨트롤 높이 34 · 30(입력 포함) · `Field` · `FieldRow` · `FormSection` · `HeadRow` · `FlowStack` · 메시지 상자 머리 줄 · 여백 걷기(75 + 38자리) · `Card padding` · 정적 검사 `callout-margin` · `primitive-geometry-override` · 시각 규율 프로브(`visual_probes.py`) · 대조표(`visual_review.py`) | `8320c83e` | D-526 ~ D-528 · D-553 |
-| P4 표 열 배분(`columnPlan.planColumns` — 바닥 · 비중 · 상한 · 머리글 · 값 길이, 열 등급 essential · secondary · context, 필수 열만으로 모자라면 가로 굴림 + 붙박이 첫 열, 화면 폭 덮어쓰기 약 50자리를 min · max · 등급 · 값으로) | 이 커밋 | D-529 |
+| P4 표 열 배분(`columnPlan.planColumns` — 바닥 · 비중 · 상한 · 머리글 · 값 길이, 열 등급 essential · secondary · context, 필수 열만으로 모자라면 가로 굴림 + 붙박이 첫 열, 화면 폭 덮어쓰기 약 50자리를 min · max · 등급 · 값으로) | `361878f0` | D-529 |
+| P5 필터 칸 선택지 폭 · 검색 칸 계단 · 「기간」 칸 하나(`PeriodFilter`, KST) · 보기 기준(`role: "view"`) · 켬/끔 조건 자리 · 목록 상태 일곱 갈래(`resolveListState` · `ListStateView`) · 빈 표의 머리 아래 띠 · 상태 자리(`StateRegion`) · 기능 깃발 문 `feature_disabled` · 정합성 짧은 이름 · P4 값 길이 결함(id) 수정 | 이 커밋 | D-530 |
 
-- 다음: P5 필터 폭 · 기간 · 보기 기준 · 목록 상태(F4, D-530). P3 ~ P6 를 마친 뒤 `verify.py --full` 을 한 번 돈다(계획 7절).
+- 다음: P6 채움 모드 · `DataTable fill`(F5, D-531). P6 를 마치면 P3 ~ P6 묶음 끝의 `verify.py --full` 을 한 번 돈다(계획 7절).
 
 ## 끝남 — 공통 스위치 개편 (2026-10-01)
 
