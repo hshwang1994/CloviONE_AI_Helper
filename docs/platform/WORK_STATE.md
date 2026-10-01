@@ -7,6 +7,19 @@
 > 큰 작업 단위는 [`BACKLOG.md`](BACKLOG.md), 설치 사양은 [`INSTALLATION.md`](INSTALLATION.md),
 > 실측 목록은 [`INVENTORY/`](INVENTORY/README.md), 결정은 [`../DECISIONS.md`](../DECISIONS.md) D-187~.
 
+## 진행 중 — UI/UX · AI · 조직 · 초기 설정 · 메일 회차 (2026-10-01 ~)
+
+- 계획 정본: `C:/Users/hshwa/.claude/plans/pasted-content-id-c7b8-clovirassist-ui-cheerful-wozniak.md`(사용자 승인, 추가 지시 40개와 마지막 두 보정 반영).
+  결정은 D-526 ~ D-555, 마이그레이션은 0042 ~ 0048. 묶음 순서는 그 문서 7절(P0 → P1 ~ P16 → P17 전량 검증 → P17V 최종 시각 수용 → P18 랩 배포와 실측)이다.
+- 사용자 지시: 묶음마다 단위 · 통합 · 보안 · 프런트 시험과 관련 화면 스크린샷 확인을 하고, 이미 정한 것은 다시 묻지 않는다. 디자인 품질과 사용성도 완료 조건이다(D-553).
+- 끝난 묶음:
+
+| 묶음 | 커밋 | 결정 |
+|---|---|---|
+| P0 랩 읽기 전용 기준선(`INVENTORY/13_UX_AI_MAIL_BASELINE.md`, `EVIDENCE/mail/2026-10-01-lab-preflight.md`) · `ux-before` 캡처 68장 | 이 커밋 | - |
+
+- 다음: P1 메일 보안 핵심(`smtp` 시스템 관리자 전용 · 비밀 칸 고정 · 발송 기록 범위 · 받는 사람 재검사 · 0042 · 0043).
+
 ## 끝남 — 공통 스위치 개편 (2026-10-01)
 
 - 계획 정본: `C:/Users/hshwa/.claude/plans/pasted-content-id-8fa2-clovirassist-buzzing-parrot.md`(사용자 승인, 2차 수정 셋 반영). 결정은 **D-525**.
