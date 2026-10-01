@@ -16,49 +16,40 @@ import { Button, Tag } from "../../ui/kit.jsx";
 import { CHAT } from "../../ui/chat.js";
 import { ChatDaySeparator } from "../../ui/ChatDaySeparator.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
+import { objectParticle } from "../../lib/format.js";
 import {
-  copyText, fmtDateSep, fmtTime, msgAgeMs, responseTimeLabel, structuredCards,
-  stripDuplicatedTicketLines, ticketPageStart,
+  checkedTools, copyText, elapsedLabel, fmtDateSep, fmtTime, msgAgeMs, searchedWords,
 } from "../chat-helpers.js";
 import { BUBBLE_MAX } from "./layout.js";
 import { RichText } from "./RichText.jsx";
-import { CardStack } from "./TicketCard.jsx";
+import { SourceList, messageSources, safeSourceRoute } from "./SourceList.jsx";
 
 // ── 메시지 ──────────────────────────────────────────────────────────────────
 
 export function Message({
-  m, onChoose, onRetry, sending, retrying, isLast, hideCards,
+  m, onRetry, retrying, isLast, showSources = true,
   onRegenerate, regenerating, onDelete, onFeedback,
 }) {
   const st = m.structured || {};
-  const payload = structuredCards(m);
-  const choices = Array.isArray(st.choices) ? st.choices : [];
   const attachments = Array.isArray(st.attachments) ? st.attachments : [];
   const errorNotice = !!st.error_notice; // 오류 안내 말풍선엔 '복사'를 붙이지 않는다.
   const processing = m.processing_status === "pending" || m.processing_status === "processing";
   const failed = m.processing_status === "failed";
   const [copied, setCopied] = useState("");
-  const [showAllChoices, setShowAllChoices] = useState(false);
+  const [showChecked, setShowChecked] = useState(false);
   const isUser = m.role === "user";
   const isAssistant = m.role === "assistant";
-  const rawContent = m.content || "";
-  // 카드 번호는 반드시 원본 본문(다듬기 전)으로 대조해 매긴다.
-  const startNo = isAssistant ? ticketPageStart(st, rawContent) : null;
-  // 목록 응답은 티켓을 본문+카드에 두 번 낸다 — 본문의 항목 줄을 걷어내 카드가 상세를 지게 한다.
-  // 예전엔 이 제거를 raw st.start_index로 게이트했는데, 카드 번호는 ticketPageStart(context.
-  // last_result_start까지 물려받음)로 매겨져, start_index가 없고 context만 있는 응답에선 카드엔
-  // 'N번 상세' 버튼이 붙는데 본문 항목은 그대로 남아 이중 표시가 됐다 — 번호와 제거를 같은
-  // 출처(startNo)로 통일한다.
-  const content = (isAssistant && payload.tickets.length > 1 && startNo !== null && /^\s*\d+\.\s/m.test(rawContent))
-    ? stripDuplicatedTicketLines(rawContent)
-    : rawContent;
-  const showChoices = isLast && isAssistant && !processing && choices.length > 0;
-  // 카드의 '상세'도 선택 버튼과 같은 이유로 마지막 어시스턴트 메시지에서만 활성화한다, 스크롤해
-  // 올라가 옛 목록의 '상세'를 누르면 'N번 상세'가 지금 맥락의 엉뚱한 티켓을 가리킨다(오작동).
-  const cardChoose = isLast ? onChoose : undefined;
+  const content = m.content || "";
+  /* 도우미 답의 구조(D-535) — 출처 · 확인한 내용 · 걸린 시간은 서버가 잰 값만 보인다. 옛 답(근거 검색 시절)의 인용은
+     문서 출처로 옮겨 그린다(`messageSources`). */
+  const sources = isAssistant && !errorNotice ? messageSources(st) : [];
+  const keyLinks = new Map(sources
+    .filter((s) => s.type === "ticket" && s.key && safeSourceRoute(s.route))
+    .map((s) => [s.key, s.route]));
+  const tools = isAssistant && !errorNotice ? checkedTools(st) : [];
+  const words = isAssistant && st.notice === "no_results" ? searchedWords(st) : [];
+  const elapsed = isAssistant && !errorNotice ? elapsedLabel(st) : null;
   const attachCaveat = "전송 후 이미지 원본은 저장되지 않습니다. 파일 이름만 남습니다.";
-  // AI-08: 러너가 돌려주는 실제 처리 시간(structured.timing) — 있을 때만(정상 응답에만 실린다).
-  const responseTime = isAssistant ? responseTimeLabel(m) : null;
 
   return (
     <Box
@@ -69,16 +60,8 @@ export function Message({
         alignItems: isUser ? "flex-end" : "flex-start",
       }}
     >
-      {/* 말풍선 (지시 15).
-       *
-       * 예전에는 채팅 앱의 관용구를 그대로 입고 있었다: 24px 둥근 모서리에 한쪽만 각진
-       * 꼬리, 그리고 사용자 말풍선 아래 강조색 번짐(`0 2px 10px alpha(primary,.28)`).
-       * 이 제품의 다른 화면에는 그런 그림자도, 모서리마다 다른 반지름도 없다 - 이 영역만
-       * 다른 언어를 쓰고 있었고, 그 언어가 하필 "AI 채팅 제품" 을 가리켰다.
-       *
-       * 화자 구분은 남긴다(정렬 + 면). 다만 구분을 **장식이 아니라 면**으로 한다:
-       * 내 말은 강조색 면, 도우미 말은 안쪽 면. 반지름은 채팅 전용 규격(`ui/chat.js::CHAT`)을
-       * 채팅방과 함께 쓴다 — 떠 있는 것의 모서리(8)가 아니다. */}
+      {/* 말풍선 — 화자 구분은 정렬과 면이다(내 말은 강조색 면, 도우미 말은 안쪽 면). 반지름은 채팅 전용 규격
+          (`ui/chat.js::CHAT`)을 채팅방과 함께 쓴다. */}
       <Box
         sx={{
           px: 2, py: 1.5, minWidth: 0, maxWidth: "100%",
@@ -91,76 +74,67 @@ export function Message({
       >
         {/* 화자 구분은 색/정렬뿐이라 스크린리더엔 안 들린다, 텍스트로도 알린다. */}
         <span className="sr-only">{isUser ? "나: " : "도우미: "}</span>
-        {/* 어시스턴트 답은 머리글, 목록, 키-값으로 구조화(텍스트 노드 전용). 사용자 글은 친 그대로. */}
-        {content ? (isAssistant ? <RichText text={content} /> : (
+        {/* 도우미 답은 머리글, 목록, 키-값으로 구조화(텍스트 노드 전용). 글 속 티켓 키는 그 답의 출처에 있을 때만 링크다. */}
+        {content ? (isAssistant ? <RichText text={content} keyLinks={keyLinks} /> : (
           <Typography sx={{ m: 0, fontSize: FONT_SIZE.body, lineHeight: 1.6, whiteSpace: "pre-wrap", ...KO_WORD_BREAK }}>{content}</Typography>
         )) : null}
         {attachments.length ? (
           <>
             <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mt: 1 }}>
-              {/* 서버는 이미지 바이트를 저장하지 않는다(app/chat/service.py) — 전송 후엔 파일명 칩만 남고
-                  실제 이미지는 다시 볼 수 없다. */}
-              {/* 파일 이름은 태그다 — 긴 이름은 말줄임되고 전체는 `title` 이 든다. 저장 안 됨 안내는 바로 아래
-                  캡션이 늘 보이게 말한다. */}
+              {/* 서버는 이미지 바이트를 저장하지 않는다(app/chat/service.py) — 전송 후엔 파일명 칩만 남는다. */}
               {attachments.map((name, i) => (
                 <Tag key={i} label={typeof name === "string" ? name : (name && name.filename) || "첨부"} />
               ))}
             </Stack>
-            {/* title 툴팁은 hover 전용이라 모바일/터치에선 아예 안 뜬다, 전송 전 미리보기와
-                같은 이유로, 보낸 메시지에도 항상 보이는 캡션을 둔다. */}
             <Typography sx={{ mt: 0.5, fontSize: FONT_SIZE.caption, opacity: 0.75, lineHeight: 1.5 }}>{attachCaveat}</Typography>
           </>
         ) : null}
-        {/* 카드는 폭이 남으면(≥xxl) 오른쪽 레일이 진다 — 그때 여기서 한 번 더 그리면 같은 티켓이
-            화면에 두 벌 뜨고, '상세' 버튼도 두 개가 된다. hideCards는 그 중복만 막는다(데이터는 같다). */}
-        {!hideCards && payload.hasAny ? (
-          <Box sx={{ mt: 1.25 }}>
-            <CardStack payload={payload} startNo={startNo} onChoose={cardChoose} sending={sending} />
+        {/* 「찾지 못함」은 정상 답이다(오류색이 아니다) — 무엇을 찾았는데 없었는지와 다음 길을 함께 둔다. */}
+        {words.length ? (
+          <Typography sx={{ mt: 1, fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
+            찾아본 검색어는 {words.join(", ")}입니다.{" "}
+            <Box component="a" href={"#/ai?q=" + encodeURIComponent(words[0])} sx={{ color: "primary.main" }}>문서에서 찾기</Box>
+          </Typography>
+        ) : null}
+        {isAssistant && st.mode === "search_only" && !errorNotice ? (
+          <Typography sx={{ mt: 1, fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
+            도구를 쓸 수 없어 검색 결과로만 답했습니다.
+          </Typography>
+        ) : null}
+        {showSources && sources.length ? (
+          <Box sx={{ mt: 1.5, pt: 1.25, borderTop: 1, borderColor: "divider" }}>
+            <SourceList sources={sources} />
           </Box>
         ) : null}
-        {/* 이 자리에 있던 '어시스턴트 메시지 자체가 처리 중'일 때의 점 표시는 죽은 코드였다, 백엔드는
-            어시스턴트 role의 Message를 항상 processing_status=done으로만 만든다(chat_message.py). 처리
-            중 대기 표시는 스레드 레벨 awaitingReply의 별도 타이핑 말풍선이 이미 전담한다. */}
-        {/* assistant_rejected는 서버가 "다시 시도해도 똑같이 실패한다"고 이미 분류해 준 경우다
-            (app/jobs/handlers/chat_message.py on_failure), assistant_timeout/assistant_error와 같은
-            '눌러볼 만한' 링크로 보이면, 이미 안 될 걸 아는데도 계속 누르게 만든다. */}
+        {tools.length ? (
+          <Box sx={{ mt: 1 }}>
+            <Button size="sm" variant="ghost" aria-expanded={showChecked} onClick={() => setShowChecked((v) => !v)}>
+              {showChecked ? "확인한 내용 접기" : "확인한 내용 보기"}
+            </Button>
+            {showChecked ? (
+              <Box component="ul" role="list" sx={{ listStyle: "none", m: 0, mt: 0.5, p: 0, display: "grid", gap: 0.25 }}>
+                {tools.map((tool, i) => (
+                  <Box key={i} component="li" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
+                    {tool.query
+                      ? `${tool.label}에서 「${tool.query}」${objectParticle(tool.query)} 찾았습니다.`
+                      : `${tool.label}${objectParticle(tool.label)} 확인했습니다.`}
+                  </Box>
+                ))}
+              </Box>
+            ) : null}
+          </Box>
+        ) : null}
         {failed ? (
           <Typography sx={{ mt: 1, fontSize: FONT_SIZE.bodySm, color: isUser ? "inherit" : "error.main" }}>
-            {m.error_code === "assistant_rejected"
-              ? "처리하지 못했습니다. 다시 시도해도 같은 결과가 나올 가능성이 높습니다. 질문을 다르게 표현해 새로 물어보세요."
-              : (
-                <>
-                  처리하지 못했습니다.{" "}
-                  {/* 다시 시도는 손으로 그린 밑줄 글자가 아니라 30 단추다 — 진행 중에는 라벨을 그대로 두고
-                      앞에 진행 표시를 붙인다(라벨 바꿔치기 금지). */}
-                  <Button size="sm" variant="ghost" loading={retrying}
-                    onClick={() => { if (!retrying) onRetry(m); }}>
-                    다시 시도
-                  </Button>
-                </>
-              )}
+            처리하지 못했습니다.{" "}
+            {/* 다시 시도는 30 단추다 — 진행 중에는 라벨을 그대로 두고 앞에 진행 표시를 붙인다(라벨 바꿔치기 금지). */}
+            <Button size="sm" variant="ghost" loading={retrying}
+              onClick={() => { if (!retrying) onRetry(m); }}>
+              다시 시도
+            </Button>
           </Typography>
         ) : null}
       </Box>
-
-      {/* 원탭 선택은 가장 최근 어시스턴트 메시지에만. 옛 미리보기의 '등록해줘'가 살아 있으면
-          스크롤해 올라가 눌렀을 때 지나간 맥락의 작업을 보낼 수 있다(오작동). */}
-      {showChoices ? (
-        <Stack direction="row" flexWrap="wrap" gap={1}>
-          {(showAllChoices ? choices : choices.slice(0, 6)).map((c, i) => c && c.send ? (
-            /* 누르는 제안은 단추다(30) — 칩 모양의 32 조작기는 버튼 높이 집합 밖이다(핸드오프 RULES §3 · C1).
-               서버가 준 문장이 길 수 있어 좁은 말풍선에서만 말줄임한다(`truncate`, 전체는 `title`). */
-            <Button key={i} size="sm" truncate disabled={sending} onClick={() => onChoose(c.send)}>
-              {c.label || c.send}
-            </Button>
-          ) : null)}
-          {/* 7개 이상은 예전엔 조용히 잘려 나갔다 — '더 있다'는 사실만 알리고 실제로 꺼내 볼 방법은
-              없었다. 이제 눌러서 나머지를 펼칠 수 있다. */}
-          {!showAllChoices && choices.length > 6 ? (
-            <Button size="sm" variant="ghost" onClick={() => setShowAllChoices(true)}>+{choices.length - 6}개 더 보기</Button>
-          ) : null}
-        </Stack>
-      ) : null}
 
       <Stack direction="row" alignItems="center" gap={0.25}>
         {isAssistant && m.content && !processing && !errorNotice ? (
@@ -176,8 +150,7 @@ export function Message({
             <span className="sr-only" role="status" aria-live="polite">{copied}</span>
           </>
         ) : null}
-        {/* AI-36: 재생성은 대화의 마지막 답변에서만 — 중간 턴을 바꾸면 그 뒤 맥락과 어긋난다
-            (백엔드 _is_last_turn과 대칭인 isLast 게이트, app/chat/service.py 참고). */}
+        {/* 재생성은 대화의 마지막 답변에서만 — 중간 턴을 바꾸면 그 뒤 맥락과 어긋난다(백엔드 _is_last_turn 과 대칭). */}
         {isAssistant && isLast && m.content && !processing && !errorNotice && onRegenerate ? (
           <Tooltip title="다시 생성">
             <span>
@@ -187,7 +160,7 @@ export function Message({
             </span>
           </Tooltip>
         ) : null}
-        {/* AI-68: 피드백 — 같은 값을 다시 누르면 취소한다(doFeedback의 toggle 판정). */}
+        {/* 피드백 — 같은 값을 다시 누르면 취소한다(doFeedback의 toggle 판정). */}
         {isAssistant && m.content && !processing && !errorNotice && onFeedback ? (
           <>
             <Tooltip title={m.feedback === "up" ? "좋은 답변 표시 취소" : "좋은 답변이에요"}>
@@ -208,19 +181,17 @@ export function Message({
             </Tooltip>
           </>
         ) : null}
-        {/* AI-08: 러너가 이미 계산해 저장까지 해 둔 실제 처리 시간을 화면이 그냥 버리고 있었다. */}
-        {responseTime ? (
+        {/* 걸린 시간은 서버가 잰 한 차례의 시간이다(`structured.elapsed_ms`). */}
+        {elapsed ? (
           <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}
-            title="답변 처리 시간">
-            {responseTime}
+            title="답을 만드는 데 걸린 시간">
+            {elapsed}
           </Typography>
         ) : null}
-        {/* 시각 라벨은 말풍선, 액션(선택 버튼, 복사) 뭉치 뒤 맨 끝에 둔다, 예전엔 말풍선과 선택 버튼
-            사이에 끼어 있어 복사 버튼이 메시지에서 멀찍이 떨어지고, 시각이 버블→액션 묶음을 갈랐다. */}
         {m.created_at ? (
           <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>{fmtTime(m.created_at)}</Typography>
         ) : null}
-        {/* AI-36: 삭제 — 내 대화 안이면 화자와 무관하게 지울 수 있다(소유권은 대화 단위). */}
+        {/* 삭제 — 내 대화 안이면 화자와 무관하게 지울 수 있다(소유권은 대화 단위). */}
         {onDelete && !processing && !errorNotice ? (
           <Tooltip title="메시지 삭제">
             <IconButton size="small" aria-label="메시지 삭제" onClick={() => onDelete(m)}>
@@ -240,7 +211,7 @@ export function Message({
  * 똑같아 보였다("진행 표시가 가짜"). since(대기를 시작한 사용자 메시지의 created_at)가
  * 있으면 1초마다 다시 그려 실제 경과 시간을 함께 보여준다 — 진행률이 아니라 "아직 살아
  * 있다 + 지금까지 이만큼 걸렸다"는 정직한 사실이다(응답이 몇 초 걸릴지는 예측하지 않는다). */
-export function TypingBubble({ since }) {
+export function TypingBubble({ since, label }) {
   const [, forceTick] = useState(0);
   useEffect(() => {
     if (!since) return undefined;
@@ -258,7 +229,7 @@ export function TypingBubble({ since }) {
     >
       {/* 초 단위 경과는 매초 바뀌지만 aria-live로 반복 낭독하지 않는다 — 폴링 낭독 과잉(위
           Chat.jsx 주석)과 같은 실수를 여기서 반복하지 않는다, 처음 나타날 때 한 번만 전해진다. */}
-      <span className="sr-only">도우미: 답변을 작성하고 있습니다.</span>
+      <span className="sr-only">{"도우미: " + (label || "답변을 작성하고 있습니다.")}</span>
       <Box aria-hidden="true" sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
         <Box sx={{ display: "inline-flex", gap: 0.625, alignItems: "center" }}>
           {[0, 1, 2].map((i) => (
@@ -276,6 +247,10 @@ export function TypingBubble({ since }) {
             />
           ))}
         </Box>
+        {/* 진행 문구는 서버가 도구마다 적는다(「사내 문서를 찾고 있습니다.」, D-535) — 그 문장과 경과 초를 함께 둔다. */}
+        {label ? (
+          <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>{label}</Typography>
+        ) : null}
         {elapsedSec != null ? (
           <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>
             {elapsedSec}초

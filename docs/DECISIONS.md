@@ -16301,7 +16301,18 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
     묻고, 워커가 **대화 주인의 권한으로 같은 도구 함수로 다시 읽은** 것만 데이터 칸에 싣는다. 못 읽으면 아무것도 싣지 않는다.
   - `/api/ai/search` · `/api/ai/documents` 는 `AI_USE` 와 `DOCUMENT_READ` **둘 다**를 요구한다. 작업 공간의 질문(`/api/ai/ask`)과 그 밑의 `answer()` 는
     걷었다 — 같은 일을 하던 두 번째 길이다. `/api/me` 에 `capabilities{ai_use}` 를 더해 화면이 메뉴 · 서랍 단추를 숨길 수 있다(통제는 서버 경로마다 다시 본다).
+- **화면(P9 프런트)**: 「쓸 수 없음」은 판 상태다 — 서버의 까닭 문장이 제목이고, 시스템 관리자에게만 「AI 연결 열기」가 있으며, 입력 칸이
+  닫히고 「문서에서 찾기」를 권한다. 보내는 순간 409 가 오면 실패 문장 대신 상태를 다시 읽고, 입력 칸 밖에서 온 질문도 입력 칸에 남긴다. 「찾지 못함」은
+  정상 말풍선이다(찾아본 검색어 + 「문서에서 찾기」). 말풍선은 서버가 만든 구조만 그린다: 「참고한 자료」(허용한 다섯 앱 안 경로만 링크, 바깥 주소 ·
+  그림 없음, 여덟 개 뒤 더 보기, 옛 답의 인용은 문서 출처로), 접힌 「확인한 내용」, 걸린 시간(`elapsed_ms`), 대체 모드 한 줄. 글 속 티켓 키는 그 답의
+  출처에 있을 때만 링크다. 입력 중 말풍선은 서버가 적은 진행 문구와 경과 초를 보인다. 셋째 열(≥xxl)은 「참고한 자료」 레일이다. 첫 화면은 할 수 있는
+  일만 약속한다(「내 업무와 사내 자료를 내 권한 안에서 찾아 답합니다.」 + 읽기 예시 여섯). 서랍은 상세 한 건(티켓 · 프로젝트 · 문서)에서만 문맥 줄과
+  그 종류의 제안을 세우고 그 대상을 메시지와 함께 보낸다 — 목록 화면의 「현재 문맥: 내 티켓」은 서버가 쓰지 않는 약속이라 걷었다. `/ai` 는
+  「문서에서 찾기」(찾기 · 그 문단으로 가기 · 초안)이고 「AI 도우미에게 묻기」가 `/chat?ask=` 로 새 대화에 한 번 보낸다. `capabilities.ai_use` 가
+  거짓이면 메뉴 · 상단 클로비 단추 · 서랍 · 단축키가 없다. 옛 실행기의 카드(`TicketCard` · `CardStack`) · 선택 칩 · 응답 시간 · 카드 번호 헬퍼는
+  닿지 않는 코드라 걷었다.
 - **잰 것**: `tests/security/test_chat_requires_ai_use.py`(권한을 빼면 채팅 경로 열한 곳이 403, 넣은 뒤 권한을 잃으면 안내 답 · 제공자 호출 없음),
   `test_chat_assistant_turn.py::test_when_ai_is_off_the_send_is_refused_before_quota_and_queue` · `test_the_screen_target_is_reread_with_the_owners_permission`,
-  `test_ai_router.py`(옛 경로 404, 상태의 도우미 칸, 검색 · 초안의 문서 읽기 권한).
+  `test_ai_router.py`(옛 경로 404, 상태의 도우미 칸, 검색 · 초안의 문서 읽기 권한), 프런트 `screens/chat-availability.test.jsx`(5) ·
+  `chat/source-list.test.jsx`(5) · `chat/message-thread-answer.test.jsx`(8) · `app/drawer-context.test.jsx`(6) · `ai-workspace.test.jsx`(6).
 

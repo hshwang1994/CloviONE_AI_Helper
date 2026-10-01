@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Tooltip from "@mui/material/Tooltip";
 import { useToast } from "../../ui/kit.jsx";
-import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 import { URL_RE, copyText } from "../chat-helpers.js";
 import { trimUrlTail } from "../chat-text.js";
 
@@ -48,12 +48,28 @@ export function PlainUrl({ url }) {
   );
 }
 
+/* 글 속 티켓 키를 앱 안 링크로 — **그 답의 출처에 있는 키만**이다(D-538). 모델이 지어낸 키나 남의 키는 링크가 되지 않는다.
+ * `keyLinks` 는 키 → 앱 안 경로다(서버가 만든 출처에서 화면이 모은다). */
+function linkKeys(text, keyLinks, keyBase) {
+  if (!keyLinks || !keyLinks.size || !text) return text;
+  // 티켓 키는 글자 · 숫자 · 하이픈뿐이다. 그 모양만 받아 정규식 메타문자가 들어올 자리를 없앤다.
+  const keys = [...keyLinks.keys()].filter((k) => /^[A-Za-z0-9-]{3,40}$/.test(k)).sort((a, b) => b.length - a.length);
+  if (!keys.length) return text;
+  const re = new RegExp("(" + keys.join("|") + ")", "g");
+  const parts = String(text).split(re);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) => (i % 2 === 1
+    ? <Box key={keyBase + "-k" + i} component="a" href={"#" + keyLinks.get(part)}
+        sx={{ color: "primary.main", fontWeight: FONT_WEIGHT.semibold, textDecoration: "none", "&:hover": { textDecoration: "underline" } }}>{part}</Box>
+    : part));
+}
+
 // 답변 프로즈 안에 맨 http(s):// URL이 섞여 있으면 이전엔 죽은 평문으로만 보였다. 전부
 // PlainUrl(복사 버튼)로 낸다. 텍스트 노드만 쓴다(innerHTML 아님, CLAUDE.md §2).
-export function linkifyText(text, keyBase) {
+export function linkifyText(text, keyBase, keyLinks) {
   const s = String(text == null ? "" : text);
   const parts = s.split(URL_RE);
-  if (parts.length === 1) return s;
+  if (parts.length === 1) return linkKeys(s, keyLinks, keyBase);
   // URL_RE는 공백 전까지 욕심껏 먹는다 - "(https://a.b/c)에서"처럼 뒤에 괄호·조사가 바로
   // 붙으면 그것까지 통째로 "URL"에 들어간다. 팀 채팅 말풍선(chat-text.js)이 이미 겪고
   // 고친 문제라 같은 다듬기(trimUrlTail)를 쓴다 - 잘려 나간 꼬리는 버리지 않고 바로 뒤
@@ -66,7 +82,7 @@ export function linkifyText(text, keyBase) {
       carry = part.slice(raw.length);
       out.push(<PlainUrl key={keyBase + "-u" + i} url={raw} />);
     } else {
-      out.push(carry + part);
+      out.push(linkKeys(carry + part, keyLinks, keyBase + "-t" + i));
       carry = "";
     }
   });

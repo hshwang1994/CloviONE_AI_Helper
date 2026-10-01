@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* AI-25/26/28/29: 드로어가 전체화면 Chat.jsx가 이미 가진 기능을 재사용하지 못해 생긴
+/* qa-contract-change: 도우미 답의 구조가 결과 카드에서 서버가 만든 출처 목록으로 바뀌었다(D-535). AI-25 의 「드로어도 전체 화면과 같은 말풍선을 그린다」는 같은 성질을 카드 대신 「참고한 자료」 목록으로 잰다. 대상이 없는 화면의 제안은 전체 화면의 시작 예시와 같은 문장이 됐다.
+ *
+ * AI-25/26/28/29: 드로어가 전체화면 Chat.jsx가 이미 가진 기능을 재사용하지 못해 생긴
  * 4가지 결함을 한 번에 고정한다 — 전부 "드로어가 useChat()이 이미 내주는 상태를 화면에
  * 안 그렸다"는 같은 뿌리(component-reuse debt)다.
  *
@@ -74,7 +76,9 @@ const THREAD_MESSAGES = {
     {
       id: "m2", role: "assistant", content: "요청하신 티켓을 찾았습니다.", processing_status: "done",
       created_at: "2026-08-01T00:00:01Z",
-      structured: { tickets: [{ title: "로그인 실패 조사", status: "진행", assignees: ["김운영"] }] },
+      structured: { kind: "assistant", sources: [
+        { type: "ticket", id: "t1", title: "로그인 실패 조사", route: "/tickets/t1", key: "ABCDEF-1", status: "진행" },
+      ] },
     },
   ],
 };
@@ -94,28 +98,28 @@ function commonApi(overrides) {
   };
 }
 
-describe("AI-25 — 드로어도 전체화면과 같은 카드를 그린다", () => {
+describe("AI-25 — 드로어도 전체화면과 같은 말풍선(참고한 자료)을 그린다", () => {
   beforeEach(() => {
     apiMock.mockReset();
     apiMock.mockImplementation(commonApi());
     wideViewport();
   });
 
-  it("구조화된 티켓 응답이 평문이 아니라 카드(제목·상태 배지·담당자)로 보인다", async () => {
+  it("출처가 평문이 아니라 앱 안 링크가 든 「참고한 자료」 목록으로 보인다", async () => {
     renderShellAndOpenDrawer();
     await openDrawer();
 
-    expect(await screen.findByText("로그인 실패 조사")).toBeInTheDocument();
-    expect(screen.getByText("상태")).toBeInTheDocument();
-    expect(screen.getByText("진행 중")).toBeInTheDocument();
-    expect(screen.getByText("담당자")).toBeInTheDocument();
+    const link = await screen.findByRole("link", { name: "로그인 실패 조사" });
+    expect(link).toHaveAttribute("href", "#/tickets/t1");
+    expect(screen.getByRole("heading", { name: "참고한 자료" })).toBeInTheDocument();
+    expect(screen.getByText("ABCDEF-1")).toBeInTheDocument();
   });
 
   it("복사·시각 같은 액션도 전체화면과 동일하게 뜬다", async () => {
     renderShellAndOpenDrawer();
     await openDrawer();
 
-    await screen.findByText("로그인 실패 조사");
+    await screen.findByRole("link", { name: "로그인 실패 조사" });
     expect(screen.getByRole("button", { name: /복사/ })).toBeInTheDocument();
   });
 });
@@ -130,13 +134,13 @@ describe("AI-26 — '새 대화'로 스레드에서 빠져나올 수 있다", ()
   it("대화가 있으면 '새 대화' 버튼이 있고, 누르면 빈 상태(제안 칩)로 돌아간다", async () => {
     renderShellAndOpenDrawer();
     await openDrawer();
-    await screen.findByText("로그인 실패 조사");
+    await screen.findByRole("link", { name: "로그인 실패 조사" });
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "새 대화" }));
 
     expect(await screen.findByText("무엇을 도와드릴까요?")).toBeInTheDocument();
-    expect(screen.getByText("현재 화면의 핵심 내용을 요약해 줘")).toBeInTheDocument();
+    expect(screen.getByText("오늘 내가 할 일을 정리해 줘")).toBeInTheDocument();
     expect(screen.queryByText("로그인 실패 조사")).toBeNull();
   });
 });

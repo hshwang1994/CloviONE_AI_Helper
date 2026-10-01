@@ -3,11 +3,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
-  mascotMode, MASCOT_PHASE_TEXT, pollDelayMs, structuredCards,
+  mascotMode, MASCOT_PHASE_TEXT, pollDelayMs,
   POLL_BASE_MS, POLL_MAX_MS, POLL_MAX_FAILURES, POLL_RECOVERY_MS,
 } from "./chat-helpers.js";
+import { messageSources } from "./chat/SourceList.jsx";
 
-/* 채팅 화면의 '상태' 쪽 테스트.
+/* qa-contract-change: 도우미 답의 구조가 옛 실행기의 카드 묶음(tickets · projects · items)에서 서버가 만든 출처 목록(sources)으로 바뀌었다(D-535). 카드 정규화(structuredCards) 시험을 출처 정규화(messageSources) 시험으로 옮긴다 — 지난 답의 인용을 문서 출처로 옮기고, 화면이 바깥 링크 갈래를 만들지 않는 성질은 그대로 잰다.
+ *
+ * 채팅 화면의 '상태' 쪽 테스트.
  *
  * chat-helpers.test.js가 순수 파서·포맷터를 지킨다면 이 파일은 두 가지를 지킨다:
  *   1) 마스코트가 **앱이 실제로 있는 상태만** 연기하는가(mascotMode).
@@ -101,41 +104,31 @@ describe("pollDelayMs", () => {
   });
 });
 
-// ── 3. 구조화 결과 정규화 ───────────────────────────────────────────────────
+// ── 3. 도우미 답의 출처 정규화 (D-535) ──────────────────────────────────────
 
-describe("structuredCards", () => {
-  it("structured가 없으면 아무것도 없다", () => {
-    const p = structuredCards({ role: "assistant" });
-    expect(p.hasCards).toBe(false);
-    expect(p.hasAny).toBe(false);
-    expect(p.tickets).toEqual([]);
+describe("messageSources", () => {
+  it("structured가 없으면 출처도 없다", () => {
+    expect(messageSources(undefined)).toEqual([]);
+    expect(messageSources({})).toEqual([]);
   });
-  it("tickets 배열과 단일 ticket을 이어붙이되 순번 기준(ticketsArr)은 배열분만이다", () => {
-    const p = structuredCards({ structured: { tickets: [{ title: "A" }, { title: "B" }], ticket: { title: "C" } } });
-    expect(p.tickets.map((t) => t.title)).toEqual(["A", "B", "C"]);
-    expect(p.ticketsArr).toHaveLength(2);   // 본문 번호 목록과 짝이 맞는 것은 이 둘뿐
-    expect(p.hasAny).toBe(true);
+  it("서버가 만든 출처 목록은 그대로 쓴다", () => {
+    const sources = [{ type: "ticket", id: "t1", title: "A", route: "/tickets/t1", key: "ABCDEF-1" }];
+    expect(messageSources({ sources })).toBe(sources);
   });
-  it("스칼라·null이 와도 터지지 않는다", () => {
-    const p = structuredCards({ structured: { tickets: "nope", projects: 3, items: null } });
-    expect(p.tickets).toEqual([]);
-    expect(p.projects).toEqual([]);
-    expect(p.hasCards).toBe(false);
+  it("지난 답의 인용은 문서 출처로 옮기고 같은 문서는 한 번만 둔다", () => {
+    const got = messageSources({ citations: [
+      { document_id: "d1", document_title: "연차 규정", route: "/knowledge/d1?block=b1", where: "1문단" },
+      { document_id: "d1", document_title: "연차 규정", route: "/knowledge/d1?block=b2" },
+      { document_id: "d2", document_title: "휴가", route: "/knowledge/d2" },
+    ] });
+    expect(got).toEqual([
+      { type: "document", id: "d1", title: "연차 규정", route: "/knowledge/d1?block=b1", where: "1문단" },
+      { type: "document", id: "d2", title: "휴가", route: "/knowledge/d2", where: undefined },
+    ]);
   });
-  /* 예전에는 이 두 시험이 반대를 단언했다: 카드가 없고 문서 링크만 있으면 「관련 문서」
-     카드로 대체한다. 서버가 그 필드(`notion_url`/`url`)를 싣는 경로가 없어져 화면이 안
-     보내는 값을 기다리고 있었다. 갈래를 되살리면 이 시험이 빨개진다. */
-  it("문서 링크만 있는 페이로드는 그릴 것이 없다고 답한다", () => {
-    const p = structuredCards({ structured: { notion_url: "https://www.notion.so/x" } });
-    expect(p.notionUrl).toBeUndefined();
-    expect(p.notionUnsafe).toBeUndefined();
-    expect(p.hasAny).toBe(false);
-  });
-  it("허용 목록 밖 주소도 마찬가지다(갈래 자체가 없다)", () => {
-    const p = structuredCards({ structured: { notion_url: "https://evil.com/x" } });
-    expect(p.notionUrl).toBeUndefined();
-    expect(p.notionUnsafe).toBeUndefined();
-    expect(p.hasAny).toBe(false);
+  it("스칼라 · null 이 와도 터지지 않고, 문서 링크 필드는 출처가 되지 않는다", () => {
+    expect(messageSources({ sources: "nope", citations: 3 })).toEqual([]);
+    expect(messageSources({ notion_url: "https://www.notion.so/x", url: "https://evil.com/x" })).toEqual([]);
   });
 });
 

@@ -7,6 +7,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
+import { assistantOf, useAiStatus } from "../lib/useAiStatus.js";
 import {
   Button,
   Callout,
@@ -24,15 +25,13 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/th
 import { PROJECT_NONE, navEntriesFrom } from "./knowledge/constants.js";
 import { useAllProjects } from "./project-queries.js";
 
-/* AI 작업공간 — 묻고, 근거를 보고, 그 자리로 간다 (S10).
+/* 문서에서 찾기 — 근거를 찾고, 그 자리로 가고, 그 근거로 초안을 쓴다 (S10 · D-538).
  *
- * ## 답변보다 근거가 먼저다
+ * ## 찾기와 묻기는 다른 화면이다
  *
- * 이 화면의 기본 상태는 «찾은 문서 목록»이다. 답변은 그 위에 얹힌다. 순서를 반대로 두면
- * 사람이 답변만 읽고 근거를 안 본다 — 그리고 모델이 틀린 날 그 사실을 아무도 모른다.
- *
- * 그래서 «찾기»와 «묻기»가 **다른 단추**다. 찾기는 모델을 안 부르므로 생성이 막혀 있어도
- * 그대로 동작하고, 그 사실이 화면에서 보인다.
+ * 이 화면은 «찾은 문서 목록»을 보인다. 찾기는 모델을 안 부르므로 생성이 막혀 있어도 그대로 동작한다.
+ * 질문에 답을 받는 일은 AI 도우미가 한다(D-535) — 「AI 도우미에게 묻기」가 같은 질문을 새 대화로 넘긴다
+ * (`/chat?ask=…`). 예전의 「물어보기」는 채팅과 같은 일을 따로 하던 두 번째 길이라 걷었다.
  *
  * ## 인용은 눌러서 그 문단까지 간다
  *
@@ -44,12 +43,6 @@ import { useAllProjects } from "./project-queries.js";
  *
  * 모델이 없으면 그 사실과 **운영자가 무엇을 해야 하는지**를 말한다. 단추만 조용히 사라지면
  * 사용자는 기능이 없는 줄 안다. */
-
-const STATUS_KEY = ["ai", "status"];
-
-function useAiStatus() {
-  return useQuery({ queryKey: STATUS_KEY, queryFn: () => api("/api/ai/status") });
-}
 
 /* 인용 한 건. **본문 미리보기를 접어 둔다** — 여덟 건이 전부 펼쳐져 있으면 답변이 화면
  * 밖으로 밀려나고, 그러면 근거를 먼저 보여 준 뜻이 없어진다. */
@@ -102,34 +95,6 @@ function Citation({ index, citation, onOpen }) {
   );
 }
 
-function Answer({ result }) {
-  if (!result) return null;
-  if (!result.answer) {
-    /* 🔴 생성이 막혀 있어도 근거는 그대로 나간다. 그 사실을 여기서 말한다 — 안 그러면
-       사용자는 검색까지 고장 난 줄 안다. */
-    return (
-      <Callout tone="info">
-        {result.notice} 찾은 문서는 아래에 그대로 있습니다.
-      </Callout>
-    );
-  }
-  return (
-    <Card>
-      <Typography
-        component="p"
-        sx={{ whiteSpace: "pre-wrap", maxWidth: PROSE_MAX_WIDTH, ...KO_WORD_BREAK }}
-      >
-        {result.answer}
-      </Typography>
-      <Typography
-        sx={{ mt: 1.5, fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}
-      >
-        아래 문서에서 찾은 내용으로 답했습니다. 번호를 눌러 원문을 확인해 주세요.
-      </Typography>
-    </Card>
-  );
-}
-
 export function AiWorkspace() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
@@ -148,7 +113,10 @@ export function AiWorkspace() {
   const [drafting, setDrafting] = React.useState(false);
 
   const capabilities = status.data?.capabilities;
-  const canAsk = Boolean(capabilities?.generate?.available);
+  // 초안은 생성이 되어야 쓴다. 묻기는 AI 도우미가 받는다 — 그 판정은 도우미 칸(`assistant`)이다(D-538).
+  const canDraft = Boolean(capabilities?.generate?.available);
+  const assistant = assistantOf(status);
+  const canAsk = !assistant || assistant.available;
   // 한도가 있을 때만 오늘 쓴 양을 보인다(계획 3.10) - 채팅 화면과 같은 값(`/api/me/ai-quota`)을 읽는다.
   const quota = useQuery({ queryKey: ["ai-quota-self"], queryFn: () => api("/api/me/ai-quota"), retry: false });
   const quotaDay = quota.data && Array.isArray(quota.data.periods)
@@ -157,10 +125,6 @@ export function AiWorkspace() {
 
   const search = useMutation({
     mutationFn: (q) => api(`/api/ai/search?q=${encodeURIComponent(q)}`),
-    onSuccess: (data) => setResult(data),
-  });
-  const ask = useMutation({
-    mutationFn: (question) => api("/api/ai/ask", { method: "POST", body: { question } }),
     onSuccess: (data) => setResult(data),
   });
   const makeDocument = useMutation({
@@ -182,16 +146,25 @@ export function AiWorkspace() {
     },
   });
 
-  const busy = search.isPending || ask.isPending;
-  const failure = search.error || ask.error;
+  const busy = search.isPending;
+  const failure = search.error;
 
-  function run(kind) {
+  function run() {
     const q = draft.trim();
     if (!q) return;
     setParams(q ? { q } : {}, { replace: true });
     setResult(null);
-    (kind === "ask" ? ask : search).mutate(q);
+    search.mutate(q);
   }
+
+  /* 같은 질문을 AI 도우미에게 넘긴다 — 새 대화로 보낸다(`Chat.jsx` 의 `?ask=`). */
+  function askAssistant() {
+    const q = draft.trim();
+    if (q) navigate("/chat?ask=" + encodeURIComponent(q));
+  }
+
+  // 「AI 도우미에게 묻기」의 문 판정 — 아직 모르면(상태를 못 읽었다) 막지 않는다. 보내 보면 도우미가 까닭을 말한다.
+  const assistantOff = !canAsk;
 
   if (status.isLoading) return <Skeleton kind="page" lines={4} />;
   if (status.error) return <ErrorState error={status.error} onRetry={status.refetch} />;
@@ -200,9 +173,8 @@ export function AiWorkspace() {
     <Box className="c-screen">
       <PageHeader
         area="AI"
-        title="AI 작업공간"
-
-        help="사내 문서에서 근거를 찾아 답하고, 그 근거가 어느 문서 어디인지 함께 보여 줍니다."
+        title="문서에서 찾기"
+        help="사내 문서에서 근거를 찾고, 그 근거가 어느 문서 어디인지 보여 줍니다."
       />
 
       {semanticOff ? (
@@ -219,7 +191,7 @@ export function AiWorkspace() {
           alignItems={{ sm: "flex-end" }}
           onSubmit={(event) => {
             event.preventDefault();
-            run(canAsk ? "ask" : "search");
+            run();
           }}
         >
           {/* 라벨은 칸 위에 선다(`FieldLabel`) — 칸 안으로 내려앉으면 값이 들어간 뒤 무엇을 묻는 칸이었는지 사라진다. */}
@@ -235,29 +207,23 @@ export function AiWorkspace() {
             />
           </Box>
           <Stack direction="row" spacing={1}>
-            <Button type="button" onClick={() => run("search")} disabled={busy || !draft.trim()}>
+            <Button variant="primary" type="submit" disabled={busy || !draft.trim()} loading={search.isPending}>
               문서 찾기
             </Button>
-            {/* 못 쓰는 단추를 숨기지 않는다 — 왜 못 쓰는지는 위 안내가 말한다. */}
-            <Button
-              variant="primary"
-              type="button"
-              onClick={() => run("ask")}
-              disabled={busy || !draft.trim() || !canAsk}
-              loading={ask.isPending}
-            >
-              물어보기
+            {/* 못 쓰는 단추를 숨기지 않는다 — 왜 못 쓰는지는 아래 한 줄이 말한다. */}
+            <Button type="button" onClick={askAssistant} disabled={!draft.trim() || assistantOff}>
+              AI 도우미에게 묻기
             </Button>
           </Stack>
         </Stack>
-        {!canAsk ? (
+        {assistantOff ? (
           <Typography
             sx={{ mt: 1.5, fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}
           >
-            {capabilities.generate.notice} 문서 찾기는 그대로 쓸 수 있습니다.
+            {assistant.notice} 문서 찾기는 그대로 쓸 수 있습니다.
           </Typography>
         ) : null}
-        {canAsk && quotaDay && quotaDay.limit != null ? (
+        {!assistantOff && quotaDay && quotaDay.limit != null ? (
           <Typography sx={{ mt: 1, textAlign: "right", fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
             오늘 AI 사용량 {quotaDay.used}/{quotaDay.limit}
           </Typography>
@@ -269,11 +235,10 @@ export function AiWorkspace() {
 
       {result ? (
         <Stack spacing={2}>
-          <Answer result={result} />
           <Section
             title="근거 문서"
             action={
-              result.citations.length && canAsk ? (
+              result.citations.length && canDraft ? (
                 <Button onClick={() => setDrafting(true)}>이 근거로 초안 쓰기</Button>
               ) : null
             }
@@ -301,8 +266,8 @@ export function AiWorkspace() {
       ) : (
         <EmptyState
           layout="page"
-          title="궁금한 것을 물어보세요"
-          help="사내 문서에서 근거를 찾아 답합니다. 답에 쓰인 문서는 아래에 함께 나옵니다."
+          title="찾을 내용을 적어 보세요"
+          help="사내 문서에서 근거를 찾고, 그 문단까지 바로 갈 수 있습니다."
           art="search"
         />
       )}

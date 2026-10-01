@@ -38,6 +38,40 @@ export function Welcome({ title, help, onPick, busy, mode }) {
   );
 }
 
+// ── 쓸 수 없음 (D-538) ──────────────────────────────────────────────────────
+
+/* AI 를 지금 쓸 수 없을 때 무엇을 하면 되는가. 제목은 서버가 준 까닭 문장(`assistant.notice`)이고, 여기서는 누가 무엇을 하면
+   되는지만 덧붙인다 — AI 연결 화면을 열 수 있는 사람(시스템 관리자)과 기다려야 하는 사람의 문장이 다르다. */
+export function unavailableHelp(assistant) {
+  const admin = !!(assistant && assistant.can_configure);
+  if (assistant && assistant.reason === "blocked") {
+    return admin ? "AI 연결 화면에서 연결 상태를 확인하세요." : "관리자에게 AI 연결 상태를 알려 주세요.";
+  }
+  return admin ? "AI 연결 화면에서 제공자를 연결하고 AI 사용을 켜세요." : "관리자가 AI 를 연결하면 쓸 수 있습니다.";
+}
+
+/* AI 를 지금 쓸 수 없는 판 — 「찾지 못함」(정상 답)과 다른 상태다. 입력 칸은 담는 쪽이 막는다.
+   문서 찾기는 모델을 부르지 않으므로 그대로 권한다. */
+export function AssistantUnavailable({ assistant, layout = "page" }) {
+  const admin = !!(assistant && assistant.can_configure);
+  return (
+    <Box sx={{ m: "auto", width: "100%", maxWidth: "38rem" }}>
+      <EmptyState
+        layout={layout}
+        icon={<MascotPose mode="sleep" place={layout === "page" ? "emptyPage" : "emptyCard"} decorative />}
+        title={(assistant && assistant.notice) || "지금은 AI 도우미를 쓸 수 없습니다."}
+        help={unavailableHelp(assistant)}
+        action={(
+          <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center">
+            {admin ? <Button variant="primary" size="sm" href="#/settings?tab=ai">AI 연결 열기</Button> : null}
+            <Button size="sm" href="#/ai">문서에서 찾기</Button>
+          </Stack>
+        )}
+      />
+    </Box>
+  );
+}
+
 // ── 마스코트 상태 표시 ──────────────────────────────────────────────────────
 
 /* 마스코트를 대화 단계에 붙인다 — 지금까지 이 컴포넌트는 어디서나 'listening' 한 포즈로 고정돼

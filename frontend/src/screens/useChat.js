@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "../lib/api.js";
 import { failureText, latestMutation } from "../lib/failure.js";
+import { AI_STATUS_KEY, isAiUnavailable } from "../lib/useAiStatus.js";
 import { useGuardedMutation } from "../lib/useGuardedMutation.js";
 import { normalizeQuery } from "../lib/search.js";
 import { useConfirm, useToast } from "../ui/kit.jsx";
@@ -227,9 +228,8 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
 
   const send = useMutation({
     // client_message_id는 서버가 필수로 요구한다(멱등·중복 방지). 8~64자. 첨부는 있을 때만.
-    // screenContext(AssistantDrawer가 넘기는 routeContextLabel)는 이 서랍이 "현재 문맥: X"라고
-    // 화면에 약속해 놓고도 실제로는 아무 데도 안 보내던 것을 고친 자리다(AI-30) — 전체화면
-    // /chat에는 배경 화면이라는 개념이 없어 null로 둔다.
+    // screenContext 는 서랍이 보는 화면 대상 `{kind, ref, label}` 이다(D-538) — 서버가 대화 주인의 권한으로 다시 읽은
+    // 것만 모델에 싣는다. 전체 화면 /chat 에는 배경 화면이라는 개념이 없어 null 로 둔다.
     mutationFn: ({ id, content, clientMessageId, attachments }) => api("/api/conversations/" + id + "/messages", { method: "POST", body: { content, client_message_id: clientMessageId, attachments: attachments && attachments.length ? attachments : undefined, screen_context: screenContext || undefined } }),
     // 낙관적 에코 — 보낸 메시지를 서버 왕복 전에 즉시 스레드에 띄운다(빈 화면 체감 제거).
     // 진행 중 폴링이 낙관적 항목을 덮어쓰지 않도록 cancelQueries로 먼저 멈춘다.
@@ -363,6 +363,8 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
         return;
       }
       if (e && e.status === 429) { setRateLimitNotice(rateLimitNoticeText(e)); return; }
+      // AI 를 지금 쓸 수 없으면(409 ai_unavailable) 판 상태가 까닭을 말한다(D-538).
+      if (isAiUnavailable(e)) { qc.invalidateQueries({ queryKey: AI_STATUS_KEY }); return; }
       // 그 밖의 실패는 스레드 안 메시지 박스가 말한다(`threadFailure`).
     },
     onSettled: () => { retryingRef.current = null; },
@@ -387,6 +389,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
         return;
       }
       if (e && e.status === 429) { setRateLimitNotice(rateLimitNoticeText(e)); return; }
+      if (isAiUnavailable(e)) { qc.invalidateQueries({ queryKey: AI_STATUS_KEY }); return; }
       // 409(대화가 이어짐/미완료)는 화면이 이미 isLast로 버튼을 감추므로 평소엔 안 나지만,
       // 폴링 사이의 경합(다른 탭에서 방금 새 메시지를 보냄 등)으로는 여전히 날 수 있다 — 그 문장은
       // 스레드 안 메시지 박스가 말한다(`threadFailure`).
@@ -422,7 +425,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     const last = latestMutation(retry, regenerate, deleteMsg, feedbackMut);
     if (!last || !last.isError) return null;
     const e = last.error;
-    const handledElsewhere = e && (e.status === 401 || e.status === 429
+    const handledElsewhere = e && (e.status === 401 || e.status === 429 || isAiUnavailable(e)
       || (e.status === 503 && e.body && e.body.error && e.body.error.code === "maintenance_mode"));
     if ((last === retry || last === regenerate) && handledElsewhere) return null;
     if (last === regenerate) {
@@ -553,7 +556,14 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     requestAnimationFrame(() => { textareaRef.current && textareaRef.current.focus(); });
   }
 
-  async function doSend(content) {
+  /* `/ai` 의 「AI 도우미에게 묻기」(`/chat?ask=…`) — 새 대화로 그 질문을 보낸다(D-538). 보던 옛 대화에 섞이지 않는다. */
+  function askInNewConversation(question) {
+    setComposingNew(true);
+    setCid(null);
+    return doSend(question, { fresh: true });
+  }
+
+  async function doSend(content, { fresh = false } = {}) {
     if (sendingRef.current) return;   // 이중 제출 방지(생성→전송 사이 창 포함)
     const value = (content != null ? content : text).trim();
     const fromComposer = content == null;
@@ -587,7 +597,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       : newClientMessageId();
     let createdId = null;   // 이번 전송을 위해 방금 생성한 대화 id(첫 전송 실패 시 정리 대상)
     try {
-      let id = cid;
+      let id = fresh ? null : cid;
       if (!id) { const d = await createConv.mutateAsync(); id = d.conversation ? d.conversation.id : d.id; createdId = id; }
       setComposingNew(false);
       await send.mutateAsync({ id, content: value, clientMessageId, attachments: atts });
@@ -622,6 +632,11 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
         setMaintenanceNotice((e.body.error && e.body.error.message) || "시스템 점검 중에는 새 요청이 차단됩니다. 잠시 후 다시 시도하세요.");
       } else if (e && e.status === 429) {
         setRateLimitNotice(rateLimitNoticeText(e));
+      } else if (isAiUnavailable(e)) {
+        // AI 를 지금 쓸 수 없다(D-538) — 실패 문장이 아니라 판 상태다. 상태를 다시 읽으면 화면이 그 까닭을 그린다.
+        // 입력 칸 밖에서 온 질문(「AI 도우미에게 묻기」)도 잃지 않게 입력 칸에 남긴다.
+        if (!fromComposer) setText(value);
+        qc.invalidateQueries({ queryKey: AI_STATUS_KEY });
       } else {
         setComposerFailure(e.message || "메시지를 보내지 못했습니다. 다시 시도해 주세요.");
       }
@@ -651,7 +666,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     // 제자리 실패 문장(토스트 대신) — 목록 · 스레드 · 입력 칸
     sidebarFailure, threadFailure, composerFailure,
     send, createConv, retry, retryingRef,
-    doSend, doRetry, pickFiles, clearDraft, prefillFromPrompt,
+    doSend, doRetry, pickFiles, clearDraft, prefillFromPrompt, askInNewConversation,
     composerLocked, sending, inputDisabled,
     // 재생성·삭제·피드백(AI-36/AI-68)
     doRegenerate, regenerating: !!regeneratingRef.current, lastUserMsgId: lastUserMsg && lastUserMsg.id,

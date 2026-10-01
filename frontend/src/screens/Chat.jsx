@@ -1,5 +1,5 @@
 import React from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
@@ -18,12 +18,14 @@ import { FONT_SIZE, FONT_WEIGHT, ICON, RADIUS, remPx } from "../ui/theme.js";
 import { CHAT } from "../ui/chat.js";
 import { PAGE_FILL_HEIGHT } from "../ui/density.js";
 import { useChat } from "./useChat.js";
-import { copyText, dayKeyKST, formatConversationText, mascotMode, structuredCards } from "./chat-helpers.js";
+import { copyText, dayKeyKST, formatConversationText, mascotMode } from "./chat-helpers.js";
 import { COLUMNS, THREAD_MAX } from "./chat/layout.js";
 import { ConversationSidebar } from "./chat/ConversationSidebar.jsx";
 import { DaySeparator, Message, TypingBubble } from "./chat/MessageThread.jsx";
-import { MascotStatus, Welcome } from "./chat/WelcomeStatus.jsx";
+import { AssistantUnavailable, MascotStatus, Welcome, unavailableHelp } from "./chat/WelcomeStatus.jsx";
 import { ResultsRail } from "./chat/ResultsRail.jsx";
+import { messageSources } from "./chat/SourceList.jsx";
+import { assistantOf, useAiStatus } from "../lib/useAiStatus.js";
 import { setItemTitle } from "../app/documentTitle.js";
 
 /* AI 채팅(§6.5) — 대화 목록 + 메시지 스레드 + 입력창 + (초광폭에서) 결과 레일.
@@ -34,11 +36,10 @@ import { setItemTitle } from "../app/documentTitle.js";
  *   - 열 폭 상수(COLUMNS/THREAD_MAX 등)  → chat/layout.js
  *   - 대화 목록 사이드바(목록+검색+항목)  → chat/ConversationSidebar.jsx
  *   - 리치 텍스트·URL 링크               → chat/RichText.jsx, chat/links.jsx
- *   - 결과 카드(TicketCard/CardStack)    → chat/TicketCard.jsx (기존 호출부 호환을 위해 이 파일도
- *                                          TicketCard를 재수출한다 — chat-card-chrome.test.jsx)
  *   - 말풍선 한 개(Message/타이핑/날짜)  → chat/MessageThread.jsx
- *   - 빈 화면·마스코트 상태 표시         → chat/WelcomeStatus.jsx
- *   - 결과 레일(≥xxl 세 번째 열)         → chat/ResultsRail.jsx
+ *   - 「참고한 자료」 목록                → chat/SourceList.jsx
+ *   - 빈 화면 · 쓸 수 없음 · 마스코트      → chat/WelcomeStatus.jsx
+ *   - 「참고한 자료」 레일(≥xxl 셋째 열)  → chat/ResultsRail.jsx
  * 예전엔 이 모든 것이 한 파일(1,070줄)에 있어서 레이아웃 하나를 손보려 해도 카드 마크업까지
  * 함께 위험해졌다. 조각마다 파일이 나뉜 지금도 **화면이 어떻게 나뉘는가**(아래 열 구성)는
  * 여기 한 곳에서만 결정한다 — 조각들은 자기가 어디 꽂히는지 모른다.
@@ -51,8 +52,8 @@ import { setItemTitle } from "../app/documentTitle.js";
  *   ≥ xxl          3열. 대화 목록 + 스레드 + 결과 레일.
  * 서랍/열 경계는 chat-helpers.js의 LIST_DOCK_PX 하나를 훅과 공유한다 — 서랍의 inert·포커스
  * 반환이 그리드와 정확히 같은 지점에서 켜져야 한다.
- * 레일이 생기는 이유: 4K에서 남는 폭을 글줄 길이로 쓰면 안 된다(§ PROSE_MAX_WIDTH). 티켓 카드는
- * 원래 말풍선 안에 끼어 스레드를 밀어내고 있었다 — 폭이 남을 때만 그것을 옆으로 꺼낸다.
+ * 레일이 생기는 이유: 4K에서 남는 폭을 글줄 길이로 쓰면 안 된다(§ PROSE_MAX_WIDTH). 「참고한 자료」는 원래 말풍선
+ * 아래에 서서 스레드를 길게 만든다 — 폭이 남을 때만 그것을 옆으로 꺼낸다.
  *
  * 이 화면도 다른 화면과 같은 `c-screen` + `PageHeader` 위의 판이다 — 셸의 'flush' 예외는 걷혔고(app/AppShell.jsx 는
  * `/chat` 에서 마스코트 단추만 감춘다), 판은 높이 고정(`PAGE_FILL_HEIGHT`)이다. 그래서 판 안의 높이와 스크롤은
@@ -62,16 +63,8 @@ import { setItemTitle } from "../app/documentTitle.js";
  * 움직이거나, 옛 목록을 보려고 두 스크롤바를 번갈아 만질 일이 없다(K-H3).
  */
 
-// 기존 호출부 호환을 위한 재수출 — 이 화면이 소유하지 않는 어휘(우선순위)와 순수 헬퍼를
-// 예전처럼 Chat.jsx에서도 가져다 쓸 수 있게 남긴다. 정의는 각 모듈이 하나씩만 가진다.
-export {
-  priorityKo, priorityKind, msgAgeMs, classifyLine, parseBlocks,
-  pageNumberOrNull, bodyListStart, ticketPageStart, stripDuplicatedTicketLines,
-  newClientMessageId,
-} from "./chat-helpers.js";
-// TicketCard의 정의는 chat/TicketCard.jsx 하나뿐이다 — chat-card-chrome.test.jsx가
-// "./Chat.jsx"에서 그대로 가져다 쓰므로 여기서도 같은 것을 재수출한다.
-export { TicketCard } from "./chat/TicketCard.jsx";
+// 기존 호출부 호환을 위한 재수출 — 순수 헬퍼를 예전처럼 Chat.jsx에서도 가져다 쓸 수 있게 남긴다. 정의는 각 모듈이 하나씩만 가진다.
+export { msgAgeMs, classifyLine, parseBlocks, newClientMessageId } from "./chat-helpers.js";
 
 // ── 화면 ────────────────────────────────────────────────────────────────────
 
@@ -94,12 +87,32 @@ export function Chat() {
     text, setText, pending, setPending, composerFocused, setComposerFocused,
     maintenanceNotice, setMaintenanceNotice, rateLimitNotice, setRateLimitNotice,
     send, createConv, retryingRef,
-    doSend, doRetry, pickFiles, clearDraft, prefillFromPrompt,
-    composerLocked, sending, inputDisabled,
+    doSend, doRetry, pickFiles, clearDraft, prefillFromPrompt, askInNewConversation,
+    composerLocked, inputDisabled,
     doRegenerate, regenerating, doDeleteMessage, doFeedback,
     stick, setStick, onScroll, sideOpen, setSideOpen, closeSideDrawer, listIsDrawer,
     bodyRef, fileRef, textareaRef, asideRef, sideToggleRef, aiQuota,
   } = ch;
+
+  /* AI 를 지금 쓸 수 있는가(D-538) — 서버가 판정한다. 모를 때(아직 안 읽음)는 막지 않는다. 쓸 수 없으면 판이 까닭을 말하고
+     입력 칸이 닫힌다. 「찾지 못함」은 이 상태가 아니다 — 그것은 도구가 0건을 돌려준 정상 답이다. */
+  const aiStatus = useAiStatus();
+  const assistant = assistantOf(aiStatus);
+  const unavailable = !!assistant && !assistant.available;
+
+  /* `/ai` 의 「AI 도우미에게 묻기」는 `?ask=` 로 온다 — 한 번만 읽어 새 대화로 보내고 주소에서 지운다. */
+  const [params, setParams] = useSearchParams();
+  const askRef = React.useRef(params.get("ask"));
+  React.useEffect(() => {
+    const question = (askRef.current || "").trim();
+    if (!question) return;
+    askRef.current = null;
+    setParams({}, { replace: true });
+    if (unavailable) { prefillFromPrompt(question); return; }
+    askInNewConversation(question);
+    // 처음 한 번만 읽는다 — 이후 렌더에서 다시 보내지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // VIS-133: 탭 제목을 실제 대화 제목으로(Ticket.jsx 등과 같은 이유·같은 패턴) — PageHeader가
   // 이미 같은 조건(cid가 있을 때만 activeTitle, 없으면 "채팅")으로 그리고 있어 그대로 맞춘다.
@@ -125,14 +138,15 @@ export function Chat() {
     });
   }
 
-  /* 레일이 지는 것은 '마지막으로 결과를 들고 온 어시스턴트 메시지' 하나다. 스레드를 거슬러
-   * 올라가며 처음 만나는 것을 쓴다 — 대화가 이어지면 사용자가 마지막으로 요청한 결과가
-   * 계속 오른쪽에 남아 있어야 티켓 번호를 보며 다음 문장을 칠 수 있다. */
+  /* 레일이 지는 것은 '마지막으로 출처를 든 도우미 답' 하나다. 스레드를 거슬러 올라가며 처음 만나는 것을 쓴다 — 대화가
+   * 이어져도 마지막으로 찾은 자료가 오른쪽에 남아 있어야 그 문서와 티켓을 보며 다음 질문을 칠 수 있다. */
   const railMsg = railOpen
-    ? [...items].reverse().find((m) => m.role === "assistant" && structuredCards(m).hasAny) || null
+    ? [...items].reverse().find((m) => m.role === "assistant" && messageSources(m.structured).length) || null
     : null;
-  const railPayload = railMsg ? structuredCards(railMsg) : null;
   const railIsLast = !!railMsg && !!lastMsg && railMsg.id === lastMsg.id;
+  // 답을 기다리는 동안의 진행 문구 — 서버가 사용자 메시지에 적는다(`structured.progress`, D-535).
+  const progressLabel = lastMsg && lastMsg.role === "user" && lastMsg.structured && lastMsg.structured.progress
+    ? lastMsg.structured.progress.label : null;
 
   /* 마스코트 단계 — 앱이 실제로 있는 상태만 넘긴다(mascotMode 주석 참고).
    * failed는 '지금 사용자가 갇혀 있는' 상태 셋을 합친다: 마지막 메시지가 실패했거나, 응답이
@@ -143,7 +157,7 @@ export function Chat() {
     sending: starting,
     awaitingReply, busy,
     justAnswered,
-    hasResult: !!lastMsg && structuredCards(lastMsg).hasAny,
+    hasResult: !!lastMsg && messageSources(lastMsg.structured).length > 0,
     composerFocused,
   });
 
@@ -263,14 +277,18 @@ export function Chat() {
               convs.isLoading ? <Skeleton lines={3} />
               : convs.isError ? <ErrorState layout="region" error={convs.error} onRetry={() => convs.refetch()} />
               : (
-                <Welcome mode={mascot} title="무엇을 도와드릴까요?" busy={starting} onPick={prefillFromPrompt}
-                  help="대화 한 줄이면 티켓 생성, 조회, 요약까지 처리합니다. 아래 예시를 눌러 바로 시작해 보세요." />
+                unavailable ? <AssistantUnavailable assistant={assistant} /> : (
+                  <Welcome mode={mascot} title="무엇을 도와드릴까요?" busy={starting} onPick={prefillFromPrompt}
+                    help="내 업무와 사내 자료를 내 권한 안에서 찾아 답합니다." />
+                )
               )
             ) : thread.isLoading ? <Skeleton lines={3} />
               : thread.isError && !items.length ? <ErrorState layout="region" error={thread.error} onRetry={() => thread.refetch()} />
               : items.length === 0 ? (
-                <Welcome mode={mascot} title="새 대화" busy={starting} onPick={prefillFromPrompt}
-                  help="아래에 메시지를 입력하거나, 예시를 눌러 시작하세요." />
+                unavailable ? <AssistantUnavailable assistant={assistant} /> : (
+                  <Welcome mode={mascot} title="새 대화" busy={starting} onPick={prefillFromPrompt}
+                    help="아래에 질문을 입력하거나, 예시를 눌러 시작하세요." />
+                )
               )
               : (<>
                   {/* 폴링이 일시 실패해도 읽던 메시지를 지우지 않는다, 작은 안내만 띄우고 스레드는 유지. */}
@@ -290,10 +308,10 @@ export function Chat() {
                         {showSep ? <DaySeparator at={m.created_at} /> : null}
                         {/* retrying은 이 메시지가 지금 재시도 중인지만 본다 — 뮤테이션의 전역 isPending을
                             그대로 쓰면 스레드의 다른 실패 메시지의 '다시 시도'까지 함께 잠긴다(과잉 제한).
-                            sending은 선택 버튼·카드 '상세'를 눌러도 되는지다(useChat이 한 값으로 계산). */}
-                        <Message m={m} onChoose={doSend} onRetry={doRetry} sending={sending}
+                            레일이 이 답의 출처를 들고 있으면 말풍선 안 출처는 숨긴다(같은 목록이 두 벌 서지 않는다). */}
+                        <Message m={m} onRetry={doRetry}
                           retrying={retryingRef.current === m.id} isLast={i === items.length - 1}
-                          hideCards={!!railMsg && railMsg.id === m.id}
+                          showSources={!(railMsg && railMsg.id === m.id)}
                           onRegenerate={doRegenerate} regenerating={regenerating}
                           onDelete={doDeleteMessage} onFeedback={doFeedback} />
                       </React.Fragment>
@@ -301,7 +319,7 @@ export function Chat() {
                   })}
                   {/* 답변 대기 중이면 왼쪽에 어시스턴트 타이핑 말풍선(사용자 말풍선 안이 아니라). awaitingReply
                       자체가 이미 stalled를 제외하므로 별도 조건이 필요 없다. */}
-                  {awaitingReply ? <TypingBubble since={lastMsg && lastMsg.created_at} /> : null}
+                  {awaitingReply ? <TypingBubble since={lastMsg && lastMsg.created_at} label={progressLabel} /> : null}
                   {/* 응답이 임계 시간을 넘겨 지연되면 무한 대기 대신 수동 새로고침을 제공한다. 새로고침은 단순
                       재조회가 아니라 폴링 재시작 기준선(resumedAt)도 지금 시각으로 옮긴다, 안 그러면 created_at이
                       그대로라 재조회 직후 다시 즉시 stalled로 재계산돼 자동 폴링이 재개되지 않는 막다른 길이 된다. */}
@@ -380,6 +398,13 @@ export function Chat() {
               </Callout>
             ) : null}
             {ch.composerFailure ? <Callout tone="danger" compact>{ch.composerFailure}</Callout> : null}
+            {/* 지난 대화를 보는 중에 AI 를 쓸 수 없게 되면 스레드는 그대로 두고 입력 칸 위에서 까닭을 말한다. */}
+            {unavailable && cid && items.length ? (
+              <Callout tone="warn" compact
+                action={assistant.can_configure ? <Button size="sm" href="#/settings?tab=ai">AI 연결 열기</Button> : null}>
+                {assistant.notice} {unavailableHelp(assistant)}
+              </Callout>
+            ) : null}
             {/* 답변을 기다리는 동안 textarea는 계속 활성이라(placeholder는 'Enter 전송'을 약속) 입력이
                 막혔다는 신호가 없어, Enter를 쳐도 사라지는 토스트로만 알렸다, 유지보수·속도제한 배너처럼
                 지속되는 수동 힌트를 컴포저 위에 둔다. */}
@@ -402,7 +427,7 @@ export function Chat() {
                   입력창 한 줄 높이 안에서 가운데에 선다 — 입력이 여러 줄로 자라도 첫 줄이 아니라 보내기와 같은 아래 줄에 남는다. */}
               <Tooltip title="이미지 첨부(PNG, JPEG, WebP)">
                 <Box component="span" sx={{ flexShrink: 0, height: COMPOSER_LINE, display: "flex", alignItems: "center" }}>
-                  <IconButton size="small" aria-label="이미지 첨부" disabled={inputDisabled}
+                  <IconButton size="small" aria-label="이미지 첨부" disabled={inputDisabled || unavailable}
                     onClick={() => fileRef.current && fileRef.current.click()}
                     sx={{ width: remPx(CHAT.tool), height: remPx(CHAT.tool), border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px` }}>
                     {/* 도구 30 의 글리프는 채팅방 입력 도구와 같은 크기다(예전 1.75rem 글리프 · 모서리 20 은 `CHAT` 토큰 밖이었다). */}
@@ -415,7 +440,7 @@ export function Chat() {
                   둘이 겹치면 첫 글자에서 높이가 튄다. */}
               <Box
                 component="textarea" ref={textareaRef} rows={1} value={text} maxLength={5000}
-                aria-label="메시지 입력" disabled={composerLocked}
+                aria-label="메시지 입력" disabled={composerLocked || unavailable}
                 placeholder="메시지를 입력하세요 (Enter 전송, Shift+Enter 줄바꿈)"
                 onChange={(e) => setText(e.target.value)}
                 onFocus={() => setComposerFocused(true)}
@@ -436,7 +461,7 @@ export function Chat() {
                   한 줄에 선 단추의 높이는 하나라서, 첨부 도구만 30 으로 내리고 보내기를 44 로 두면 두 단추가
                   14px 어긋났다(control_baseline_mismatch). 입력창 한 줄 높이 안에서 가운데에 선다. */}
               <Box component="span" sx={{ flexShrink: 0, height: COMPOSER_LINE, display: "flex", alignItems: "center" }}>
-                <Button variant="primary" size="sm" onClick={() => doSend()} disabled={inputDisabled || (!text.trim() && !pending.length)}>
+                <Button variant="primary" size="sm" onClick={() => doSend()} disabled={inputDisabled || unavailable || (!text.trim() && !pending.length)}>
                   <SendRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem", mr: 0.5 }} />전송
                 </Button>
               </Box>
@@ -445,7 +470,7 @@ export function Chat() {
         </Box>
       </Box>
 
-      <ResultsRail railOpen={railOpen} railMsg={railMsg} railPayload={railPayload} railIsLast={railIsLast} doSend={doSend} sending={sending} />
+      <ResultsRail railOpen={railOpen} railMsg={railMsg} railIsLast={railIsLast} />
     </Box>
       </Card>
     </Box>

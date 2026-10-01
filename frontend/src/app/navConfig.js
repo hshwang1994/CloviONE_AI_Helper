@@ -503,13 +503,22 @@ export const NAV_FEATURE_FLAG = {
   "/ideas": "board_enabled",
 };
 
-/** 플래그로 꺼진 항목을 뺀 메뉴. `features` 가 없으면(로딩 전·구버전) 그대로 둔다 —
- *  값을 모를 때 감추면 새로고침마다 메뉴가 깜빡인다. */
-export function navWithFeatures(nav, features) {
-  if (!features) return nav;
+/* 이 사람이 가진 능력으로 감추는 메뉴(D-538) — `/api/me` 의 `capabilities`. AI 사용 권한이 없는 사람에게 AI 도우미를
+ * 그리지 않는다. 플래그와 같은 규칙이다: 감추는 것은 편의이고 라우터가 여전히 403 으로 막는다. */
+export const NAV_CAPABILITY = {
+  "/chat": "ai_use",
+};
+
+/** 플래그로 꺼진 항목과 능력이 없는 항목을 뺀 메뉴. 값을 모르면(로딩 전·구버전) 그대로 둔다 —
+ *  모를 때 감추면 새로고침마다 메뉴가 깜빡인다. */
+export function navWithFeatures(nav, features, capabilities) {
+  if (!features && !capabilities) return nav;
   const on = (to) => {
     const flag = NAV_FEATURE_FLAG[to];
-    return !flag || features[flag] !== false;
+    const capability = NAV_CAPABILITY[to];
+    if (flag && features && features[flag] === false) return false;
+    if (capability && capabilities && capabilities[capability] === false) return false;
+    return true;
   };
   return nav
     .map((group) => (group.items ? { ...group, items: group.items.filter((i) => on(i.to)) } : group))

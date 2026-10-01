@@ -5,7 +5,12 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
-/* AI 작업공간이 **사람에게 정확히 말하는가** (S10 Exit).
+/* 「문서에서 찾기」가 **사람에게 정확히 말하는가** (S10 Exit · D-538).
+ *
+ * qa-contract-change: 작업 공간의 「물어보기」(`/api/ai/ask`)를 걷었다 — 질문은 AI 도우미 한 차례가 답한다(D-535). 이 화면은
+ * 문서 찾기 · 그 문단으로 가기 · 초안 쓰기를 하고, 질문은 「AI 도우미에게 묻기」가 같은 질문을 새 대화로 넘긴다. 옛 「답변이 오면
+ * 근거와 함께 보여 준다」는 넘기는 길(`/chat?ask=`)을 재는 시험으로 바뀌었고, 막힌 단추가 왜 막혔는지 말하는 성질은 도우미 칸
+ * (`assistant`)의 까닭 문장으로 그대로 잰다.
  *
  * 서버 쪽 동작은 `tests/integration/test_ai_router.py` 와
  * `tests/security/test_ai_retrieval_permission.py` 가 실제 요청으로 본다. 여기서 보는
@@ -54,8 +59,12 @@ const CITATION = {
   lanes: ["trgm", "vector"],
 };
 
-function stubStatus({ generate = true, embed = true } = {}) {
+function stubStatus({ generate = true, embed = true, assistant = true } = {}) {
   responses.set("GET /api/ai/status", {
+    assistant: assistant
+      ? { available: true, reason: null, notice: null, mode: "tools", can_configure: false }
+      : { available: false, reason: "off", notice: "AI 사용이 꺼져 있어 지금은 답할 수 없습니다.", mode: "unknown",
+          can_configure: false },
     capabilities: {
       embed: embed
         ? { name: "embed", available: true, status: "ok", model: "m", notice: null, detail: "" }
@@ -93,11 +102,12 @@ async function renderWorkspace() {
         <Routes>
           <Route path="/ai" element={<AiWorkspace />} />
           <Route path="/knowledge/:id" element={<Probe />} />
+          <Route path="/chat" element={<Probe />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await screen.findByRole("heading", { name: /AI 작업공간/ });
+  await screen.findByRole("heading", { name: /문서에서 찾기/ });
 }
 
 beforeEach(() => {
@@ -105,24 +115,26 @@ beforeEach(() => {
   toasts.length = 0;
 });
 
-describe("AI 작업공간", () => {
-  it("생성이 막혀 있어도 근거를 찾고, 왜 답을 못 만드는지 말한다", async () => {
-    stubStatus({ generate: false });
+describe("문서에서 찾기", () => {
+  it("AI 를 쓸 수 없어도 근거를 찾고, 묻기 단추가 왜 막혔는지 말한다", async () => {
+    stubStatus({ generate: false, assistant: false });
     responses.set("GET /api/ai/search*", {
       query: "연차", citations: [CITATION], lane_counts: { trgm: 3 },
       semantic: true, vector_notice: null,
     });
     await renderWorkspace();
 
-    // 못 쓰는 단추를 **숨기지 않는다.** 있고, 눌리지 않고, 왜인지가 옆에 적혀 있다.
-    expect(screen.getByRole("button", { name: "물어보기" })).toBeDisabled();
-    expect(screen.getByText(/로그인되어 있지 않습니다/)).toBeInTheDocument();
-
     await userEvent.type(screen.getByLabelText(/무엇을 찾고 있습니까/), "연차");
+    // 못 쓰는 단추를 **숨기지 않는다.** 있고, 눌리지 않고, 왜인지가 옆에 적혀 있다.
+    expect(screen.getByRole("button", { name: "AI 도우미에게 묻기" })).toBeDisabled();
+    expect(screen.getByText(/AI 사용이 꺼져 있어 지금은 답할 수 없습니다/)).toBeInTheDocument();
+
     await userEvent.click(screen.getByRole("button", { name: "문서 찾기" }));
 
     expect(await screen.findByText("연차 사용 안내")).toBeInTheDocument();
     expect(screen.getByText("3문단")).toBeInTheDocument();
+    // 생성이 막혔으면 초안 단추도 없다(근거는 그대로 보인다).
+    expect(screen.queryByRole("button", { name: "이 근거로 초안 쓰기" })).toBeNull();
   });
 
   it("인용을 누르면 **그 문단까지** 간다", async () => {
@@ -143,30 +155,26 @@ describe("AI 작업공간", () => {
     );
   });
 
-  it("답변이 오면 근거와 함께 보여 준다", async () => {
+  it("질문은 AI 도우미에게 새 대화로 넘긴다 — 이 화면은 옛 물어보기 경로를 부르지 않는다", async () => {
     stubStatus();
-    responses.set("POST /api/ai/ask", {
-      query: "연차", citations: [CITATION], lane_counts: {}, semantic: true,
-      vector_notice: null, answer: "연차는 남은 일수 안에서 씁니다 [1].", status: "ok",
-      model: "g", notice: null, truncated: false, delimiter_conflict: false,
-    });
     await renderWorkspace();
 
-    await userEvent.type(screen.getByLabelText(/무엇을 찾고 있습니까/), "연차");
-    await userEvent.click(screen.getByRole("button", { name: "물어보기" }));
+    await userEvent.type(screen.getByLabelText(/무엇을 찾고 있습니까/), "연차 신청 방법");
+    await userEvent.click(screen.getByRole("button", { name: "AI 도우미에게 묻기" }));
 
-    expect(await screen.findByText(/연차는 남은 일수 안에서 씁니다/)).toBeInTheDocument();
-    expect(screen.getByText("연차 사용 안내")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("here")).toHaveTextContent("/chat?ask=" + encodeURIComponent("연차 신청 방법")),
+    );
+    const { api } = await import("../lib/api.js");
+    expect(api.mock.calls.some(([path]) => path === "/api/ai/ask")).toBe(false);
   });
 
   it("쓰기 승인 정책이 걸리면 초안을 승인에 올렸다고 말하고 문서로 가지 않는다", async () => {
     // D-519: 서버가 문서 대신 승인 요청을 만들었다. 초안은 만들어졌으니 대화상자를 닫고, 문서 화면으로 가지 않는다.
     stubStatus();
     responses.set("GET /api/projects*", { items: [], total: 0, page: 1, page_size: 200 });
-    responses.set("POST /api/ai/ask", {
-      query: "연차", citations: [CITATION], lane_counts: {}, semantic: true,
-      vector_notice: null, answer: "연차는 남은 일수 안에서 씁니다 [1].", status: "ok",
-      model: "g", notice: null, truncated: false, delimiter_conflict: false,
+    responses.set("GET /api/ai/search*", {
+      query: "연차", citations: [CITATION], lane_counts: {}, semantic: true, vector_notice: null,
     });
     responses.set("POST /api/ai/documents", {
       query: "연차", citations: [CITATION], status: "ok", answer: "초안", notice: null, document: null,
@@ -175,7 +183,7 @@ describe("AI 작업공간", () => {
     await renderWorkspace();
 
     await userEvent.type(screen.getByLabelText(/무엇을 찾고 있습니까/), "연차");
-    await userEvent.click(screen.getByRole("button", { name: "물어보기" }));
+    await userEvent.click(screen.getByRole("button", { name: "문서 찾기" }));
     await userEvent.click(await screen.findByRole("button", { name: "이 근거로 초안 쓰기" }));
     await userEvent.click(await screen.findByRole("button", { name: "초안 쓰기" }));
 

@@ -15,7 +15,11 @@ import { Button, Callout, EmptyState, Skeleton } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../ui/theme.js";
 import { MascotPose } from "../ui/Mascot.jsx";
 import { useChat } from "../screens/useChat.js";
+import { QUICK_PROMPTS } from "../screens/chat-helpers.js";
 import { Message } from "../screens/chat/MessageThread.jsx";
+import { AssistantUnavailable, unavailableHelp } from "../screens/chat/WelcomeStatus.jsx";
+import { SCREEN_SUGGESTIONS, screenContextLine, screenTargetFor } from "../screens/chat/screenContext.js";
+import { assistantOf, useAiStatus } from "../lib/useAiStatus.js";
 
 /* 클로비 AI 드로어 — 사용자 지적 Q2.
  *
@@ -23,9 +27,9 @@ import { Message } from "../screens/chat/MessageThread.jsx";
  * `navigate("/chat")` 이었다. 티켓을 보다가 물어보려고 누르면 **보던 화면이 사라진다** —
  * 물어볼 대상이 화면에 있는데 그 화면을 떠나야 하는 구조였다.
  *
- * 이제 오른쪽에서 드로어가 열린다. 하던 화면은 뒤에 그대로 있고, 드로어 머리에 **지금 보고
- * 있는 화면 이름**이 뜬다("현재 문맥"). 기준 목업의 `.ai-drawer` 와 같은 구조다:
- * 머리 + 문맥 줄 + 대화 + 제안 칩 + 컴포저.
+ * 이제 오른쪽에서 드로어가 열린다. 하던 화면은 뒤에 그대로 있다. 지금 보는 화면이 티켓 · 프로젝트 · 문서 **한 건**이면
+ * 그 대상을 기준으로 물을 수 있다는 문맥 줄과 그 종류의 제안이 선다(D-538) — 서버가 대화 주인의 권한으로 그 대상을 다시 읽어
+ * 싣는다. 목록 화면에서는 문맥 줄을 세우지 않는다: 그 화면을 기준으로 답한다고 약속할 근거가 없다.
  *
  * `/chat` 전체 화면은 **남긴다**. 긴 대화, 대화 목록 관리, 결과 카드 패널은 드로어 폭에
  * 들어가지 않는다. 드로어 머리의 '전체 화면' 버튼이 지금 대화 그대로 그리로 넘긴다.
@@ -35,51 +39,17 @@ import { Message } from "../screens/chat/MessageThread.jsx";
 
 const WIDTH = { xs: "100%", sm: "28.75rem" };  // 기준: min(460px, 100vw)
 
-const SUGGESTIONS = [
-  "현재 화면의 핵심 내용을 요약해 줘",
-  "우선 처리할 다음 작업을 추천해 줘",
-  "관련 문서를 찾아 줘",
-  "이번 주 마감인 티켓 알려줘",
-];
-
-/* 지금 어느 화면인지. 사이드바 라벨과 같은 말을 쓴다 — 드로어가 "현재 문맥: 내 티켓" 이라고
- * 하는데 사이드바에는 "티켓 목록" 이라고 적혀 있으면 같은 곳을 가리키는지 알 수 없다. */
-const ROUTE_TITLES = [
-  // USER_NAV(navConfig.js)의 "/me" 라벨은 "홈"이다 — 여기가 "오늘의 업무"라는 다른 말을
-  // 쓰면 바로 위 주석이 경고하는 그 상태("드로어와 사이드바가 같은 곳을 가리키는지 알 수
-  // 없다")가 된다. assistant-drawer.test.jsx가 이제 사이드바와의 대조를 고정한다.
-  [/^\/$|^\/me$/, "홈"],
-  [/^\/my-tickets/, "내 티켓"],
-  [/^\/unassigned/, "미할당 티켓"],
-  [/^\/team-tickets/, "팀 티켓"],
-  [/^\/new-ticket/, "새 티켓"],
-  [/^\/tickets\//, "티켓 상세"],
-  [/^\/sprint/, "스프린트 회의"],
-  // USER_NAV의 "/team-docs/trash" 라벨도 "휴지통"이다(위와 같은 이유로 맞춘다).
-  [/^\/team-docs\/trash/, "휴지통"],
-  [/^\/team-docs\//, "문서 상세"],
-  [/^\/team-docs/, "문서"],
-  [/^\/chat-rooms/, "채팅방"],
-  [/^\/board\//, "게시글"],
-  [/^\/board/, "자유게시판"],
-  [/^\/ideas/, "기능 개선 제안"],
-  [/^\/games/, "놀이"],
-  [/^\/trash/, "휴지통"],
-  [/^\/profile/, "내 프로필"],
-  [/^\/admin/, "관리자 콘솔"],
-];
-
-export function routeContextLabel(pathname) {
-  const hit = ROUTE_TITLES.find(([re]) => re.test(pathname || "/"));
-  return hit ? hit[1] : "ClovirAssist";
-}
+/* 대상이 없는 화면의 제안 — 전체 화면 AI 도우미의 시작 예시 앞쪽 넷과 같다(같은 일을 다른 말로 약속하지 않는다). */
+const SUGGESTIONS = QUICK_PROMPTS.slice(0, 4);
 
 /* PA-RC-0020: 진입점을 헤더 칩 하나로 모으면서(사이드바 카드·FAB 제거) 그 자리를 대신할
  * 전역 단축키가 필요해졌다 — `CommandPalette.jsx`의 `useCommandPaletteHotkey`(Ctrl/Cmd+K)와
  * 같은 모양이다. `Ctrl+/`(Cmd+/)를 쓴다 — K는 팔레트가 이미 쓰고, 한 글자 단축키(예: `/`
  * 단독)는 입력창에 그 글자를 치는 것과 구별이 안 돼 채팅 컴포저 등에서 오작동한다. */
-export function useAssistantHotkey(setOpen) {
+export function useAssistantHotkey(setOpen, enabled = true) {
   React.useEffect(() => {
+    // AI 도우미를 쓸 수 없는 사람에게는 단축키도 없다(D-538) — 열어 봐야 403 이다.
+    if (!enabled) return undefined;
     const onKey = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "/") {
         e.preventDefault();
@@ -88,18 +58,17 @@ export function useAssistantHotkey(setOpen) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setOpen]);
+  }, [setOpen, enabled]);
 }
 
 export function AssistantDrawer({ open, onClose }) {
   const nav = useNavigate();
   const loc = useLocation();
-  const context = routeContextLabel(loc.pathname);
+  const target = screenTargetFor(loc.pathname);
   /* 이 드로어는 셸이 **항상** 마운트한다(닫아도 대화가 살아 있어야 하므로 아래 keepMounted).
      그래서 열려 있을 때만 붙여넣기를 가져간다 — 안 그러면 보이지도 않는 컴포저가 앱 전체의
      Ctrl+V 를 삼켜, 팀 채팅에 보낸 스샷이 열지도 않은 AI 대화의 첨부로 함께 담긴다. */
-  // AI-30: "현재 문맥: X" 줄과 "지금 화면 기준으로 도와드려요"라는 문구가 실제로는 아무 데도
-  // 전달되지 않는 장식이었다 — useChat에 넘겨 진짜로 서버까지 가게 한다.
+  // 화면 대상(`{kind, ref, label}`)은 useChat 이 메시지와 함께 보낸다(D-538) — 서버가 다시 읽은 것만 모델에 실린다.
   // AI-32: 같은 "항상 마운트" 사실이 useChat의 쿼리에도 번져, 드로어를 한 번도 안 연
   // 사용자도 로그인만 하면 페이지마다 ai-quota·conversations 호출이 붙었다. 처음 열릴
   // 때까지 그 두 쿼리를 미루고, 한 번 열리면(대화를 유지해야 하므로) 계속 켜 둔다 — 이후
@@ -107,8 +76,13 @@ export function AssistantDrawer({ open, onClose }) {
   const [everOpened, setEverOpened] = React.useState(!!open);
   React.useEffect(() => { if (open) setEverOpened(true); }, [open]);
   const chat = useChat({
-    pasteEnabled: !!open, screenContext: context, dataEnabled: everOpened,
+    pasteEnabled: !!open, screenContext: target, dataEnabled: everOpened,
   });
+  /* AI 를 지금 쓸 수 있는가 — 전체 화면과 같은 판정이다(D-538). 처음 열리기 전에는 묻지 않는다. */
+  const aiStatus = useAiStatus({ enabled: everOpened });
+  const assistant = assistantOf(aiStatus);
+  const unavailable = !!assistant && !assistant.available;
+  const suggestions = target ? SCREEN_SUGGESTIONS[target.kind] : SUGGESTIONS;
   const bodyRef = React.useRef(null);
 
   // 새 답이 오면 아래로 붙인다. 드로어는 좁아서 스크롤이 금방 생긴다.
@@ -145,7 +119,7 @@ export function AssistantDrawer({ open, onClose }) {
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography sx={{ fontWeight: FONT_WEIGHT.bold, lineHeight: 1.2 }}>클로비</Typography>
           <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>
-            {chat.busy ? "답변을 정리하고 있어요" : "현재 화면을 기준으로 도와드려요"}
+            {chat.busy ? "답변을 정리하고 있습니다." : "내 업무와 사내 자료를 찾아 답합니다."}
           </Typography>
         </Box>
         {/* AI-26: 예전엔 이 드로어에 '새 대화' 로 돌아갈 방법이 전혀 없었다 — 앱 로드 시
@@ -185,25 +159,27 @@ export function AssistantDrawer({ open, onClose }) {
         </IconButton>
       </Box>
 
-      {/* 문맥 줄 — 이 드로어의 존재 이유다. 어느 화면을 두고 묻는지 사람과 클로비가 같이 본다. */}
+      {/* 문맥 줄 — 지금 보는 대상이 있을 때만 선다(그때만 서버가 그 대상을 싣는다). 자리는 늘 둔다: 격자의 둘째 줄이다. */}
       <Box sx={{
-        px: 2, py: 1, fontSize: FONT_SIZE.bodySm,
-        bgcolor: (t) => alpha(t.palette.primary.main, 0.06),
-        borderBottom: 1, borderColor: "divider",
+        px: 2, py: target ? 1 : 0, fontSize: FONT_SIZE.bodySm,
+        bgcolor: (t) => (target ? alpha(t.palette.primary.main, 0.06) : "transparent"),
+        borderBottom: target ? 1 : 0, borderColor: "divider",
       }}>
-        현재 문맥: <Box component="strong" sx={{ fontWeight: FONT_WEIGHT.bold }}>{context}</Box>
+        {target ? screenContextLine(target) : null}
       </Box>
 
       {/* 대화 */}
       <Box ref={bodyRef} sx={{ minHeight: 0, overflowY: "auto", px: 2, py: 2, display: "grid", gap: 1.5, alignContent: "start" }}>
-        {!hasThread ? (
+        {!hasThread && unavailable ? (
+          <AssistantUnavailable assistant={assistant} layout="card" />
+        ) : !hasThread ? (
           /* 대화가 없는 드로어는 판 하나가 빈 자리다 — 판 빈 상태(card)이고 클로비는 판 계약 크기(72)다
              (D-485). 예전 히어로는 144 로 서서 좁은 드로어의 절반을 그림이 차지했다. */
           <EmptyState
             layout="card"
             icon={<MascotPose mode="listening" place="emptyCard" decorative />}
             title="무엇을 도와드릴까요?"
-            help="지금 보고 있는 화면의 티켓, 문서, 사용자를 기준으로 물어볼 수 있습니다."
+            help={target ? screenContextLine(target) : "내 업무와 사내 자료를 내 권한 안에서 찾아 답합니다."}
           />
         ) : chat.items.map((m, i) => (
           /* AI-25: 예전엔 여기서 m.content를 그냥 pre-wrap 텍스트로만 그려 리치 텍스트·티켓
@@ -212,9 +188,9 @@ export function AssistantDrawer({ open, onClose }) {
              — 말풍선 렌더를 두 벌로 만들면 한쪽만 고쳐지는 순간 다시 어긋난다. hideCards는
              항상 false다: 이 드로어에는 xxl 결과 레일 개념 자체가 없어 카드가 중복될 자리가
              없다(Chat.jsx의 hideCards는 레일과의 중복 방지 전용). */
-          <Message key={m.id} m={m} onChoose={chat.doSend} onRetry={chat.doRetry}
-            sending={chat.sending} retrying={chat.retryingRef.current === m.id}
-            isLast={i === chat.items.length - 1} hideCards={false}
+          <Message key={m.id} m={m} onRetry={chat.doRetry}
+            retrying={chat.retryingRef.current === m.id}
+            isLast={i === chat.items.length - 1}
             onRegenerate={chat.doRegenerate} regenerating={chat.regenerating}
             onDelete={chat.doDeleteMessage} onFeedback={chat.doFeedback} />
         ))}
@@ -222,10 +198,11 @@ export function AssistantDrawer({ open, onClose }) {
 
         {/* 제안 칩 — 빈 화면에서 "무엇을 물어볼 수 있는지" 를 보여 준다. 대화가 시작되면
             자리를 비켜 준다(칩이 계속 남아 있으면 대화가 아니라 메뉴처럼 보인다). */}
-        {!hasThread ? (
+        {!hasThread && !unavailable ? (
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, justifyContent: "center", mt: 1 }}>
-            {/* 제안은 누르는 것이라 단추다(30) — AI 도우미 첫 화면의 시작 예시와 같은 얼굴이다(RULES §3). */}
-            {SUGGESTIONS.map((s) => (
+            {/* 제안은 누르는 것이라 단추다(30) — AI 도우미 첫 화면의 시작 예시와 같은 얼굴이다(RULES §3). 대상이 있으면
+                그 종류의 제안이다. */}
+            {suggestions.map((s) => (
               <Button key={s} size="sm" onClick={() => chat.prefillFromPrompt(s)}>{s}</Button>
             ))}
           </Box>
@@ -281,6 +258,9 @@ export function AssistantDrawer({ open, onClose }) {
         {chat.threadFailure || chat.composerFailure ? (
           <Callout tone="danger" compact>{chat.composerFailure || chat.threadFailure}</Callout>
         ) : null}
+        {unavailable && hasThread ? (
+          <Callout tone="warn" compact>{assistant.notice} {unavailableHelp(assistant)}</Callout>
+        ) : null}
         <Box
           component="form"
           onSubmit={(e) => { e.preventDefault(); chat.doSend(); }}
@@ -288,7 +268,7 @@ export function AssistantDrawer({ open, onClose }) {
         >
           <Box
             component="textarea" ref={chat.textareaRef} rows={1} value={chat.text} maxLength={5000}
-            aria-label="클로비에게 질문" disabled={chat.inputDisabled}
+            aria-label="클로비에게 질문" disabled={chat.inputDisabled || unavailable}
             placeholder="클로비에게 질문하세요 (Enter 전송, Shift+Enter 줄바꿈)"
             onChange={(e) => chat.setText(e.target.value)}
             onKeyDown={(e) => {
@@ -307,7 +287,7 @@ export function AssistantDrawer({ open, onClose }) {
             type="submit" variant="primary"
             // AI-28: 이미지만 붙이고 글자는 안 쳤을 때(!text.trim())도 보낼 수 있어야 한다 —
             // 예전엔 텍스트가 없으면 무조건 잠겨 "텍스트 없이 이미지만 붙이면 갇힌다"였다.
-            disabled={chat.inputDisabled || (!chat.text.trim() && !chat.pending.length)}
+            disabled={chat.inputDisabled || unavailable || (!chat.text.trim() && !chat.pending.length)}
             aria-label="질문 전송"
           >
             <SendRoundedIcon fontSize="small" />

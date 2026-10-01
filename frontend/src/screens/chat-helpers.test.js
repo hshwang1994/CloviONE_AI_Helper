@@ -1,16 +1,15 @@
+/* qa-contract-change: 옛 실행기 시절의 카드 번호 · 본문 목록 걷기 · 응답 시간(timing) 헬퍼를 걷었다 — 서버가 그 구조를 더는 싣지 않아 화면에서 닿을 수 없는 코드였다(D-535). 그 자리의 시험은 도우미 답의 구조(걸린 시간 · 확인한 내용 · 찾아본 검색어)와 시작 예시가 할 수 있는 일만 약속하는지를 잰다. 우선순위 어휘 시험은 정의가 있는 lib/priority.js 에서 그대로 가져와 지킨다. */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import * as helpers from "./chat-helpers.js";
+import { priorityKo, priorityKind } from "../lib/priority.js";
 import {
-  priorityKo,
-  priorityKind,
   msgAgeMs,
-  responseTimeLabel,
+  elapsedLabel,
+  checkedTools,
+  searchedWords,
+  QUICK_PROMPTS,
   classifyLine,
   parseBlocks,
-  pageNumberOrNull,
-  bodyListStart,
-  ticketPageStart,
-  stripDuplicatedTicketLines,
   newClientMessageId,
 } from "./chat-helpers.js";
 
@@ -26,20 +25,10 @@ describe("외부 주소 허용 목록이 없다", () => {
     expect(helpers.safeNotion).toBeUndefined();
     expect(helpers.NOTION_HOSTS).toBeUndefined();
   });
-  it("구조화 페이로드에 문서 링크 갈래가 없다", () => {
-    const p = helpers.structuredCards({ structured: { notion_url: "https://www.notion.so/x" } });
-    expect(p.notionUrl).toBeUndefined();
-    expect(p.notionUnsafe).toBeUndefined();
-    expect(p.hasAny).toBe(false);
-    expect(p.hasCards).toBe(false);
-  });
-  it("허용 목록에 없던 주소도 같은 취급이다(갈래 자체가 없다)", () => {
-    const p = helpers.structuredCards({ structured: { notion_url: "https://evil.com/x" } });
-    expect(p.notionUnsafe).toBeUndefined();
-    expect(p.hasAny).toBe(false);
-    expect(Object.keys(p).sort()).toEqual(
-      ["hasAny", "hasCards", "listItems", "projects", "results", "tickets", "ticketsArr"],
-    );
+  it("옛 카드 정규화 함수가 모듈에 없다 - 화면이 바깥 링크 갈래를 다시 기다리지 않는다", () => {
+    expect(helpers.structuredCards).toBeUndefined();
+    expect(helpers.ticketPageStart).toBeUndefined();
+    expect(helpers.responseTimeLabel).toBeUndefined();
   });
 });
 
@@ -108,22 +97,45 @@ describe("msgAgeMs", () => {
   });
 });
 
-describe("responseTimeLabel (AI-08)", () => {
-  it("prefers timing.total_ms when present", () => {
-    expect(responseTimeLabel({ structured: { timing: { total_ms: 3200, ai_ms: 900 } } })).toBe("3.2초");
+describe("elapsedLabel (D-535)", () => {
+  it("서버가 잰 한 차례의 시간을 초로 보인다", () => {
+    expect(elapsedLabel({ elapsed_ms: 3200 })).toBe("3.2초");
+    expect(elapsedLabel({ elapsed_ms: 0 })).toBe("0.0초");
   });
-  it("falls back to timing.ai_ms when total_ms is missing", () => {
-    expect(responseTimeLabel({ structured: { timing: { ai_ms: 900 } } })).toBe("0.9초");
+  it("값이 없거나 숫자가 아니거나 음수면 아무것도 보이지 않는다", () => {
+    expect(elapsedLabel({})).toBeNull();
+    expect(elapsedLabel(null)).toBeNull();
+    expect(elapsedLabel({ elapsed_ms: "812" })).toBeNull();
+    expect(elapsedLabel({ elapsed_ms: -5 })).toBeNull();
   });
-  it("returns null when there is no timing data at all", () => {
-    expect(responseTimeLabel({ structured: { error_notice: true } })).toBeNull();
-    expect(responseTimeLabel({ structured: {} })).toBeNull();
-    expect(responseTimeLabel({})).toBeNull();
-    expect(responseTimeLabel(null)).toBeNull();
+  it("옛 실행기의 timing 칸은 읽지 않는다", () => {
+    expect(elapsedLabel({ timing: { total_ms: 3200 } })).toBeNull();
   });
-  it("ignores a negative or non-numeric value instead of showing garbage", () => {
-    expect(responseTimeLabel({ structured: { timing: { total_ms: -5 } } })).toBeNull();
-    expect(responseTimeLabel({ structured: { timing: { total_ms: "812" } } })).toBeNull();
+});
+
+describe("checkedTools · searchedWords (D-535)", () => {
+  const st = { tools: [
+    { name: "search_documents", label: "사내 문서 검색", ok: true, count: 0, query: "연차" },
+    { name: "my_work", label: "내 업무", ok: true, count: 2 },
+    { name: "search_workspace", label: "통합 검색", ok: true, count: 0, query: "연차" },
+    { name: "broken" },
+  ] };
+  it("화면 이름이 있는 도구만 「확인한 내용」에 남긴다", () => {
+    expect(checkedTools(st).map((t) => t.label)).toEqual(["사내 문서 검색", "내 업무", "통합 검색"]);
+    expect(checkedTools(null)).toEqual([]);
+  });
+  it("찾아본 검색어는 중복 없이 순서대로다", () => {
+    expect(searchedWords(st)).toEqual(["연차"]);
+    expect(searchedWords({})).toEqual([]);
+  });
+});
+
+describe("QUICK_PROMPTS", () => {
+  it("시작 예시는 도우미가 실제로 할 수 있는 일만 약속한다(읽기만 한다)", () => {
+    expect(QUICK_PROMPTS).toHaveLength(6);
+    for (const prompt of QUICK_PROMPTS) {
+      expect(prompt).not.toMatch(/만들어|생성|등록|삭제|바꿔/);
+    }
   });
 });
 
@@ -220,61 +232,6 @@ describe("parseBlocks", () => {
   it("still yields a code block for an unterminated fence at end of input", () => {
     const blocks = parseBlocks("```\n- 안 닫힌 펜스\n마지막 줄");
     expect(blocks).toEqual([{ kind: "code", lang: "", text: "- 안 닫힌 펜스\n마지막 줄" }]);
-  });
-});
-
-describe("pageNumberOrNull", () => {
-  it("accepts positive integers", () => {
-    expect(pageNumberOrNull(1)).toBe(1);
-    expect(pageNumberOrNull(7)).toBe(7);
-  });
-  it("rejects zero, negatives, non-integers, and non-numbers", () => {
-    expect(pageNumberOrNull(0)).toBeNull();
-    expect(pageNumberOrNull(-1)).toBeNull();
-    expect(pageNumberOrNull(2.5)).toBeNull();
-    expect(pageNumberOrNull("3")).toBeNull();
-    expect(pageNumberOrNull(Infinity)).toBeNull();
-  });
-});
-
-describe("bodyListStart", () => {
-  it("returns the first numbered list marker in the body", () => {
-    expect(bodyListStart("요약\n3. 티켓A\n4. 티켓B")).toBe(3);
-  });
-  it("returns null when there is no numbered list", () => {
-    expect(bodyListStart("그냥 문단입니다")).toBeNull();
-  });
-});
-
-describe("ticketPageStart", () => {
-  it("returns null for non-object structured", () => {
-    expect(ticketPageStart(null, "")).toBeNull();
-    expect(ticketPageStart(undefined, "")).toBeNull();
-  });
-  it("uses start_index when the body has no list", () => {
-    expect(ticketPageStart({ start_index: 3 }, "설명만 있음")).toBe(3);
-  });
-  it("returns the start when card number matches body list start", () => {
-    expect(ticketPageStart({ start_index: 3 }, "3. 티켓A\n4. 티켓B")).toBe(3);
-  });
-  it("returns null when card number disagrees with body list start", () => {
-    expect(ticketPageStart({ start_index: 3 }, "1. 티켓A")).toBeNull();
-  });
-  it("falls back to carried context.last_result_start", () => {
-    expect(ticketPageStart({ context: { last_result_start: 5 } }, "설명만")).toBe(5);
-  });
-  it("returns null when neither claimed nor carried is valid", () => {
-    expect(ticketPageStart({ start_index: 0 }, "설명만")).toBeNull();
-  });
-});
-
-describe("stripDuplicatedTicketLines", () => {
-  it("removes numbered item lines and their indented sub-lines, keeping prose", () => {
-    const src = "요약입니다\n1. 티켓A\n  담당: 김\n2. 티켓B\n\n끝";
-    expect(stripDuplicatedTicketLines(src)).toBe("요약입니다\n\n끝");
-  });
-  it("keeps content untouched when there are no item lines", () => {
-    expect(stripDuplicatedTicketLines("안내 문장\n두 번째 줄")).toBe("안내 문장\n두 번째 줄");
   });
 });
 

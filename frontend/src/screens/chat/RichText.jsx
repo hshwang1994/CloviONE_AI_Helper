@@ -7,7 +7,9 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 
 /* 리치 텍스트 — parseBlocks 결과를 머리글/목록/키-값/문단으로 렌더한다(텍스트 노드 전용).
  * 머리글은 본문(0.9375rem)보다 커야 '머리글'로 읽힌다. 크기는 전부 rem이라 4K에서 함께 커진다. */
-export function RichText({ text }) {
+export function RichText({ text, keyLinks }) {
+  // 글 속 티켓 키는 그 답의 출처에 있을 때만 링크가 된다(`linkifyText` 의 셋째 인자).
+  const linkify = (value, key) => linkifyText(value, key, keyLinks);
   return (
     <>
       {parseBlocks(text).map((b, bi) => {
@@ -17,8 +19,8 @@ export function RichText({ text }) {
               key={bi} component="h4"
               sx={{ mt: bi === 0 ? 0 : 1.5, mb: 0.5, fontSize: FONT_SIZE.sectionTitle, fontWeight: FONT_WEIGHT.bold, color: "text.primary", lineHeight: 1.4 }}
             >
-              {linkifyText(b.text, "h" + bi)}
-              {b.note ? <Box component="span" sx={{ ml: 1, fontWeight: FONT_WEIGHT.medium, fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{linkifyText(b.note, "hn" + bi)}</Box> : null}
+              {linkify(b.text, "h" + bi)}
+              {b.note ? <Box component="span" sx={{ ml: 1, fontWeight: FONT_WEIGHT.medium, fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{linkify(b.note, "hn" + bi)}</Box> : null}
             </Typography>
           );
         }
@@ -37,14 +39,14 @@ export function RichText({ text }) {
                     <Box component="span" sx={{ color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>{it.marker}</Box>
                   ) : null}
                   <Box component="span" sx={{ ...KO_WORD_BREAK, "&::before": it.marker ? undefined : { content: '"· "', color: "text.secondary" } }}> {/* clovi-allow-glyph: 목록 글머리표 */}
-                    {linkifyText(it.text, "li" + bi + "-" + ii)}
+                    {linkify(it.text, "li" + bi + "-" + ii)}
                   </Box>
                   {it.subs.map((s, si) => (
                     <Box
                       key={si} component="span"
                       sx={{ gridColumn: it.marker ? 2 : 1, fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}
                     >
-                      {linkifyText(s, "li" + bi + "-" + ii + "-s" + si)}
+                      {linkify(s, "li" + bi + "-" + ii + "-s" + si)}
                     </Box>
                   ))}
                 </Box>
@@ -77,7 +79,7 @@ export function RichText({ text }) {
               {b.rows.map((r, ri) => (
                 <Box key={ri} sx={{ display: "grid", gridTemplateColumns: "minmax(4.5rem,auto) minmax(0,1fr)", columnGap: 1.25, fontSize: FONT_SIZE.body }}>
                   <Box component="dt" sx={{ color: "text.secondary" }}>{r.key}</Box>
-                  <Box component="dd" sx={{ m: 0, ...KO_WORD_BREAK }}>{linkifyText(r.text, "kv" + bi + "-" + ri)}</Box>
+                  <Box component="dd" sx={{ m: 0, ...KO_WORD_BREAK }}>{linkify(r.text, "kv" + bi + "-" + ri)}</Box>
                 </Box>
               ))}
             </Box>
@@ -85,7 +87,7 @@ export function RichText({ text }) {
         }
         return (
           <Typography key={bi} sx={{ m: 0, mt: bi === 0 ? 0 : 1, fontSize: "0.9375rem", lineHeight: 1.6, whiteSpace: "pre-wrap", ...KO_WORD_BREAK }}>
-            {linkifyText(b.lines.join("\n"), "p" + bi)}
+            {linkify(b.lines.join("\n"), "p" + bi)}
           </Typography>
         );
       })}

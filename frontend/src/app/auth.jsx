@@ -34,7 +34,8 @@ export function AuthProvider({ children }) {
          `features`/`branding` 을 사용자 객체에 **펼쳐 담는다** — 기존 `auth.data.role` 같은
          호출부를 그대로 두면서 배선을 잇는 가장 좁은 변경이다. */
       setBrand(data.branding && data.branding.product_name);
-      return { ...data.user, features: data.features, branding: data.branding };
+      /* `capabilities` 는 이 사람이 가진 능력이다(지금은 `ai_use`, D-538) — 메뉴와 서랍 단추를 숨기는 데만 쓴다. */
+      return { ...data.user, features: data.features, branding: data.branding, capabilities: data.capabilities };
     },
     retry: false,
     staleTime: 5 * 60 * 1000,

@@ -282,7 +282,67 @@ def seed(database_url: str, email: str, password: str, settings) -> None:
         db.commit()
         _seed_search_index(db, settings, now)
         db.commit()
+        # AI 도우미가 답한 화면을 찍을 때만(`UI_QA_AI_READY=1`) AI 를 켜고 답한 대화 하나를 심는다. 기본 씨앗은 그대로다 —
+        # AI 를 켜면 초기 설정 · AI 설정 화면의 상태가 바뀌어 기준 캡처(ux-before)와 같은 세계가 아니게 된다.
+        import os as _os
+
+        if _os.environ.get("UI_QA_AI_READY") == "1":
+            _seed_ai_ready(db, settings, me, now)
+            db.commit()
     engine.dispose()
+
+
+def _seed_ai_ready(db, settings, me, now) -> None:
+    """AI 를 켠 설치 + 도우미가 도구로 답한 대화 하나(D-535). 이 서버는 제공자를 부르지 않는다 — 화면은 저장된 답을 그린다."""
+    import json as _json
+    import uuid as _uuid
+    from datetime import timedelta
+
+    from sqlalchemy import select
+
+    from app.conversations.models import Conversation, Message
+    from app.knowledge.models import Document
+    from app.settings.service import SettingsCache, apply_setting
+    from app.tickets.models import TicketCache, api_page_id
+
+    (settings.secrets_dir / "ai.anthropic.api_key").write_text("sk-ant-ui-qa-" + "x" * 24, encoding="utf-8")
+    cache = SettingsCache(settings)
+    for key, value in {"ai_provider": "anthropic", "ai_auth_method": "api_key", "ai_model": "ui-qa-model",
+                       "ai_generation_enabled": True}.items():
+        apply_setting(db, cache, key=key, value=value, updated_by=None, now=now)
+
+    tickets = db.execute(select(TicketCache).where(TicketCache.canonical_key.is_not(None))
+                         .order_by(TicketCache.canonical_key).limit(2)).scalars().all()
+    document = db.execute(select(Document).where(Document.archived.is_(False)).limit(1)).scalars().first()
+    sources = [{"type": "ticket", "id": api_page_id(t), "title": t.title, "route": "/tickets/" + api_page_id(t),
+                "key": t.canonical_key, "status": t.status} for t in tickets]
+    if document is not None:
+        sources.append({"type": "document", "id": document.id, "title": document.title,
+                        "route": "/knowledge/" + document.id, "where": "사내 규정"})
+    lines = ["이번 주 마감인 티켓은 %d건입니다." % len(tickets), ""]
+    lines += ["%d. %s %s" % (i + 1, t.canonical_key, t.title) for i, t in enumerate(tickets)]
+    lines += ["", "마감을 넘기기 전에 담당자와 일정을 확인해 주세요."]
+
+    conversation = Conversation(user_id=me.id, title="이번 주 마감 정리", created_at=now - timedelta(minutes=5),
+                                updated_at=now - timedelta(minutes=4))
+    db.add(conversation)
+    db.flush()
+    question_id = "uiqa" + _uuid.uuid4().hex[:12]
+    db.add(Message(conversation_id=conversation.id, message_id=question_id, role="user",
+                   content="이번 주 마감인 내 티켓을 알려 줘", processing_status="done",
+                   created_at=now - timedelta(minutes=5), updated_at=now - timedelta(minutes=5)))
+    db.flush()
+    structured = {
+        "kind": "assistant", "status": "ok", "mode": "tools", "sources": sources,
+        "tools": [{"name": "my_work", "label": "내 업무", "ok": True, "count": len(tickets)},
+                  {"name": "search_documents", "label": "사내 문서 검색", "ok": True, "count": 1, "query": "마감 일정"}],
+        "rounds": 3, "elapsed_ms": 4200, "truncated": False, "notice": None, "model": "ui-qa-model",
+    }
+    db.add(Message(conversation_id=conversation.id, message_id="a-%s-%s" % (question_id, _uuid.uuid4()),
+                   role="assistant", content="\n".join(lines), processing_status="done",
+                   structured_payload_json=_json.dumps(structured, ensure_ascii=False),
+                   created_at=now - timedelta(minutes=4), updated_at=now - timedelta(minutes=4)))
+    db.flush()
 
 
 def _seed_search_index(db, settings, now) -> None:

@@ -1,11 +1,3 @@
-import { PROJECT_TONE } from "../ui/projectTone.js";
-import { fmtDateTime } from "../lib/format.js";
-
-// 우선순위 어휘는 lib/priority.js가 소유한다(티켓 화면 두 곳이 채팅과 무관하게 쓴다).
-// 여기서 다시 내보내는 이유는 하나다 — 채팅 결과 카드가 이 두 함수를 쓰고, 이 화면의
-// 헬퍼 테스트가 '채팅이 쓰는 어휘'로 함께 검증한다. 정의를 복제하지는 않는다.
-export { priorityKo, priorityKind } from "../lib/priority.js";
-
 /* AI 채팅(§6.5)의 순수 함수·상수 모듈 — JSX가 한 줄도 없다.
  *
  * 왜 나눴나: Chat.jsx 한 파일이 순수 함수 20여 개 + 리치텍스트 렌더러 + 폴링/쿼리 상태 +
@@ -20,14 +12,6 @@ export { priorityKo, priorityKind } from "../lib/priority.js";
  */
 
 // ── 시각 표시 ───────────────────────────────────────────────────────────────
-
-// 마감일 정규화 — 날짜만(YYYY-MM-DD)이면 그대로, ISO 타임스탬프면 KST로 표시(영문/ISO 누출 방지).
-export function fmtDue(v) {
-  if (v == null || v === "") return "";
-  const s = String(v);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  return fmtDateTime(s);
-}
 
 // 대화 목록용 짧은 시각 라벨 — 오늘이면 시:분, 아니면 월.일(사이드바 폭이 좁아 전체 날짜는 넘친다).
 export function fmtShort(v) {
@@ -116,17 +100,15 @@ export function pollDelayMs(fails) {
 
 // ── 시작 예시·저장 키 ───────────────────────────────────────────────────────
 
-// 시작 예시(빈 화면에서 눌러 바로 대화 시작). 바닐라의 추천 프롬프트를 React로 복원.
+/* 시작 예시 — 도우미가 **실제로 할 수 있는 일**만 적는다(D-535). 예전 목록은 티켓 만들기처럼 할 수 없는 일을 약속했다.
+ * 누르면 입력 칸에 채운다(바로 보내지 않는다). */
 export const QUICK_PROMPTS = [
-  "무엇을 할 수 있어?",
-  "내가 만든 티켓 보여줘",
-  "나에게 할당된 티켓 보여줘",
-  // USER_GUIDE.md가 광고하는 '내 담당 프로젝트' 칩이 실제로는 빠져 있어(프로젝트 조회는 문서화된
-  // 기능인데 시작 화면에서 발견할 길이 없었다) 복원한다.
-  "내 담당 프로젝트 보여줘",
-  "이번 주 마감인 티켓 알려줘",
-  "진행 중인 티켓을 우선순위 순으로 요약해줘",
-  "새 티켓 만들어줘",
+  "오늘 내가 할 일을 정리해 줘",
+  "이번 주 마감인 내 티켓을 알려 줘",
+  "내가 결재할 건이 있는지 알려 줘",
+  "내 프로젝트 진행 상황을 알려 줘",
+  "휴가 신청 방법을 사내 문서에서 찾아 줘",
+  "이번 주에 바뀐 문서를 알려 줘",
 ];
 
 export const CHAT_LAST_CONV_KEY = "chat.lastConversationId"; // 새로고침 후 열려 있던 대화 복원용(세션 한정)
@@ -297,122 +279,27 @@ export function parseBlocks(source) {
 // chat/links.jsx에 남는다 — 이 모듈은 패턴만 소유한다.
 export const URL_RE = /(https?:\/\/[^\s]+)/g;
 
-// ── 러너 응답(structured) 정규화 ────────────────────────────────────────────
+// ── 도우미 답의 구조 (D-535) ─────────────────────────────────────────────────
 
-// 러너가 결과를 담는 여러 모양(배열/단일 객체/스칼라/undefined)을 카드용 '객체 배열'로 안전 변환.
-// 배열이면 객체 원소만, 단일 객체면 1개짜리 배열, 그 외(스칼라·undefined)면 빈 배열.
-export function objArray(v) {
-  if (Array.isArray(v)) return v.filter((x) => x && typeof x === "object");
-  return v && typeof v === "object" ? [v] : [];
-}
-
-// 프로젝트 이름을 결정적 색조(0~7)로, 같은 프로젝트가 어디서나 같은 색 점을 갖게(바닐라 projectTone).
-export function projectTone(name) {
-  const s = String(name || "");
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h % 8;
-}
-
-// projectTone(0~7)의 실제 색. 값의 정본은 `ui/projectTone.js` 한 벌이다 — 예전에는 여기와
-// screens.css 의 `.project-dot.tone-N` 두 벌이었고 DS-30 이 한쪽만 고쳐 색이 갈렸다.
-export const PROJECT_TONE_COLORS = PROJECT_TONE;
-export function projectToneColor(name) {
-  return PROJECT_TONE_COLORS[projectTone(name)];
-}
-
-// 러너 티켓은 배열을 담는다(assignees: 이름 또는 {name} 객체, project_names 등). 어떤 모양이 와도
-// 안전하게 사람 이름 문자열로 만든다. 스칼라·undefined도 안전.
-export function peopleText(value) {
-  if (Array.isArray(value)) {
-    return value.map((p) => (typeof p === "string" ? p : (p && (p.name || p.email)) || "")).filter(Boolean).join(", ");
-  }
-  return typeof value === "string" ? value : "";
-}
-
-// 카드 번호("N번 상세"의 근거)는 본문 목록 번호와 반드시 같아야 한다, 어긋나면 번호를 안 붙인다.
-export function pageNumberOrNull(value) {
-  if (typeof value !== "number" || !isFinite(value) || Math.floor(value) !== value || value < 1) return null;
-  return value;
-}
-export function bodyListStart(content) {
-  const m = /^\s*(\d+)\.\s/m.exec(String(content || ""));
-  return m ? pageNumberOrNull(Number(m[1])) : null;
-}
-export function ticketPageStart(structured, content) {
-  if (!structured || typeof structured !== "object") return null;
-  const ctx = structured.context;
-  const claimed = pageNumberOrNull(structured.start_index);
-  const carried = ctx && typeof ctx === "object" ? pageNumberOrNull(ctx.last_result_start) : null;
-  const start = claimed !== null ? claimed : carried;
-  if (start === null) return null;
-  const bs = bodyListStart(content);
-  if (bs !== null && bs !== start) return null;   // 본문 번호와 어긋나면 물려받은(잘못된) 값 — 버린다
-  return start;
-}
-
-// 목록 응답은 같은 티켓을 본문과 카드에 두 번 낸다. 상세는 카드가 지므로 본문에서 항목 줄
-// ("{번호}. …")과 거기 딸린 들여쓴 줄만 걷어낸다. 러너가 하는 말(요약·안내)은 한 줄도 안 지운다.
-export function stripDuplicatedTicketLines(content) {
-  const kept = [];
-  let inItem = false;
-  String(content).split("\n").forEach((line) => {
-    if (/^\s*\d+\.\s/.test(line)) { inItem = true; return; }   // 항목 줄 — 카드가 대신 진다
-    if (inItem && /^\s{2,}\S/.test(line)) return;              // 항목의 딸린 들여쓴 줄
-    inItem = false;
-    kept.push(line);
-  });
-  // 항목이 빠진 자리의 연속 빈 줄은 하나로 줄이고 앞뒤 빈 줄은 없앤다.
-  const out = [];
-  kept.forEach((line) => {
-    if (!line.trim() && (!out.length || !out[out.length - 1].trim())) return;
-    out.push(line);
-  });
-  while (out.length && !out[out.length - 1].trim()) out.pop();
-  return out.join("\n");
-}
-
-/* 어시스턴트 메시지의 structured 페이로드를 '카드로 그릴 것들'로 정규화한다.
- *
- * 러너가 결과를 담는 모양이 여러 가지다(바닐라 renderStructured): 배열 tickets/projects/items/
- * results, 단일 객체 ticket/project. 어떤 모양(스칼라·배열·undefined)이 와도 objArray가 막는다.
- *
- * 여기 문서 링크만 있는 갈래(notion_url/url)가 하나 더 있었다. 지금 이 앱의 답변 페이로드를
- * 만드는 곳(app/jobs/handlers/chat_message.py)은 그 필드를 싣지 않는다 - 서버가 안 보내는
- * 필드를 화면이 계속 기다리면, 다음 사람은 그 코드를 보고 기능이 있다고 읽는다.
- *
- * ticketsArr를 따로 돌려주는 이유: **본문의 번호 목록과 짝이 맞는 것은 tickets 배열뿐**이다
- * (ticketPageStart가 그 배열 기준으로 시작 번호를 낸다). 그 뒤에 이어붙는 단일 ticket 객체까지
- * 같이 순번을 매기면 본문에 없는 'N번' 라벨이 생겨 '상세' 버튼이 엉뚱한 항목을 가리킨다.
- *
- * 이 추출을 함수로 뽑은 실질적 이유: 초광폭(≥xxl)에서 카드가 말풍선 안이 아니라 오른쪽 컨텍스트
- * 레일에 그려진다 — 두 자리가 같은 규칙을 봐야 하는데, 인라인으로 두면 반드시 한쪽만 고쳐진다.
- */
-export function structuredCards(m) {
-  const st = (m && m.structured) || {};
-  const ticketsArr = objArray(st.tickets);
-  const tickets = [...ticketsArr, ...objArray(st.ticket)];
-  const projects = [...objArray(st.projects), ...objArray(st.project)];
-  const listItems = objArray(st.items);
-  const results = objArray(st.results);
-  const hasCards = !!(tickets.length || projects.length || listItems.length || results.length);
-  return {
-    ticketsArr, tickets, projects, listItems, results, hasCards,
-    // 레일에 무언가 그릴 게 있는가.
-    hasAny: hasCards,
-  };
-}
-
-// AI-08: 러너가 응답마다 structured.timing.{total_ms,ai_ms,...}을 돌려주고 플랫폼이 그대로
-// 저장하는데(app/jobs/handlers/chat_message.py), 화면 어디서도 안 읽어 조용히 버려졌다.
-// total_ms(요청 전체 처리 시간 — 사용자가 실제로 기다린 시간에 가장 가깝다)를 우선하고,
-// 없으면 ai_ms(Claude 호출만의 시간)로 대신한다.
-export function responseTimeLabel(m) {
-  const timing = m && m.structured && m.structured.timing;
-  const ms = timing && typeof timing.total_ms === "number" ? timing.total_ms
-    : (timing && typeof timing.ai_ms === "number" ? timing.ai_ms : null);
+/* 답 하나가 걸린 시간 — 서버가 잰 값(`structured.elapsed_ms`)만 보인다. 없으면 null 이다. */
+export function elapsedLabel(structured) {
+  const ms = structured && typeof structured.elapsed_ms === "number" ? structured.elapsed_ms : null;
   if (ms == null || ms < 0) return null;
   return (ms / 1000).toFixed(1) + "초";
+}
+
+/* 도우미가 「확인한 내용」 — 도구 이름(화면 낱말)과 검색어. 서버가 준 것만 옮긴다. */
+export function checkedTools(structured) {
+  const tools = structured && Array.isArray(structured.tools) ? structured.tools : [];
+  return tools.filter((t) => t && typeof t.label === "string");
+}
+
+/* 「찾지 못함」 답에 같이 보일 검색어(중복 없이). */
+export function searchedWords(structured) {
+  const seen = new Set();
+  return checkedTools(structured)
+    .map((t) => (typeof t.query === "string" ? t.query.trim() : ""))
+    .filter((q) => q && !seen.has(q) && seen.add(q));
 }
 
 // ── 전송·오류 ───────────────────────────────────────────────────────────────

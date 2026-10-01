@@ -728,10 +728,14 @@ export function AppShell({
   // 클로비 AI 드로어(Q2) — 세 진입점이 모두 이걸 연다. 예전에는 셋 다
   // `navigate("/chat")` 이라 물어보려고 누르면 보던 화면이 사라졌다.
   const [assistantOpen, setAssistantOpen] = React.useState(false);
+  /* AI 도우미를 쓸 수 있는 사람인가(D-538) — 권한(`capabilities.ai_use`)과 기능 플래그(`chat_enabled`) 둘 다다. 아니면
+     상단 클로비 단추 · 단축키 · 서랍을 그리지 않는다(눌러 봐야 403 · 404 다). 값을 모르면 그린다(깜빡임 방지). */
+  const assistantAllowed = !(auth.data && auth.data.capabilities && auth.data.capabilities.ai_use === false)
+    && !(auth.data && auth.data.features && auth.data.features.chat_enabled === false);
   // 이 화면이 보여 주는 알림 유형을 진입 시 읽음 처리한다(S2 "확인하면 자동으로 없애는 형태로").
   useClearBadgeOnEntry(loc.pathname, !!(auth.data && auth.data.id));
   useCommandPaletteHotkey(setPaletteOpen);
-  useAssistantHotkey(setAssistantOpen);
+  useAssistantHotkey(setAssistantOpen, assistantAllowed);
 
   // 권한 없는 메뉴는 숨긴다 — 검색 결과로 403에 빠지면 안 된다.
   const groups = React.useMemo(() => filterNavByRole(nav, role), [nav, role]);
@@ -1031,7 +1035,7 @@ export function AppShell({
                   이미 전체화면 채팅이 열려 있는데 누르면 그 위에 같은 대화를 다시 보여주는
                   드로어가 겹쳐 뜬다. "동작하지 않는(=의미 없는) 컨트롤을 띄워 두지 않는다"는
                   이 저장소 원칙과 같은 방향. */}
-              {!onAssistant ? <MascotTopButton onClick={() => setAssistantOpen(true)} /> : null}
+              {!onAssistant && assistantAllowed ? <MascotTopButton onClick={() => setAssistantOpen(true)} /> : null}
               <ThemeToggle userId={userId} />
 
               {/* 사용자/관리자 전환은 **사이드바 최상단**으로 옮겼다(P2). 여기 두 벌을 두면
@@ -1165,7 +1169,7 @@ export function AppShell({
       {/* 클로비 AI 드로어(Q2) — 클로비를 누르면 보던 화면 위로 열린다. 예전에는 세 진입점이
           모두 `/chat` 으로 이동해서, 물어볼 대상이 화면에 있는데 그 화면을 떠나야 했다.
           세션 만료(minimal) 상태에서는 띄우지 않는다 — 대화 API 도 401 이다. */}
-      {!minimal ? (
+      {!minimal && assistantAllowed ? (
         <AssistantDrawer open={assistantOpen} onClose={() => setAssistantOpen(false)} />
       ) : null}
 
