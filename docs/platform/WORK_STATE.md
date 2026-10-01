@@ -21,9 +21,10 @@
 | P2 설정 캐시 판 번호(요청 길목 · 워커 잡 직전 · 반복마다, 초당 한 번) | `175cc7cc` | D-532 |
 | P3 컨트롤 높이 34 · 30(입력 포함) · `Field` · `FieldRow` · `FormSection` · `HeadRow` · `FlowStack` · 메시지 상자 머리 줄 · 여백 걷기(75 + 38자리) · `Card padding` · 정적 검사 `callout-margin` · `primitive-geometry-override` · 시각 규율 프로브(`visual_probes.py`) · 대조표(`visual_review.py`) | `8320c83e` | D-526 ~ D-528 · D-553 |
 | P4 표 열 배분(`columnPlan.planColumns` — 바닥 · 비중 · 상한 · 머리글 · 값 길이, 열 등급 essential · secondary · context, 필수 열만으로 모자라면 가로 굴림 + 붙박이 첫 열, 화면 폭 덮어쓰기 약 50자리를 min · max · 등급 · 값으로) | `361878f0` | D-529 |
-| P5 필터 칸 선택지 폭 · 검색 칸 계단 · 「기간」 칸 하나(`PeriodFilter`, KST) · 보기 기준(`role: "view"`) · 켬/끔 조건 자리 · 목록 상태 일곱 갈래(`resolveListState` · `ListStateView`) · 빈 표의 머리 아래 띠 · 상태 자리(`StateRegion`) · 기능 깃발 문 `feature_disabled` · 정합성 짧은 이름 · P4 값 길이 결함(id) 수정 | 이 커밋 | D-530 |
+| P5 필터 칸 선택지 폭 · 검색 칸 계단 · 「기간」 칸 하나(`PeriodFilter`, KST) · 보기 기준(`role: "view"`) · 켬/끔 조건 자리 · 목록 상태 일곱 갈래(`resolveListState` · `ListStateView`) · 빈 표의 머리 아래 띠 · 상태 자리(`StateRegion`) · 기능 깃발 문 `feature_disabled` · 정합성 짧은 이름 · P4 값 길이 결함(id) 수정 | `b22fe969` | D-530 |
+| P6 채움 모드(`ui/Workspace.jsx` — 고른 화면이 등록하고 창 1200 · 600 이상이면 main 이 창 높이, 판마다 몸만 굴러감) · `DataTable fill` · 스크롤 창 문맥(`scrollRoot.js`) · 견본 `#/kit/workspace` · 실브라우저 `workspace_e2e.py`(34/34 + 반례) | 이 커밋 | D-531 |
 
-- 다음: P6 채움 모드 · `DataTable fill`(F5, D-531). P6 를 마치면 P3 ~ P6 묶음 끝의 `verify.py --full` 을 한 번 돈다(계획 7절).
+- 다음: P3 ~ P6 묶음 끝의 `verify.py --full` 한 번(계획 7절), 그다음 P7 조직 관리(O1, D-533 — 백엔드 `/impact` 먼저).
 
 ## 끝남 — 공통 스위치 개편 (2026-10-01)
 

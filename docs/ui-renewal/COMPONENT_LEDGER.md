@@ -592,6 +592,12 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 
 ### 판 · 편집기 · 판 발 조합 (C-5)
 
+- **관리 작업 공간(`ui/Workspace.jsx`, D-531)** — 트리와 목록을 함께 쓰는 관리 화면(조직 관리)은 「채움 모드」다: 폭 1200 · 높이 600 이상에서 창
+  높이 안에 서고(문서가 굴러가지 않는다) 판마다 머리 · 도구 줄 · 발은 고정, 몸만 굴러간다(`WorkspacePane`, 표 몸은 `DataTable fill`). 판 격자는
+  `density.js::WORKSPACE_TRACKS.tree`. 그보다 작은 창은 한 열 흐름이고 트리 몸만 높이 상한 스크롤 상자다. 견본은 `#/kit/workspace`, 실측은
+  `scripts/ui_qa/workspace_e2e.py`. 아래 `PAGE_FILL_HEIGHT` 계산값 판(채팅방 · 채팅 · 새 티켓)은 배너가 서면 넘친다 — 같은 부품으로 옮기는 일은
+  BACKLOG P-121 이다.
+
 - **내용 폭 짝 트랙(`density.js::contentPairTracks` + `CONTENT_PAIR_CONTAINER`)** — 주 판 + 보조 레일 화면의 2열은 본문이 받은 폭이 정한다
   (본문 칸 64rem 컨테이너 질의). 실측: 1366 → 본문 1070px(66.9rem) 2열, 1200 → 904px(56.5rem) 1열이고 레일이 판 아래로 간다. 사이드바를 접으면
   같은 뷰포트에서도 본문 폭을 따른다. 소비처: 새 티켓 · LLM 콘솔 · 오프보딩(대상을 고른 뒤). 뷰포트 `pairTracks`(lg)는 그대로다 — 내 프로필

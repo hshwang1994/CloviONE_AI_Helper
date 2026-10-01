@@ -54,6 +54,8 @@ const AiWorkspace = React.lazy(() => import("../screens/AiWorkspace.jsx").then((
  * 늦게 싣는 이유가 다른 화면보다 강하다: 이 화면을 여는 사람은 이 제품을 만드는 사람뿐이라,
  * 쓰는 사람의 첫 로딩에 그 무게가 한 바이트도 얹히면 안 된다. */
 const KitGallery = React.lazy(() => import("../screens/dev/KitGallery.jsx").then((m) => ({ default: m.KitGallery })));
+/* 작업 공간 견본(`/kit/workspace`, D-531) — 채움 모드 · 판 굴림 · 표 채움을 재는 개발용 화면. 갤러리와 같은 이유로 늦게 싣는다. */
+const WorkspaceDemo = React.lazy(() => import("../screens/dev/WorkspaceDemo.jsx").then((m) => ({ default: m.WorkspaceDemo })));
 
 /* 라우트 청크가 통째로 아직 없다 — 회색 줄 여섯 개는 "무언가 온다"까지만 말하고, 실제
  * 화면이 도착하면 제목·지표·본문이 한꺼번에 튀어 들어온다. 들어올 배치를 미리 잡는다
@@ -165,6 +167,7 @@ function UserRoutes() {
       {/* 공통 부품 갤러리 — 확정 규약과 실제 부품을 나란히 놓고 보는 자리. 제품 화면이
           아니므로 사이드바에 없고, 역할 게이트도 없다(아무 데이터도 안 읽는다). */}
       <Route path="/kit" element={<Lazy><KitGallery /></Lazy>} />
+      <Route path="/kit/workspace" element={<Lazy><WorkspaceDemo /></Lazy>} />
       <Route path="*" element={<UserConsoleFallback />} />
     </Routes>
   );

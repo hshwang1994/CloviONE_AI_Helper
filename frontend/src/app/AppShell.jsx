@@ -43,6 +43,7 @@ import { recordNavVisit } from "../lib/recentNav.js";
 import { screenKeyOf, useEntryLinkClick, useEntryNavigate } from "./navEntry.jsx";
 import { Button as KitButton, Card, CountChip, CrumbRootProvider, ErrorState, SessionExpiredOutlet, Skeleton } from "../ui/kit.jsx";
 import { Banners } from "./Banners.jsx";
+import { WorkspaceShellContext, useWorkspaceShellState } from "../ui/Workspace.jsx";
 import { useStatusNotices } from "./StatusNotices.jsx";
 import { NOTI_UNREAD, invalidateNotifications, notiUnreadKey } from "./notification-keys.js";
 import { APPBAR_HEIGHT, BREAKPOINTS, CONTENT_MAX_WIDTH, CONTROL, FONT_SIZE, FONT_WEIGHT, ICON,
@@ -704,6 +705,9 @@ export function AppShell({
   const theme = useTheme();
   const auth = useAuth();
   const loc = useLocation();
+  /* 채움 모드(F5 · D-531) — 작업 공간 화면이 등록하고 창이 폭 1200 · 높이 600 이상이면 main 이 창 높이에 서고 본문 상자가 남은
+     높이를 받는 세로 묶음이 된다. 배너 · 범위 줄은 높이를 먹는 형제라 작업 공간은 남은 높이를 정확히 받는다(계산값 없음). */
+  const workspace = useWorkspaceShellState();
   // 콘솔 전환 · 상단 로고도 셸 이동이다 — 지금 화면과 같은 곳이면 새 진입이다(`navEntry.jsx`).
   const enter = useEntryNavigate();
   // 탭 제목을 화면마다 다르게 — 정적 <title> 하나뿐이라 어느 탭이 무엇인지 구분이 안 됐다.
@@ -868,6 +872,7 @@ export function AppShell({
   );
 
   return (
+    <WorkspaceShellContext.Provider value={workspace.api}>
     <Box sx={{ display: "flex", minHeight: "100dvh", bgcolor: "background.default" }}>
       {/* 화면 전환 알림 (Z14). 비어 있어도 **항상** 떠 있어야 한다 — 라이브 영역이 내용과
           같은 순간에 생기면 그 변화를 낭독하지 않는 스크린리더가 있다. 눈에는 보이지 않고
@@ -1111,7 +1116,10 @@ export function AppShell({
              (`root-scale-lever.test.js` 가 root.css 의 두 경계도 같은 값인지 단언한다.) */
           [`@media (min-width:${BREAKPOINTS.xxl}px)`]: { pt: `${APPBAR_HEIGHT.xxl}px` },
           [`@media (min-width:${BREAKPOINTS.uhd}px)`]: { pt: `${APPBAR_HEIGHT.uhd}px` },
+          /* 채움 모드 — 문서가 굴러가지 않는다. 화면 안의 판이 각자 굴린다. */
+          ...(workspace.fill ? { height: "100dvh", overflow: "hidden" } : null),
         }}
+        data-shell-fill={workspace.fill ? "" : undefined}
       >
         {/* 배너는 본문 폭 캡 밖에 있어야 한다 — 안쪽에 두면 4K 에서 화면 가운데만 띠가 뜨고
             양옆이 비어, "전역 공지"가 한 열짜리 카드처럼 보인다. 세션 만료(minimal) 상태에는
@@ -1134,6 +1142,8 @@ export function AppShell({
             // PA-RC-0020: 우하단 FAB을 없애 본문 위에 뜬 컨트롤이 더는 없다 — FAB
             // 자리를 비워 두던 큰 하단 여백(md:14)도 함께 걷어낸다.
             pb: { xs: 3, md: 4 },
+            /* 채움 모드 — 남은 높이를 받는 세로 묶음(여백은 그대로). 범위 줄은 높이를 먹고 화면이 나머지를 받는다. */
+            ...(workspace.fill ? { flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" } : null),
           }}
         >
           {!minimal ? <ScopeBar /> : null}
@@ -1163,6 +1173,7 @@ export function AppShell({
           세션 만료(minimal) 상태에서는 띄우지 않는다: 그때 필요한 유일한 행동은 재로그인이다. */}
       {!minimal ? <Tour /> : null}
     </Box>
+    </WorkspaceShellContext.Provider>
   );
 }
 

@@ -1,4 +1,5 @@
 import React from "react";
+import { ScrollRootContext } from "./scrollRoot.js";
 
 /* 목록 끝의 **논리** — 자동 로딩 센티넬 · 무성장 가드 · 자동 상한 · 받은 건수 문장 (UI 3차 · 조합 계약 C-3).
  *
@@ -80,8 +81,12 @@ export function useInfiniteSentinel(ref, { onHit, enabled, root = null, rootMarg
  */
 export function useListFooter({
   total = null, loaded = 0, hasNext = false, isFetchingNext = false, onMore,
-  unit = "건", root = null, autoMaxRows, enabled = true,
+  unit = "건", root, autoMaxRows, enabled = true,
 } = {}) {
+  /* 스크롤 창을 안 말하면 자리가 정한다 — 작업 공간 판 몸(`Workspace.jsx::WorkspacePane`) 안이면 실제로 굴리는 조상을 찾고
+     (`"auto"`), 그 밖이면 창이다. 판 안 목록이 창을 기준으로 「보인다」고 판정하면 판을 열자마자 끝까지 받는다(D-531). */
+  const ctxRoot = React.useContext(ScrollRootContext);
+  const scrollRoot = root !== undefined ? root : ctxRoot;
   const [node, setNode] = React.useState(null);
   /* ref **객체**가 노드와 함께 바뀌어야 `useInfiniteSentinel` 의 효과가 다시 돈다 — 평범한 `useRef` 는 센티넬이
      늦게 붙어도 효과를 다시 부르지 않아 자동 로딩이 조용히 안 걸린다. */
@@ -106,7 +111,7 @@ export function useListFooter({
   const next = !!(enabled && hasNext);
   const capped = autoMaxRows != null && (autoMaxRows === 0 || loaded >= autoMaxRows);
   const auto = next && !isFetchingNext && !stalled && !capped;
-  useInfiniteSentinel(nodeRef, { onHit: more, enabled: auto, root });
+  useInfiniteSentinel(nodeRef, { onHit: more, enabled: auto, root: scrollRoot });
 
   /* 다 받았고 셀 것도 없으면 아무 말도 안 한다 — 한 줄짜리 목록 아래에 「1건 중 1건」은
      자리만 먹는다(`Pager` 가 한 쪽짜리 목록에서 사라지던 것과 같은 규칙). */

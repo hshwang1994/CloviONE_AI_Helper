@@ -2783,7 +2783,12 @@ export function RowActions({ actions, ariaLabel = "행 작업 더 보기", max =
  *   selection  `{ count, onClear, actions }` — 고른 행에 할 일(`SelectionBar`).
  *   note       발 왼쪽에 덧붙는 한 토막(프로젝트 문서의 「총 N건 가운데 …」 같은 결과 문장).
  * 발에 그릴 것이 하나도 없으면 발 줄 자체를 안 그린다. */
-export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, empty, emptyState, emptyAction, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total, rowHeight, placement = "plain", list, selection, note }) {
+/* `fill` — 작업 공간 판 몸을 채우는 표(F5 · D-531). 표 상자가 남은 높이를 받아 두 축으로 직접 굴리고, 열 이름은 그 상자 위에 붙으며,
+   무한 받기 감시점은 상자 안에 서고(판을 열자마자 끝까지 받지 않게), 발(건수 · 「더 보기」)은 상자 아래에 고정이다. 판(`WorkspacePane
+   body="table"`) 안에서만 쓴다 — 문서 흐름 페이지의 표는 창이 굴린다. */
+const FILL_FRAME = { flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" };
+
+export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, empty, emptyState, emptyAction, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total, rowHeight, placement = "plain", list, selection, note, fill = false }) {
   // §15.1 재검수 — `VirtualTableBody` 는 스크롤 창을 스스로 안 만든다(문서 전체가 표
   // 흐름을 지키게, `VirtualRows`와 다른 이유는 그 부품 docblock 참고). 이 상자가 그 창
   // 이다 — `virtualize` 를 안 쓰면 아무도 안 읽는다(회귀 0).
@@ -2817,7 +2822,8 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
    *                「칸 안에서만 굴러가고 페이지는 안 밀린다」가 요구다.
    *
    * `height` 를 주면 box 다(옛 호출부 호환). 아무것도 안 주면 window 다. */
-  const virtualBox = !!(virtualize && (virtualize.mode === "box" || virtualize.height));
+  /* 채움 표는 상자가 스크롤 창이라 가상화도 상자 갈래다(높이는 판이 준다). */
+  const virtualBox = !!(virtualize && (virtualize.mode === "box" || virtualize.height || fill));
   const virtualWindow = !!virtualize && !virtualBox;
   const scrollMargin = useScrollMargin(virtualWindow ? scrollEl : null);
   /* 표가 자기 칸보다 넓은가 — 넘침을 바깥으로 넘길지 말지가 여기서 갈린다.
@@ -2899,7 +2905,8 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
      건수를 말하지 않는다. 「5건 중 5건」은 그 목록에서 사실이 아니다. */
   const footSpec = list === false ? null : (list
     || (framed && !note ? { total: total != null ? total : safeRows.length, loaded: safeRows.length } : null));
-  const foot = useListFooter(footSpec || { enabled: false });
+  /* 채움 표의 감시점은 표 상자(실제로 굴리는 조상)를 기준으로 본다. */
+  const foot = useListFooter(footSpec ? (fill ? { ...footSpec, root: "auto" } : footSpec) : { enabled: false });
   const selectionBar = selection && selection.count
     ? (
       <SelectionBar count={selection.count} unit={selection.unit} clearLabel={selection.clearLabel} onClear={selection.onClear}>
@@ -2954,7 +2961,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           data-list-surface=""
           data-table-placement="surface"
           data-list-state={state}
-          sx={{ p: padded ? CARD_PADDING : 0, overflow: "visible", minWidth: 0 }}
+          sx={{ p: padded ? CARD_PADDING : 0, overflow: "visible", minWidth: 0, ...(fill && !padded ? FILL_FRAME : null) }}
         >
           {children}
         </Surface>
@@ -2967,13 +2974,17 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           data-list-state={state}
           /* 좌우만 판 여백을 거스른다. 아래를 함께 거스르면(`:last-child` 음수 여백) 표를 감싼 상자 뒤에 오는 줄을 20px
              끌어올려 겹친다 — 판 아래 여백은 판의 것으로 둔다. */
-          sx={padded ? { minWidth: 0 } : { minWidth: 0, mx: `calc(-1 * ${CARD_PADDING})` }}
+          sx={padded ? { minWidth: 0 } : { minWidth: 0, mx: `calc(-1 * ${CARD_PADDING})`, ...(fill ? FILL_FRAME : null) }}
         >
           {children}
         </Box>
       );
     }
-    return padded ? children : <Box data-table-placement="plain" data-list-state={state} sx={{ minWidth: 0 }}>{children}</Box>;
+    return padded ? children : (
+      <Box data-table-placement="plain" data-list-state={state} data-table-fill={fill ? "" : undefined} sx={{ minWidth: 0, ...(fill ? FILL_FRAME : null) }}>
+        {children}
+      </Box>
+    );
   };
 
   /* 로딩 모양을 표가 스스로 안다 (지시 20). 호출부가 각자 `<Skeleton lines={6} />` 을 두면
@@ -3269,8 +3280,12 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           같은 선언을 쓴다. */}
       <TableContainer
         ref={setScrollEl}
+        data-table-box={fill ? "fill" : undefined}
         sx={{
-          ...(virtualBox
+          ...(fill
+            /* 채움 — 상자가 판 몸의 남은 높이를 받아 두 축으로 굴린다. 끝에서 휠을 더 굴려도 판 · 문서가 따라 움직이지 않는다. */
+            ? { flex: "1 1 auto", minHeight: 0, overflow: "auto", overscrollBehavior: "contain", ...SCROLL_BOX_STICKY_TOP }
+            : virtualBox
             ? { maxHeight: virtualize.height || "32rem", overflowY: "auto", ...SCROLL_BOX_STICKY_TOP }
             : ((stickyHeader || virtualWindow) && !xOverflow
               ? { overflowX: "visible", overflowY: "visible" }
@@ -3405,11 +3420,14 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           ) : renderBodyRows()}
         </TableBody>
       </Table>
+      {/* 채움 표의 감시점은 굴러가는 상자 **안** 표 끝에 선다 — 상자 밖이면 늘 「보여」 끝까지 받는다. */}
+      {fill ? sentinel : null}
       </TableContainer>
       {/* 발은 가로로 굴러가는 표 상자 **밖**, 판 안 마지막 줄이다 — 넓은 표를 가로로 굴려도 건수와 「더 보기」가 제자리다.
           빈 표는 「더 보기」가 남을 때만 발을 그린다(받은 0건을 문장으로 다시 말하지 않는다). */}
-      {sentinel}
-      {isEmpty ? (foot.hasNext ? footBar(false) : null) : footBar(placement === "surface")}
+      {fill ? null : sentinel}
+      {/* 채움 표의 발은 굴러가는 상자 아래에 고정이라 sticky 가 아니다. */}
+      {isEmpty ? (foot.hasNext ? footBar(false) : null) : footBar(placement === "surface" && !fill)}
       </>, isEmpty ? "empty" : undefined, false)}
     </FlatBadgeSurface>
   );

@@ -79,6 +79,13 @@ export const BASELINE_TRACKS = {
   listRail: "minmax(18rem, 22rem) minmax(0, 1fr)",
 };
 
+/* 작업 공간 판 격자 (F5 · D-531) — 왼쪽 판(트리)과 오른쪽 판. 왼쪽은 1536 미만 20rem · 그 이상 22rem 이고 판 사이는 24 다.
+   채움 모드(폭 1200 이상 · 높이 600 이상)에서만 두 열이다 — 그보다 작으면 한 열 흐름이다(`ui/Workspace.jsx`). 옛 `listRail`
+   (`minmax(18rem, 22rem) 1fr`)은 문서 흐름 페이지의 레일이라 남는 폭에 따라 레일 폭이 흔들렸다 — 작업 공간은 레일이 고정 폭이다. */
+export const WORKSPACE_TRACKS = {
+  tree: { lg: "20rem minmax(0, 1fr)", xl: "22rem minmax(0, 1fr)" },
+};
+
 /* 🔴 `kpi`(4열) · `three`(3열) · `health`(5열)를 걷었다 — 셋 다 **소비처가 0** 이었다.
  * 어휘는 쓰이는 만큼만 있어야 한다. 이름만 남은 트랙은 다음 사람에게 「여기 정본이 있으니
  * 이걸 쓰면 되겠다」로 읽히는데, 정작 그 값이 어느 화면에서도 검증된 적이 없다. 균등 N열이

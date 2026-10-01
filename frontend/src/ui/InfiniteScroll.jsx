@@ -34,7 +34,7 @@ export { useInfiniteSentinel };
  */
 export function ListFooter({
   total, loaded, hasNext, isFetchingNext, onMore,
-  unit = "건", moreLabel = "더 보기", root = null, autoMaxRows, sx,
+  unit = "건", moreLabel = "더 보기", root, autoMaxRows, sx,
 }) {
   const foot = useListFooter({ total, loaded, hasNext, isFetchingNext, onMore, unit, root, autoMaxRows });
   if (!foot.sentence) return null;
