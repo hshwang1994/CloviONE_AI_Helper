@@ -8,6 +8,7 @@ import Typography from "@mui/material/Typography";
 import DevicesOtherRoundedIcon from "@mui/icons-material/DevicesOtherRounded";
 import { api } from "../lib/api.js";
 import { fmtDateTime, fmtRelative, shortUA } from "../lib/format.js";
+import { useInstantSave } from "../lib/useInstantSave.js";
 import { useAuth } from "../app/auth.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { AvatarCropDialog } from "../ui/AvatarCropDialog.jsx";
@@ -301,9 +302,39 @@ function IdentityHeader({ profile, prefs, onChanged }) {
   );
 }
 
+/* PATCH 본문을 GET 모양에 미리 얹는다 — 누른 순간 스위치가 움직이게 하는 낙관적 반영이다(`useInstantSave`, D-525).
+ * 서버가 계산하는 값(방해금지의 지금 조용한지 · 그 까닭)은 얹지 않는다 — 응답이 채운다. 끝나는 시각만 어림해서 얹어
+ * 「직접 끌 때까지」가 잠깐 비치지 않게 한다(응답의 값이 곧 덮는다). */
+function applyPrefsPatch(prefs, body) {
+  const next = { ...prefs };
+  if ("muted_types" in body) next.notifications = { ...prefs.notifications, muted_types: body.muted_types };
+  if ("mail_enabled" in body || "mail_types" in body) {
+    next.mail = { ...prefs.mail };
+    if ("mail_enabled" in body) next.mail.enabled = body.mail_enabled;
+    if ("mail_types" in body) next.mail.types = body.mail_types;
+  }
+  const dndKeys = ["dnd_enabled", "quiet_hours_enabled", "quiet_start", "quiet_end"];
+  if (dndKeys.some((k) => k in body)) {
+    next.dnd = { ...prefs.dnd };
+    if ("dnd_enabled" in body) {
+      next.dnd.enabled = body.dnd_enabled;
+      next.dnd.until = body.dnd_enabled && body.dnd_minutes > 0
+        ? new Date(Date.now() + body.dnd_minutes * 60_000).toISOString()
+        : null;
+    }
+    if ("quiet_hours_enabled" in body) next.dnd.quiet_hours_enabled = body.quiet_hours_enabled;
+    if ("quiet_start" in body) next.dnd.quiet_start = body.quiet_start;
+    if ("quiet_end" in body) next.dnd.quiet_end = body.quiet_end;
+  }
+  return next;
+}
+
 /* 알림 설정 — 유형별 뮤트. 목록은 **서버가 준다**(prefs.notifications.catalog).
- * 프런트에 유형 목록을 복사해 두면 서버가 유형을 늘려도 화면에는 영영 안 나온다. */
-function NotificationCard({ prefs, save, saving }) {
+ * 프런트에 유형 목록을 복사해 두면 서버가 유형을 늘려도 화면에는 영영 안 나온다.
+ *
+ * 스위치는 저장이 도는 동안에도 켜져 있다 — 저장은 한 줄로 나가고 누른 순간 반영된다(`useInstantSave`). 저장 중이라고
+ * 스물여섯 개를 비활성으로 바꾸면 하나를 누를 때마다 목록 전체가 번쩍인다(D-525). */
+function NotificationCard({ prefs, save }) {
   const muted = new Set(prefs.notifications.muted_types || []);
   const toggle = (key) => {
     const next = new Set(muted);
@@ -341,13 +372,14 @@ function NotificationCard({ prefs, save, saving }) {
           <Box component="li" key={row.key} sx={{ breakInside: "avoid" }}>
             <SettingRow
               compact label={row.label} description={row.help}
+              controlId={`pref-badge-${row.key}`}
               /* MUI 7 의 Switch 는 `inputProps` 를 **조용히 버린다** — 그렇게 쓰면 스위치에
                  접근 가능한 이름이 아예 없어 스크린리더가 이름 없는 컨트롤로 읽는다(테스트에서
                  실제로 잡았다). slotProps.input 이 <input> 에 닿는 유일한 통로다. */
               action={(
                 <Switch
+                  id={`pref-badge-${row.key}`}
                   checked={!muted.has(row.key)}
-                  disabled={saving}
                   onChange={() => toggle(row.key)}
                   slotProps={{ input: { "aria-label": `${row.label} 배지 알림` } }}
                 />
@@ -359,7 +391,7 @@ function NotificationCard({ prefs, save, saving }) {
       <Note sx={{ mt: 0 }}>
         계정 잠금처럼 보안에 관한 알림은 끌 수 없습니다. 침해를 알리는 유일한 신호이기 때문입니다.
       </Note>
-      <MailSection mail={prefs.mail} save={save} saving={saving} />
+      <MailSection mail={prefs.mail} save={save} />
     </Card>
   );
 }
@@ -369,7 +401,7 @@ function NotificationCard({ prefs, save, saving }) {
  * 고를 수 있는 유형은 **서버가 준다**(`mail.catalog` — 관리자가 허용한 유형). 스위치 하나는 한 가지만 보낸다: 큰
  * 스위치는 `{mail_enabled}`, 유형 스위치는 받을 유형 전체 `{mail_types}`. 메일 발송이 정상이 아니면 그 사실을 한
  * 문장으로 먼저 말한다 — 켰는데 메일이 안 오는 까닭을 사람이 찾지 않게. */
-function MailSection({ mail, save, saving }) {
+function MailSection({ mail, save }) {
   if (!mail) return null;
   const catalog = mail.catalog || [];
   const chosen = new Set(mail.types || []);
@@ -392,10 +424,11 @@ function MailSection({ mail, save, saving }) {
         <>
           <SettingRow
             compact label="메일로도 받기" description="아래에서 고른 알림을 이메일로도 받습니다."
+            controlId="pref-mail-enabled"
             action={(
               <Switch
+                id="pref-mail-enabled"
                 checked={!!mail.enabled}
-                disabled={saving}
                 onChange={() => save({ mail_enabled: !mail.enabled })}
                 slotProps={{ input: { "aria-label": "알림을 메일로도 받기" } }}
               />
@@ -404,12 +437,15 @@ function MailSection({ mail, save, saving }) {
           <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, columnWidth: "20rem", columnGap: GRID_GAP }}>
             {catalog.map((row) => (
               <Box component="li" key={row.key} sx={{ breakInside: "avoid" }}>
+                {/* 비활성은 실제 조건 하나뿐이다 — 메일을 끈 동안에는 유형을 고를 수 없다. */}
                 <SettingRow
                   compact label={row.label} description={row.help}
+                  controlId={`pref-mail-${row.key}`}
                   action={(
                     <Switch
+                      id={`pref-mail-${row.key}`}
                       checked={chosen.has(row.key)}
-                      disabled={saving || !mail.enabled}
+                      disabled={!mail.enabled}
                       onChange={() => toggleType(row.key)}
                       slotProps={{ input: { "aria-label": `${row.label} 메일로 받기` } }}
                     />
@@ -427,12 +463,13 @@ function MailSection({ mail, save, saving }) {
 }
 
 /* 방해금지 — '지금 조용히'(수동)와 '매일 이 시간대'(조용시간) 두 가지. */
-function DndCard({ prefs, save, saving }) {
+function DndCard({ prefs, save }) {
   const dnd = prefs.dnd;
   const [start, setStart] = React.useState(dnd.quiet_start);
   const [end, setEnd] = React.useState(dnd.quiet_end);
   React.useEffect(() => { setStart(dnd.quiet_start); setEnd(dnd.quiet_end); }, [dnd.quiet_start, dnd.quiet_end]);
-  const fieldsOff = !dnd.quiet_hours_enabled || saving;
+  /* 시각 칸은 조용시간을 켰을 때만 쓴다 — 저장 중이라는 이유로 끄지 않는다(저장은 한 줄로 나간다, D-525). */
+  const fieldsOff = !dnd.quiet_hours_enabled;
 
   return (
     <Card sx={CARD_ROWS}>
@@ -457,10 +494,11 @@ function DndCard({ prefs, save, saving }) {
           compact
           label="지금 조용히 하기"
           description={dnd.enabled ? (dnd.until ? `${fmtRelative(dnd.until)} 자동 해제` : "직접 끌 때까지") : undefined}
+          controlId="pref-dnd-now"
           action={(
             <Switch
+              id="pref-dnd-now"
               checked={!!dnd.enabled}
-              disabled={saving}
               onChange={(e) => save({ dnd_enabled: e.target.checked, dnd_minutes: e.target.checked ? 60 : 0 })}
               slotProps={{ input: { "aria-label": "방해금지" } }}
             />
@@ -472,7 +510,7 @@ function DndCard({ prefs, save, saving }) {
         {dnd.enabled ? (
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", pt: 1.25 }}>
             {DND_PRESETS.map((p) => (
-              <Button key={p.label} size="sm" disabled={saving}
+              <Button key={p.label} size="sm"
                 onClick={() => save({ dnd_enabled: true, dnd_minutes: p.minutes })}>
                 {p.label}
               </Button>
@@ -484,10 +522,11 @@ function DndCard({ prefs, save, saving }) {
           compact
           label="매일 같은 시간대에 조용히 하기"
           description="한국 시간 기준입니다. 자정을 넘겨도 됩니다(예: 22:00 에서 08:00)."
+          controlId="pref-dnd-quiet"
           action={(
             <Switch
+              id="pref-dnd-quiet"
               checked={!!dnd.quiet_hours_enabled}
-              disabled={saving}
               onChange={(e) => save({ quiet_hours_enabled: e.target.checked })}
               slotProps={{ input: { "aria-label": "조용시간" } }}
             />
@@ -719,10 +758,14 @@ export function Profile() {
   const profileQuery = useQuery({ queryKey: ["profile"], queryFn: () => api("/api/profile"), retry: false });
   const prefsQuery = useQuery({ queryKey: ["me-preferences"], queryFn: () => api("/api/me/preferences"), retry: false });
 
-  const savePrefs = useMutation({
+  /* 알림 · 메일 · 방해금지는 누르는 즉시 저장되는 설정이다 — 누른 순간 반영하고 요청은 한 줄로 보낸다(D-525).
+     응답은 설정 전체라 줄의 마지막 응답으로 캐시를 쓴다. */
+  const savePrefs = useInstantSave({
+    queryKey: ["me-preferences"],
     mutationFn: (body) => api("/api/me/preferences", { method: "PATCH", body }),
-    onSuccess: (data) => {
-      qc.setQueryData(["me-preferences"], data);
+    apply: applyPrefsPatch,
+    fromResponse: (data) => data,
+    onSaved: () => {
       // 배지가 즉시 조용해지거나 다시 켜지도록 벨 폴링도 함께 무효화한다.
       invalidateNotifications(qc);
       toast("설정을 저장했습니다.", "success");
@@ -765,12 +808,12 @@ export function Profile() {
           />
           <Box sx={TWO_COL_EVEN}>
             {/* 왼쪽은 판 하나다. 유형이 스물이라 이 판 하나가 오른쪽 넷과 키가 맞는다. */}
-            <NotificationCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
+            <NotificationCard prefs={prefsQuery.data} save={savePrefs.mutate} />
             {/* 오른쪽은 **내 기기 → 방해금지 → 강조색 → 둘러보기**다. 앞의 둘은 계정과
                 알림에 관한 것이고 뒤의 둘은 이 브라우저의 취향과 안내다 — 급한 것이 위다. */}
             <Box sx={{ display: "grid", gap: GRID_GAP, alignContent: "start", minWidth: 0 }}>
               <SessionsCard />
-              <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} saving={savePrefs.isPending} />
+              <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} />
               <AccentPicker />
               <TourCard
                 tour={prefsQuery.data.tour}

@@ -5,6 +5,7 @@ import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
+import { useInstantSave } from "../lib/useInstantSave.js";
 import {
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, MetaBar, Section, Segmented, Skeleton, TechDetail,
   useConfirm, useToast,
@@ -412,15 +413,24 @@ const AGE_CHOICES = [1, 3, 7, 14, 30];
  * 목록은 **서버가 준다**(`notification_mail.catalog` — 메일로 보낼 수 있는 유형 전부). 저장은 설정 API 하나로 하고
  * (`mail_notification_types`, `mail_notification_max_age_days`), 그 두 값은 설정 표에서 숨긴다 — 같은 값을 두 화면이
  * 서로 다른 방식으로 다루지 않게(`settingsRegistry.js::MAIL_SCREEN_KEYS`). */
+/* 설정 저장을 현황 응답 모양에 미리 얹는다 — 누른 순간 스위치 · 세그먼티드가 움직이게 하는 낙관적 반영이다(D-525). */
+const NOTIFICATION_MAIL_FIELD = { mail_notification_types: "allowed", mail_notification_max_age_days: "max_age_days" };
+
+function applyNotificationMail(status, { key, value }) {
+  const field = NOTIFICATION_MAIL_FIELD[key];
+  if (!field || !status || !status.notification_mail) return status;
+  return { ...status, notification_mail: { ...status.notification_mail, [field]: value } };
+}
+
 function NotificationMailSection({ info, canWrite }) {
-  const qc = useQueryClient();
   const toast = useToast();
-  const save = useMutation({
+  /* 스위치는 저장이 도는 동안에도 켜져 있다 — 저장은 한 줄로 나가고 누른 순간 반영된다(`useInstantSave`). 비활성은
+     실제 조건 하나뿐이다: 쓰기 권한이 없는 운영자 · 감사자. */
+  const save = useInstantSave({
+    queryKey: ["mail-status"],
     mutationFn: ({ key, value }) => api("/api/admin/settings/" + key, { method: "PUT", body: { value } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["mail-status"] });
-      toast("알림 메일 설정을 저장했습니다.", "success");
-    },
+    apply: applyNotificationMail,
+    onSaved: () => toast("알림 메일 설정을 저장했습니다.", "success"),
     onError: (e) => toast(e.message, "error"),
   });
   if (!info) return null;
@@ -444,10 +454,12 @@ function NotificationMailSection({ info, canWrite }) {
             <Box component="li" key={row.key} sx={{ breakInside: "avoid" }}>
               <SettingRow
                 compact label={row.label} description={row.help}
+                controlId={`mail-allow-${row.key}`}
                 action={(
                   <Switch
+                    id={`mail-allow-${row.key}`}
                     checked={allowed.has(row.key)}
-                    disabled={!canWrite || save.isPending}
+                    disabled={!canWrite}
                     onChange={() => toggle(row.key)}
                     slotProps={{ input: { "aria-label": `${row.label} 메일 허용` } }}
                   />

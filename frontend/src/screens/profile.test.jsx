@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -158,6 +158,63 @@ describe("내 프로필", () => {
         method: "PATCH", body: { muted_types: ["job_failed"] },
       })
     );
+  });
+
+  /* D-525 — 저장 중에 스위치를 끄지 않는다. 예전에는 저장이 도는 동안 모든 스위치가 비활성이 되어 하나를 누를 때마다
+     목록 전체가 번쩍였고, 손잡이는 응답이 와서야 움직였다. 지금은 누른 순간 바뀌고, 저장은 한 줄로 나가며, 둘째
+     요청은 첫 변경을 품는다(목록 전체를 보내는 저장이라 옛 목록에서 계산하면 앞 변경을 지운다). */
+  it("저장이 도는 동안에도 스위치는 켜져 있고, 누른 순간 바뀌며, 둘째 저장은 첫 응답 뒤에 두 변경을 함께 싣는다", async () => {
+    const pending = [];
+    apiMock.mockImplementation((path, options) => {
+      if (path === "/api/me/preferences" && options && options.method === "PATCH") {
+        return new Promise((resolve) => pending.push(() => resolve(prefs(patched(options.body)))));
+      }
+      return route(path, options);
+    });
+    const patches = () => apiMock.mock.calls.filter(([p, o]) => p === "/api/me/preferences" && o && o.method === "PATCH");
+    renderProfile();
+    const job = await screen.findByRole("switch", { name: "작업 실패 배지 알림" });
+    const mention = screen.getByRole("switch", { name: "@멘션 배지 알림" });
+    expect(job).toBeChecked();
+    expect(mention).toBeChecked();
+
+    await userEvent.click(job);
+    // 응답 전이다 — 누른 스위치는 이미 바뀌었고 어느 스위치도 비활성이 아니다.
+    expect(job).not.toBeChecked();
+    expect(job).toBeEnabled();
+    expect(mention).toBeEnabled();
+
+    await userEvent.click(mention);
+    expect(mention).not.toBeChecked();
+    // 둘째 저장은 아직 나가지 않았다 — 같은 대상의 저장은 한 줄이다.
+    expect(patches()).toHaveLength(1);
+
+    await act(async () => { pending[0](); });
+    await waitFor(() => expect(patches()).toHaveLength(2));
+    expect(patches()[1][1].body).toEqual({ muted_types: ["job_failed", "chat_mentioned"] });
+    // 첫 응답(작업 실패만 뮤트)이 줄 선 둘째 토글을 되돌리지 않았다.
+    expect(mention).not.toBeChecked();
+
+    await act(async () => { pending[1](); });
+    await waitFor(() => expect(screen.getByText("설정을 저장했습니다.")).toBeInTheDocument());
+    expect(job).not.toBeChecked();
+    expect(mention).not.toBeChecked();
+    // 성공 알림은 줄이 빌 때 한 번이다 — 연달아 바꿀 때 토스트가 쌓이지 않는다.
+    expect(screen.getAllByText("설정을 저장했습니다.")).toHaveLength(1);
+  });
+
+  it("저장이 실패하면 스위치는 원래 자리로 돌아가고 까닭을 알린다", async () => {
+    apiMock.mockImplementation((path, options) => {
+      if (path === "/api/me/preferences" && options && options.method === "PATCH") {
+        return Promise.reject(new Error("설정을 저장하지 못했습니다."));
+      }
+      return route(path, options);
+    });
+    renderProfile();
+    const job = await screen.findByRole("switch", { name: "작업 실패 배지 알림" });
+    await userEvent.click(job);
+    expect(await screen.findByText("설정을 저장하지 못했습니다.")).toBeInTheDocument();
+    await waitFor(() => expect(job).toBeChecked());
   });
 
   it("보안 알림은 끌 수 없다는 사실을 화면이 말한다", async () => {

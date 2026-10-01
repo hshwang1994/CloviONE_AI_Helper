@@ -49,6 +49,22 @@ def test_harness_mode_does_not_pass_base_url_argv():
     assert 'cap_mod.DEFAULT_BASE_URL = base' in text
 
 
+def test_harness_mode_forwards_only_typed_flags():
+    """`--fail-on` 을 적었는데 하네스에 안 가면 실패가 보고만 되고 종료 코드가 0 이다 — 적은 것만, 적은 그대로 넘긴다."""
+    import argparse
+
+    from scripts.ui_qa.local_capture import harness_passthrough
+
+    args = argparse.Namespace(routes=["user_kit"], viewports=["1920x1080"], fail_on=["switch_geometry"])
+    typed = {"--harness", "kit_measure", "--fail-on", "switch_geometry"}
+    assert harness_passthrough(typed, args) == ["--fail-on", "switch_geometry"]
+    typed_all = typed | {"--routes", "--viewports"}
+    assert harness_passthrough(typed_all, args) == [
+        "--routes", "user_kit", "--viewports", "1920x1080", "--fail-on", "switch_geometry"]
+    # 적지 않은 이름은 기본값이 있어도 넘기지 않는다(그 이름을 모르는 하네스가 argparse 로 죽는다).
+    assert harness_passthrough({"--harness", "keyboard"}, args) == []
+
+
 def test_stage_static_update_closes_stdin():
     src = Path(__file__).resolve().parents[2] / "tests" / "regression" / "test_stage_static_update.py"
     text = src.read_text(encoding="utf-8")

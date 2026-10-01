@@ -40,6 +40,19 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.ui_qa import local_server  # noqa: E402
 
 
+def harness_passthrough(typed: set[str], args) -> list[str]:
+    """하네스 모드에서 이 스크립트가 먼저 먹은 이름 중 **사람이 실제로 적은 것만** 하네스에 넘긴다.
+
+    `--routes`·`--viewports`·`--fail-on` 은 이 스크립트도 선언한 이름이라 `parse_known_args` 가 먼저 먹는다. 기본값을
+    넘기면 그 이름을 모르는 하네스가 죽고, 적은 것을 안 넘기면 하네스가 조용히 다른 일을 한다 — `--fail-on` 이 그랬다:
+    `--harness kit_measure --fail-on switch_geometry` 가 실패를 보고만 하고 종료 코드 0 을 냈다(D-525 에서 고침)."""
+    out: list[str] = []
+    for flag, value in (("--routes", args.routes), ("--viewports", args.viewports), ("--fail-on", args.fail_on)):
+        if flag in typed and value:
+            out += [flag, *value]
+    return out
+
+
 def main() -> int:
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -103,12 +116,7 @@ def main() -> int:
             # **사람이 실제로 적었을 때만** 넘긴다(기본값을 넘기면 그 이름을 모르는 하네스가
             # 죽는다). `hostile_data --routes user_ticket-detail --viewports 3840x2160` 이
             # 조용히 기본 네 화면을 찍고 초록을 내던 자리다.
-            typed = set(sys.argv)
-            passthrough: list[str] = []
-            if "--routes" in typed and args.routes:
-                passthrough += ["--routes", *args.routes]
-            if "--viewports" in typed and args.viewports:
-                passthrough += ["--viewports", *args.viewports]
+            passthrough = harness_passthrough(set(sys.argv), args)
             for name in args.harness:
                 mod = importlib.import_module("scripts.ui_qa." + name)
                 sys.argv = [name + ".py", *passthrough, *rest]

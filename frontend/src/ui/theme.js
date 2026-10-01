@@ -194,6 +194,47 @@ export const ICON = { mark: 16, inline: 18, nav: 20, action: 20, hero: 24 };
 /** px 계약값을 4K 레버가 따라오는 rem 문자열로. 값의 정본은 위 표 하나다. */
 export function remPx(px) { return `${px / 16}rem`; }
 
+/* 스위치 — **보이는 크기와 누르는 자리를 따로 잰다** (D-525). 크기는 하나다(`size` 변형 없음).
+ *
+ *   트랙    38 × 22  높이는 `CONTROL.pill` — 배지 · 태그와 같은 알약이고 라벨 한 줄(14px × 1.6)과 같다
+ *   손잡이  16       원형. 안쪽 여백 3(테두리 1 + 틈 2)이 위 · 아래 · 끝에서 같다
+ *   폭      38       손잡이 둘 + 여백 둘 — 꺼짐 자리와 켜짐 자리가 맞닿는다
+ *   이동    16       폭 − 2 × 여백 − 손잡이 (눈대중이 아니라 식이다)
+ *   상자    50 × 44  누르는 자리. 클릭을 받는 것은 숨은 input 이고(MUI 가 switchBase 폭의 300% 로 깔고 루트의
+ *                    overflow:hidden 이 자른다) 그 input 이 루트 전체를 덮는다. 둘레(가로 6 · 세로 11)는 초점
+ *                    링(2px + offset 2) 자리이기도 하다
+ *   배치    34       위아래 바깥 여백 −5 — 줄이 보는 높이는 단추와 같은 `CONTROL.button` 이라 행 높이가 그대로다.
+ *                    늘어난 5px 는 설정 줄의 위아래 패딩(10px) 안에 든다
+ *
+ * 체크박스처럼 `::after` 로 목표를 넓히지 않는 이유: 가상 요소는 클릭을 받아도 input 을 누르지 못한다.
+ * 예전 결함 둘(D-525): MUI 의 루트 폭(58px)과 트랙 모서리(7px)만 px 로 남아 루트 글자가 18 · 20px 인 넓은
+ * 화면에서 트랙이 31×22.5 · 28×25 로 짧고 두꺼워지고 켠 손잡이가 트랙 끝을 5 · 12px 넘었다. 20px 트랙의
+ * 7px 모서리는 알약이 아니라 막대였고, 손잡이(반지름 8 + 여백 2)와 동심이 아니라 끝의 틈이 고르지 않았다. */
+export const SWITCH = (() => {
+  const trackH = CONTROL.pill;
+  const thumb = 16;
+  const inset = (trackH - thumb) / 2;
+  const trackW = 2 * (thumb + inset);
+  const hit = 44;
+  const padX = 6;
+  const padY = (hit - trackH) / 2;
+  return {
+    trackW,
+    trackH,
+    thumb,
+    inset,
+    travel: trackW - 2 * inset - thumb,
+    hit,
+    padX,
+    padY,
+    boxW: trackW + 2 * padX,
+    marginY: (CONTROL.button - hit) / 2,
+  };
+})();
+
+/* 켠 스위치의 손잡이 — 두 모드가 같은 흰색이다. 강조색 프리셋 다섯 전부에서 4.68:1 이상(theme-contract 가 잰다). */
+const SWITCH_THUMB_ON = "#FFFFFF";
+
 /* 사이드바 항목의 **가로 해부구조** — PLAN «Icon System» 의 라벨 시작선 계약.
  *
  *   padInline 12 + glyph 20 + gap 10 = labelStart 42
@@ -619,6 +660,16 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
   const shadows = light ? SHADOW.light : SHADOW.dark;
   const primaryStrong = mixSrgb(primary, t.strongMix[0], t.strongMix[1]);
   const primarySoft = mixSrgb(primary, t.plate, t.softMix);
+  /* 키보드 초점 링 — 버튼 · 링크 · 전역 `:focus-visible` · 스위치 트랙이 같은 한 줄을 쓴다(KBD-01~03). */
+  const focusOutline = `2px solid var(--clovir-focus-ring, ${t.focusRing})`;
+  /* 스위치 색 (D-525). 켠 트랙의 가장자리는 dark 에서 한 단 밝힌다 — `primary.main` 은 두 모드가 같은 값이라
+     어두운 판 위에서 2.81~3.76 이고, 가장자리가 3:1 아래면 알약의 끝이 판에 묻힌다(`primary.dark` 는 6.26~7.32).
+     켠 스위치의 올림 · 누름은 강조색을 그 모드의 강한 쪽으로 15% 민다 — 단추의 `primary.dark`(28 · 38%)를 그대로
+     쓰면 dark 에서 흰 손잡이가 2.41~2.81 로 3:1 아래가 된다(15% 면 3.5 이상). */
+  const switchOnEdge = light ? primary : primaryStrong;
+  const switchOnStep = mixSrgb(primary, t.strongMix[0], 0.85);
+  const switchPaint = `background-color ${MOTION.fast} ${MOTION.ease}, border-color ${MOTION.fast} ${MOTION.ease}`;
+  const switchInput = (state) => `:has(.MuiSwitch-input:${state})`;
 
   return createTheme({
     breakpoints: { keys: ["xs", "sm", "md", "lg", "xl", "xxl", "uhd"], values: BREAKPOINTS },
@@ -766,7 +817,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             "--clovir-wordmark": brandInk.wordmark,
           },
           ":focus-visible": {
-            outline: `2px solid var(--clovir-focus-ring, ${t.focusRing})`,
+            outline: focusOutline,
             outlineOffset: 2,
           },
           html: { minWidth: 320, wordBreak: "keep-all" },
@@ -800,7 +851,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
         styleOverrides: {
           root: {
             "&.Mui-focusVisible": {
-              outline: `2px solid var(--clovir-focus-ring, ${t.focusRing})`,
+              outline: focusOutline,
               outlineOffset: 2,
             },
           },
@@ -812,7 +863,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             color: primaryStrong,
             textUnderlineOffset: "0.15em",
             "&:focus-visible": {
-              outline: `2px solid var(--clovir-focus-ring, ${t.focusRing})`,
+              outline: focusOutline,
               outlineOffset: 2,
             },
           },
@@ -889,64 +940,86 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
        * 실측(`/profile` 카드 한 줄) — Switch 38 · 입력 36 · 버튼 30, 세 종류가 나란히 있고
        * 중심선이 9.8px 어긋났다. 값을 새로 만들지 않는다 — 전부 위 `CONTROL` 에서 나온다.
        *
-       * 손가락 목표는 시각 크기와 **다른 값**이다(WCAG 2.2). 아이콘 버튼과 같은 관용으로
-       * `::after` 가 상자 밖으로 목표를 넓힌다 — 시각 크기를 키우면 표 행이 함께 자란다. */
+       * 손가락 목표는 시각 크기와 **다른 값**이다(WCAG 2.2). 체크박스 · 라디오는 아이콘 버튼과 같은
+       * 관용으로 `::after` 가 상자 밖으로 목표를 넓힌다 — 시각 크기를 키우면 표 행이 함께 자란다.
+       * 스위치는 그 관용을 쓰지 못한다(아래 `SWITCH` 주석) — 루트 상자 자체가 누르는 자리다. */
       MuiSwitch: {
+        /* 물결은 끈다 — 초점은 트랙의 링이, 누름은 트랙 색이 말한다. 켜 두면 초점 물결이 손잡이 둘레에서
+           깜빡이고 루트의 overflow:hidden 에 잘린다. */
+        defaultProps: { disableRipple: true },
         styleOverrides: {
-          /* 🔴 트랙 색을 **직접 정한다.** MUI 기본은 켠 트랙을 강조색의 반투명(0.5)으로,
-             끈 트랙을 검정 반투명으로 그린다 — 두 색 다 뒤에 깔린 면에 따라 값이 달라지고,
-             켠 트랙은 규약색보다 눈에 띄게 연했다. 확정 규약은 켜짐 `primary`, 꺼짐
-             `dividerStrong`, 손잡이 흰색이다. `opacity: 1` 이 없으면 MUI 가 다시 반투명으로
-             덮는다(비활성일 때만 흐려진다). */
-          track: ({ theme }) => ({
-            backgroundColor: theme.palette.dividerStrong,
-            opacity: 1,
-          }),
-          thumb: ({ theme }) => ({
-            backgroundColor: theme.palette.common.white,
-            boxShadow: theme.shadowTokens ? theme.shadowTokens.raised : undefined,
-          }),
-          switchBase: ({ theme }) => ({
-            "&.Mui-checked + .MuiSwitch-track": {
-              backgroundColor: theme.palette.primary.main,
-              opacity: 1,
-            },
-            "&.Mui-checked .MuiSwitch-thumb": { backgroundColor: theme.palette.common.white },
-            "&.Mui-disabled + .MuiSwitch-track": { opacity: 0.45 },
-          }),
+          /* 기하는 전부 `SWITCH` 에서 나오고 전부 rem 이다(4K 레버를 함께 탄다). 중첩 선택자로 루트에 두는 것은
+             MUI 의 `size="small"` 변형(같은 자리의 px 값)보다 **뒤에** 서기 위해서다 — 그래서 `size` 를 줘도 같은
+             스위치다. 크기 변형을 따로 만들지 않는다. `edge` 가 넣는 바깥 여백(루트 ±8 · switchBase −12/−3)도
+             여기서 0 으로 덮는다 — switchBase 는 절대 배치라 그 여백이 손잡이만 트랙에서 밀어낸다. `color` 도
+             변형이 아니다(스위치는 언제나 강조색이다). */
           root: {
-            /* 트랙은 **34 x 20** 이다 — 확정 규약의 스위치 치수.
-             *
-             * 예전에는 38 x 14 였다(상자 34 - 2*10). 폭은 맞고 높이만 낮았는데, 그 4px 이
-             * 손잡이를 트랙보다 크게 만들어 알약 위에 구슬이 얹힌 모양이 됐다. 트랙 안에
-             * 손잡이가 **들어가야** 켜짐과 꺼짐이 위치로 읽힌다.
-             *
-             * 폭과 높이를 따로 잰다. 트랙은 「상자 - 2*패딩」이고 상자는 MUI 기본값
-             * 58 x 34(높이는 위 한 줄이 정한다)이라, 한 패딩 값으로는 둘을 같이 못 맞춘다:
-             *   폭  58 - 2*12 = 34
-             *   높이 34 - 2*7  = 20
-             * 손잡이는 16 이고 트랙 안쪽으로 2px 씩 들어간다(가로 14 = 12 + 2, 세로 9).
-             * 켜짐 이동거리도 그래서 14 다 — 트랙 오른쪽 끝에서 2px 앞에 선다. */
-            height: remPx(CONTROL.button),
-            paddingBlock: remPx(7),
-            paddingInline: remPx(12),
-            /* 작은 스위치는 자기 블록이 따로 있다(아래) — 여기 치수를 물려받으면 그쪽
-               계산이 두 곳으로 갈린다. 크기 이름으로 잘라 둔다. */
-            "&:not(.MuiSwitch-sizeSmall)": {
-              "& .MuiSwitch-thumb": { width: remPx(16), height: remPx(16) },
-              "& .MuiSwitch-switchBase": { paddingBlock: remPx(9), paddingInline: remPx(14) },
-              "& .MuiSwitch-switchBase.Mui-checked": { transform: `translateX(${remPx(14)})` },
-            },
-          },
-          /* `size="small"` 은 손잡이가 16px, switchBase 패딩이 4px 이다. root 만 34/10 으로
-             키우면 손잡이가 상자 천장에 붙어 라벨보다 위로 뜬다(프로젝트 필터 실측).
-             상자 높이는 작은 버튼(30)과 같고, 패딩은 손잡이를 세로 가운데에 둔다. */
-          sizeSmall: {
-            height: remPx(CONTROL.buttonSm),
-            padding: remPx((CONTROL.buttonSm - 16) / 2),
+            width: remPx(SWITCH.boxW),
+            height: remPx(SWITCH.hit),
+            padding: `${remPx(SWITCH.padY)} ${remPx(SWITCH.padX)}`,
+            margin: `${remPx(SWITCH.marginY)} 0`,
             "& .MuiSwitch-switchBase": {
-              padding: remPx((CONTROL.buttonSm - 16) / 2),
+              margin: 0,
+              padding: `${remPx(SWITCH.padY + SWITCH.inset)} ${remPx(SWITCH.padX + SWITCH.inset)}`,
             },
+            "& .MuiSwitch-switchBase.Mui-checked": { transform: `translateX(${remPx(SWITCH.travel)})` },
+            "& .MuiSwitch-thumb": { width: remPx(SWITCH.thumb), height: remPx(SWITCH.thumb) },
+          },
+          /* 꺼짐은 면 없이 선과 점만 선다 — 26개가 반복되는 알림 목록에서 면적을 가진 것은 켠 것뿐이다.
+             MUI 가 트랙에 깔아 둔 1px 투명 테두리에 색만 준다(상자 크기는 그대로). 손잡이의 1px 투명 테두리는
+             건드리지 않는다 — 고대비 모드에서 그것이 손잡이의 윤곽이 된다. */
+          track: {
+            opacity: 1,
+            borderRadius: RADIUS.full,
+            backgroundColor: "transparent",
+            borderColor: t.faint,
+            transition: switchPaint,
+          },
+          thumb: {
+            boxShadow: "none",
+            backgroundColor: t.faint,
+            transition: `background-color ${MOTION.fast} ${MOTION.ease}`,
+          },
+          /* 상태는 switchBase 에서 형제 트랙과 자식 손잡이로 내려 쓴다.
+             · 올림 · 누름은 switchBase 가 아니라 **숨은 input** 의 상태로 잡는다(`:has`) — 라벨을 가리키거나
+               누를 때도 브라우저가 그 input 을 :hover · :active 로 보므로 라벨에서도 같은 미리보기가 선다.
+             · 올림은 `(hover: hover)` 에서만 — 터치에서는 누른 뒤 올림 색이 남는다.
+             · 올림 · 누름에 `:not(.Mui-disabled)` 를 건다 — 비활성은 어떤 경우에도 반응하지 않는다.
+             · 비활성은 **즉시** 그린다. 다른 상태와 같은 짧은 색 전환만 타고 지연을 두지 않는다. 저장 중에
+               모든 스위치가 번쩍이던 것은 화면이 저장 동안 스위치를 비활성으로 바꾸던 탓이라 저장 쪽에서 고쳤다
+               (`lib/useInstantSave.js`). opacity 를 낮추지 않고 강조색을 빼서 「꺼진 조작기」로 말한다 — 비활성
+               단추(면 inset · 선 line · 잉크 disabledControlInk)와 같은 말이고, 켜짐과 꺼짐은 서로 뒤집힌 짝이다.
+             · `opacity: 1` 을 켜짐 · 비활성 규칙 안에 다시 적는다 — MUI 의 같은 자리 규칙(0.5 · 0.12)은 트랙
+               자신의 규칙보다 특이도가 높아서, 트랙에만 적으면 MUI 가 이긴다. */
+          switchBase: {
+            transition: `transform ${MOTION.fast} ${MOTION.ease}`,
+            "&:hover, &.Mui-checked:hover": { backgroundColor: "transparent" },
+            "&.Mui-focusVisible": { outline: "none" },
+            "&.Mui-focusVisible + .MuiSwitch-track": { outline: focusOutline, outlineOffset: 2 },
+            "&.Mui-checked + .MuiSwitch-track": { opacity: 1, backgroundColor: primary, borderColor: switchOnEdge },
+            "&.Mui-checked .MuiSwitch-thumb": { backgroundColor: SWITCH_THUMB_ON },
+            "@media (hover: hover)": {
+              [`&:not(.Mui-checked):not(.Mui-disabled)${switchInput("hover")} + .MuiSwitch-track`]: {
+                backgroundColor: t.inset, borderColor: t.muted,
+              },
+              [`&:not(.Mui-checked):not(.Mui-disabled)${switchInput("hover")} .MuiSwitch-thumb`]: { backgroundColor: t.muted },
+              [`&.Mui-checked:not(.Mui-disabled)${switchInput("hover")} + .MuiSwitch-track`]: {
+                backgroundColor: switchOnStep, borderColor: switchOnStep,
+              },
+            },
+            [`&:not(.Mui-checked):not(.Mui-disabled)${switchInput("active")} + .MuiSwitch-track`]: {
+              backgroundColor: t.sunken, borderColor: t.muted,
+            },
+            [`&:not(.Mui-checked):not(.Mui-disabled)${switchInput("active")} .MuiSwitch-thumb`]: { backgroundColor: t.muted },
+            [`&.Mui-checked:not(.Mui-disabled)${switchInput("active")} + .MuiSwitch-track`]: {
+              backgroundColor: switchOnStep, borderColor: switchOnStep,
+            },
+            "&.Mui-disabled + .MuiSwitch-track": { opacity: 1, backgroundColor: t.inset, borderColor: t.line },
+            "&.Mui-disabled .MuiSwitch-thumb": { backgroundColor: t.disabledControlInk },
+            "&.Mui-disabled.Mui-checked + .MuiSwitch-track": {
+              backgroundColor: t.disabledControlInk, borderColor: t.disabledControlInk,
+            },
+            "&.Mui-disabled.Mui-checked .MuiSwitch-thumb": { backgroundColor: t.inset },
           },
         },
       },

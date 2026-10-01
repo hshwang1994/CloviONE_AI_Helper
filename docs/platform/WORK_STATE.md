@@ -7,6 +7,18 @@
 > 큰 작업 단위는 [`BACKLOG.md`](BACKLOG.md), 설치 사양은 [`INSTALLATION.md`](INSTALLATION.md),
 > 실측 목록은 [`INVENTORY/`](INVENTORY/README.md), 결정은 [`../DECISIONS.md`](../DECISIONS.md) D-187~.
 
+## 끝남 — 공통 스위치 개편 (2026-10-01)
+
+- 계획 정본: `C:/Users/hshwa/.claude/plans/pasted-content-id-8fa2-clovirassist-buzzing-parrot.md`(사용자 승인, 2차 수정 셋 반영). 결정은 **D-525**.
+- 한 일: 공통 `MuiSwitch` 한 곳(`theme.js::SWITCH` + override)에서 트랙 38×22 · 원형 손잡이 16 · 여백 3 · 누르는 자리 50×44(배치 높이 34) ·
+  전부 rem · 완전한 알약, 꺼짐 선과 점 · 켜짐 강조색 · 강조색을 뺀 비활성 짝 · 트랙의 초점 링, halo · 물결 · 그림자 제거. 저장 중 비활성을 걷는
+  즉시 저장 훅(`lib/useInstantSave.js`)을 내 프로필 · 메일 · AI 설정에 붙였고, `SettingRow controlId` 로 이름을 라벨로 이었다. 화면별 스위치
+  CSS 덮기는 0건 그대로다. `local_capture` 가 하네스 모드에서 `--fail-on` 을 버리던 것도 고쳤다.
+- 잰 것: 표적 vitest · `verify.py` TARGETED_OK, `kit_measure --fail-on switch_geometry` 282표본 0실패(옛 빌드 270표본 전부 실패),
+  `switch_states` 174/174(같은 하네스로 옛 빌드를 임시 worktree 에서 돌리면 라벨 · 가장자리 클릭 · 초점 링 · 저장 판정이 실패한다).
+  캡처 라벨은 `switch-before` · `switch-after` 이고 Acceptance 정본을 옮기지 않는다.
+- 남은 일: 범위 밖으로 넘긴 넷이 BACKLOG P-117 ~ P-120 이다(방해금지 이름, AI 답변 생성 초안 스위치, 초점 프로브, 고대비).
+
 ## 끝남 — 관리자 · 사용자 화면 전반 개선 회차 (2026-09-30, 사람의 자격이 필요한 측정만 남았다)
 
 - 계획 정본: `C:/Users/hshwa/.claude/plans/pasted-content-id-c5c6-clovirassist-vivid-flask.md`(사용자 승인, 2차 보완 반영).

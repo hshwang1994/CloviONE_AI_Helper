@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -477,6 +477,38 @@ describe("메일 건강 상태와 연결 확인", () => {
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/settings/mail_notification_max_age_days", {
       method: "PUT", body: { value: 3 },
     }));
+  });
+
+  /* D-525 — 저장 중에 허용 스위치를 끄지 않는다. 비활성은 실제 조건(쓰기 권한 없음) 하나뿐이다. */
+  it("저장이 도는 동안에도 허용 스위치는 켜져 있고 누른 순간 바뀐다", async () => {
+    const user = userEvent.setup();
+    withHealth(CONFIGURED.health, {
+      notification_mail: {
+        allowed: ["ticket_assigned"],
+        catalog: [
+          { key: "ticket_assigned", label: "티켓 배정", help: "누군가 나를 티켓 담당자로 지정했을 때" },
+          { key: "ticket_resolved", label: "요청한 티켓 결과", help: "요청한 티켓이 끝났을 때" },
+        ],
+        max_age_days: 7,
+      },
+    });
+    const base = apiMock.getMockImplementation();
+    let release = () => {};
+    apiMock.mockImplementation((path, opt) => {
+      if (String(path).startsWith("/api/admin/settings/") && opt && opt.method === "PUT") {
+        return new Promise((resolve) => { release = () => resolve({}); });
+      }
+      return base(path, opt);
+    });
+    renderScreen();
+    const resolved = await screen.findByRole("switch", { name: "요청한 티켓 결과 메일 허용" });
+    const assigned = screen.getByRole("switch", { name: "티켓 배정 메일 허용" });
+    expect(resolved).not.toBeChecked();
+    await user.click(resolved);
+    expect(resolved).toBeChecked();
+    expect(resolved).toBeEnabled();
+    expect(assigned).toBeEnabled();
+    await act(async () => { release(); });
   });
 
   it("반례: 쓰기 역할이 아니면 허용 목록을 바꿀 수 없다", async () => {

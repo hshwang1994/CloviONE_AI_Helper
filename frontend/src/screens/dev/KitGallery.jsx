@@ -847,19 +847,40 @@ export function KitGallery() {
                 rowHeight="tall"
               />
             </Sample>
+            {/* 스위치 다섯 줄 — 켜짐(누르면 바뀐다) · 꺼짐 · 키보드 초점 · 비활성 켜짐 · 비활성 꺼짐. 초점은 클래스를 얹은
+                정지 견본이고, 올림과 누름은 `switch_states` 하네스가 실제 포인터로 만든다(D-525). 이름을 누르면 스위치가
+                바뀌도록 줄마다 `controlId` 를 준다. */}
             <Sample label="토글은 누르는 즉시 저장되는 설정의 자리입니다">
               <Box sx={{ maxWidth: "36rem" }}>
                 <SettingRow
                   compact label="새 댓글 알림" description="내 티켓에 댓글이 달리면 알립니다."
-                  action={<Switch checked={notify} onChange={(e) => setNotify(e.target.checked)} slotProps={{ input: { "aria-label": "새 댓글 알림" } }} />}
+                  controlId="kit-switch-comment"
+                  action={<Switch id="kit-switch-comment" checked={notify} onChange={(e) => setNotify(e.target.checked)} slotProps={{ input: { "aria-label": "새 댓글 알림" } }} />}
                 />
                 <SettingRow
                   compact label="주간 요약 메일" description="월요일 아침에 한 번 보냅니다."
-                  action={<Switch checked={false} onChange={() => {}} slotProps={{ input: { "aria-label": "주간 요약 메일" } }} />}
+                  controlId="kit-switch-weekly"
+                  action={<Switch id="kit-switch-weekly" checked={false} onChange={() => {}} slotProps={{ input: { "aria-label": "주간 요약 메일" } }} />}
+                />
+                <SettingRow
+                  compact label="키보드 초점" description="키보드로 오면 트랙 둘레에 초점 링이 섭니다."
+                  controlId="kit-switch-focus"
+                  action={(
+                    <Switch
+                      id="kit-switch-focus" checked onChange={() => {}}
+                      slotProps={{ switchBase: { className: "Mui-focusVisible" }, input: { "aria-label": "키보드 초점 견본" } }}
+                    />
+                  )}
                 />
                 <SettingRow
                   compact label="관리자가 끈 알림" description="조직 설정에서 막았습니다."
-                  action={<Switch checked disabled slotProps={{ input: { "aria-label": "관리자가 끈 알림" } }} />}
+                  controlId="kit-switch-locked-on"
+                  action={<Switch id="kit-switch-locked-on" checked disabled slotProps={{ input: { "aria-label": "관리자가 끈 알림" } }} />}
+                />
+                <SettingRow
+                  compact label="관리자가 막은 메일" description="조직 설정에서 막아 켤 수 없습니다."
+                  controlId="kit-switch-locked-off"
+                  action={<Switch id="kit-switch-locked-off" checked={false} disabled slotProps={{ input: { "aria-label": "관리자가 막은 메일" } }} />}
                 />
               </Box>
             </Sample>

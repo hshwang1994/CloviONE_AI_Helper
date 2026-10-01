@@ -13,7 +13,8 @@
  *
  * 계약의 출처는 `docs/DECISIONS.md` D-141 방향 계약이다.
  *
- * qa-contract-change: 핸드오프 D-13 · D-6 이 떠 있는 것(모달 · 팝오버 · 메뉴 · 토스트)의 모서리를 14 에서 판과 같은 8 로 옮겼다.
+ * qa-contract-change: 스위치(D-525)의 34x20 · MUI 기본 폭 58px 단언을 「보이는 38x22 + 누르는 자리 50x44 + 배치 34」 관계식과 두 모드 x 강조색 다섯의 대비 · 상태 단언으로 바꿨고, 소비처가 없던 size="small" 시험은 크기 변형이 없다는 단언으로 바꿨다(단언 수는 늘었다).
+ * 그 앞의 사유: 핸드오프 D-13 · D-6 이 떠 있는 것(모달 · 팝오버 · 메뉴 · 토스트)의 모서리를 14 에서 판과 같은 8 로 옮겼다.
  * `RADIUS.lg` 슬롯은 소비처가 0 이 되어 걷었고, 「lg > md」 단언은 「떠 있는 것 = md = 8 · 슬롯 넷」
  * 단언으로 바뀌었다(값 단언이 늘었다). 비활성 버튼 잉크(`disabledControlInk`)는 새 단언이다.
  */
@@ -32,6 +33,7 @@ import {
   NUMERIC,
   RADIUS,
   remPx,
+  SWITCH,
 } from "./theme.js";
 
 const MODES = ["light", "dark"];
@@ -520,35 +522,59 @@ describe("컨트롤 높이는 한 곳에서 나온다", () => {
     expect(remValue(ib.root.height)).toBe(remValue(btn.root.minHeight));
   });
 
-  it("작은 스위치 손잡이가 상자 세로 가운데에 온다 — root 패딩만 키우면 위로 뜬다", () => {
-    const sw = createClovirTheme("light").components.MuiSwitch.styleOverrides;
-    expect(remValue(sw.root.height)).toBe(CONTROL.button);
-    expect(remValue(sw.sizeSmall.height)).toBe(CONTROL.buttonSm);
-    const pad = (CONTROL.buttonSm - 16) / 2;
-    expect(remValue(sw.sizeSmall.padding)).toBe(pad);
-    expect(remValue(sw.sizeSmall["& .MuiSwitch-switchBase"].padding)).toBe(pad);
+  /* 스위치 (D-525) — **보이는 크기와 누르는 자리를 따로 잰다.** 값을 손으로 적지 않고 `SWITCH` 의 관계식을 단언한다.
+     옛 결함 둘이 다시 서지 못하게 하는 자리다: 눈대중 이동거리(14)와, MUI 기본 루트 폭(58px)에 기댄 트랙 폭.
+     그 폭만 px 로 남아 루트 글자가 18 · 20px 인 넓은 화면에서 켠 손잡이가 트랙 끝을 5 · 12px 넘었다. */
+  const swParts = (v) => String(v).split(" ");
+
+  it("스위치 트랙 38 x 22 · 손잡이 16 · 여백 3 · 이동 16 이 하나의 식에서 나온다", () => {
+    expect(SWITCH.trackH).toBe(CONTROL.pill);
+    expect(SWITCH.thumb).toBe(16);
+    expect(SWITCH.inset).toBe((SWITCH.trackH - SWITCH.thumb) / 2);
+    expect(SWITCH.inset).toBe(3);
+    expect(SWITCH.trackW).toBe(2 * (SWITCH.thumb + SWITCH.inset));
+    expect(SWITCH.trackW).toBe(38);
+    expect(SWITCH.travel).toBe(SWITCH.trackW - 2 * SWITCH.inset - SWITCH.thumb);
+    expect(SWITCH.travel).toBe(16);
   });
 
-  /* 스위치 트랙은 **34 x 20** 이다(확정 규약). 폭과 높이가 「상자 - 2*패딩」이고 상자는
-     58 x 34 라 한 패딩 값으로는 둘을 못 맞춘다 — 가로 12, 세로 7 로 따로 잰다. 손잡이 16 이
-     트랙 안으로 2px 씩 들어가고, 켜짐 이동거리도 그래서 14 다(트랙 오른쪽 끝에서 2px 앞). */
-  it("스위치 트랙이 34 x 20 이고 손잡이가 그 안에 들어간다", () => {
-    const sw = createClovirTheme("light").components.MuiSwitch.styleOverrides;
-    const MUI_ROOT_WIDTH = 58;   // MUI 기본 medium 상자 폭
-    const notSmall = sw.root["&:not(.MuiSwitch-sizeSmall)"];
-    expect(MUI_ROOT_WIDTH - 2 * remValue(sw.root.paddingInline)).toBe(34);
-    expect(remValue(sw.root.height) - 2 * remValue(sw.root.paddingBlock)).toBe(20);
-    // 손잡이는 트랙보다 작다 — 알약 위에 구슬이 얹힌 모양이 되지 않는다.
-    expect(remValue(notSmall["& .MuiSwitch-thumb"].height)).toBe(16);
-    expect(remValue(notSmall["& .MuiSwitch-thumb"].height)).toBeLessThan(20);
-    // 트랙 안쪽 2px: 손잡이 왼쪽 = 트랙 왼쪽 + 2.
-    const thumbInset = remValue(notSmall["& .MuiSwitch-switchBase"].paddingInline) - remValue(sw.root.paddingInline);
-    expect(thumbInset).toBe(2);
-    // 켜짐 이동거리 = 트랙 폭 - 양쪽 여백 - 손잡이 = 34 - 4 - 16.
-    const moved = /translateX\(([^)]+)\)/.exec(notSmall["& .MuiSwitch-switchBase.Mui-checked"].transform);
+  it("스위치 루트가 누르는 자리(50 x 44)이고, 줄이 보는 높이는 단추와 같은 34 다", () => {
+    const root = createClovirTheme("light").components.MuiSwitch.styleOverrides.root;
+    expect(remValue(root.width)).toBe(SWITCH.boxW);
+    expect(remValue(root.height)).toBe(SWITCH.hit);
+    expect(remValue(root.width)).toBeGreaterThanOrEqual(44);
+    expect(remValue(root.height)).toBeGreaterThanOrEqual(44);
+    const [marginY, marginX] = swParts(root.margin);
+    expect(marginX).toBe("0");
+    // 위아래 바깥 여백이 늘어난 누르는 자리를 줄 높이에서 도로 뺀다 — 행 높이가 그대로다.
+    expect(remValue(root.height) + 2 * remValue(marginY)).toBe(CONTROL.button);
+  });
+
+  it("스위치 트랙은 「루트 − 2 x 패딩」이고 손잡이는 위 · 아래 · 양 끝에서 같은 여백으로 들어간다", () => {
+    const root = createClovirTheme("light").components.MuiSwitch.styleOverrides.root;
+    const [padY, padX] = swParts(root.padding).map(remValue);
+    expect(remValue(root.width) - 2 * padX).toBe(SWITCH.trackW);
+    expect(remValue(root.height) - 2 * padY).toBe(SWITCH.trackH);
+    const [baseY, baseX] = swParts(root["& .MuiSwitch-switchBase"].padding).map(remValue);
+    expect(baseY - padY).toBe(SWITCH.inset);
+    expect(baseX - padX).toBe(SWITCH.inset);
+    expect(remValue(root["& .MuiSwitch-thumb"].width)).toBe(SWITCH.thumb);
+    expect(remValue(root["& .MuiSwitch-thumb"].height)).toBe(SWITCH.thumb);
+    const moved = /translateX\(([^)]+)\)/.exec(root["& .MuiSwitch-switchBase.Mui-checked"].transform);
     expect(moved).not.toBeNull();
-    const travel = remValue(moved[1]);
-    expect(travel).toBe(34 - 2 * thumbInset - 16);
+    // 켜짐 손잡이의 오른쪽 여백 = 트랙 폭 − (왼쪽 여백 + 손잡이 + 이동) — 왼쪽 여백과 같아야 한다.
+    expect(SWITCH.trackW - (SWITCH.inset + SWITCH.thumb + remValue(moved[1]))).toBe(SWITCH.inset);
+    // 초점 링(2px + offset 2)이 루트의 overflow:hidden 에 잘리지 않을 둘레.
+    expect(Math.min(padX, padY)).toBeGreaterThanOrEqual(4);
+  });
+
+  it("스위치는 크기 변형이 없고, 트랙은 완전한 알약이며, `edge` 의 바깥 여백을 지운다", () => {
+    const o = createClovirTheme("light").components.MuiSwitch.styleOverrides;
+    // `size="small"` 도 같은 스위치다 — 기하는 루트의 중첩 선택자에 있어 MUI 의 small 변형보다 뒤에 선다.
+    expect(o.sizeSmall).toBeUndefined();
+    expect(Object.keys(o.root).some((k) => k.includes("sizeSmall"))).toBe(false);
+    expect(o.track.borderRadius).toBe(RADIUS.full);
+    expect(o.root["& .MuiSwitch-switchBase"].margin).toBe(0);
   });
 
   it("작은 아이콘 버튼도 포인터 목표는 40 이다 — 시각 크기만 줄인다", () => {
@@ -940,5 +966,122 @@ describe("컴포넌트 계약 — 옛 목업 대조 시험이 지키던 목적�
     const root = createClovirTheme(mode).components.MuiChip.styleOverrides.root;
     expect(root.borderRadius).toBe(RADIUS.sm);
     expect(root.borderRadius).not.toBe(RADIUS.full);
+  });
+});
+
+/* 스위치의 색 · 상태 · 초점 · 전환 (D-525). 색은 전부 팔레트 토큰이고, 대비는 두 모드 × 강조색 프리셋 다섯에서 잰다 —
+   켜짐 색은 사용자가 고른 강조색이라 한 값만 재면 다른 사람의 화면에서 깨진다. */
+describe("스위치 — 색 · 상태 · 초점 · 전환 (D-525)", () => {
+  /* 상태 규칙을 한 줄로 편다 — `@media (hover: hover)` 안의 올림 규칙도 함께. */
+  const rules = (switchBase) => Object.entries(switchBase).flatMap(([sel, rule]) =>
+    (sel.startsWith("@media") ? Object.entries(rule).map(([inner, r]) => [inner, r, sel]) : [[sel, rule, null]]));
+
+  for (const mode of MODES) {
+    for (const accent of ACCENT_PRESETS) {
+      it(`${mode} ${accent} — 꺼짐의 선과 점, 켜짐의 손잡이와 가장자리, 올림 · 누름의 손잡이가 3:1 을 넘는다`, () => {
+        const theme = createClovirTheme(mode, accent);
+        const o = theme.components.MuiSwitch.styleOverrides;
+        const plate = theme.palette.background.paper;
+        // 꺼짐: 면 없이 선과 점 — 둘 다 판 위에서 비텍스트 3:1 이상이다(옛 꺼짐은 흰 손잡이 대 #BCC2D9 = 1.77).
+        expect(o.track.backgroundColor).toBe("transparent");
+        expect(contrast(o.track.borderColor, plate)).toBeGreaterThanOrEqual(3);
+        expect(contrast(o.thumb.backgroundColor, plate)).toBeGreaterThanOrEqual(3);
+        // 켜짐: 강조색 면 위 흰 손잡이. 가장자리가 판에 묻히지 않는다(dark 는 한 단 밝힌 가장자리).
+        const on = o.switchBase["&.Mui-checked + .MuiSwitch-track"];
+        const thumbOn = o.switchBase["&.Mui-checked .MuiSwitch-thumb"].backgroundColor;
+        expect(on.backgroundColor).toBe(theme.palette.primary.main);
+        expect(contrast(thumbOn, on.backgroundColor)).toBeGreaterThanOrEqual(3);
+        expect(contrast(on.borderColor, plate)).toBeGreaterThanOrEqual(3);
+        // 켠 스위치를 올리거나 누른 동안에도 흰 손잡이가 보인다 — 단추의 primary.dark 는 dark 에서 2.41~2.81 이었다.
+        const steps = rules(o.switchBase).filter(([sel]) => sel.startsWith("&.Mui-checked:not(.Mui-disabled)") && sel.endsWith("+ .MuiSwitch-track"));
+        expect(steps).toHaveLength(2);
+        for (const [, rule] of steps) {
+          expect(contrast(thumbOn, rule.backgroundColor)).toBeGreaterThanOrEqual(3);
+          expect(contrast(rule.backgroundColor, plate)).toBeGreaterThanOrEqual(3);
+        }
+      });
+    }
+  }
+
+  it.each(MODES)("%s — 상태마다 정해진 토큰이 그 자리에 있다", (mode) => {
+    const theme = createClovirTheme(mode);
+    const p = theme.palette;
+    const o = theme.components.MuiSwitch.styleOverrides;
+    const sb = o.switchBase;
+    expect(o.track.borderColor).toBe(p.text.faint);
+    expect(o.thumb.backgroundColor).toBe(p.text.faint);
+    expect(o.thumb.boxShadow).toBe("none");
+    expect(sb["&.Mui-checked + .MuiSwitch-track"].borderColor).toBe(mode === "light" ? p.primary.main : p.primary.dark);
+    // 올림 · 누름 — 꺼짐은 면이 한 단씩 깊어지고 선과 점이 진해진다.
+    const offHover = rules(sb).filter(([sel, , media]) => media === "@media (hover: hover)" && sel.startsWith("&:not(.Mui-checked)"));
+    expect(offHover.map(([, r]) => r)).toEqual([
+      { backgroundColor: p.background.inset, borderColor: p.text.secondary },
+      { backgroundColor: p.text.secondary },
+    ]);
+    const offActive = rules(sb).filter(([sel, , media]) => !media && sel.includes(":active") && sel.startsWith("&:not(.Mui-checked)"));
+    expect(offActive.map(([, r]) => r)).toEqual([
+      { backgroundColor: p.background.sunken, borderColor: p.text.secondary },
+      { backgroundColor: p.text.secondary },
+    ]);
+    // 비활성 — opacity 가 아니라 강조색을 뺀 짝: 밝은 알약 + 회색 점 ↔ 회색 알약 + 밝은 점.
+    expect(sb["&.Mui-disabled + .MuiSwitch-track"]).toEqual({
+      opacity: 1, backgroundColor: p.background.inset, borderColor: p.divider,
+    });
+    expect(sb["&.Mui-disabled .MuiSwitch-thumb"]).toEqual({ backgroundColor: p.disabledControlInk });
+    expect(sb["&.Mui-disabled.Mui-checked + .MuiSwitch-track"]).toEqual({
+      backgroundColor: p.disabledControlInk, borderColor: p.disabledControlInk,
+    });
+    expect(sb["&.Mui-disabled.Mui-checked .MuiSwitch-thumb"]).toEqual({ backgroundColor: p.background.inset });
+    // MUI 는 켠 트랙에 0.5, 비활성 트랙에 0.12 를 같은 특이도로 깐다 — 트랙 자신의 규칙만으로는 못 이긴다.
+    expect(o.track.opacity).toBe(1);
+    expect(sb["&.Mui-checked + .MuiSwitch-track"].opacity).toBe(1);
+    expect(sb["&.Mui-disabled + .MuiSwitch-track"].opacity).toBe(1);
+  });
+
+  it.each(MODES)("%s — 올림 · 누름은 숨은 input 의 상태로 잡고 비활성에는 걸리지 않으며, 올림은 포인터가 있을 때만이다", (mode) => {
+    const sb = createClovirTheme(mode).components.MuiSwitch.styleOverrides.switchBase;
+    const hover = Object.keys(sb["@media (hover: hover)"]);
+    const active = Object.keys(sb).filter((sel) => sel.includes(":active"));
+    expect(hover).toHaveLength(3);
+    expect(active).toHaveLength(3);
+    for (const sel of hover) {
+      expect(sel).toContain(":has(.MuiSwitch-input:hover)");
+      expect(sel).toContain(":not(.Mui-disabled)");
+    }
+    for (const sel of active) {
+      expect(sel).toContain(":has(.MuiSwitch-input:active)");
+      expect(sel).toContain(":not(.Mui-disabled)");
+    }
+    // MUI 의 손잡이 둘레 halo 는 지운다.
+    expect(sb["&:hover, &.Mui-checked:hover"]).toEqual({ backgroundColor: "transparent" });
+  });
+
+  it.each(MODES)("%s — 물결이 없고, 초점 링은 switchBase 가 아니라 트랙에 서며, 전환은 MOTION 이고 어떤 상태에도 지연이 없다", (mode) => {
+    const theme = createClovirTheme(mode);
+    const sw = theme.components.MuiSwitch;
+    const sb = sw.styleOverrides.switchBase;
+    expect(sw.defaultProps.disableRipple).toBe(true);
+    // switchBase 의 링은 루트의 overflow:hidden 에 잘린다 — 끄고, 같은 링을 트랙에 건다.
+    expect(sb["&.Mui-focusVisible"]).toEqual({ outline: "none" });
+    const ring = sb["&.Mui-focusVisible + .MuiSwitch-track"];
+    expect(ring.outline).toBe(theme.components.MuiButtonBase.styleOverrides.root["&.Mui-focusVisible"].outline);
+    expect(ring.outline).toBe(`2px solid var(--clovir-focus-ring, ${theme.palette.focusRing})`);
+    expect(ring.outlineOffset).toBe(2);
+    // 전환은 셋뿐이다 — 손잡이 이동, 트랙의 면과 선, 손잡이 색. 상태 규칙은 전환을 다시 적지 않는다(지연도 없다):
+    // 비활성은 실제 상태가 바뀌는 즉시 그린다.
+    const transitions = [];
+    const walk = (node) => {
+      for (const [k, v] of Object.entries(node)) {
+        if (k === "transition") transitions.push(v);
+        else if (v && typeof v === "object") walk(v);
+      }
+    };
+    walk(sw.styleOverrides);
+    expect(transitions).toEqual([
+      `background-color ${MOTION.fast} ${MOTION.ease}, border-color ${MOTION.fast} ${MOTION.ease}`,
+      `background-color ${MOTION.fast} ${MOTION.ease}`,
+      `transform ${MOTION.fast} ${MOTION.ease}`,
+    ]);
+    for (const v of transitions) expect(v).not.toContain(MOTION.base);
   });
 });

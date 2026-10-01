@@ -62,8 +62,15 @@ const SETTING_STATE_KIND = {
  * 겹쳐 두 줄로 보인다(표가 같은 이유로 마지막 행의 아래 선을 지운다).
  *
  * 관리자 줄을 이 밀도로 함께 옮기지 않는다. 두 목록은 같은 모양이지만 **같은 일이 아니다**
- * — 값과 배지를 나르는 줄에 말줄임을 걸면 읽어야 할 사실이 사라진다(CLAUDE.md §5). */
-export function SettingRow({ label, value, description, tone, action, state, last, compact, children }) {
+ * — 값과 배지를 나르는 줄에 말줄임을 걸면 읽어야 할 사실이 사라진다(CLAUDE.md §5).
+ *
+ * `controlId` — 이 줄의 이름을 `action` 안 컨트롤의 **라벨**로 잇는다(D-525). 주면 이름을
+ * `<label htmlFor={controlId}>` 로 그려 이름을 눌러도 스위치가 바뀌고, 호출부는 같은 값을 컨트롤의 `id` 에 준다.
+ * 이 줄은 컨트롤이 무엇인지 모른다 — id 하나만 안다. 단추나 세그먼티드가 선 줄에는 주지 않는다: 이름을 누르는
+ * 것만으로 그 단추가 눌려 버린다. 접근 가능한 이름은 컨트롤의 aria-label 이 계속 정한다. */
+const LABEL_FOR = { display: "block", cursor: "pointer" };
+
+export function SettingRow({ label, value, description, tone, action, state, last, compact, controlId, children }) {
   const oneLine = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   return (
     /* 설정 줄도 목록 행이다 — 상태 배지는 면 없이 점 + 낱말로 선다(RULES §2). */
@@ -72,12 +79,16 @@ export function SettingRow({ label, value, description, tone, action, state, las
       /* 줄 하나가 한 항목이라는 사실을 시험이 붙잡을 자리. 라벨에서 부모를 몇 번 거슬러
          올라가는 식으로 찾으면 안쪽 배치를 조금만 바꿔도 시험이 깨진다. */
       className={compact ? "k-settingrow k-settingrow--compact" : "k-settingrow"}
-      sx={compact ? {
-        display: "flex", alignItems: "center", gap: 1.5,
-        py: 1.25, borderTop: 1, borderColor: (t) => t.palette.rule,
-      } : {
-        display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap",
-        py: 1, borderBottom: last ? 0 : 1, borderColor: "divider",
+      sx={{
+        ...(compact ? {
+          display: "flex", alignItems: "center", gap: 1.5,
+          py: 1.25, borderTop: 1, borderColor: (t) => t.palette.rule,
+        } : {
+          display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap",
+          py: 1, borderBottom: last ? 0 : 1, borderColor: "divider",
+        }),
+        /* 컨트롤이 비활성이면 이름도 누를 것처럼 보이지 않는다 — 눌러도 아무 일이 없다. */
+        ...(controlId ? { "&:has(:disabled) label[for]": { cursor: "default" } } : null),
       }}
     >
       <Box
@@ -87,11 +98,15 @@ export function SettingRow({ label, value, description, tone, action, state, las
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: compact ? "nowrap" : "wrap", minWidth: 0 }}>
           <Typography
-            component="div"
+            component={controlId ? "label" : "div"}
+            htmlFor={controlId}
             title={compact && typeof label === "string" ? label : undefined}
-            sx={compact
-              ? { fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold, ...oneLine }
-              : { fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}
+            sx={{
+              ...(compact
+                ? { fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold, ...oneLine }
+                : { fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }),
+              ...(controlId ? LABEL_FOR : null),
+            }}
           >
             {label}
           </Typography>

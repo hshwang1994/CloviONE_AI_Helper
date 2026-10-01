@@ -25,7 +25,9 @@
 - 검사마다 **표본 수(`checked`)** 를 같이 적는다. `--fail-on` 에 건 검사가 표본 0 이면 통과가
   아니라 미실행이다 — 종료 코드 2.
 - `--selftest` 는 갤러리 위에 **일부러 틀린 견본**(40px 버튼 · 두 줄 버튼 · 점 있는 배지 ·
-  600 태그 · 24px 건수 칩 · 36px 필터 칸 · 노치 라벨)과 **맞는 견본**을 끼워 넣고, 틀린 것은
+  600 태그 · 24px 건수 칩 · 36px 필터 칸 · 노치 라벨 · 7px 막대 스위치 · 끝을 넘은 손잡이 ·
+  고르지 않은 여백 · 34 높이 누르는 자리 · 타원 트랙 · 그림만 맞고 input 이 34 인 스위치)과
+  **맞는 견본**을 끼워 넣고, 틀린 것은
   전부 잡히고 맞는 것은 하나도 안 잡히는지 본다. 이것이 초록이 아니면 제품 판정에 쓰지 않는다.
 """
 
@@ -77,6 +79,8 @@ CONTRACT = {
     "picker": {"h": 32, "avatar": 22},
     "mascot": {"pageMin": 112, "pageMax": 132, "region": 72},
     "chat": {"list": 296, "bubbleMax": 0.68, "composerRadius": 10, "avatar": 34, "stack": 26},
+    # 스위치(D-525) — 보이는 트랙 38×22 · 손잡이 16, 누르는 자리 44 이상, 줄이 보는 높이 34, 초점 링(2 + offset 2) 자리 4.
+    "switch": {"trackW": 38, "trackH": 22, "thumb": 16, "hit": 44, "layoutH": 34, "ring": 4},
     "tol": 1,
 }
 
@@ -86,7 +90,7 @@ CHECKS = (
     "filter_switch", "filter_toggle", "filter_surface", "filter_row_tops", "table_heights",
     "table_align", "card_padding", "modal", "floating_radius", "count_chip", "picker_option",
     "empty_layout", "error_icon", "mascot_size", "card_row_tops", "page_head_overlap",
-    "footer_owner", "variant_height", "form_field_rows", "chat_layout",
+    "footer_owner", "variant_height", "form_field_rows", "chat_layout", "switch_geometry",
 )
 # 부품 치수(위) + 조합(`composition_checks.py`). 둘을 한 표로 보고한다 — 치수 PASS 를 조합 PASS 로 읽지 않게.
 ALL_CHECKS = CHECKS + COMPOSITION_CHECKS
@@ -539,6 +543,72 @@ MEASURE_JS = r"""
     }
   }
 
+  // ── 스위치 (D-525) ─────────────────────────────────────────────────────
+  /* 보이는 스위치마다 잰다 — 손잡이가 트랙 안에 있고 여백이 위 · 아래 · 끝(꺼짐은 왼쪽, 켜짐은 오른쪽)에서 같은가,
+     트랙이 완전한 알약이고 손잡이가 원인가, 트랙이 누르는 자리(루트) 가운데에 서고 초점 링이 루트 안에 들어오는가,
+     누르는 자리가 44×44 이상이고 줄이 보는 높이(루트 + 바깥 여백)가 34 인가, 트랙 · 손잡이가 계약 크기인가.
+     크기는 루트 글자(4K 레버)에 비례하고 링은 px 이다 — 옛 결함(루트 폭만 px)은 18 · 20px 루트에서만 드러났다. */
+  const swScale = rootPx / 16;
+  /* 브라우저가 실제로 쓰는 모서리 반지름. 계산값은 `50%` 를 퍼센트 그대로 내주므로 px 로 읽으면 50 이 되어 아무 모서리나
+     통과한다 — 퍼센트를 상자 크기로 풀고, 이웃한 반지름의 합이 변보다 크면 전부 같은 비율로 줄이는 CSS 규칙까지 따른다. */
+  const usedRadius = (el, r) => {
+    const s = getComputedStyle(el);
+    const pair = (v) => {
+      const [a, b = a] = String(v).split(' ');
+      const len = (x, d) => (x.endsWith('%') ? (parseFloat(x) / 100) * d : px(x));
+      return [len(a, r.width), len(b, r.height)];
+    };
+    const tl = pair(s.borderTopLeftRadius), tr = pair(s.borderTopRightRadius);
+    const br = pair(s.borderBottomRightRadius), bl = pair(s.borderBottomLeftRadius);
+    const f = Math.min(1, r.width / ((tl[0] + tr[0]) || 1), r.width / ((bl[0] + br[0]) || 1),
+      r.height / ((tl[1] + bl[1]) || 1), r.height / ((tr[1] + br[1]) || 1));
+    return { x: tl[0] * f, y: tl[1] * f };
+  };
+  for (const sw of all('.MuiSwitch-root')) {
+    check('switch_geometry').checked++;
+    const track = sw.querySelector('.MuiSwitch-track');
+    const thumb = sw.querySelector('.MuiSwitch-thumb');
+    const base = sw.querySelector('.MuiSwitch-switchBase');
+    const input = sw.querySelector('input');
+    if (!track || !thumb || !base || !input) {
+      fail('switch_geometry', { ...where(sw), problems: ['malformed switch'] });
+      continue;
+    }
+    const R = sw.getBoundingClientRect();
+    const T = track.getBoundingClientRect();
+    const K = thumb.getBoundingClientRect();
+    const I = input.getBoundingClientRect();
+    const on = base.classList.contains('Mui-checked');
+    const e = 0.6;
+    const problems = [];
+    if (K.left < T.left - e || K.right > T.right + e || K.top < T.top - e || K.bottom > T.bottom + e) problems.push('thumb outside track');
+    const insets = [K.top - T.top, T.bottom - K.bottom, on ? T.right - K.right : K.left - T.left];
+    if (Math.max(...insets) - Math.min(...insets) > e) problems.push('uneven inset ' + insets.map((v) => v.toFixed(1)).join('/'));
+    const tr = usedRadius(track, T);
+    if (Math.abs(tr.x - T.height / 2) > 0.5 || Math.abs(tr.y - T.height / 2) > 0.5) problems.push('track not a pill ' + tr.x.toFixed(1) + '/' + tr.y.toFixed(1));
+    const kr = usedRadius(thumb, K);
+    if (Math.abs(K.width - K.height) > 0.5 || Math.abs(kr.x - K.width / 2) > 0.5 || Math.abs(kr.y - K.height / 2) > 0.5) problems.push('thumb not round');
+    if (Math.abs((T.top + T.bottom) / 2 - (R.top + R.bottom) / 2) > e
+        || Math.abs((T.left + T.right) / 2 - (R.left + R.right) / 2) > e) problems.push('track off-center');
+    const ring = C.switch.ring;
+    if (T.left - ring < R.left - e || T.right + ring > R.right + e || T.top - ring < R.top - e || T.bottom + ring > R.bottom + e) problems.push('no room for focus ring');
+    /* 누르는 자리는 루트가 아니라 **숨은 input** 이다 — 클릭을 받는 것은 input 이고, 루트의 overflow:hidden 이 그것을
+       루트 안으로 자른다. 그래서 input 과 루트의 겹친 부분을 잰다. 루트가 자르지 않으면 input 이 줄 밖까지 클릭을 먹는다. */
+    if (getComputedStyle(sw).overflow !== 'hidden') problems.push('root does not clip input');
+    const hitW = Math.min(I.right, R.right) - Math.max(I.left, R.left);
+    const hitH = Math.min(I.bottom, R.bottom) - Math.max(I.top, R.top);
+    if (hitW < C.switch.hit * swScale - e || hitH < C.switch.hit * swScale - e) problems.push('hit ' + hitW.toFixed(1) + 'x' + hitH.toFixed(1));
+    const rootStyle = getComputedStyle(sw);
+    const layoutH = R.height + px(rootStyle.marginTop) + px(rootStyle.marginBottom);
+    if (!near(layoutH, C.switch.layoutH * swScale)) problems.push('layout height ' + layoutH.toFixed(1));
+    if (!near(T.width, C.switch.trackW * swScale) || !near(T.height, C.switch.trackH * swScale) || !near(K.width, C.switch.thumb * swScale)) {
+      problems.push('size ' + T.width.toFixed(1) + 'x' + T.height.toFixed(1) + ' / ' + K.width.toFixed(1));
+    }
+    if (problems.length) {
+      fail('switch_geometry', { ...where(sw), name: input.getAttribute('aria-label') || '', on, problems: problems.slice(0, 6) });
+    }
+  }
+
   // ── 같은 갈래의 높이 분산 ───────────────────────────────────────────────
   const variants = {
     'badge-face': all('.k-badge').filter((b) => !transparent(getComputedStyle(b).backgroundColor)),
@@ -563,6 +633,14 @@ SELFTEST_HTML = r"""
   const box = document.createElement('div');
   box.id = 'kit-selftest';
   box.style.cssText = 'position:absolute;left:0;top:0;width:1200px;background:#fff;z-index:99999;padding:16px;display:grid;gap:12px';
+  /* 스위치 견본(D-525) — MUI 구조(루트 > switchBase > input + 손잡이, 그 형제 트랙)를 인라인 치수로 그린다. 기본값이 맞는
+     견본이고, 틀린 견본은 값 하나씩만 어긋낸다 — 무엇을 잡았는지 한 가지로 읽히게. */
+  const sw = ({ name, w = 50, h = 44, padY = 11, padX = 6, margin = -5, baseY = 14, baseX = 9, baseTop = 0, thumb = 16, travel = 0, radius = '999px', on = false }) =>
+    `<span class="MuiSwitch-root" style="display:inline-flex;position:relative;box-sizing:border-box;width:${w}px;height:${h}px;padding:${padY}px ${padX}px;margin:${margin}px 0;overflow:hidden;vertical-align:middle;flex-shrink:0">`
+    + `<span class="MuiSwitch-switchBase${on ? ' Mui-checked' : ''}" style="position:absolute;top:${baseTop}px;left:0;z-index:1;box-sizing:border-box;display:inline-flex;padding:${baseY}px ${baseX}px;transform:translateX(${travel}px)">`
+    + `<input type="checkbox" role="switch" aria-label="${name}" style="position:absolute;top:0;left:-100%;width:300%;height:100%;margin:0;opacity:0">`
+    + `<span class="MuiSwitch-thumb" style="display:block;width:${thumb}px;height:${thumb}px;border-radius:50%;background:#737b99"></span></span>`
+    + `<span class="MuiSwitch-track" style="display:block;box-sizing:border-box;width:100%;height:100%;border-radius:${radius};border:1px solid #737b99"></span></span>`;
   box.innerHTML = `
     <div id="good">
       <button class="MuiButton-root MuiButton-sizeMedium" style="height:34px;white-space:nowrap;padding:0 12px">저장</button>
@@ -585,6 +663,7 @@ SELFTEST_HTML = r"""
         <div data-chat-row="mine" style="display:grid;justify-items:end"><div style="display:flex;max-width:68%"><div data-chat-bubble="mine" style="width:fit-content;padding:10px 14px">짧은 말</div></div></div>
         <div data-chat-composer="" style="border:1px solid #ccc;border-radius:10px;height:60px"></div>
       </div>
+      <div style="display:flex;gap:16px;align-items:center;padding:8px 0">${sw({ name: '맞는 꺼짐' })}${sw({ name: '맞는 켜짐', on: true, travel: 16 })}</div>
     </div>
     <div id="bad">
       <button class="MuiButton-root MuiButton-sizeMedium" style="height:40px;padding:0 12px">큰 버튼</button>
@@ -617,6 +696,14 @@ SELFTEST_HTML = r"""
         <div data-chat-row="mine" style="display:grid;justify-items:end"><div style="display:flex;max-width:90%"><div data-chat-bubble="mine" style="width:500px;padding:10px 14px">넓게 퍼진 말풍선</div></div></div>
         <div data-chat-composer="" style="border:1px solid #ccc;border-radius:20px;height:60px"></div>
       </div>
+      <div style="display:flex;gap:16px;align-items:center;padding:8px 0">
+        ${sw({ name: '옛 막대', w: 58, h: 34, padY: 7, padX: 12, margin: 0, baseY: 9, baseX: 14, radius: '7px', on: true, travel: 14 })}
+        ${sw({ name: '끝을 넘은 손잡이', on: true, travel: 21 })}
+        ${sw({ name: '고르지 않은 여백', baseX: 8 })}
+        ${sw({ name: '좁은 누르는 자리', h: 34, padY: 6, margin: 0, baseY: 9 })}
+        ${sw({ name: '타원 트랙', radius: '50%' })}
+        ${sw({ name: '그림만 맞고 누르는 자리는 34', baseTop: 5, baseY: 9 })}
+      </div>
     </div>`;
   document.body.appendChild(box);
   return true;
@@ -627,7 +714,7 @@ SELFTEST_HTML = r"""
 SELFTEST_EXPECT_BAD = {
     "button_height": 1, "button_wrap": 1, "badge": 1, "tag": 1, "count_chip": 1,
     "filter_cell": 1, "filter_notched": 1, "search_slot": 1, "form_field_rows": 2, "chat_layout": 2,
-    "modal": 1, "floating_radius": 1, "footer_owner": 1,
+    "modal": 1, "floating_radius": 1, "footer_owner": 1, "switch_geometry": 6,
 }
 
 

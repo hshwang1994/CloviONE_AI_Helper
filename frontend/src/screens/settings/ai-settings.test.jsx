@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -124,6 +124,29 @@ describe("AI 설정", () => {
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/ai/config", {
       method: "PUT", body: { generation_enabled: true },
     }));
+  });
+
+  /* D-525 — 저장 중에 다른 기능 스위치를 끄지 않는다. 예전에는 한 기능을 저장하는 동안 셋 모두가 비활성이었다. */
+  it("기능 스위치는 저장이 도는 동안에도 켜져 있고 누른 순간 바뀐다", async () => {
+    const user = userEvent.setup();
+    const base = apiMock.getMockImplementation();
+    let release = () => {};
+    apiMock.mockImplementation((path, opt) => {
+      if (String(path).startsWith("/api/admin/settings/") && opt && opt.method === "PUT") {
+        return new Promise((resolve) => { release = () => resolve({}); });
+      }
+      return base(path, opt);
+    });
+    renderScreen();
+    const chat = await screen.findByRole("switch", { name: "AI 채팅" });
+    const narrative = screen.getByRole("switch", { name: "홈 AI 문장 요약" });
+    expect(chat).toBeChecked();
+    await user.click(chat);
+    expect(chat).not.toBeChecked();
+    expect(chat).toBeEnabled();
+    expect(narrative).toBeEnabled();
+    expect(apiMock).toHaveBeenCalledWith("/api/admin/settings/chat_enabled", { method: "PUT", body: { value: false } });
+    await act(async () => { release(); });
   });
 
   it("모델 불러오기는 제공자의 목록을 받아 고르게 한다", async () => {

@@ -310,3 +310,15 @@ def test_kit_measure_reports_both_tables():
 
     assert kit_measure.ALL_CHECKS[: len(kit_measure.CHECKS)] == kit_measure.CHECKS
     assert set(kit_measure.ALL_CHECKS) >= {"filter_composition", "list_surface", "primary_budget", "chat_composition"}
+
+
+def test_kit_measure_switch_contract_matches_the_theme():
+    """스위치 프로브의 계약값은 `theme.js::SWITCH` 와 같은 숫자다(D-525) — vitest 가 테마 쪽을, 이 시험이 프로브 쪽을
+    못박는다. 한쪽만 바뀌면 프로브가 맞는 스위치를 틀렸다고 하거나 틀린 스위치를 통과시킨다."""
+    from scripts.ui_qa import kit_measure
+
+    assert kit_measure.CONTRACT["switch"] == {"trackW": 38, "trackH": 22, "thumb": 16, "hit": 44, "layoutH": 34, "ring": 4}
+    assert "switch_geometry" in kit_measure.CHECKS
+    # 자체 시험의 기대는 실제 검사 이름만 가리킨다 — 오타 난 이름은 「틀린 견본을 못 잡음」을 영영 못 낸다.
+    assert set(kit_measure.SELFTEST_EXPECT_BAD) <= set(kit_measure.CHECKS)
+    assert kit_measure.SELFTEST_EXPECT_BAD["switch_geometry"] >= 6

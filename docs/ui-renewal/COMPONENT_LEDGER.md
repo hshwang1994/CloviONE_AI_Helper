@@ -875,6 +875,9 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - **소비 화면**: 내 프로필(알림 설정 · 방해금지). 관리자 줄은 옛 밀도 그대로
 - **규약값**: 이름 `FONT_SIZE.bodySm` 0.875rem / 600 · 설명 `FONT_SIZE.micro` 0.75rem ·
   줄 **위** 1px `rule` · py 10 · gap 12 · **두 줄이 되지 않는다**(말줄임 + `title`).
+- **`controlId`**(D-525): 주면 이름이 `<label htmlFor>` 가 되어 이름을 눌러도 그 컨트롤이 바뀐다. 줄은 컨트롤의 종류를 모르고
+  id 하나만 안다 — 호출부가 같은 값을 컨트롤의 `id` 에 준다. 단추 · 세그먼티드가 선 줄에는 주지 않는다. 컨트롤이 비활성이면
+  이름의 커서도 기본으로 돌아간다(`:has(:disabled)`).
 
 ### `SectionTitle` — 판 제목
 - **파일**: `frontend/src/ui/kit.jsx` + `typography.sectionTitle`(`ui/theme.js`)
@@ -883,13 +886,17 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - **규약값**: `FONT_SIZE.cardTitle` 1.0625rem / `FONT_WEIGHT.bold` 700 ·
   설명 `FONT_SIZE.caption` 0.8125rem `text.secondary`.
 
-### `MuiSwitch` — 트랙 치수와 색
-- **파일**: `frontend/src/ui/theme.js`
-- **대체**: 옛 38x14 트랙 + MUI 기본 반투명 색
-- **소비 화면**: 내 프로필(medium). 필터 스위치는 `size="small"` 로 따로 산다
-- **규약값**: 트랙 34x20(폭 = 58 − 2x12, 높이 = 34 − 2x7) · 손잡이 흰색 16 · 안쪽 여백 2 ·
-  켜짐 이동 14 · 켜짐 `primary.main` · 꺼짐 `dividerStrong`.
-  **실측**: 켜짐 `#5A4FCF`, 꺼짐 `#BCC2D9`.
+### `MuiSwitch` — 보이는 크기 · 누르는 자리 · 상태 (D-525)
+- **파일**: `frontend/src/ui/theme.js`(`SWITCH` 상수 + `MuiSwitch` override)
+- **대체**: 옛 34x20 트랙(MUI 루트 폭 58px · 모서리 7px 가 px 로 남아 넓은 화면에서 손잡이가 트랙 끝을 넘었다) + 흰 손잡이 · opacity 비활성
+- **소비 화면**: 내 프로필(알림 · 메일 · 방해금지), 메일(`/admin#/mail`), AI 설정, 부품 갤러리. 크기 변형은 없다 — `size="small"` 도 같은
+  스위치다. 필터 바에는 스위치를 두지 않는다(`FilterToggle`).
+- **규약값**: 트랙 38x22(높이 `CONTROL.pill`) · 원형 손잡이 16 · 안쪽 여백 3(위 · 아래 · 끝 같음) · 켜짐 이동 16 · 모서리 `RADIUS.full` ·
+  누르는 자리(루트) 50x44 · 위아래 바깥 여백 −5 로 배치 높이 34 · 전부 rem. 꺼짐 = 면 없음 + `faint` 선과 점, 켜짐 = `primary.main` 면 +
+  흰 손잡이(dark 가장자리 `primary.dark`), 올림 = `inset` 면 + `muted`, 누름 = `sunken` 면, 켠 스위치의 올림 · 누름 = 강조색 15% 강한 쪽,
+  비활성 꺼짐 = `inset` 면 + `line` 선 + `disabledControlInk` 점, 비활성 켜짐 = `disabledControlInk` 면 + `inset` 점. 초점 링은 트랙에
+  2px + offset 2. 그림자 · halo · 물결 없음, 전환 `MOTION.fast`, 지연 없음.
+- **실측**: `kit_measure` `switch_geometry` 282표본 0실패(4화면 × 1920 · 2560 · 3840 × 두 테마), `switch_states` 174/174.
 
 ### `AccentPicker` 칩
 - **파일**: `frontend/src/screens/settings/AccentPicker.jsx`

@@ -8,6 +8,7 @@ import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { failureText } from "../../lib/failure.js";
 import { fmtDateTime } from "../../lib/format.js";
+import { useInstantSave } from "../../lib/useInstantSave.js";
 import {
   ActionFooter, Badge, Button, Callout, Card, ErrorState, FieldLabel, Section, SectionTitle, Skeleton, useToast,
 } from "../../ui/kit.jsx";
@@ -92,12 +93,13 @@ export function AiSettings() {
       toast("AI 설정을 저장했습니다.", "success");
     },
   });
-  const feature = useMutation({
+  /* 기능 스위치 셋은 누르는 즉시 저장된다 — 누른 순간 반영하고 요청은 한 줄로 보낸다(D-525). 저장 중이라고 다른
+     기능 스위치를 끄지 않는다. */
+  const feature = useInstantSave({
+    queryKey: ["ai-admin"],
     mutationFn: ({ key, value }) => api("/api/admin/settings/" + key, { method: "PUT", body: { value } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ai-admin"] });
-      toast("AI 기능 설정을 저장했습니다.", "success");
-    },
+    apply: (old, { key, value }) => ({ ...old, features: { ...(old.features || {}), [key]: value } }),
+    onSaved: () => toast("AI 기능 설정을 저장했습니다.", "success"),
     onError: (e) => toast(e.message, "error"),
   });
   const loadModels = useMutation({
@@ -269,8 +271,10 @@ export function AiSettings() {
         <SectionTitle component="h2" title="AI 기능" sx={{ mt: 3 }} />
         <SettingRow
           compact label="AI 답변 생성" description="켜면 아래 기능들이 이 연결로 답을 만듭니다. 저장을 눌러야 적용됩니다."
+          controlId="ai-generation"
           action={(
             <Switch
+              id="ai-generation"
               checked={!!form.generation_enabled}
               onChange={() => set("generation_enabled", !form.generation_enabled)}
               slotProps={{ input: { "aria-label": "AI 답변 생성" } }}
@@ -284,9 +288,11 @@ export function AiSettings() {
         ].map(([key, label, description]) => (
           <SettingRow
             key={key} compact label={label} description={description}
+            controlId={`ai-feature-${key}`}
             action={(
               <Switch
-                checked={!!features[key]} disabled={feature.isPending}
+                id={`ai-feature-${key}`}
+                checked={!!features[key]}
                 onChange={() => feature.mutate({ key, value: !features[key] })}
                 slotProps={{ input: { "aria-label": label } }}
               />
