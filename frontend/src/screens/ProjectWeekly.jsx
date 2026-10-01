@@ -238,7 +238,7 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
             </Stack>
           )}
         />
-        {summaryFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{summaryFailure}</Callout> : null}
+        {summaryFailure ? <Callout tone="danger" compact>{summaryFailure}</Callout> : null}
         {/* 규칙이 쓴 문장인지 모델이 쓴 문장인지 구별을 남긴다. 안 남기면 몇 주 뒤에 둘 다
             못 믿게 된다(app/projects/models.py::REPORT_SOURCES).
             GET 은 언제나 규칙 문장만 계산한다(§L, 웹에서 LLM 을 안 부른다) — 그래서 AI 가

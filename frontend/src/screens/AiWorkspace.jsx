@@ -197,7 +197,7 @@ export function AiWorkspace() {
   if (status.error) return <ErrorState error={status.error} onRetry={status.refetch} />;
 
   return (
-    <Box>
+    <Box className="c-screen">
       <PageHeader
         area="AI"
         title="AI 작업공간"
@@ -211,7 +211,7 @@ export function AiWorkspace() {
         </Callout>
       ) : null}
 
-      <Card sx={{ mb: 2 }}>
+      <Card>
         <Stack
           component="form"
           direction={{ xs: "column", sm: "row" }}

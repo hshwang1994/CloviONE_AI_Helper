@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>시각 규율 틀린 견본</title>
+<style>
+  :root {
+    --color-primary: #5a4fcf; --color-primary-soft: #ecebfa;
+    --color-success: #1a7f4b; --color-warning: #b26b00; --color-error: #c62828; --color-info: #1d64c4;
+    font-size: 16px;
+  }
+  html, body { margin: 0; background: #eef0f7; font-family: sans-serif; color: #1c2033; }
+  main { padding: 0 24px 24px; display: flex; flex-direction: column; row-gap: 16px; }
+  .plate { background: #fff; border: 1px solid #dcdfec; border-radius: 8px; padding: 20px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f5f6fb; height: 40px; text-align: start; }
+</style>
+</head>
+<body>
+<!-- 틀린 견본: 보라 머리 띠(큰 면), 표지 겹판, 손으로 그린 카드 모양 상자, 절반 넘게 빈 판, 첫 화면 아래로 밀린 표, 상태색 넷. -->
+<main id="main-content">
+  <div style="background:#5a4fcf;color:#fff;height:120px;margin:0 -24px;padding:24px">AI 연결 상태를 한눈에 확인하세요</div>
+  <div data-surface="plate" class="plate">
+    <div data-surface="plate" class="plate">카드 안 카드(표지)</div>
+  </div>
+  <div data-surface="plate" class="plate">
+    <div style="background:#fff;border:1px solid #dcdfec;border-radius:8px;width:300px;height:80px">손으로 그린 카드</div>
+  </div>
+  <div data-surface="plate" class="plate" style="height:360px">
+    <svg width="16" height="16" style="color:#1a7f4b;fill:#1a7f4b"><circle cx="8" cy="8" r="7"></circle></svg>
+    <svg width="16" height="16" style="color:#b26b00;fill:#b26b00"><circle cx="8" cy="8" r="7"></circle></svg>
+    <svg width="16" height="16" style="color:#c62828;fill:#c62828"><circle cx="8" cy="8" r="7"></circle></svg>
+    <svg width="16" height="16" style="color:#1d64c4;fill:#1d64c4"><circle cx="8" cy="8" r="7"></circle></svg>
+    <span>한 줄만 있는 큰 판</span>
+  </div>
+  <div data-surface="plate" class="plate">
+    <table>
+      <thead><tr><th>받는 사람</th><th>상태</th></tr></thead>
+      <tbody><tr><td>홍길동</td><td>보낼 차례</td></tr></tbody>
+    </table>
+  </div>
+</main>
+</body>
+</html>

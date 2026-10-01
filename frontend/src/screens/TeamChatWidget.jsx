@@ -47,7 +47,7 @@ export function TeamChatWidget() {
     </Box>
   );
   const shell = (children) => (
-    <Card sx={{ mt: 2 }}>{header}{children}</Card>
+    <Card>{header}{children}</Card>
   );
 
   if (q.isPending) return shell(<Skeleton lines={4} />);

@@ -66,7 +66,7 @@ function Sample({ label, children, sx }) {
 function GallerySection({ id, title, help, parts, children }) {
   return (
     <Card id={id} sx={{ display: "grid", rowGap: 2, minWidth: 0 }}>
-      <SectionTitle component="h2" sx={{ mb: 0 }} title={title} help={help} />
+      <SectionTitle spacing="none" component="h2"  title={title} help={help} />
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
         {parts.map((p) => (
           <Box
@@ -261,8 +261,10 @@ export function KitGallery() {
     clear: () => setPicked(new Set()),
   }), [picked]);
 
+  /* `data-allow-nested` — 갤러리는 견본 틀 안에 판(칸반 카드 · 빈 상태 판 · 필터 면)을 세우는 카탈로그라 시각 규율의 카드 안 카드
+     검사(`visual_probes.py::nested_card`)를 받지 않는다. 제품 화면에는 이 표지를 달지 않는다. */
   return (
-    <div className="c-screen">
+    <div className="c-screen" data-allow-nested="">
       <PageHeader
         area="개발"
         title="공통 부품 갤러리"
@@ -386,16 +388,15 @@ export function KitGallery() {
           </Sample>
           <Sample label="1200 폭의 좁은 판, 순서를 지킨 채 줄이 바뀌고 오른쪽 묶음이 통째로 내려갑니다">
             <Box sx={{ maxWidth: "44rem", border: 1, borderColor: "divider", borderRadius: `${RADIUS.md}px`, p: 2 }}>
-              <FilterBar
-                sx={{ mb: 0 }}
+              <FilterBar flush
+
                 search={<SearchBox value="" onSearch={() => {}} placeholder="티켓 제목, 이름 검색" ariaLabel="좁은 판 티켓 검색" />}
                 end={(
                   <>
                     <FilterToggle pressed={false} onClick={() => {}}>내 티켓만</FilterToggle>
                     <FilterToggle expanded={false} onClick={() => {}}>상세 필터</FilterToggle>
                   </>
-                )}
-              >
+                )}>
                 <FilterSelect label="상태" value="" onChange={() => {}} options={["계획", "진행 중"]} />
                 <FilterSelect label="난이도" value="" onChange={() => {}} options={["상", "중", "하"]} />
               </FilterBar>
@@ -582,9 +583,9 @@ export function KitGallery() {
         {/* 판이 아니다 — 목록 화면이 캔버스 위에 세우는 조합 그대로다: 필터 바 → 목록 판. 이 절이 판이면 목록 판이 판 안의 판이
             되어 테두리가 사라진다(`Surface` 깊이 규칙). 실브라우저 조합 검사의 맞는 견본이다. */}
         <Box component="section" id="kit-list-composition" data-gallery-composition="" sx={{ display: "grid", rowGap: 2, minWidth: 0 }}>
-          <SectionTitle
+          <SectionTitle spacing="none"
             component="h2"
-            sx={{ mb: 0 }}
+
             title="목록 화면 조합"
             help="필터 바 아래 목록 판이 섭니다. 판이 곧 표 상자라 머리 줄이 판 가장자리에 붙고, 받은 건수와 선택 묶음과 더 보기는 판 안 마지막 줄입니다."
           />
@@ -719,7 +720,7 @@ export function KitGallery() {
               </FormFieldCell>
             </Box>
           </Box>
-          <Card sx={{ p: 2.5 }}>
+          <Card>
             <Typography sx={{ fontSize: FONT_SIZE.bodySm }}>카드 발은 판 가장자리까지 함몰면을 펴고 위 실선으로 갈립니다.</Typography>
             <ActionFooter placement="card">
               <Button>취소</Button>
@@ -779,7 +780,7 @@ export function KitGallery() {
         <GallerySection
           id="kit-callout"
           title="메시지 박스 1a"
-          help="네 상태의 면과 테두리가 같고 아이콘만 다릅니다. 톤 이름 줄은 없습니다. 한 줄이면 높이 49입니다."
+          help="네 상태의 면과 테두리가 같고 아이콘만 다릅니다. 톤 이름 줄은 없습니다. 한 줄이면 높이 50, 오른쪽 동작이 있으면 56입니다."
           parts={[{ name: "Callout variant=block, inline, bleed", path: "ui/kit.jsx", ledger: "Callout" }]}
         >
           <Box sx={{ display: "grid", rowGap: 1.25 }}>
@@ -999,7 +1000,8 @@ export function KitGallery() {
             </Sample>
             <Sample label="필터 칸의 긴 값">
               {/* 면이 40rem 이라 wide 칸도 바닥 계단(13rem)에 선다 — 좁은 면에서는 말줄임과 `title` 이 값을 지킨다. */}
-              <FilterBar sx={{ mb: 0, maxWidth: "40rem" }}>
+              {/* clovi-allow-geometry: 좁은 필터 면(40rem)을 보이는 견본이다. */}
+              <FilterBar flush sx={{ maxWidth: "40rem" }}>
                 <EntityCombobox size="wide" label="프로젝트" value="p-long" onChange={() => {}} options={[{ value: "p-long", label: `P. ${LONG_TITLE}` }]} />
                 <FilterSelect label="분류" value="k" onChange={() => {}} options={[{ value: "k", label: LONG_TITLE }]} />
               </FilterBar>
@@ -1008,8 +1010,9 @@ export function KitGallery() {
               <Callout tone="danger" detail={LONG_URL}>{`${LONG_TITLE}을 저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.`}</Callout>
             </Sample>
             <Sample label="긴 판 제목과 긴 사람 이름">
+              {/* clovi-allow-geometry: 좁은 판(32rem)에서 긴 제목이 접히는 모양을 보이는 견본이다. */}
               <Card sx={{ maxWidth: "32rem" }}>
-                <SectionTitle title={LONG_TITLE} sx={{ mb: 1 }} />
+                <SectionTitle spacing="tight" title={LONG_TITLE}  />
                 <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, minWidth: 0, maxWidth: "100%" }}>
                   <UserAvatar person={{ user_id: "u-long" }} name="아주긴이름을가진사용자의표시이름" size="xs" />
                   <Box component="span" sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>아주긴이름을가진사용자의표시이름 플랫폼개발본부 인프라자동화파트</Box>

@@ -244,7 +244,7 @@ export function SettingEditor({ setting, canWrite, lockedReason, onClose, onSave
             onClick={() => setAdvanced((v) => !v)}>{advanced ? "구조화된 입력으로 전환" : "JSON으로 직접 수정(고급)"}</Button>
         </Box>
       ) : null}
-      {advanced && !advancedJsonValid ? <Callout tone="danger" compact sx={{ mt: 1 }}>JSON 형식이 올바르지 않아 구조화된 입력으로 전환할 수 없습니다. 먼저 JSON을 고치세요.</Callout> : null}
+      {advanced && !advancedJsonValid ? <Callout tone="danger" compact>JSON 형식이 올바르지 않아 구조화된 입력으로 전환할 수 없습니다. 먼저 JSON을 고치세요.</Callout> : null}
       {isObjectSetting(setting) && (!STRUCTURED_OBJECT_KEYS.includes(setting.key) || advanced) ? <Typography variant="caption" color="text.secondary" id="setting-help" sx={{ display: "block", mt: 1 }}>{OBJECT_SCHEMA_HELP[setting.key] || "JSON 형식으로 입력하세요."}</Typography> : null}
       {setting.restart_required ? <Typography variant="body2" sx={{ mt: 1.5 }}>이 설정은 저장 후 서비스를 수동으로 재시작해야 적용됩니다.</Typography> : null}
       {/* 검증 통과는 성공 신호이므로 흐린 힌트 대신 Callout로 확실히 표시한다.

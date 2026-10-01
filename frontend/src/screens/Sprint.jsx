@@ -122,7 +122,8 @@ function qs(pairs) {
 function DiscussRow({ row, onOpen, signals, showProject }) {
   return (
     <Card
-      sx={{ p: 1.25, cursor: "pointer", display: "flex", alignItems: "center", gap: 1 }}
+      padding="compact"
+      sx={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 1 }}
       onClick={() => onOpen(row)}
     >
       <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -141,7 +142,7 @@ function DiscussRow({ row, onOpen, signals, showProject }) {
 function DecisionRow({ row, onToggle, onDelete, onEdit, onOpenTicket, inLane = false }) {
   const isAction = row.kind === KIND_ACTION;
   return (
-    <Card sx={{ p: 1.25, display: "flex", alignItems: "flex-start", gap: 1 }}>
+    <Card padding="compact" sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
       {isAction ? (
         <Checkbox
           size="small"
@@ -723,7 +724,7 @@ export function Sprint() {
               ]}
             />
             <Box sx={PAIR_GRID}>
-              <Section title="번다운" rule sx={{ mb: 0, flex: 1 }} titleAs="h4">
+              <Section flush title="번다운" rule sx={{ flex: 1 }} titleAs="h4">
                 <Box sx={{ ...PANEL_SURFACE, flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   {burndown ? (
                     <LineSeries
@@ -741,7 +742,7 @@ export function Sprint() {
                   )}
                 </Box>
               </Section>
-              <Section title="회차 건강" rule sx={{ mb: 0, flex: 1 }} titleAs="h4">
+              <Section flush title="회차 건강" rule sx={{ flex: 1 }} titleAs="h4">
                 <Box sx={{ ...PANEL_SURFACE, flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
                   <Stack spacing={1.5} alignItems="center" sx={{ width: "100%" }}>
                     {/* 게이지가 이 판의 주인이다 — 크게, 한가운데. 점수와 밴드가 링 안에 서고
@@ -867,7 +868,7 @@ export function Sprint() {
           {/* 4 — 업무량과 범위 변경. 회차 전체다. */}
           <Section title="업무량과 범위 변경" rule>
             <Box sx={PAIR_GRID}>
-              <Section title="담당자별 남은 WD" rule sx={{ mb: 0, flex: 1 }} titleAs="h4">
+              <Section flush title="담당자별 남은 WD" rule sx={{ flex: 1 }} titleAs="h4">
                 <Box sx={{ ...PANEL_SURFACE, flex: 1, minHeight: 0 }}>
                   {workload ? (
                     <BarSeries
@@ -885,7 +886,7 @@ export function Sprint() {
                   )}
                 </Box>
               </Section>
-              <Section title="범위 변경" rule sx={{ mb: 0, flex: 1 }} titleAs="h4">
+              <Section flush title="범위 변경" rule sx={{ flex: 1 }} titleAs="h4">
                 <Box sx={{ ...PANEL_SURFACE, flex: 1, minHeight: 0 }}>
                   {body.scope.tracked ? (
                     <Stack spacing={1}>
@@ -977,12 +978,12 @@ export function Sprint() {
                     }}
                   >
                     {/* 레인 머리는 판 제목 정본이다 — 이름 · 도움말 한 쌍과 오른쪽 건수 칩(계획 표 5 허용 치환). */}
-                    <SectionTitle
+                    <SectionTitle spacing="tight"
                       component="h4"
                       title={lane.title}
                       help={lane.help}
                       action={<CountChip value={rows.length} />}
-                      sx={{ mb: 1 }}
+
                     />
                     {rows.length === 0 ? (
                       <Box sx={{ mt: "auto" }}>

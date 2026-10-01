@@ -170,11 +170,13 @@ export function Chat() {
         title={cid ? activeTitle : "AI 도우미"}
         actions={<Button href="#/ai">문서에서 찾기</Button>}
       />
-      {/* 판 높이는 화면 아래까지 서는 판의 정본 값이다(`PAGE_FILL_HEIGHT` — 채팅방 · 새 티켓과 같은 값, 높이 고정 판). */}
+      {/* 판 높이는 화면 아래까지 서는 판의 정본 값이다(`PAGE_FILL_HEIGHT` — 채팅방 · 새 티켓과 같은 값, 높이 고정 판).
+          clovi-allow-geometry: 채움 판의 높이다. 작업 공간 채움 모드(D-531)로 옮기면 계산값이 사라진다. */}
       <Card
         data-page-fill=""
+        padding="none"
         sx={{
-          p: 0, overflow: "hidden",
+          overflow: "hidden",
           height: PAGE_FILL_HEIGHT,
           minHeight: "30rem",
           display: "grid",

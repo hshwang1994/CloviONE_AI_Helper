@@ -184,7 +184,7 @@ export function EditableBody({
               ariaLabel={heading + " 수정"}
             />
           </React.Suspense>
-          {saveFailure ? <Callout tone="danger" compact sx={{ mt: 2 }}>{saveFailure}</Callout> : null}
+          {saveFailure ? <Callout tone="danger" compact>{saveFailure}</Callout> : null}
           {/* 저장은 판 발이다(핸드오프 RULES §7 「저장은 카드 발」 · 조합 계약 C-4 · C-5) — 취소 → 저장이 오른쪽 끝이다. 예전에는 두 단추가
               판 제목 오른쪽(30)에 서서, 긴 본문을 고치다 보면 저장이 화면 위로 사라졌다. 발은 긴 본문에서 화면 아래에 따라온다
               (`sticky` — 담는 판이 넘침을 자르지 않아야 한다, 티켓 상세 본문 판). */}

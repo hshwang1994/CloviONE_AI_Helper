@@ -468,7 +468,7 @@ export function Trash() {
             : `삭제한 티켓을 ${days}일 동안 보관합니다. 문서는 자동으로 지워지지 않으며, 영구 삭제는 사람이 누를 때만 실행됩니다.`
         }
       />
-      {trashNotice ? <Callout tone={trashNotice.tone} compact sx={{ mb: 2 }}>{trashNotice.text}</Callout> : null}
+      {trashNotice ? <Callout tone={trashNotice.tone} compact>{trashNotice.text}</Callout> : null}
 
       {q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         : q.isPending ? <DataTable placement="surface" columns={columns} rows={[]} loading />

@@ -7,7 +7,7 @@ import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { useInstantSave } from "../lib/useInstantSave.js";
 import {
-  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, MetaBar, Section, Segmented, Skeleton, TechDetail,
+  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, FlowStack, MetaBar, Section, Segmented, Skeleton, TechDetail,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { SettingRow } from "../ui/adminKit.jsx";
@@ -322,18 +322,19 @@ function MailStatusPanel() {
     </>
   ) : null;
 
+  /* 덩어리 사이 간격은 이 흐름 그릇이 준다(D-528) - 메시지 상자 · 설정 줄 · 현황 카드 · 구획이 각자 여백을 들지 않는다. */
   return (
-    <Box>
+    <FlowStack>
       {headActions ? <HeaderActions fallback={headActions}>{headActions}</HeaderActions> : null}
 
-      {testNotice ? <Callout tone="danger" compact sx={{ mb: 2 }}>{testNotice}</Callout> : null}
-      {verifyNotice ? <Callout tone="danger" compact sx={{ mb: 2 }}>{verifyNotice}</Callout> : null}
+      {testNotice ? <Callout tone="danger" compact>{testNotice}</Callout> : null}
+      {verifyNotice ? <Callout tone="danger" compact>{verifyNotice}</Callout> : null}
       <HealthStatus health={health} problems={mail.problems} canFix={canWrite} />
       {/* 설정 전에 쌓인 초대 메일(최근 7일) — 연결이 확인된 뒤에만 보낼 수 있게 묻는다. 오래된 메일을 예고 없이
           뿌리지 않는다(계획 3.4). 보내기 직전에 아직 의미가 있는지 서버가 한 번 더 본다. */}
       {canWrite && backlog > 0 && health && health.state === "ok" ? (
         <Callout
-          tone="info" sx={{ mt: 2 }}
+          tone="info"
           action={<Button size="sm" loading={sendBacklog.isPending} onClick={() => sendBacklog.mutate()}>보내기</Button>}
         >
           설정 전에 쌓인 메일 {backlog}건이 있습니다. 지금 보내도 되는지 확인한 뒤 보내세요.
@@ -342,7 +343,6 @@ function MailStatusPanel() {
 
       {mailSettingsShown(server) ? <MetaBar
         ariaLabel="메일 서버 설정"
-        sx={{ mt: 2 }}
         items={[
           { key: "enabled", label: "발송", type: "status", value: <Badge value={server.enabled ? "사용" : "사용 안 함"} kind={server.enabled ? "ok" : "warn"} /> },
           { key: "host", label: "메일 서버", type: "identifier", value: server.host ? server.host + ":" + (server.port == null ? "?" : server.port) : "설정 안 됨" },
@@ -367,7 +367,6 @@ function MailStatusPanel() {
           카드는 서지 않는다(D-501 · `StatusKpi.jsx`) — 그 사실은 아래 「최근 실패」의 빈 상태가 말한다. */}
       <StatusSummaryCard
         ariaLabel="발송 현황"
-        sx={{ mt: 2 }}
         total={total}
         items={[
           { key: "failed", label: "발송 실패", value: counts.failed || 0, kind: "danger" },
@@ -390,7 +389,7 @@ function MailStatusPanel() {
           빈 상태다(성공 그림) — 실패가 없다는 것은 이 화면의 좋은 소식이다.
           한 통도 쌓인 적이 없으면 「실패가 없다」는 좋은 소식이 아니라 아직 아무것도 안 보냈다는 뜻이다 — 위 발송 현황
           카드가 서지 않는 그 상태를 여기서 그대로 말한다. */}
-      <Section titleAs="h2" title="최근 실패" sx={{ mt: 3, mb: 0 }}>
+      <Section flush titleAs="h2" title="최근 실패">
         {failures.length ? (
           <DataTable placement="surface" columns={FAILURE_COLUMNS} rows={failures} rowKey={(r) => r.id} />
         ) : total === 0 ? (
@@ -401,7 +400,7 @@ function MailStatusPanel() {
       </Section>
 
       <NotificationMailSection info={data.notification_mail} canWrite={canWrite} />
-    </Box>
+    </FlowStack>
   );
 }
 
@@ -444,10 +443,9 @@ function NotificationMailSection({ info, canWrite }) {
   const days = info.max_age_days;
   const ages = AGE_CHOICES.includes(days) ? AGE_CHOICES : [...AGE_CHOICES, days].sort((a, b) => a - b);
   return (
-    <Section
-      titleAs="h2" title="메일로 보내는 알림" sx={{ mt: 3, mb: 0 }}
-      help="여기서 허용한 알림만 사용자가 메일로 받을 수 있습니다. 사용자는 내 프로필에서 메일 알림을 켜고 받을 알림을 고릅니다."
-    >
+    <Section flush
+      titleAs="h2" title="메일로 보내는 알림"
+      help="여기서 허용한 알림만 사용자가 메일로 받을 수 있습니다. 사용자는 내 프로필에서 메일 알림을 켜고 받을 알림을 고릅니다.">
       <Card>
         <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, columnWidth: "20rem", columnGap: 3 }}>
           {catalog.map((row) => (

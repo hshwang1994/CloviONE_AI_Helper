@@ -88,8 +88,9 @@ beforeEach(() => {
 /** 판을 담는 바깥 격자의 직계 자식 — [신원 머리, 설정 두 열] 이다. */
 function cardRows(container) {
   const screen = container.querySelector(".c-screen");
+  /* 페이지 머리(`.k-page-head`)는 판 격자가 아니다 — 경로 · 제목 줄 · 설명을 담는 한 상자다(D-528). */
   const outer = [...(screen ? screen.children : [])].reverse()
-    .find((el) => el.tagName === "DIV" && el.children.length >= 2);
+    .find((el) => el.tagName === "DIV" && !el.classList.contains("k-page-head") && el.children.length >= 2);
   return outer ? [...outer.children] : [];
 }
 
@@ -166,16 +167,18 @@ describe("내 프로필 — 신원 머리는 전폭이고 설정은 한 줄에�
   });
 });
 
-/* 조용시간의 저장 단추는 페이지 동작 높이(34)다 — 입력칸(36) 높이로 늘어나지 않고 윗선만 맞춘다
- * (핸드오프 ACCEPTANCE C1 · RULES §14, 계획 표 5 「발 버튼 정렬」). 예전에는 `alignSelf: stretch` 로 36 에 섰다. */
+/* 조용시간의 저장 단추는 페이지 동작 높이(34)다 — 입력칸(34)과 같은 높이 · 같은 윗선으로 줄(`FieldRow`)의 동작 칸에 선다
+ * (핸드오프 ACCEPTANCE C1 · RULES §14, D-527). 예전에는 `alignSelf: stretch` 로 입력칸 높이(36)에 섰다. */
 describe("내 프로필 — 조용시간 저장 단추", () => {
-  it("저장 단추는 격자 칸에 늘어나지 않고 위에 붙는 기본 단추다", async () => {
+  it("저장 단추는 줄의 동작 칸에 위로 붙는 기본 단추다", async () => {
     const { container } = renderProfile();
     await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(5));
     const save = [...container.querySelectorAll("button")].find((b) => b.textContent.trim() === "시간 저장");
     expect(save).toBeTruthy();
     expect(save.className).toContain("MuiButton-sizeMedium");
-    expect(getComputedStyle(save).alignSelf).toBe("start");
+    const slot = save.closest(".k-field-row-action-slot");
+    expect(slot, "단추는 줄(FieldRow)의 동작 칸에 선다").toBeTruthy();
+    expect(getComputedStyle(slot).alignItems).toBe("flex-start");
     expect(getComputedStyle(save).alignSelf).not.toBe("stretch");
   });
 });

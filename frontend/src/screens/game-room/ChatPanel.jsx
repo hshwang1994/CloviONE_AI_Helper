@@ -63,7 +63,7 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, draft, setDraft, sendChat
           );
         })}
       </Box>
-      {chatFailure ? <Callout tone="danger" compact sx={{ mb: 1 }}>{chatFailure}</Callout> : null}
+      {chatFailure ? <Callout tone="danger" compact>{chatFailure}</Callout> : null}
       {/* 입력(36)과 단추(34)가 한 줄에 선다 — 가운데 정렬이 없으면 flex 기본값(stretch)이 단추를 36 으로
           늘려 같은 이름의 단추가 화면마다 다른 높이로 섰다(kit_measure `variant_height`). */}
       {/* 입력 줄은 입력 영역 하나다(`data-form-scope`) — 「보내기」는 이 영역의 채움이라 놀이 판의 채움(「투표 시작」 같은 진행 단추)과

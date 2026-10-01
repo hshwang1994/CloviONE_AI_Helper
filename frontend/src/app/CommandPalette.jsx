@@ -269,6 +269,7 @@ export function CommandPalette({ open, onClose, groups }) {
       {failed && flat.length > 0 ? (
         /* 팔레트 폭 전체를 쓰는 띠라 메시지 박스의 `bleed` 갈래다 — 모서리와 좌우 선 없이 아래 실선이
            목록과 가른다. 손으로 칠하던 붉은 면 대신 다른 실패 줄과 같은 1a 얼굴을 쓴다. */
+        /* clovi-allow-geometry: 팔레트 폭 띠의 글 시작점을 결과 행(좌우 20)에 맞춘다. */
         <Callout tone="danger" compact variant="bleed" sx={{ px: 2.5 }}>
           티켓, 문서, 게시판 검색을 불러오지 못했습니다. 아래는 메뉴 결과만 있습니다.
         </Callout>

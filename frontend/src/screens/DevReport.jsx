@@ -367,7 +367,7 @@ export function DevReport() {
               </Box>
             )}>
             {unknownDate ? (
-              <Callout tone="info" sx={{ mb: 1.5 }}>
+              <Callout tone="info">
                 {"끝낸 날짜를 모르는 완료 티켓 " + unknownDate + "건은 이 표에 들어가지 않았습니다. 이관한 데이터에 끝낸 날짜가 없기 때문입니다."}
               </Callout>
             ) : null}

@@ -158,8 +158,8 @@ describe("심각도를 색만으로 전하지 않는다 (WCAG 1.4.1)", () => {
 
   it("Callout의 제목 자리는 호출부가 줄 때만 선다", () => {
     const { container, unmount } = ui(<Callout tone="warn">본문</Callout>);
-    // 제목이 없으면 글 칸의 자식은 본문 하나뿐이다(톤 낱말이 위에 앉지 않는다).
-    const bodyOnly = container.querySelector(".k-callout > div");
+    // 제목이 없으면 글 칸의 자식은 본문 하나뿐이다(톤 낱말이 위에 앉지 않는다). 글 칸은 머리 줄(`HeadRow`)의 가운데 칸이다.
+    const bodyOnly = container.querySelector(".k-callout .k-head-text > div");
     expect(bodyOnly.children).toHaveLength(1);
     unmount();
 
@@ -215,15 +215,16 @@ describe("심각도를 색만으로 전하지 않는다 (WCAG 1.4.1)", () => {
       expect(screen.queryByRole("status")).toBeNull();
     });
 
+    /* 칸은 머리 줄(`HeadRow`, D-528)이 나눈다 — 아이콘 · 글 · 동작이 첫 줄 가운데선 하나에 선다. */
     it("동작은 글의 오른쪽 칸에 선다 — 상자가 대개 한 줄이기 때문이다", () => {
       const { container } = ui(
         <Callout tone="warn" action={<button type="button">닫기</button>}>알림 하나</Callout>,
       );
-      const box = container.querySelector(".k-callout");
-      expect(getComputedStyle(box).gridTemplateColumns).toBe("auto minmax(0,1fr) auto");
+      const row = container.querySelector(".k-callout > .k-head-row");
+      expect(getComputedStyle(row).gridTemplateColumns).toBe("auto minmax(0,1fr) auto");
       // 동작이 없으면 그 칸 자체가 없다 — 빈 트랙이 글 폭을 먹지 않는다.
       const plain = ui(<Callout tone="warn">알림 하나</Callout>);
-      expect(getComputedStyle(plain.container.querySelector(".k-callout")).gridTemplateColumns)
+      expect(getComputedStyle(plain.container.querySelector(".k-callout > .k-head-row")).gridTemplateColumns)
         .toBe("auto minmax(0,1fr)");
     });
   });

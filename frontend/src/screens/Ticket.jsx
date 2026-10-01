@@ -204,7 +204,7 @@ export function Ticket() {
           보여주게 하고, 아래 카드의 중복 h1은 없앤다. ticketId는 사라지지 않고 위 meta의
           '티켓 번호'로 옮겨 계속 보인다. */}
       <PageHeader crumbRoot="내 업무" area="티켓" title={t.title || ticketId(t)} actions={actions} />
-      {trashFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{trashFailure}</Callout> : null}
+      {trashFailure ? <Callout tone="danger" compact>{trashFailure}</Callout> : null}
       {/* 속성은 상단 전폭 한 줄이다 (지시 7). 예전에는 오른쪽 레일 맨 위에 세로로 쌓여
           있었고, 본문을 읽다가 마감을 확인하려면 시선이 화면 오른쪽 끝까지 갔다 와야 했다.
           훑는 정보라 눕히는 편이 짧다 — 그리고 그 자리를 비워 준 레일은 본문과 나란히

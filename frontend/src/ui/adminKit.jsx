@@ -3,7 +3,8 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { Badge, FlatBadgeSurface, SectionTitle } from "./kit.jsx";
 import { SECTION_GAP } from "./density.js";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "./theme.js";
+import { CONTROL, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, LINE_HEIGHT, MOTION } from "./theme.js";
+import { centerPad } from "./layout.jsx";
 
 /* 관리자 화면(Dashboard·진단·유지보수·작업 큐·개발자 리포트)이 함께 쓰는 껍데기·격자.
  * 예전엔 전부 Dashboard.jsx 안에 있어서, 그 화면 하나가 사실상 '관리자 전용 디자인 시스템'
@@ -84,7 +85,9 @@ export function SettingRow({ label, value, description, tone, action, state, las
           display: "flex", alignItems: "center", gap: 1.5,
           py: 1.25, borderTop: 1, borderColor: (t) => t.palette.rule,
         } : {
-          display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap",
+          /* **첫 줄 정렬**(D-528). 예전에는 `center` 라 설명이 두 줄이 되면 스위치가 라벨이 아니라 라벨 + 설명 덩어리의
+             가운데에 섰다. 이제 스위치(배치 높이 34)와 라벨 첫 줄(15px × 1.6)이 한 가운데선에 서고, 설명은 그 아래로 자란다. */
+          display: "flex", alignItems: "flex-start", gap: 2, flexWrap: "wrap",
           py: 1, borderBottom: last ? 0 : 1, borderColor: "divider",
         }),
         /* 컨트롤이 비활성이면 이름도 누를 것처럼 보이지 않는다 — 눌러도 아무 일이 없다. */
@@ -94,7 +97,7 @@ export function SettingRow({ label, value, description, tone, action, state, las
       <Box
         sx={compact
           ? { flex: "1 1 auto", minWidth: 0, display: "grid", gap: 0.25 }
-          : { flex: "1 1 18rem", minWidth: 0, display: "grid", gap: 0.125 }}
+          : { flex: "1 1 18rem", minWidth: 0, display: "grid", gap: 0.125, ...(action ? { pt: centerPad(CONTROL.control, 15 * LINE_HEIGHT.body) } : null) }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: compact ? "nowrap" : "wrap", minWidth: 0 }}>
           <Typography

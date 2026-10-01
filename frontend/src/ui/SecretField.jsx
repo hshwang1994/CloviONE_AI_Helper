@@ -6,16 +6,17 @@
  *
  * 입력칸은 `type="password"` 와 `autoComplete="new-password"` 다. 브라우저가 로그인 비밀번호를
  * 여기에 자동으로 채우면 관리자 비밀번호가 SMTP 비밀번호로 저장되는 사고가 난다.
+ *
+ * 모양은 공용 폼 칸(`Field`, D-527)이다 - [저장] · [삭제] 는 입력과 같은 줄의 동작 칸에 같은 높이(34)로 서고, 저장 상태
+ * 문장은 도움말 자리에 선다. 서버가 거절하면 그 이유가 도움말 자리를 대신한다(두 줄이 쌓여 칸 높이가 흔들리지 않는다).
  */
 import React, { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import { fmtDateTime } from "../lib/format.js";
 import { useGuardedMutation } from "../lib/useGuardedMutation.js";
-import { Button, FieldLabel } from "./kit.jsx";
+import { Button, Field } from "./kit.jsx";
 
 export const SECRETS_QUERY_KEY = ["admin-secrets"];
 
@@ -25,7 +26,7 @@ export function useSecretStatus(slot) {
   return { ...q, item };
 }
 
-export function SecretField({ slot, label, help, disabled = false, onChanged }) {
+export function SecretField({ slot, label, help, disabled = false, onChanged, width = "xl", span }) {
   const inputId = useId();
   const helpId = useId();
   const qc = useQueryClient();
@@ -61,45 +62,42 @@ export function SecretField({ slot, label, help, disabled = false, onChanged }) 
       : "저장된 값이 없습니다.";
 
   return (
-    <Box sx={{ minWidth: 0 }}>
-      <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
-      <Box sx={{ display: "flex", gap: 1, alignItems: "center", minWidth: 0 }}>
-        <TextField
-          id={inputId}
-          type="password"
-          size="small"
-          fullWidth
-          disabled={disabled || busy}
-          autoComplete="new-password"
-          placeholder={stored ? "바꾸려면 새 값을 입력하세요." : "값을 입력하세요."}
-          inputProps={{ "aria-describedby": helpId, spellCheck: false }}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && value.trim()) { e.preventDefault(); save.mutate(value); } }}
-        />
-        <Button
-          size="small" aria-label={`${label} 저장`}
-          onClick={() => save.mutate(value)} disabled={disabled || busy || !value.trim()} loading={save.isPending}
-        >
-          저장
-        </Button>
-        {stored ? (
+    <Field
+      label={label} htmlFor={inputId} helpId={helpId} width={width} span={span}
+      help={`${state}${help ? ` ${help}` : ""}`}
+      error={error ? error.message : null}
+      action={(
+        <>
           <Button
-            size="small" variant="ghost" aria-label={`${label} 삭제`}
-            onClick={() => clear.mutate()} disabled={disabled || busy} loading={clear.isPending}
+            aria-label={`${label} 저장`}
+            onClick={() => save.mutate(value)} disabled={disabled || busy || !value.trim()} loading={save.isPending}
           >
-            삭제
+            저장
           </Button>
-        ) : null}
-      </Box>
-      <Typography id={helpId} variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-        {state}{help ? ` ${help}` : ""}
-      </Typography>
-      {error ? (
-        <Typography role="alert" variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>
-          {error.message}
-        </Typography>
-      ) : null}
-    </Box>
+          {stored ? (
+            <Button
+              variant="ghost" aria-label={`${label} 삭제`}
+              onClick={() => clear.mutate()} disabled={disabled || busy} loading={clear.isPending}
+            >
+              삭제
+            </Button>
+          ) : null}
+        </>
+      )}
+    >
+      <TextField
+        id={inputId}
+        type="password"
+        size="small"
+        fullWidth
+        disabled={disabled || busy}
+        autoComplete="new-password"
+        placeholder={stored ? "바꾸려면 새 값을 입력하세요." : "값을 입력하세요."}
+        inputProps={{ "aria-describedby": helpId, spellCheck: false }}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && value.trim()) { e.preventDefault(); save.mutate(value); } }}
+      />
+    </Field>
   );
 }

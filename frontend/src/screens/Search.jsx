@@ -203,7 +203,7 @@ export function Search() {
           </Button>
         ) : null}
       />
-      {reindexNotice ? <Callout tone="danger" compact sx={{ mb: 2 }}>{reindexNotice}</Callout> : null}
+      {reindexNotice ? <Callout tone="danger" compact>{reindexNotice}</Callout> : null}
       <SearchField value={draft} onChange={setDraft} onSubmit={submit} placeholder={searchKindsPlaceholder} />
 
       {!enabled ? (

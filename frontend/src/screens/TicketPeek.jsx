@@ -164,7 +164,7 @@ export function TicketPeek({ pageId, onClose, onDetail, from, sprints, actions, 
             )}
             {previewText(data.body_markdown) ? (
               <Box>
-                <SectionTitle component="h3" title="설명" sx={{ mb: 0.5 }} />
+                <SectionTitle spacing="tight" component="h3" title="설명"  />
                 <Typography
                   variant="body2"
                   component="p"

@@ -23,6 +23,15 @@
                         카드 격자와 카드 안 글 폭(`PROSE_MAX_WIDTH`)으로 접는다(계획 2.1, D-520). 글 폭 상한은 잡지 않는다
     tab-count-chip      `<TabShell tabs=…>` 의 탭 이름에 수를 이어 붙인다(`` `사람 (${n})` `` · `"사람 " + n`) — 수는 탭의
                         `count` 가 이름 옆 칩으로 그린다(계획 3.2 · 3.18)
+    callout-margin      메시지 박스(`<Callout sx={{ mt|mb|my|m… }}>`)에 위아래 여백을 준다 — 덩어리 사이 간격은 담는 쪽
+                        (`.c-screen` · `FlowStack` · `Card stack` · 탭 판)이 준다(D-528)
+    primitive-geometry-override
+                        공통 부품(`Field` · `FieldRow` · `FormSection` · `HeadRow` · `SectionHeader` · `Section` · `Card` ·
+                        `FilterBar` · `Callout` · `DataTable` · `ActionFooter` · `PageHeader` …)의 여백 · 폭 · 높이를 `sx` 의
+                        `m*` · `p*` · `top` · `width` · `minWidth` · `height` … 로 덮는다 — 부품의 속성(`spacing` · `flush` ·
+                        `padding` · 크기 토큰 · 열 속성)으로 말한다(D-526 ~ D-528). `minWidth: 0` · `minHeight: 0` 은 크기가
+                        아니라 격자 · flex 안에서 줄어들어도 된다는 허락이라 잡지 않는다. 옮길 수 없는 자리는 태그 안이나
+                        바로 위 두 줄에 `clovi-allow-geometry: 까닭` 을 단다. MUI 에서 가져온 같은 이름(`Toolbar`)은 부품이 아니다
 
 ## 예외와 대기 목록
 
@@ -61,7 +70,27 @@ RULES = {
     "primary-last": "페이지 머리 동작의 채움 단추 뒤에 단추가 또 선다 — 채움은 오른쪽 끝이다(D-501)",
     "page-max-width": "화면이 판 폭 상한을 건다 — 페이지는 폭을 묶지 않는다(계획 2.1)",
     "tab-count-chip": "탭 이름에 수를 이어 붙인다 — 탭의 `count` 가 칩으로 그린다(계획 3.18)",
+    "callout-margin": "메시지 박스에 위아래 여백을 준다 — 간격은 담는 쪽이 준다(D-528)",
+    "primitive-geometry-override": "공통 부품의 여백 · 폭 · 높이를 sx 로 덮는다 — 부품의 속성으로 말한다(D-526 ~ D-528)",
 }
+
+# 화면이 sx 로 덮으면 안 되는 공통 부품. 부품을 **구현하는** 곳(`ui/`)은 재료를 쓰는 자리라 보지 않는다.
+GEOMETRY_PRIMITIVES = {
+    "Field", "FieldRow", "FormSection", "FormField", "FormFieldCell", "HeadRow", "FlowStack", "SectionHeader",
+    "SectionTitle", "Section", "SubGroup", "Card", "ListCard", "FilterBar", "Callout", "DataTable", "ActionFooter",
+    "PageHeader", "Toolbar", "ToolbarRow",
+}
+# 메시지 박스의 위아래 여백(`callout-margin`). 같은 키를 `primitive-geometry-override` 가 두 번 세지 않는다.
+CALLOUT_MARGIN_KEYS = {
+    "m", "mt", "mb", "my", "margin", "marginTop", "marginBottom", "marginBlock", "marginBlockStart", "marginBlockEnd",
+}
+GEOMETRY_KEY = re.compile(
+    r"(?:m|mt|mb|my|mx|ml|mr|p|pt|pb|py|px|pl|pr|top|width|minWidth|maxWidth|height|minHeight|maxHeight"
+    r"|margin[A-Za-z]*|padding[A-Za-z]*)$")
+# 줄어들어도 된다는 허락(0)이지 크기가 아니다. `{ md: 0 }` 처럼 모든 갈래가 0 인 반응형 값도 같다.
+SHRINK_KEYS = {"minWidth", "minHeight"}
+ALLOW_GEOMETRY = re.compile(r"clovi-allow-geometry:\s*[^\s*/}]")  # 까닭 없는 표식은 표식이 아니다
+MUI_IMPORT = re.compile(r"""import\s*(?:\{([^}]*)\}|([A-Za-z_$][\w$]*))\s*from\s*["']@mui/[^"']+["']""", re.S)
 
 # 판 폭 상한의 모양. `READ_COLUMN` 은 걷었고(D-520), 같은 값을 글자로 다시 적어도 잡는다. 글 폭(`PROSE_MAX_WIDTH`,
 # `60ch`)과 대화상자 폭은 판 폭이 아니라 잡지 않는다.
@@ -357,7 +386,12 @@ def scan_file(rel: str, text: str) -> list[tuple[str, int, str]]:
     if "<" not in text:
         return hits
     header_groups: dict[str, list[tuple[int, str, bool, bool]]] = {}
+    mui_names = {n.strip().split(" as ")[-1].strip()
+                 for m in MUI_IMPORT.finditer(text) for n in (m.group(1) or m.group(2)).split(",")}
     for pos, name, ancestors, tag, in_render in jsx_events(text):
+        if name in GEOMETRY_PRIMITIVES and name not in mui_names:
+            for rule, what in _geometry_hits(name, tag, text, pos):
+                hits.append((rule, line_of(pos), what))
         if name in GHOST_BUTTON_TAGS:
             group = _header_group(ancestors)
             if group:
@@ -381,6 +415,91 @@ def scan_file(rel: str, text: str) -> list[tuple[str, int, str]]:
                 hits.append(("ghost-slot", line_of(pos), f"<{name} variant=ghost> in {slot}"))
     hits.extend(_primary_last_hits(header_groups.values(), line_of, ""))
     return hits
+
+
+def _sx_object(tag: str) -> str | None:
+    """여는 태그의 **자기** `sx={{ … }}` 객체 글(바깥 중괄호 포함). 함수 · 변수 · 배열이면 None — 소스만으로 키를 모른다."""
+    depth, i = 0, 0
+    while i < len(tag):
+        ch = tag[i]
+        if ch in "\"'`":
+            i = _skip_string(tag, i)
+            continue
+        if ch == "{":
+            if depth == 0:
+                attr = _ATTR_BEFORE_BRACE.search(tag, 0, i)
+                if attr and attr.group(1) == "sx":
+                    inner = _balanced(tag, i, "{", "}")[1:-1].strip()
+                    return inner if inner.startswith("{") and inner.endswith("}") else None
+            depth += 1
+        elif ch == "}":
+            depth = max(0, depth - 1)
+        i += 1
+    return None
+
+
+def _top_props(obj: str) -> list[tuple[str, str]]:
+    """`{ a: 1, b: { md: 0 }, ...X }` 의 최상위 (키, 값). 펼침(`...`)과 선택자 키(`"& .x"`)는 뺀다."""
+    body = obj.strip()[1:-1]
+    parts, depth, cur, i = [], 0, "", 0
+    while i < len(body):
+        ch = body[i]
+        if ch in "\"'`":
+            j = _skip_string(body, i)
+            cur += body[i:j]
+            i = j
+            continue
+        if body.startswith("/*", i):
+            end = body.find("*/", i + 2)
+            i = len(body) if end < 0 else end + 2
+            continue
+        if ch in "({[":
+            depth += 1
+        elif ch in ")}]":
+            depth -= 1
+        if ch == "," and depth == 0:
+            parts.append(cur)
+            cur = ""
+        else:
+            cur += ch
+        i += 1
+    parts.append(cur)
+    out = []
+    for part in parts:
+        m = re.match(r"""\s*["']?([A-Za-z]+)["']?\s*:\s*(.*)$""", part, re.S)
+        if m:
+            out.append((m.group(1), m.group(2).strip()))
+    return out
+
+
+def _is_shrink_permission(key: str, value: str) -> bool:
+    if key not in SHRINK_KEYS:
+        return False
+    if value == "0":
+        return True
+    values = re.findall(r":\s*([^,}]+)", value) if value.startswith("{") else []
+    return bool(values) and all(v.strip() == "0" for v in values)
+
+
+def _geometry_hits(name: str, tag: str, text: str, pos: int) -> list[tuple[str, str]]:
+    """공통 부품 여는 태그의 sx 가 여백 · 폭 · 높이를 덮는가. 까닭 표식이 태그 안이나 바로 위 두 줄에 있으면 넘긴다."""
+    obj = _sx_object(tag)
+    if obj is None:
+        return []
+    line_start = text.rfind("\n", 0, pos) + 1
+    prev1 = text.rfind("\n", 0, max(0, line_start - 1)) + 1
+    prev2 = text.rfind("\n", 0, max(0, prev1 - 1)) + 1
+    if ALLOW_GEOMETRY.search(tag) or ALLOW_GEOMETRY.search(text[prev2:pos]):
+        return []
+    out = []
+    for key, value in _top_props(obj):
+        if not GEOMETRY_KEY.match(key) or _is_shrink_permission(key, value):
+            continue
+        if name == "Callout" and key in CALLOUT_MARGIN_KEYS:
+            out.append(("callout-margin", f"<Callout sx {key}: {value[:24]}>"))
+        else:
+            out.append(("primitive-geometry-override", f"<{name} sx {key}: {value[:24]}>"))
+    return out
 
 
 def _balanced(text: str, start: int, opening: str, closing: str) -> str:
@@ -556,6 +675,33 @@ def selftest() -> int:
         '    <PageHeader title="진단" actions={<><Button variant="primary" onClick={run}>진단 수집</Button><Button onClick={copy}>복사</Button></>} />\n'
         '    <Box sx={{ display: "grid", maxWidth: READ_COLUMN }}>판</Box>\n'
         '    <TabShell tabs={[{ key: "p", label: `사람 (${people})` }]} />\n'
+        '    <Callout tone="info" sx={{ mt: 2 }}>위 여백</Callout>\n'
+        '    <Section title="구획" sx={{ mb: 3, width: "20rem" }}>몸</Section>\n'
+        "  </>);\n"
+        "}\n"
+    )
+    # 까닭 없는 표식은 넘기지 않는다 — 부품마다 · 키마다 따로 잡히는지 본다.
+    bad_geometry = (
+        "export function BadGeometry() {\n"
+        "  return (<>\n"
+        "    {/* clovi-allow-geometry: */}\n"
+        '    <Card sx={{ p: 0, height: "10rem" }}>판</Card>\n'
+        '    <Callout tone="warn" sx={{ my: 1, px: 2 }}>상자</Callout>\n'
+        "  </>);\n"
+        "}\n"
+    )
+    good_geometry = (
+        'import Toolbar from "@mui/material/Toolbar";\n'
+        "export function GoodGeometry() {\n"
+        "  return (<>\n"
+        '    <Toolbar sx={{ minHeight: 56, pr: 0 }} />\n'
+        '    <Card padding="none" sx={{ overflow: "hidden", minWidth: 0, minHeight: { md: 0 } }}>판</Card>\n'
+        "    {/* clovi-allow-geometry: 좁은 판을 보이는 견본이다. */}\n"
+        '    <Card sx={{ maxWidth: "32rem" }}>견본</Card>\n'
+        '    <Callout tone="info" sx={{ "& ul": { mt: 0.75 } }}>선택자 안의 키</Callout>\n'
+        '    <Card sx={cardSx}>변수 sx</Card>\n'
+        '    <Box sx={{ mt: 2, width: "10rem" }}>부품이 아니다</Box>\n'
+        '    <Section flush title="구획">몸</Section>\n'
         "  </>);\n"
         "}\n"
     )
@@ -630,6 +776,8 @@ def selftest() -> int:
             + "  return (<>{state === \"planned\" ? <Button variant=\"primary\">회차 열기</Button> : null}{state === \"active\" ? <Button>회차 닫기</Button> : null}</>);" + "\n"
             + "}" + "\n", encoding="utf-8")
         ghost_hits = scan_file("screens/BadGhosts.jsx", bad_ghosts)
+        geometry_hits = sorted((rule, what) for rule, _line, what in scan_file("screens/BadGeometry.jsx", bad_geometry))
+        good_geometry_hits = scan_file("screens/GoodGeometry.jsx", good_geometry)
         good_ghost_hits = scan_file("screens/GoodGhosts.jsx", good_ghosts)
         ledger = root / "ledger.md"
         ledger.write_text(
@@ -648,6 +796,16 @@ def selftest() -> int:
         problems.append(f"글자 단추 자리 셋(판 머리 동작 · 모달 발 · 카드 발)을 따로 못 잡음: {ghost_slots}")
     if good_ghost_hits:
         problems.append(f"글자 단추의 맞는 자리(목록 안 · 모달 몸 · 속성 식 안 다른 요소)를 잘못 잡음: {good_ghost_hits}")
+    want_geometry = [
+        ("callout-margin", "<Callout sx my: 1>"),
+        ("primitive-geometry-override", "<Callout sx px: 2>"),
+        ("primitive-geometry-override", '<Card sx height: "10rem">'),
+        ("primitive-geometry-override", "<Card sx p: 0>"),
+    ]
+    if geometry_hits != want_geometry:
+        problems.append(f"부품 기하 덮기(까닭 없는 표식 · 키마다)를 잡지 못함: {geometry_hits}")
+    if good_geometry_hits:
+        problems.append(f"부품 기하의 맞는 자리(MUI 이름 · 속성 · 줄어듦 허락 · 표식 · 선택자 · 변수 · 부품 아님)를 잘못 잡음: {good_geometry_hits}")
     if ("screens/Nowhere.jsx", "row-button") not in stale:
         problems.append("stale 대기 항목을 못 잡음")
     if ("screens/Gone.jsx", "list-footer") not in dead:

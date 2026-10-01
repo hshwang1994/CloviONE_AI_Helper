@@ -173,7 +173,7 @@ export function SubListDrawer({ view, onClose, onActed }) {
        * 원본(rawRows)이 500건 상한에 닿았는지로 판정해야 한다 — 그렇지 않으면 필터로 몇 건만 남은
        * 경우 상한 경고가 안 떠서, 잘린 원본 때문에 누락된 항목이 있는데도 완전한 목록처럼 보였다
        * (예: 정책의 '이 정책을 쓰는 템플릿' — 발행·롤백 전 영향 범위를 이 불완전한 목록으로 오판할 수 있다). */}
-      {subFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{subFailure}</Callout> : null}
+      {subFailure ? <Callout tone="danger" compact>{subFailure}</Callout> : null}
       {!sl.paginated && (sl.filterRows ? rawRows.length >= 500 : rows.length >= 500) ? (
         <Callout tone="warn">{sl.filterRows
           ? "원본 목록이 500건으로 제한되어 이 필터 결과가 불완전할 수 있습니다. 일부 관련 항목이 누락됐을 수 있습니다."

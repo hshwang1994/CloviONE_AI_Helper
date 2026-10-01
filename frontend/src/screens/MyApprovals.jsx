@@ -293,7 +293,7 @@ export function MyApprovals() {
       />
 
       {q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} /> : null}
-      {decideFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{decideFailure}</Callout> : null}
+      {decideFailure ? <Callout tone="danger" compact>{decideFailure}</Callout> : null}
       <DraftPreview requestId={preview} onClose={() => setPreview(null)} />
       {!q.first && !q.isError ? <DataTable placement="surface" columns={columns} rows={[]} loading /> : null}
 

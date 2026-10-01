@@ -163,7 +163,7 @@ export function OrgDetailPanel({ org, treeRow, headingRef, onCreated }) {
         emptyText="이 조직에 속한 사람이 없습니다."
       />
 
-      <Section title="정보" sx={{ mb: 0 }}>
+      <Section flush title="정보">
         <DetailGrid sx={INFO_GRID_SX}>
           <DetailRow label="부서">{departmentCount ? departmentCount + "개" : "없음"}</DetailRow>
           <DetailRow label="조직 ID">

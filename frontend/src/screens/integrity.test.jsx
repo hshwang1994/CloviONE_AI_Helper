@@ -102,6 +102,15 @@ function renderScreen(entry = "/integrity") {
 const calls = (prefix) => apiMock.mock.calls.map((c) => String(c[0])).filter((u) => u.startsWith(prefix));
 
 describe("탭과 전량 목록", () => {
+  /* 화면 전체의 도움말은 탭 그릇이 페이지 머리 (?) 로 그린다(F2 ⑮). 예전에는 그릇이 그 값을 받지 않아 어디에도 없었다. */
+  it("화면 도움말이 페이지 머리 도움말로 선다", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByRole("tab", { name: /사람/ });
+    await user.click(screen.getByRole("button", { name: "도움말 보기" }));
+    expect(await screen.findByText(/소속을 판정할 수 없어 화면에서 닫혀 있는 데이터를 모았습니다/)).toBeVisible();
+  });
+
   it("탭 옆 칩이 탭의 건수이고, 건수가 있는 첫 탭이 켜진다", async () => {
     renderScreen();
     const people = await screen.findByRole("tab", { name: /사람/ });

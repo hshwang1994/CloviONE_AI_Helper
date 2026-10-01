@@ -4,7 +4,7 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import { api } from "../lib/api.js";
 import { expireSession } from "../lib/sessionRedirect.js";
-import { Badge, Button, DataTable, Modal, Callout, useConfirm, useToast, ActionFooter, FieldLabel } from "../ui/kit.jsx";
+import { Badge, Button, DataTable, Modal, Callout, useConfirm, useToast, ActionFooter, Field } from "../ui/kit.jsx";
 import { Note } from "../ui/adminKit.jsx";
 import { FilterRowContext, FilterSelect, PrefixLabel, kindSx } from "../ui/filters.jsx";
 
@@ -155,7 +155,7 @@ export function useUserBulk({ selection, deptOptions, titleOptions, onDone }) {
 
   return {
     selection: { count: ids.length, unit: "명", clearLabel: "선택 해제", onClear: selection.clear, actions },
-    notice: notice ? <Callout tone="danger" compact sx={{ mb: 2 }}>{notice}</Callout> : null,
+    notice: notice ? <Callout tone="danger" compact>{notice}</Callout> : null,
   };
 }
 
@@ -271,15 +271,19 @@ export function ImportModal({ onClose, onImported }) {
         추가된 계정에는 비밀번호를 직접 정하는 초대 메일이 나갑니다. 첫 로그인 때 비밀번호를 바꾸게 합니다.
       </Note>
       <Box sx={{ minWidth: 0, mt: 2 }}>
-        <FieldLabel htmlFor="users-csv-text">CSV 내용</FieldLabel>
-        <TextField id="users-csv-text"
-          multiline minRows={6} fullWidth
-          placeholder={SAMPLE_CSV}
-          value={text} onChange={(e) => { setText(e.target.value); setPreview(null); }}
-          helperText="내보내기 파일을 열어 복사해 붙여 넣어도 됩니다(헤더 이름이 같습니다)."
-        />
+        <Field
+          label="CSV 내용" htmlFor="users-csv-text" helpId="users-csv-text-help"
+          help="내보내기 파일을 열어 복사해 붙여 넣어도 됩니다(헤더 이름이 같습니다)."
+        >
+          <TextField id="users-csv-text"
+            multiline minRows={6} fullWidth
+            placeholder={SAMPLE_CSV}
+            inputProps={{ "aria-describedby": "users-csv-text-help" }}
+            value={text} onChange={(e) => { setText(e.target.value); setPreview(null); }}
+          />
+        </Field>
       </Box>
-      {sendFailure ? <Callout tone="danger" compact sx={{ mt: 2 }}>{sendFailure}</Callout> : null}
+      {sendFailure ? <Callout tone="danger" compact>{sendFailure}</Callout> : null}
       {preview ? (
         <Box sx={{ mt: 2 }}>
           {/* 실패한 행이 있다는 것은 "그 계정이 만들어지지 않았다"는 뜻이다 — 주의가 아니라
@@ -296,11 +300,11 @@ export function ImportModal({ onClose, onImported }) {
           </Callout>
           {/* 초대 메일이 못 나간 계정이 있으면 그 사실과 까닭을 말한다 — 조용히 넘기면 관리자는 초대가 나갔다고 믿는다. */}
           {invites && invites.not_queued ? (
-            <Callout tone="warn" compact sx={{ mt: 1.5 }}>
+            <Callout tone="warn" compact>
               {`초대 메일 ${invites.not_queued}건을 보내지 못했습니다. ${invites.reason || ""} 메일 발송 화면에서 설정을 확인하세요.`}
             </Callout>
           ) : invites && invites.queued ? (
-            <Callout tone="success" compact sx={{ mt: 1.5 }}>{`초대 메일 ${invites.queued}건을 보냈습니다.`}</Callout>
+            <Callout tone="success" compact>{`초대 메일 ${invites.queued}건을 보냈습니다.`}</Callout>
           ) : null}
           <Box sx={{ mt: 1.5 }}>
             <DataTable columns={columns} rows={preview.results} rowKey={(r) => r.line} />

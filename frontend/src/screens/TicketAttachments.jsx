@@ -152,7 +152,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
         ) : null}
       />
 
-      {attachNotice ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{attachNotice}</Callout> : null}
+      {attachNotice ? <Callout tone="danger" compact>{attachNotice}</Callout> : null}
 
       {canEdit ? (
         <Box

@@ -17,8 +17,7 @@ import { ROLE_KO } from "../app/navConfig.js";
 import { invalidateNotifications } from "../app/notification-keys.js";
 import { invalidatePersonFaces } from "./ticket-views.js";
 import {
-  FIELD_ROWS,
-  Badge, Button, Callout, Card, EmptyState, ErrorState, FieldLabel, PageHeader, SectionTitle, Skeleton, SubGroup,
+  Badge, Button, Callout, Card, EmptyState, ErrorState, Field, FieldRow, PageHeader, SectionTitle, Skeleton, SubGroup,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
@@ -76,8 +75,8 @@ const DND_PRESETS = [
   { minutes: 0, label: "직접 끌 때까지" },
 ];
 
-/* 폼 한 칸의 **고정 세로 트랙**(라벨 20 · 필드 36 · 도움말 auto)의 정본은 `kit.jsx::FIELD_ROWS` 다 —
- * 이 화면이 먼저 만들었고 새 티켓이 둘째 소비처라 키트로 올렸다(값은 그대로다). */
+/* 폼 한 칸의 **고정 세로 트랙**(라벨 20 · 컨트롤 34 · 도움말 auto)은 `kit.jsx::Field` 가 그린다 — 이 화면이 먼저 만들었고
+ * 새 티켓이 둘째 소비처라 키트로 올렸다(D-527). */
 
 /* 값과 값 사이의 **점**. 글자가 아니라 도형이다.
  *
@@ -286,7 +285,7 @@ function IdentityHeader({ profile, prefs, onChanged }) {
       </Box>
 
       {avatarUrl ? (
-        <Callout tone="info" compact sx={{ mt: 2 }}>
+        <Callout tone="info" compact>
           지금은 올린 사진이 보입니다. 기본 아바타에서 고른 그림은 사진을 지운 뒤에 쓰입니다.
         </Callout>
       ) : null}
@@ -343,8 +342,8 @@ function NotificationCard({ prefs, save }) {
   };
   return (
     <Card sx={CARD_ROWS}>
-      <SectionTitle
-        component="h2" sx={{ mb: 0 }}
+      <SectionTitle spacing="none"
+        component="h2"
         title="알림 설정"
         help="끈 유형도 알림 목록에는 그대로 남습니다. 배지 숫자(빨간 점)에서만 빠집니다. 알림을 없애는 것이 아니라 조용히 하는 것입니다."
       />
@@ -412,13 +411,11 @@ function MailSection({ mail, save }) {
   };
   const notice = mail.delivery && mail.delivery.message;
   return (
-    <SubGroup
+    <SubGroup spacing="tight"
       title="메일로도 받기"
-      help="켜 두면 고른 알림을 내 계정 이메일로도 보냅니다. 방해금지와 배지 끄기는 메일에 영향을 주지 않습니다."
-      sx={{ mt: 0.5 }}
-    >
+      help="켜 두면 고른 알림을 내 계정 이메일로도 보냅니다. 방해금지와 배지 끄기는 메일에 영향을 주지 않습니다.">
       {notice ? (
-        <Callout tone={mail.delivery.state === "unverified" ? "info" : "warn"} compact sx={{ mb: 1 }}>{notice}</Callout>
+        <Callout tone={mail.delivery.state === "unverified" ? "info" : "warn"} compact>{notice}</Callout>
       ) : null}
       {catalog.length ? (
         <>
@@ -473,8 +470,8 @@ function DndCard({ prefs, save }) {
 
   return (
     <Card sx={CARD_ROWS}>
-      <SectionTitle
-        component="h2" sx={{ mb: 0 }}
+      <SectionTitle spacing="none"
+        component="h2"
         title="방해금지"
         help="방해금지 중에도 알림은 평소대로 쌓입니다. 사이드바 배지만 조용해지고, 비활성화하면 그동안 쌓인 것이 한꺼번에 다시 보입니다."
       />
@@ -532,46 +529,36 @@ function DndCard({ prefs, save }) {
             />
           )}
         />
-        {/* 🔴 시각 두 칸과 저장 단추가 **한 격자**다. 예전에는 flex 한 줄이라 라벨이 붙은 칸과
-            안 붙은 단추의 세로 기준이 서로 달랐고, 단추가 입력칸 아래로 1px 씩 흘렀다. 고정
-            트랙에서는 셋이 같은 행에 서므로 입력칸과 단추의 **윗선**이 정확히 같다. */}
-        <Box
-          sx={{
-            display: "grid",
-            /* 칸 폭은 **값이 정한다.** 시각 입력은 「오후 10:00」을 오전·오후 글자까지 넣어
-               그리므로 7.5rem 에서는 분 자리가 잘렸다(실측: 「오후 10:0」). 그리고 트랙에
-               `fr` 이 하나도 없으면 남는 폭이 `auto` 칸으로 몰려 저장 단추가 판 끝까지
-               늘어난다 — `justifyContent` 로 격자 전체를 왼쪽에 붙여 남는 폭을 안 나눈다. */
-            gridTemplateColumns: "minmax(0, 9.5rem) minmax(0, 9.5rem) auto",
-            gridTemplateRows: FIELD_ROWS,
-            justifyContent: "start",
-            columnGap: 1.25, pt: 1.5,
-          }}
-        >
-          <FieldLabel htmlFor="dnd-quiet-start" sx={{ mb: 0, lineHeight: 1.25 }}>시작</FieldLabel>
-          <FieldLabel htmlFor="dnd-quiet-end" sx={{ mb: 0, lineHeight: 1.25 }}>종료</FieldLabel>
-          {/* 단추에는 라벨이 없다 — 빈 칸을 두어 아래 행이 밀리지 않게 한다. */}
-          <Box component="span" aria-hidden="true" />
-          <TextField
-            id="dnd-quiet-start" type="time" size="small" value={start}
-            onChange={(e) => setStart(e.target.value)}
-            disabled={fieldsOff}
-          />
-          <TextField
-            id="dnd-quiet-end" type="time" size="small" value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            disabled={fieldsOff}
-          />
-          {/* 단추는 페이지 동작 높이(34)로 서고 윗선을 입력칸(36)과 맞춘다(핸드오프 ACCEPTANCE C1 · RULES §14). 예전
-              `alignSelf: stretch` 는 단추를 입력칸 높이 36 으로 늘려 버튼 높이 집합 {34, 30} 밖에 세웠다(kit_measure
-              `button_height` 실측, 계획 표 5 「발 버튼 정렬」). */}
-          <Button
-            sx={{ alignSelf: "start" }}
-            disabled={fieldsOff || (start === dnd.quiet_start && end === dnd.quiet_end)}
-            onClick={() => save({ quiet_start: start, quiet_end: end })}
+        {/* 시각 두 칸과 저장 단추는 한 줄(`FieldRow`)이다 - 단추는 라벨 줄을 비운 같은 트랙의 동작 칸이라 입력칸과 윗선 ·
+            높이(34)가 같다(D-527). 칸 폭은 값이 정한다 - 시각 입력은 「오후 10:00」을 오전 · 오후 글자까지 그리므로 7.5rem 에서는
+            분 자리가 잘렸다(실측: 「오후 10:0」). 칸과 단추는 왼쪽에 붙고 남는 폭을 나누지 않는다(단추가 판 끝까지 늘지 않는다). */}
+        <Box sx={{ pt: 1.5 }}>
+          <FieldRow
+            columns={["9.5rem", "9.5rem"]}
+            action={(
+              <Button
+                disabled={fieldsOff || (start === dnd.quiet_start && end === dnd.quiet_end)}
+                onClick={() => save({ quiet_start: start, quiet_end: end })}
+              >
+                시간 저장
+              </Button>
+            )}
           >
-            시간 저장
-          </Button>
+            <Field label="시작" htmlFor="dnd-quiet-start">
+              <TextField
+                id="dnd-quiet-start" type="time" size="small" value={start}
+                onChange={(e) => setStart(e.target.value)}
+                disabled={fieldsOff}
+              />
+            </Field>
+            <Field label="종료" htmlFor="dnd-quiet-end">
+              <TextField
+                id="dnd-quiet-end" type="time" size="small" value={end}
+                onChange={(e) => setEnd(e.target.value)}
+                disabled={fieldsOff}
+              />
+            </Field>
+          </FieldRow>
         </Box>
       </Box>
     </Card>
@@ -667,12 +654,12 @@ function SessionsCard() {
           있어서, 세션이 많으면 그 단추가 화면 밖에 있었다 — 이 판이 존재하는 이유가 그
           단추인데 그것을 보려고 스크롤해야 했다. 끊을 대상이 없으면 비활성이고, 몇 개를
           끊는지는 라벨이 말한다. 되돌릴 수 없는 보안 동작이라 확인 단계는 그대로다. */}
-      <SectionTitle
+      <SectionTitle spacing="none"
         component="h2"
         /* 단추는 **머리 오른쪽에 붙박이다.** 기본값(`wrap`)이면 설명문이 길어 첫 줄을 다 먹고
            단추가 아래 줄 왼쪽으로 떨어진다 — 그 자리에서는 판 제목의 동작이 아니라 목록의
            첫 항목처럼 보인다. 줄을 안 접고 글 칸을 줄인다(글은 안에서 접힌다). */
-        sx={{ mb: 0, flexWrap: "nowrap", alignItems: "flex-start" }}
+
         title="내 기기"
         /* 「지금 보고 있는 이 창은 유지됩니다」가 여기 붙어 있었다. 그 사실은 이제 목록에서
            이 창의 줄이 오른쪽에 「유지됩니다」로 직접 말하고, 확인 대화상자가 한 번 더

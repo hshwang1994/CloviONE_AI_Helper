@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>시각 규율 맞는 견본</title>
+<style>
+  :root {
+    --color-primary: #5a4fcf; --color-primary-soft: #ecebfa;
+    --color-success: #1a7f4b; --color-warning: #b26b00; --color-error: #c62828; --color-info: #1d64c4;
+    font-size: 16px;
+  }
+  html, body { margin: 0; background: #eef0f7; font-family: sans-serif; color: #1c2033; }
+  main { padding: 24px; display: flex; flex-direction: column; row-gap: 16px; }
+  .plate { background: #fff; border: 1px solid #dcdfec; border-radius: 8px; padding: 20px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f5f6fb; height: 40px; text-align: start; }
+  td { height: 48px; }
+  .k-callout { border: 1px solid #dcdfec; border-radius: 4px; background: #f5f6fb; padding: 12px 14px; }
+  .MuiOutlinedInput-root { border: 1px solid #c3c7d6; border-radius: 6px; height: 34px; width: 320px; }
+  button { height: 34px; }
+</style>
+</head>
+<body>
+<!-- 맞는 견본: 머리 → 짧은 상태 면 → 판 하나 안의 표. 판 안의 판은 눕고(plate>none), 메시지 상자 · 입력 · 선택 행 · 주 동작만
+     보라다. 첫 데이터(표 머리)는 첫 화면 위쪽에 선다. -->
+<main id="main-content">
+  <header style="display:flex;align-items:center;justify-content:space-between;height:48px">
+    <h1 style="margin:0;font-size:28px">메일</h1>
+    <button style="background:#5a4fcf;color:#fff;border:0;border-radius:6px;padding:0 14px">시험 메일 보내기</button>
+  </header>
+  <div data-surface="plate" class="plate" style="padding:16px 20px">
+    <svg width="16" height="16" style="color:#1a7f4b;fill:#1a7f4b"><circle cx="8" cy="8" r="7"></circle></svg>
+    <span>정상입니다. 메일 발송을 사용할 수 있습니다.</span>
+  </div>
+  <div data-surface="plate" class="plate">
+    <div class="MuiOutlinedInput-root"></div>
+    <div class="k-callout" style="margin-top:12px">부서가 지정되지 않은 사람이 1명 있습니다.</div>
+    <div data-surface="plate>none" style="padding:0">판 안에서 눕은 판</div>
+    <table style="margin-top:12px">
+      <thead><tr><th>받는 사람</th><th>종류</th><th>상태</th></tr></thead>
+      <tbody>
+        <tr aria-selected="true" style="background:#ecebfa"><td>홍길동</td><td>초대</td><td>메일 서버가 접수함</td></tr>
+        <tr><td>김철수</td><td>재설정</td><td>보낼 차례</td></tr>
+        <tr><td>이영희</td><td>알림</td><td>보내는 중</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+</body>
+</html>

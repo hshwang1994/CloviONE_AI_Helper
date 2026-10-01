@@ -259,7 +259,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
       {/* 탐색 줄은 판이 아니다 — 목록 화면의 도구 줄과 같은 `FilterSurface`. 달 이동이 「무엇을
           볼지」이고 일정 고르기는 오른쪽 끝의 「어떻게 볼지」 묶음이다. 제목은 구획 제목 단계다
           (예전의 18px 는 어느 단계에도 없는 값이었다). */}
-      <FilterSurface sx={{ mt: 2, mb: 0 }}>
+      <FilterSurface>
         <ToolbarRow sx={{ gap: 1 }}>
           <IconButton onClick={() => move(-1)} aria-label="이전 달"><ChevronLeftRoundedIcon /></IconButton>
           <Typography component="h2" variant="sectionTitle" sx={{ minWidth: "8ch", textAlign: "center" }}>
@@ -294,49 +294,42 @@ export function SchedulerCalendar({ embedded = false } = {}) {
       </FilterSurface>
 
       {query.data && query.data.truncated ? (
-        <Box sx={{ mt: 2 }}>
-          <Callout tone="warn">
-            일정이 너무 촘촘해 이 달의 예정을 전부 펼치지 못했습니다(일정 하나당 200개까지).
-            위에서 일정을 하나만 골라 보면 전체를 볼 수 있습니다.
-          </Callout>
-        </Box>
+        <Callout tone="warn">
+          일정이 너무 촘촘해 이 달의 예정을 전부 펼치지 못했습니다(일정 하나당 200개까지).
+          위에서 일정을 하나만 골라 보면 전체를 볼 수 있습니다.
+        </Callout>
       ) : null}
 
       {query.isLoading ? (
-        <Card sx={{ mt: 2 }}><Skeleton lines={8} /></Card>
+        <Card><Skeleton lines={8} /></Card>
       ) : query.isError ? (
-        <Box sx={{ mt: 2 }}><ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} /></Box>
+        <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
       ) : schedules.length === 0 ? (
-        <Box sx={{ mt: 2 }}>
-          <EmptyState
-            art="search"
-            title="추가된 실행 일정이 없습니다"
-            help="‘실행 일정’ 화면에서 일정을 추가하고 활성화하면 이 달력에 표시됩니다."
-            relatedLink={{ href: "#/schedules", label: "실행 일정으로 이동" }}
-          />
-        </Box>
+        <EmptyState
+          art="search"
+          title="추가된 실행 일정이 없습니다"
+          help="‘실행 일정’ 화면에서 일정을 추가하고 활성화하면 이 달력에 표시됩니다."
+          relatedLink={{ href: "#/schedules", label: "실행 일정으로 이동" }}
+        />
       ) : allDisabled && counts.run === 0 && counts.planned === 0 ? (
         // VIS-124/VIS-125: 일정이 있는데(schedules.length > 0) 전부 비활성이면 빈 42칸 격자만
         // "실행 0건, 예정 0건"과 함께 그려져 "왜 없는지"를 말하지 않았다. 비활성 일정은 애초에
         // Cron 전개(예정)를 안 만드니 원인이 명확하다 — 빈 격자 대신 zero-schedules 분기와
         // 같은 EmptyState 관용으로 원인+행동을 바로 보여준다(D-22: 새로 설계하지 않고 위
         // 분기의 형식을 그대로 재사용).
-        <Box sx={{ mt: 2 }}>
-          <EmptyState
-            art="search"
-            title="예정된 실행이 없습니다"
-            situation={`등록된 일정 ${schedules.length}개가 모두 비활성 상태입니다.`}
-            help="비활성 일정은 예정을 만들지 않습니다. 실행 일정 화면에서 활성화하면 이 달력에 다시 표시됩니다."
-            relatedLink={{ href: "#/schedules", label: "실행 일정에서 활성화" }}
-          />
-        </Box>
+        <EmptyState
+          art="search"
+          title="예정된 실행이 없습니다"
+          situation={`등록된 일정 ${schedules.length}개가 모두 비활성 상태입니다.`}
+          help="비활성 일정은 예정을 만들지 않습니다. 실행 일정 화면에서 활성화하면 이 달력에 다시 표시됩니다."
+          relatedLink={{ href: "#/schedules", label: "실행 일정에서 활성화" }}
+        />
       ) : (
         <>
           {/* 요약은 이 구간 실행의 **구성**이다 — 실행 · 예정 · 실패의 합이 전체라 상태 요약 카드 하나로
               선다(계획 표 7). 실패의 색은 점이 맡고 이름 글자가 함께 선다. */}
           <StatusSummaryCard
             ariaLabel="이 구간 실행"
-            sx={{ mt: 2 }}
             total={(counts.run || 0) + (counts.planned || 0) + (counts.failed || 0)}
             items={[
               { key: "run", label: "실행", value: counts.run, kind: "ok" },
@@ -346,7 +339,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
           />
 
           {/* 판 여백은 판 규약값이다(`CARD_PADDING`) — 달력 격자는 좁으면 판 안에서 가로로 굴린다. */}
-          <Card sx={{ mt: 2, overflowX: "auto" }}>
+          <Card sx={{ overflowX: "auto" }}>
             <Box
               role="grid"
               aria-label={`${monthLabel} 실행 달력`}
@@ -467,7 +460,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
           </ActionFooter>
         ) : null}
       >
-        {selected && runFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{runFailure}</Callout> : null}
+        {selected && runFailure ? <Callout tone="danger" compact>{runFailure}</Callout> : null}
         {selected ? (
           <DataTable
             columns={[{ key: "label", label: "항목" }, { key: "value", label: "값" }]}

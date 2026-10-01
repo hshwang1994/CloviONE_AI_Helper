@@ -260,7 +260,7 @@ function TempPasswordModal({ data, onClose }) {
   return (
     <Modal open onClose={onClose} title="임시 비밀번호" size="sm" footer={footer}>
       <Typography sx={{ whiteSpace: "pre-line" }}>{data.notice || "이 임시 비밀번호는 지금 한 번만 표시됩니다. 사용자에게 안전하게 전달하세요."}</Typography>
-      {copyNotice ? <Callout tone={copyNotice.tone} compact sx={{ mt: 1.5 }}>{copyNotice.text}</Callout> : null}
+      {copyNotice ? <Callout tone={copyNotice.tone} compact>{copyNotice.text}</Callout> : null}
       {/* role="textbox"는 스크린리더에 '편집 가능'으로 읽히지만 실제로는 도달 불가였다.
           포커스 가능한 읽기 전용 텍스트로 바꿔(tabIndex) 키보드로 접근, 선택할 수 있게 한다.
           aria-label을 달면 접근 가능한 이름 계산을 그 문자열이 덮어써('임시 비밀번호'만 들리고
@@ -704,7 +704,7 @@ export function Users() {
           <p>일반 사용자를 <strong>관리자</strong>로 올리면 승인 요청이 접수되어 승인 후 반영됩니다.</p>
           <p>임시 비밀번호는 생성, 재설정 시 화면에 한 번만 표시됩니다.</p>
         </Box>} />
-      {deepLinkFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{deepLinkFailure}</Callout> : null}
+      {deepLinkFailure ? <Callout tone="danger" compact>{deepLinkFailure}</Callout> : null}
       {/* 필터 바 — DataScreen(재설계 기준 화면)과 같은 자동 줄바꿈 그리드. 화면이 넓어지면 열이
           늘어 한 줄에 담기고, 좁아지면 접힌다(예전엔 flex 한 줄이라 1366px에서 이미 두 줄로 꺾였다).
           SEM-02(PA-F-031): h1 하나뿐이라 필터·목록이 스크린리더 제목 탐색에서 구획 없는 한
@@ -1114,7 +1114,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
   return (
     <>
     <Modal open={!!user} onClose={onClose} title={d.display_name || d.email} footer={footer} size="lg">
-      {actionNotice ? <Callout tone={actionNotice.tone} compact sx={{ mb: 2 }}>{actionNotice.text}</Callout> : null}
+      {actionNotice ? <Callout tone={actionNotice.tone} compact>{actionNotice.text}</Callout> : null}
       {/* detailStale이 모든 작업 버튼을 잠그지만(actionsDisabled), 그 이유를 아무 데도 보여주지
           않으면 관리자는 버튼이 왜 안 눌리는지 알 길이 없다, sessionsQ.isError와 같은 패턴으로
           여기서도 실패와 재시도 경로를 드러낸다. */}

@@ -226,7 +226,7 @@ export function DeptDetailPanel({ deptId, treeRow, treeRows = [], headingRef, on
         emptyText="이 부서에 배치된 사람이 없습니다. 사용자 화면에서 부서를 지정하면 여기에 나타납니다."
       />
 
-      <Section title="정보" sx={{ mb: 0 }}>
+      <Section flush title="정보">
         <DetailGrid sx={INFO_GRID_SX}>
           <DetailRow label="하위 부서">{childCount ? childCount + "개" : "없음"}</DetailRow>
           <DetailRow label="부서 ID">

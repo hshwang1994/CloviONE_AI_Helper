@@ -547,7 +547,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           것처럼 보였다. 대화는 그대로 두고, 낡았다는 사실만 한 줄로 알린다. */}
       {q.isError && msgs.length > 0 ? (
         <Callout
-          tone="danger" compact sx={{ mb: 0.75 }}
+          tone="danger" compact
           action={<Button size="sm" onClick={() => q.refetch()}>다시 시도</Button>}
         >
           새 메시지를 받지 못했습니다. 아래 대화는 마지막으로 받은 내용입니다.
@@ -557,7 +557,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
       {/* 실패는 메시지 박스(오류는 `alert`)이고, 올리는 중이라는 진행 표시는 글자 한 줄이다. 보내기 실패는 토스트였다 —
           입력한 글자는 그대로 남고(다시 보낼 수 있다), 다시 보내면 걷힌다(`failureText`, 핸드오프 RULES §1). */}
       {composerError || sendFailure ? (
-        <Callout tone="danger" compact sx={{ mb: 0.75 }}>{composerError || sendFailure}</Callout>
+        <Callout tone="danger" compact>{composerError || sendFailure}</Callout>
       ) : sendImage.isPending ? (
         <Typography sx={{ mb: 0.75, px: 0.5, fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
           이미지를 보내는 중…

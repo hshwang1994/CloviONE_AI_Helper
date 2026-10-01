@@ -418,9 +418,15 @@ describe("Gradient 는 정확히 넷이다 (지시 0-1)", () => {
  * 내용에 밀려 40px** 이 됐고, 같은 줄에 선 둘의 높이가 6px 갈렸다 —
  * `control_baseline_mismatch` 가 3840 에서만 28건 터진 이유가 이것이다. 높이 계약이
  * "몇 px 인가"가 아니라 "타이포와 같은 비율로 자라는가"라는 것을 시험이 말하게 한다. */
+/* 입력 높이는 컨트롤 높이 변수다(D-526) — `var(--clovir-control-h, 2.125rem)`. 밀집 줄(30)은 그릇이 변수를 바꾼다
+   (`densityVars("dense")`). 변수의 기본값이 rem 이면 4K 레버를 그대로 탄다 — 그 기본값을 잰다. */
+const CONTROL_VAR = /^var\(--clovir-control-h,\s*([\d.]+rem)\)$/;
 function remValue(v) {
-  expect(String(v), `${v} 는 rem 이어야 4K 레버를 탄다`).toMatch(/rem$/);
-  return parseFloat(v) * 16;
+  const s = String(v);
+  const m = s.match(CONTROL_VAR);
+  const raw = m ? m[1] : s;
+  expect(raw, `${v} 는 rem 이어야 4K 레버를 탄다`).toMatch(/rem$/);
+  return parseFloat(raw) * 16;
 }
 
 describe("컨트롤 높이는 한 곳에서 나온다", () => {
@@ -492,7 +498,7 @@ describe("컨트롤 높이는 한 곳에서 나온다", () => {
       t.components.MuiIconButton.styleOverrides.root.minHeight,
       t.components.MuiIconButton.styleOverrides.root.minWidth,
     ];
-    for (const h of heights) expect(String(h)).toMatch(/rem$/);
+    for (const h of heights) remValue(h);
   });
 
   /* 아이콘 버튼의 상자는 **글리프 크기를 따라가지 않는다.** `minHeight` 만 있으면 상자가

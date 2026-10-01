@@ -182,7 +182,7 @@ export function NewDocumentModal({
         </Stack>
       </Box>
       {/* 만들기 실패는 발 바로 위 — 쓰던 값이 그대로 있고, 다시 누르면 걷힌다(부르는 쪽이 `error` 를 준다). */}
-      {error ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{error}</Callout> : null}
+      {error ? <Callout tone="danger" compact>{error}</Callout> : null}
     </Modal>
   );
 }

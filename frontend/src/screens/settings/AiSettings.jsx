@@ -10,14 +10,12 @@ import { failureText } from "../../lib/failure.js";
 import { fmtDateTime } from "../../lib/format.js";
 import { useInstantSave } from "../../lib/useInstantSave.js";
 import {
-  ActionFooter, Badge, Button, Callout, Card, ErrorState, FieldLabel, Section, SectionTitle, Skeleton, useToast,
+  ActionFooter, Badge, Button, Callout, Card, ErrorState, Field, FieldRow, FormSection, Section, Skeleton, useToast,
 } from "../../ui/kit.jsx";
 import { SettingRow } from "../../ui/adminKit.jsx";
 import { SecretField } from "../../ui/SecretField.jsx";
 import { ChatGptAccount } from "./ChatGptConnect.jsx";
-import { kindSx } from "../../ui/filters.jsx";
 import { KO_WORD_BREAK } from "../../ui/theme.js";
-import { FORM_FIELD_CONTAINER, FORM_FIELD_GRID } from "../../ui/density.js";
 
 /* AI 설정 (계획 3.13 · 3.14, D-515) — `/settings?tab=ai`, 시스템 관리자만.
  *
@@ -38,20 +36,6 @@ import { FORM_FIELD_CONTAINER, FORM_FIELD_GRID } from "../../ui/density.js";
 const STATE_KIND = {
   unconfigured: "muted", unverified: "info", ok: "ok", degraded: "warn", reauth_required: "error", error: "error",
 };
-
-function Field({ label, help, children, kind }) {
-  return (
-    <Box sx={{ minWidth: 0 }}>
-      <FieldLabel>{label}</FieldLabel>
-      <Box sx={kind ? kindSx(kind) : null}>{children}</Box>
-      {help ? (
-        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5, ...KO_WORD_BREAK }}>
-          {help}
-        </Typography>
-      ) : null}
-    </Box>
-  );
-}
 
 const VERIFY_POLL_MS = 1500;
 
@@ -159,7 +143,7 @@ export function AiSettings() {
             {state.problems.map((p) => <Typography component="li" variant="body2" key={p}>{p}</Typography>)}
           </Box>
         ) : null}
-        {state.reason ? <Callout tone="warn" compact sx={{ mt: 1 }}>{state.reason}</Callout> : null}
+        {state.reason ? <Callout tone="warn" compact>{state.reason}</Callout> : null}
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
           {state.last_success_at ? `마지막 성공은 ${fmtDateTime(state.last_success_at)}입니다. ` : "아직 성공한 호출이 없습니다. "}
           {state.checked_at ? `마지막 연결 확인은 ${fmtDateTime(state.checked_at)}입니다.` : ""}
@@ -172,11 +156,14 @@ export function AiSettings() {
       </Section>
       </Box>
 
-      <Card sx={{ mt: 2 }} data-testid="ai-settings-form">
-        <SectionTitle component="h2" title="제공자와 인증" />
-        <Box sx={FORM_FIELD_CONTAINER}>
-          <Box sx={FORM_FIELD_GRID}>
-            <Field kind="enum" label="AI 제공자" help={provider ? provider.help : "답변을 만들 AI 제공자를 고릅니다."}>
+      {/* 설정은 한 판 위의 구획 넷이다 - 구획은 머리와 선으로만 나뉘고 카드를 두르지 않는다(F7 카드 규율, D-527). */}
+      <Card stack data-testid="ai-settings-form">
+        <FormSection titleAs="h2" title="제공자와 인증">
+          <FieldRow>
+            <Field
+              label="AI 제공자" span={{ wide: 6, mid: 1 }}
+              help={provider ? provider.help : "답변을 만들 AI 제공자를 고릅니다."}
+            >
               <TextField
                 select size="small" fullWidth SelectProps={{ displayEmpty: true }}
                 value={form.provider || ""}
@@ -188,7 +175,7 @@ export function AiSettings() {
               </TextField>
             </Field>
             {provider && provider.auth_methods.length > 1 ? (
-              <Field kind="enum" label="인증 방식">
+              <Field label="인증 방식" span={{ wide: 6, mid: 1 }}>
                 <TextField
                   select size="small" fullWidth
                   value={(method && method.key) || ""}
@@ -199,30 +186,37 @@ export function AiSettings() {
                 </TextField>
               </Field>
             ) : null}
-          </Box>
+          </FieldRow>
           {method && method.account ? (
-            <Box sx={{ mt: 2 }}>
-              <ChatGptAccount
-                chatgpt={data.chatgpt} state={state} tokenSettings={data.token_settings}
-                onChanged={() => qc.invalidateQueries({ queryKey: ["ai-admin"] })}
-              />
-            </Box>
+            <ChatGptAccount
+              chatgpt={data.chatgpt} state={state} tokenSettings={data.token_settings}
+              onChanged={() => qc.invalidateQueries({ queryKey: ["ai-admin"] })}
+            />
           ) : method ? (
-            <Box sx={{ mt: 2, maxWidth: "36rem" }}>
-              {/* 키는 저장하면 되읽지 않는다. 끝 네 글자로 어느 키인지만 알아본다. 키를 새로 넣으면 연결 상태가
-                  「확인 전」으로 돌아간다(서버가 설정 지문으로 판정한다). */}
-              <SecretField
-                slot={method.secret_slot} label={method.label}
-                help={[method.help, method.secret_hint ? `저장된 키의 ${method.secret_hint}입니다.` : null].filter(Boolean).join(" ")}
-                onChanged={() => qc.invalidateQueries({ queryKey: ["ai-admin"] })}
-              />
-            </Box>
+            /* 키는 저장하면 되읽지 않는다. 끝 네 글자로 어느 키인지만 알아본다. 키를 새로 넣으면 연결 상태가
+               「확인 전」으로 돌아간다(서버가 설정 지문으로 판정한다). */
+            <SecretField
+              slot={method.secret_slot} label={method.label}
+              help={[method.help, method.secret_hint ? `저장된 키의 ${method.secret_hint}입니다.` : null].filter(Boolean).join(" ")}
+              onChanged={() => qc.invalidateQueries({ queryKey: ["ai-admin"] })}
+            />
           ) : null}
-        </Box>
+        </FormSection>
 
-        <SectionTitle component="h2" title="모델" sx={{ mt: 3 }} />
-        <Box sx={{ display: "flex", gap: 1, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <Field kind="text" label="모델" help="제품이 모델을 대신 고르지 않습니다. 비워 두면 AI 가 꺼져 있습니다.">
+        <FormSection titleAs="h2" title="모델">
+          {/* 「모델 불러오기」는 입력과 같은 줄의 동작 칸이다 - 윗선과 높이가 입력과 같다(D-527). */}
+          <Field
+            label="모델" htmlFor={models && models.length ? undefined : "ai-model"} width="xl"
+            help="제품이 모델을 대신 고르지 않습니다. 비워 두면 AI 가 꺼져 있습니다."
+            action={(
+              <Button
+                disabled={!method || !method.secret_set} loading={loadModels.isPending}
+                onClick={() => loadModels.mutate({ provider: provider.key, auth_method: method.key })}
+              >
+                모델 불러오기
+              </Button>
+            )}
+          >
             {models && models.length ? (
               <TextField
                 select size="small" fullWidth SelectProps={{ displayEmpty: true }}
@@ -235,73 +229,78 @@ export function AiSettings() {
               </TextField>
             ) : (
               <TextField
-                size="small" fullWidth value={form.model || ""}
+                id="ai-model" size="small" fullWidth value={form.model || ""}
                 onChange={(e) => set("model", e.target.value)}
                 inputProps={{ "aria-label": "모델" }}
               />
             )}
           </Field>
-          <Button
-            disabled={!method || !method.secret_set} loading={loadModels.isPending}
-            onClick={() => loadModels.mutate({ provider: provider.key, auth_method: method.key })}
-          >
-            모델 불러오기
-          </Button>
-        </Box>
-        {modelFailure ? <Callout tone="warn" compact sx={{ mt: 1 }}>{modelFailure}</Callout> : null}
+          {modelFailure ? <Callout tone="warn" compact>{modelFailure}</Callout> : null}
+        </FormSection>
 
-        <SectionTitle component="h2" title="실행 옵션" sx={{ mt: 3 }} />
-        <Box sx={FORM_FIELD_GRID}>
-          <Field kind="number" label="제한 시간(초)" help={`호출 하나를 기다리는 시간입니다. ${minTimeout}초에서 ${maxTimeout}초 사이로 정합니다.`}>
-            <TextField
-              size="small" type="number" fullWidth value={form.timeout_seconds ?? ""}
-              onChange={(e) => set("timeout_seconds", Number(e.target.value))}
-              inputProps={{ "aria-label": "제한 시간(초)", min: minTimeout, max: maxTimeout }}
-            />
-          </Field>
-          <Field kind="number" label="동시 실행 수" help={`웹과 워커가 함께 나눠 쓰는 슬롯 수입니다. 최대 ${maxSlots}입니다.`}>
-            <TextField
-              size="small" type="number" fullWidth value={form.max_concurrency ?? ""}
-              onChange={(e) => set("max_concurrency", Number(e.target.value))}
-              inputProps={{ "aria-label": "동시 실행 수", min: 1, max: maxSlots }}
-            />
-          </Field>
-        </Box>
-
-        <SectionTitle component="h2" title="AI 기능" sx={{ mt: 3 }} />
-        <SettingRow
-          compact label="AI 답변 생성" description="켜면 아래 기능들이 이 연결로 답을 만듭니다. 저장을 눌러야 적용됩니다."
-          controlId="ai-generation"
-          action={(
-            <Switch
-              id="ai-generation"
-              checked={!!form.generation_enabled}
-              onChange={() => set("generation_enabled", !form.generation_enabled)}
-              slotProps={{ input: { "aria-label": "AI 답변 생성" } }}
-            />
-          )}
-        />
-        {[
-          ["chat_enabled", "AI 채팅", "끄면 채팅 화면과 대화 API 가 닫힙니다."],
-          ["assistant_narrative_enabled", "홈 AI 문장 요약", "켜면 홈과 도우미가 숫자 옆에 한두 문장 요약을 붙입니다."],
-          ["game_ai_enabled", "게임 퀴즈 AI", "켜면 놀이 화면에서 AI 가 퀴즈 초안을 만듭니다."],
-        ].map(([key, label, description]) => (
-          <SettingRow
-            key={key} compact label={label} description={description}
-            controlId={`ai-feature-${key}`}
-            action={(
-              <Switch
-                id={`ai-feature-${key}`}
-                checked={!!features[key]}
-                onChange={() => feature.mutate({ key, value: !features[key] })}
-                slotProps={{ input: { "aria-label": label } }}
+        <FormSection titleAs="h2" title="실행 옵션">
+          <FieldRow>
+            <Field
+              label="제한 시간(초)" htmlFor="ai-timeout" span={{ wide: 4, mid: 1 }}
+              help={`호출 하나를 기다리는 시간입니다. ${minTimeout}초에서 ${maxTimeout}초 사이로 정합니다.`}
+            >
+              <TextField
+                id="ai-timeout" size="small" type="number" fullWidth value={form.timeout_seconds ?? ""}
+                onChange={(e) => set("timeout_seconds", Number(e.target.value))}
+                inputProps={{ "aria-label": "제한 시간(초)", min: minTimeout, max: maxTimeout }}
               />
-            )}
-          />
-        ))}
+            </Field>
+            <Field
+              label="동시 실행 수" htmlFor="ai-concurrency" span={{ wide: 4, mid: 1 }}
+              help={`웹과 워커가 함께 나눠 쓰는 슬롯 수입니다. 최대 ${maxSlots}입니다.`}
+            >
+              <TextField
+                id="ai-concurrency" size="small" type="number" fullWidth value={form.max_concurrency ?? ""}
+                onChange={(e) => set("max_concurrency", Number(e.target.value))}
+                inputProps={{ "aria-label": "동시 실행 수", min: 1, max: maxSlots }}
+              />
+            </Field>
+          </FieldRow>
+        </FormSection>
+
+        <FormSection titleAs="h2" title="AI 기능">
+          {/* 설정 줄은 괘선 목록이다 - 구획 머리 선 바로 아래 첫 줄은 윗선을 두 번 긋지 않는다. */}
+          <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 } }}>
+            <SettingRow
+              compact label="AI 답변 생성" description="켜면 아래 기능들이 이 연결로 답을 만듭니다. 저장을 눌러야 적용됩니다."
+              controlId="ai-generation"
+              action={(
+                <Switch
+                  id="ai-generation"
+                  checked={!!form.generation_enabled}
+                  onChange={() => set("generation_enabled", !form.generation_enabled)}
+                  slotProps={{ input: { "aria-label": "AI 답변 생성" } }}
+                />
+              )}
+            />
+            {[
+              ["chat_enabled", "AI 채팅", "끄면 채팅 화면과 대화 API 가 닫힙니다."],
+              ["assistant_narrative_enabled", "홈 AI 문장 요약", "켜면 홈과 도우미가 숫자 옆에 한두 문장 요약을 붙입니다."],
+              ["game_ai_enabled", "게임 퀴즈 AI", "켜면 놀이 화면에서 AI 가 퀴즈 초안을 만듭니다."],
+            ].map(([key, label, description]) => (
+              <SettingRow
+                key={key} compact label={label} description={description}
+                controlId={`ai-feature-${key}`}
+                action={(
+                  <Switch
+                    id={`ai-feature-${key}`}
+                    checked={!!features[key]}
+                    onChange={() => feature.mutate({ key, value: !features[key] })}
+                    slotProps={{ input: { "aria-label": label } }}
+                  />
+                )}
+              />
+            ))}
+          </Box>
+        </FormSection>
 
         {saveFailure || verifyFailure ? (
-          <Callout tone="danger" compact sx={{ mt: 2 }}>{saveFailure || verifyFailure}</Callout>
+          <Callout tone="danger" compact>{saveFailure || verifyFailure}</Callout>
         ) : null}
         {/* 저장이 주 동작이고 연결 확인은 설정을 바꾼 뒤 이어서 하는 보조 동작이다 - 같은 발에 선다. */}
         <ActionFooter

@@ -359,7 +359,7 @@ function OffboardPlan({ preview, onDone, toast }) {
           <FormControlLabel control={<Checkbox size="small" checked={archive} onChange={(e) => setArchive(e.target.checked)} />}
             label={<Typography variant="body2">계정 보관(목록에서 감춤)</Typography>} />
         </Box>
-        {runFailure ? <Callout tone="danger" compact sx={{ mt: 2 }}>{runFailure}</Callout> : null}
+        {runFailure ? <Callout tone="danger" compact>{runFailure}</Callout> : null}
         {/* 실행은 판 발이다(`ActionFooter card` — 함몰면 + 위 실선, 오른쪽 끝 · 조합 계약 C-4). 예전에는 손으로 짠 오른쪽
             정렬 줄이 판 여백 안에 떠 있었다. 되돌릴 수 있는 일이지만 계정을 끄는 일이라 파괴 단추이고 확인을 받는다. */}
         <ActionFooter placement="card">
@@ -493,13 +493,13 @@ function RunHistory() {
   const detail = (detailQ.data && detailQ.data.run) || sel;
 
   return (
-    <Section titleAs="h2" title="실행 이력" sx={{ mt: 3 }}>
+    <Section titleAs="h2" title="실행 이력">
       {query.isError ? (
         <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />
       ) : (
         <>
           {/* 되돌리기의 일부 실패는 목록 위 상자가 말한다 — 목록 판 안 표 위에 서면 머리 줄을 판 윗변에서 밀어낸다. */}
-          {undoPartial && items.length ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{undoPartial}</Callout> : null}
+          {undoPartial && items.length ? <Callout tone="danger" compact>{undoPartial}</Callout> : null}
           {/* 감사 이력은 지워지지 않고 계속 쌓인다 — 굴리면 이어 받는다(손으로 그린 페이저가
               여기 있었다, 이제 목록 판 발 하나를 다른 화면과 함께 쓴다 · 조합 계약 C-3). */}
           <DataTable
@@ -539,7 +539,7 @@ function RunHistory() {
               ) : null}
             </ActionFooter>
         ) : null}>
-        {undoFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{undoFailure}</Callout> : null}
+        {undoFailure ? <Callout tone="danger" compact>{undoFailure}</Callout> : null}
         {detail ? (
           <>
             <DetailGrid>

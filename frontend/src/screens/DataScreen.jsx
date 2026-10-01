@@ -1479,7 +1479,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
       ) : null}
       {/* 결과 수는 조건이 걸리면 필터 바 안 조건 줄이, 늘 목록 판 발이 말한다 — 목록 위 단독 결과 줄은 없다(조합 계약 C-1). */}
       {actionNotice && (actionNotice.where === "list" || !sel) ? (
-        <Callout tone={actionNotice.tone} compact sx={{ mb: 2 }}>{actionNotice.text}</Callout>
+        <Callout tone={actionNotice.tone} compact>{actionNotice.text}</Callout>
       ) : null}
       {/* SEM-02: 로딩·오류·빈 상태·정상 목록 네 갈래 전부를 아우르는 자리에 한 번만 둔다
           (갈래마다 넣으면 하나는 반드시 빠뜨린다). */}
@@ -1600,7 +1600,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
             화면은 두세 열로 접어 스크롤을 줄인다 — 4K에서 한 열로 길게 늘어놓으면 오른쪽이
             통째로 비고 눈은 위아래로만 움직인다. */}
         {sel && actionNotice && actionNotice.where === "detail" ? (
-          <Callout tone={actionNotice.tone} compact sx={{ mb: 2 }}>{actionNotice.text}</Callout>
+          <Callout tone={actionNotice.tone} compact>{actionNotice.text}</Callout>
         ) : null}
         {sel ? (
           <DetailGrid>

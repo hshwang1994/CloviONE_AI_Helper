@@ -91,7 +91,7 @@ function ImpersonationBanner({ data }) {
     >
       {data.actor_name}(으)로 로그인한 상태이며, 이 화면에서는 어떤 변경도 저장되지 않습니다.
       {data.blocked_write_count ? ` 지금까지 차단된 변경 시도 ${data.blocked_write_count}건.` : ""}
-      {stopFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{stopFailure}</Callout> : null}
+      {stopFailure ? <Callout tone="danger" compact>{stopFailure}</Callout> : null}
     </Callout>
   );
 }

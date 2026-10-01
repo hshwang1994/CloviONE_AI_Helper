@@ -9,7 +9,7 @@ import Typography from "@mui/material/Typography";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import { foldedFilterOptions, normalizeQuery } from "../lib/search.js";
-import { CONTROL, DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, ICON, remPx } from "./theme.js";
+import { CONTROL, DEBOUNCE_MS, FONT_SIZE, FONT_WEIGHT, ICON, controlHeight, remPx } from "./theme.js";
 
 /* 목록 화면들이 함께 쓰는 필터 입력 부품.
  *
@@ -149,9 +149,11 @@ export function useRowCell(layout) {
    세로 열이 칸마다 어긋난다. 자동완성 칸의 여백을 셀렉트와 같게 옮긴다. 다중 선택은 칸 안에 칩을 그리지 않고
    고른 이름을 한 줄로 요약한다(`RowValue`) — 그래서 이 칸은 칩 때문에 높이가 풀리는 일이 없다. 칩은 조건 줄의
    것이다. 「전체」처럼 상태를 말하는 빈 값은 자리표시자여도 값 글자(잉크 · 600)로 선다. */
+/* 칸 높이는 컨트롤 높이 변수(`controlHeight`, 기본 34)다 - 선택 발처럼 밀집 줄(30)에 서는 칸은 그릇이
+   `densityVars("dense")` 로 함께 낮춘다(D-526). 칸마다 높이 숫자를 따로 적지 않는다. */
 const ROW_CELL_SX = {
   "& .MuiInputBase-root, && .MuiAutocomplete-inputRoot": {
-    height: remPx(CONTROL.button), minHeight: remPx(CONTROL.button),
+    height: controlHeight, minHeight: controlHeight,
   },
   "&& .MuiAutocomplete-inputRoot": { paddingLeft: remPx(14), paddingTop: 0, paddingBottom: 0, flexWrap: "nowrap" },
   "&& .MuiAutocomplete-inputRoot .MuiAutocomplete-input": { paddingLeft: 0, minWidth: remPx(30) },
@@ -165,7 +167,7 @@ const ROW_CELL_SX = {
 };
 
 const ROW_SEARCH_SX = {
-  "& .MuiInputBase-root": { height: remPx(CONTROL.button), minHeight: remPx(CONTROL.button) },
+  "& .MuiInputBase-root": { height: controlHeight, minHeight: controlHeight },
   "& .MuiInputBase-input": { paddingTop: 0, paddingBottom: 0 },
 };
 

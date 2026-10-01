@@ -48,6 +48,8 @@ OUT_BASE = REPO_ROOT / "dist" / "ui-qa"
 from scripts.ui_qa.composition_checks import (  # noqa: E402
     COMPOSITION_CHECKS, COMPOSITION_CONTRACT, COMPOSITION_JS, expect_for, selftest_html, selftest_verdict,
 )
+from scripts.ui_qa import visual_probes  # noqa: E402
+from scripts.ui_qa.visual_probes import VISUAL_CHECKS, VISUAL_CONTRACT, VISUAL_JS  # noqa: E402
 MASCOT_BOUNDS = REPO_ROOT / "app" / "static" / "brand" / "mascot" / "mascot-bounds.json"
 
 
@@ -64,7 +66,11 @@ CONTRACT = {
     "segmented": {"outer": 34, "pad": 3, "inner": 28},
     "statusChip": 30,
     "filterChip": 26,
-    "calloutSingle": 49,
+    "calloutSingle": 50,
+    # 동작이 든 한 줄 상자(D-528) — 동작 30 + 위아래 여백 + 테두리. 아이콘 · 첫 줄 · 동작이 한 가운데선(±1)에 선다.
+    "calloutAction": 30,
+    "calloutSingleAction": 56,
+    "calloutCompactAction": 46,
     "calloutIcon": 16,
     "calloutIconTop": 3,
     "badge": {"h": 22, "px": 8, "r": 4, "w": 600},
@@ -92,8 +98,9 @@ CHECKS = (
     "empty_layout", "error_icon", "mascot_size", "card_row_tops", "page_head_overlap",
     "footer_owner", "variant_height", "form_field_rows", "chat_layout", "switch_geometry",
 )
-# 부품 치수(위) + 조합(`composition_checks.py`). 둘을 한 표로 보고한다 — 치수 PASS 를 조합 PASS 로 읽지 않게.
-ALL_CHECKS = CHECKS + COMPOSITION_CHECKS
+# 부품 치수(위) + 조합(`composition_checks.py`) + 시각 규율(`visual_probes.py`, F7). 셋을 한 표로 보고한다 — 치수 PASS 를
+# 조합 · 시각 PASS 로 읽지 않게.
+ALL_CHECKS = CHECKS + COMPOSITION_CHECKS + VISUAL_CHECKS
 
 MEASURE_JS = r"""
 (C) => {
@@ -204,8 +211,38 @@ MEASURE_JS = r"""
     }
     const compact = c.getAttribute('data-compact') === 'true' || px(st.paddingTop) < 10;
     const extraRows = c.querySelector('button,a[role=button],details,ul,ol') || (body.previousElementSibling && body.previousElementSibling.tagName !== 'svg');
-    if (!compact && lineCount(body) === 1 && !extraRows && !near(hOf(c), C.calloutSingle)) {
+    /* 전폭 띠(`bleed`)는 위 · 좌우 선이 없어 한 줄 높이가 테두리 하나만큼 낮다. */
+    const singleWant = C.calloutSingle - (c.getAttribute('data-variant') === 'bleed' ? 1 : 0);
+    if (!compact && lineCount(body) === 1 && !extraRows && !near(hOf(c), singleWant)) {
       problems.push('single-line height ' + hOf(c));
+    }
+    /* 동작이 든 상자(D-528) — 아이콘 · 첫 줄 · 동작이 한 가운데선에 선다. 첫 줄은 본문 첫 글자 줄 상자의 가운데다. */
+    const actionBox = c.querySelector('.k-head-action');
+    const firstLine = (() => {
+      const w = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        if (!n.textContent.trim()) continue;
+        const rg = document.createRange();
+        rg.selectNodeContents(n);
+        const rs = [...rg.getClientRects()].filter((r) => r.width >= 1 && r.height >= 1);
+        if (rs.length) return rs[0];
+      }
+      return null;
+    })();
+    const midOf = (r) => r.top + r.height / 2;
+    if (actionBox && firstLine && shown(actionBox)) {
+      const btn = actionBox.querySelector('button, a') || actionBox;
+      const br = btn.getBoundingClientRect();
+      const dAction = Math.abs(midOf(br) - midOf(firstLine));
+      if (dAction > tol) problems.push('동작 가운데선 ' + dAction.toFixed(1));
+      if (!near(br.height, C.calloutAction)) problems.push('동작 높이 ' + Math.round(br.height));
+      if (icon) {
+        const dIcon = Math.abs(midOf(icon.getBoundingClientRect()) - midOf(firstLine));
+        if (dIcon > tol) problems.push('아이콘 가운데선 ' + dIcon.toFixed(1));
+      }
+      const plainRows = !c.querySelector('details,ul,ol') && lineCount(body) === 1;
+      const want = compact ? C.calloutCompactAction : C.calloutSingleAction;
+      if (plainRows && !near(hOf(c), want)) problems.push('동작 상자 높이 ' + hOf(c) + ' ≠ ' + want);
     }
     const role = c.getAttribute('role');
     if (role !== 'alert' && role !== 'status') problems.push('role ' + role);
@@ -251,8 +288,11 @@ MEASURE_JS = r"""
     const st = getComputedStyle(s);
     const problems = [];
     if (!transparent(st.backgroundColor)) problems.push('background ' + st.backgroundColor);
-    const next = s.nextElementSibling;
-    if (next && shown(next) && next.getBoundingClientRect().top < s.getBoundingClientRect().bottom - 1) problems.push('overlaps next sibling');
+    /* 다음 **흐름 안** 형제와 비교한다 — 화면 낭독 전용 제목(`sr-only`, absolute)은 flex 그릇(`.c-screen`) 안에서 그릇 첫머리에
+       정적 자리를 잡아 겹친 것처럼 읽혔다(P3 실측: 사용자 화면). 흐름 밖 요소는 덮지 않는다. */
+    let next = s.nextElementSibling;
+    while (next && (!shown(next) || /^(absolute|fixed)$/.test(getComputedStyle(next).position))) next = next.nextElementSibling;
+    if (next && next.getBoundingClientRect().top < s.getBoundingClientRect().bottom - 1) problems.push('overlaps next sibling');
     if (problems.length) fail('filter_surface', { ...where(s), problems });
     for (const sw of s.querySelectorAll('.MuiSwitch-root')) {
       if (!shown(sw)) continue;
@@ -758,6 +798,13 @@ def selftest(args) -> int:
             page.evaluate(selftest_html())
             c_good = page.evaluate(COMPOSITION_JS, {**COMPOSITION_CONTRACT, "scope": "#compose-selftest #compose-good"})
             c_bad = page.evaluate(COMPOSITION_JS, {**COMPOSITION_CONTRACT, "scope": "#compose-selftest #compose-bad"})
+            # 시각 규율 견본은 화면 전체를 쓰는 문서라 빈 쪽에 따로 연다(F7).
+            v_page = ctx.new_page()
+            v_page.set_viewport_size({"width": 1366, "height": 768})
+            v_results = {}
+            for kind in ("good", "bad"):
+                v_page.set_content(visual_probes.fixture_html(kind), wait_until="load")
+                v_results[kind] = v_page.evaluate(VISUAL_JS, {**VISUAL_CONTRACT, "scope": None})
             ctx.close()
         finally:
             browser.close()
@@ -773,6 +820,7 @@ def selftest(args) -> int:
     if checked_good < 4:
         problems.append(f"맞는 견본 표본이 너무 적다({checked_good})")
     problems += [f"조합: {p}" for p in selftest_verdict(c_good, c_bad)]
+    problems += [f"시각: {p}" for p in visual_probes.selftest_verdict(v_results["good"], v_results["bad"])]
     if problems:
         for p in problems:
             print("[SELFTEST] " + p)
@@ -841,6 +889,9 @@ def measure(args) -> int:
                                                                       "expect": expect_for(route.id)})
                             if isinstance(composed, dict) and not composed.get("error"):
                                 result.update(composed)
+                            looked = page.evaluate(VISUAL_JS, {**VISUAL_CONTRACT, "scope": None})
+                            if isinstance(looked, dict) and not looked.get("error"):
+                                result.update(looked)
                             key = f"{route.id}__{theme}__{viewport.name}"
                             pages[key] = result
                             _merge(total, result, key)
@@ -867,7 +918,8 @@ def measure(args) -> int:
 
     summary = {name: {"checked": total[name]["checked"], "failed": total[name]["failed"]} for name in ALL_CHECKS}
     (out_dir / "measure.json").write_text(json.dumps(
-        {"contract": CONTRACT, "composition_contract": COMPOSITION_CONTRACT, "summary": summary,
+        {"contract": CONTRACT, "composition_contract": COMPOSITION_CONTRACT, "visual_contract": VISUAL_CONTRACT,
+         "summary": summary,
          "samples": {n: total[n]["samples"] for n in ALL_CHECKS}, "pages": pages},
         ensure_ascii=False, indent=1), encoding="utf-8")
     print("")
@@ -875,6 +927,8 @@ def measure(args) -> int:
     for name in ALL_CHECKS:
         if name == COMPOSITION_CHECKS[0]:
             print("-- 조합 --")
+        if name == VISUAL_CHECKS[0]:
+            print("-- 시각 규율(F7) --")
         s = summary[name]
         mark = "  ← 표본 0" if s["checked"] == 0 else ""
         print(f"{name:<22} {s['checked']:>6} {s['failed']:>6}{mark}")

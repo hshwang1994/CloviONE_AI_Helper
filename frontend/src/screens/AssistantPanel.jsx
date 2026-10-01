@@ -690,11 +690,11 @@ export function AssistantPanel() {
     <Card>
       {/* SEM-02: 이 컴포넌트는 항상 Home.jsx(/me) 안에 박혀 있다(단독 라우트 없음). 그
           화면의 다른 최상위 구역과 같은 무게라 h2 이고, 그 아래 소제목은 h3 다. */}
-      <SectionTitle
+      <SectionTitle spacing="tight"
         component="h2"
         title="AI 도우미"
         help="지금 급한 일과 다음에 할 일을 정리합니다."
-        sx={{ mb: 1 }}
+
       />
       {/* 밑줄 탭에서 **세그먼티드**로 바뀌었다(확정 규약 §2). 넷이 밑줄만으로 서 있으면
           어디까지가 이 묶음인지 경계가 사라지고, 좁은 폭에서는 밑줄이 글자보다 먼저

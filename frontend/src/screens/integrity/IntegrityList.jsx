@@ -86,7 +86,7 @@ function FixControls({ finding, fix, ids, unit, onDone }) {
   if (target === "membership") {
     picker = (
       <EntityCombobox
-        label={FIX_PICKER_LABEL[fix]} value={value} onChange={setValue}
+        layout="row" label={FIX_PICKER_LABEL[fix]} value={value} onChange={setValue}
         options={[{ value: ORG_CHOICE, label: ORG_CHOICE_LABEL[fix] }].concat(deptOptions)}
         loading={depts.isLoading} allLabel="소속을 고르세요" sx={{ minWidth: "16rem" }}
       />
@@ -94,18 +94,20 @@ function FixControls({ finding, fix, ids, unit, onDone }) {
   } else if (target === "department") {
     picker = (
       <EntityCombobox
-        label={FIX_PICKER_LABEL[fix]} value={value} onChange={setValue} options={deptOptions}
+        layout="row" label={FIX_PICKER_LABEL[fix]} value={value} onChange={setValue} options={deptOptions}
         loading={depts.isLoading} allLabel="부서를 고르세요" sx={{ minWidth: "16rem" }}
       />
     );
   } else if (target === "project") {
     picker = (
       <ProjectPicker
-        label={FIX_PICKER_LABEL[fix]} value={value} onChange={setValue}
+        layout="row" label={FIX_PICKER_LABEL[fix]} value={value} onChange={setValue}
         allLabel="프로젝트를 고르세요" sx={{ minWidth: "16rem" }}
       />
     );
   }
+  /* 선택 발은 밀집 줄(30)이다(`SelectionBar`) - 고르개는 칸 안 접두 이름으로, 적용 단추와 같은 높이 · 같은 윗선에 선다
+     (D-526). 예전에는 라벨 위 36 칸 옆에 30 단추가 11px 떠 있었다. */
   return (
     <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
       {picker}

@@ -45,8 +45,10 @@ import { maxLengthFor } from "../lib/fieldLimits.js";
 import { apiToKstLocal, kstLocalToApi, objectParticle, topicParticle } from "../lib/format.js";
 import { declaredRowName, rowNameOf } from "./rowName.js";
 import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, planNarrowColumns, resolveColumn, rootFontPx, tableMinWidth } from "./columnTypes.js";
-import { CONTROL, EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, LINE_HEIGHT, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, remPx, stickyTopSx } from "./theme.js";
-import { CARD_PADDING, SECTION_GAP } from "./density.js";
+import { CONTROL, densityVars, EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, LINE_HEIGHT, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, remPx, stickyTopSx } from "./theme.js";
+import { CARD_PADDING, CARD_PADDING_COMPACT, SECTION_GAP, FORM_FIELD_CONTAINER, FORM_FIELD_GAP, FORM_FIELD_GRID_12, fieldSpan } from "./density.js";
+import { FlowStack, HeadRow } from "./layout.jsx";
+export { FLOW_GAP, FlowStack, HeadRow, centerPad } from "./layout.jsx";
 import { EntityCombobox } from "./filters.jsx";
 import { TableHeaderCell } from "./TableHeaderCell.jsx";
 import { DateField } from "./DateField.jsx";
@@ -875,9 +877,18 @@ export function SurfaceReset({ children }) {
  *
  * **판 안에서는 여백도 함께 사라진다.** 판정이 `none` 으로 내려갔는데 24px 여백만 남으면
  * 부모 판의 24px 와 겹쳐 48px 들여쓰기가 된다 — 없앤 테두리가 공백으로 되살아나는 셈이다. */
-export function Card({ className, children, sx, ...rest }) {
+/* `stack` — 자식 사이 세로 간격 14 를 판이 준다(RULES §0 「카드 안은 14px」, D-528). 자식의 위아래 바깥 여백은 지운다. 판에
+   여러 덩어리(메시지 상자 · 폼 · 표)를 쌓을 때 화면이 덩어리마다 여백을 적지 않게 한다. 시각 프로브는 `Surface` 가 이미 다는
+   `data-surface="plate"` 로 카드 안 카드(F7 카드 규율)를 찾는다 - 판 안에서 눕은 판은 `plate>none` 이라 세지 않는다.
+   `padding` — 판 안쪽 여백의 단계다. `normal`(20) · `compact`(10, 칸반 카드 · 회의 목록처럼 판이 한 줄 행인 자리) ·
+   `none`(판 안을 목록 · 대화 창이 가장자리까지 채우는 자리). 화면이 `sx={{ p }}` 로 덮지 않는다(primitive-geometry-override). */
+const CARD_PADDINGS = { normal: CARD_PADDING, compact: CARD_PADDING_COMPACT, none: 0 };
+
+export function Card({ className, children, sx, stack = false, padding = "normal", ...rest }) {
   const nested = useSurfaceDepth() > 0;
-  const base = nested ? null : { p: CARD_PADDING };
+  // 판 안의 판은 여백도 함께 사라진다(위). 단계를 직접 고른 판(compact · none)은 그 단계를 그대로 쓴다.
+  const base = padding !== "normal" && padding in CARD_PADDINGS ? { p: CARD_PADDINGS[padding] } : nested ? null : { p: CARD_PADDING };
+  const stacked = stack ? { display: "flex", flexDirection: "column", rowGap: 1.75, "&& > *": { marginBlockStart: 0, marginBlockEnd: 0 } } : null;
   /* 판 발(`ActionFooter placement="card"`)이 판의 마지막 줄이면 발은 **판 바닥**에 선다 (UI 3차 P4).
      짝 격자(stretch)에서 판이 내용보다 길어지면 발이 판 가운데에 뜨고 아래가 비었다 — 점검의 두 판은 발이 109px 어긋났다.
      판을 세로 흐름으로 두고 본문을 한 상자로 묶어 남는 높이를 먹게 한다. 본문 상자 안은 예전과 같은 보통 흐름이다. */
@@ -885,14 +896,16 @@ export function Card({ className, children, sx, ...rest }) {
   const last = items[items.length - 1];
   const footed = !nested && React.isValidElement(last) && last.type === ActionFooter && last.props.placement === "card";
   const layout = footed ? { display: "flex", flexDirection: "column" } : null;
+  /* 발이 있는 판의 쌓기 간격은 본문 상자가 준다 - 발은 자기 윗선과 위 여백으로 본문과 갈린다(판 바닥에 선다). */
+  const rootStack = footed ? null : stacked;
   const merged = typeof sx === "function"
-    ? (theme) => ({ ...base, ...layout, ...sx(theme) })
-    : { ...base, ...layout, ...sx };
+    ? (theme) => ({ ...base, ...rootStack, ...layout, ...sx(theme) })
+    : { ...base, ...rootStack, ...layout, ...sx };
   return (
     <Surface tone="plate" className={className} sx={merged} {...rest}>
       {footed ? (
         <>
-          <Box data-card-body="" sx={{ flex: "1 1 auto", minWidth: 0 }}>{items.slice(0, -1)}</Box>
+          <Box data-card-body="" sx={{ flex: "1 1 auto", minWidth: 0, ...stacked }}>{items.slice(0, -1)}</Box>
           {last}
         </>
       ) : children}
@@ -1039,10 +1052,33 @@ const CALLOUT_ICON = {
   danger: ErrorOutlineRoundedIcon,
 };
 
+/* 메시지 상자의 바로 위 그릇이 **간격을 주는 그릇**인가 — flex · grid 이고 줄 간격(gap)이 0 보다 크다(D-528).
+ *
+ * 흐름 밖 메시지 상자는 형제와 12px 한 간격을 스스로 갖는다(`styles/screens.css` 의 `.k-callout` 형제 규칙). 블록 흐름에서는
+ * 위아래 여백이 겹쳐 12 가 되지만, flex · grid 에서는 여백이 겹치지 않고 그릇의 gap 에 **더해진다** - 격자 안의 두 상자 사이가
+ * gap + 24 로 벌어졌다(부품 갤러리 실측 34px). 그 그릇은 이미 간격을 주므로 상자가 여백을 더하지 않게 표지를 단다.
+ * 첫 그림 전에(`useLayoutEffect`) 한 번 잰다 - 그릇의 배치는 화면이 그릇을 바꿀 때만 바뀐다. */
+function useGapParent() {
+  const ref = React.useRef(null);
+  const [on, setOn] = React.useState(false);
+  React.useLayoutEffect(() => {
+    const parent = ref.current && ref.current.parentElement;
+    if (!parent || typeof getComputedStyle !== "function") return;
+    const st = getComputedStyle(parent);
+    const layout = /(?:^|-)(?:flex|grid)$/.test(st.display || "");
+    const gap = (parseFloat(st.rowGap) || 0) > 0 || (parseFloat(st.columnGap) || 0) > 0;
+    setOn(layout && gap);
+  }, []);
+  return { ref, on };
+}
+
 export function Callout({
   tone = "info", variant = "block", compact = false, title, action,
-  detail, detailLabel = "기술 정보", children, role, toneLabel, sx,
+  detail, detailLabel = "기술 정보", children, role, toneLabel, className, sx,
 }) {
+  /* `className` 은 시험 · 프로브가 자리를 붙잡는 표지다(폼 서버 오류 `k-form-err` 처럼). 모양은 바꾸지 않는다. */
+  const rootClass = className ? `k-callout ${className}` : "k-callout";
+  const gapParent = useGapParent();
   /* 안내 — **큰 외곽선 상자를 기본형으로 쓰지 않는다** (지시 35).
    *
    * 예전에는 tone 과 무관하게 전부 `MuiAlert variant="outlined"` 였다. 호출부 67곳 중
@@ -1087,7 +1123,9 @@ export function Callout({
        작은 아이콘 모양과 그 접근 이름이 말한다. */
     return (
       <Typography
-        className="k-callout"
+        ref={gapParent.ref}
+        className={rootClass}
+        data-gap-parent={gapParent.on ? "" : undefined}
         data-tone={kind}
         data-variant="inline"
         component="p"
@@ -1106,7 +1144,9 @@ export function Callout({
 
   return (
     <Box
-      className="k-callout"
+      ref={gapParent.ref}
+      className={rootClass}
+      data-gap-parent={gapParent.on ? "" : undefined}
       data-tone={kind}
       /* 오류는 지금 끼어들어야 하는 사실이고(`alert`), 나머지는 알리되 흐름을 끊지 않는다
          (`status` — 암묵적으로 `aria-live="polite"`). 예전에는 오류 아닌 것이 `note` 라
@@ -1128,17 +1168,22 @@ export function Callout({
        * `minmax(0,1fr)` 이 글 칸의 바닥을 0 으로 열어 두므로 동작이 넓어도 글이 안 밀린다. */
       data-variant={variant}
       sx={(t) => ({
-        display: "grid",
-        gridTemplateColumns: action ? "auto minmax(0,1fr) auto" : "auto minmax(0,1fr)",
-        columnGap: compact ? 1 : 1.25,
-        alignItems: "start",
+        /* 머리 줄(`HeadRow`)이 아이콘 · 첫 줄 · 동작을 한 가운데선에 세운다(D-528). 예전 격자는 `align-items: start` 라
+           한 줄 글(24px) 옆 30px 단추가 3 ~ 5px 내려가 「목록 보기」가 글보다 아래에 따로 섰다. 동작은 언제나 오른쪽 끝이고
+           30 이다 - 화면이 34 단추를 넘겨도 이 상자 안에서는 30 으로 선다(한 줄은 한 밀도, D-526).
+           여백은 좌우 14 · 위아래 12(compact 10 · 7). 높이는 동작이 있으면 56(compact 46), 없으면 50. 바깥 여백은 이 상자가
+           갖지 않는다 - 흐름 그릇이 형제 사이 간격을 주고, 흐름 밖에서는 아래 `k-callout` 형제 규칙 하나가 준다(styles/kit.css). */
         px: compact ? 1.25 : 1.75,
         py: compact ? 0.875 : 1.5,
         borderRadius: `${RADIUS.sm}px`,
         border: `1px solid ${t.palette.divider}`,
         bgcolor: "background.inset",
         fontSize: compact ? FONT_SIZE.caption : FONT_SIZE.body,
+        lineHeight: compact ? LINE_HEIGHT.caption : LINE_HEIGHT.body,
         ...KO_WORD_BREAK,
+        "& .k-head-action .MuiButton-root": {
+          minHeight: remPx(CONTROL.controlDense), height: remPx(CONTROL.controlDense), py: 0,
+        },
         /* `variant="bleed"` — 판 밖 전폭 띠(대리 보기 · 상태 알림 · 팔레트의 실패 줄). 같은 1a
            얼굴에서 모서리와 좌우 · 위 선만 걷고 아래 실선으로 본문과 가른다. 화면마다 손으로
            `borderRadius: 0` 을 적던 자리를 이름 하나로 모은다. */
@@ -1146,42 +1191,45 @@ export function Callout({
         ...(typeof sx === "function" ? sx(t) : sx),
       })}
     >
-      {/* 아이콘은 크기와 `margin-top` 을 고정한다 — 첫 줄과의 광학 정렬 값을 상자마다
-          새로 만들지 않는다. 색만 상태를 말하는 **유일한** 자리이고, 그래서 이것만은
-          `aria-hidden` 이 아니다: 모양이 나르는 뜻을 낭독기에도 같은 낱말로 준다. */}
-      <Icon
-        role="img"
-        aria-label={toneWord}
-        sx={{ flexShrink: 0, fontSize: remPx(ICON.mark), color: `${paletteKey}.main`, mt: "0.1875rem" }}
-      />
-      <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.25 }}>
-        {/* 제목은 **호출부가 줄 때만** 선다. 안 주면 본문이 곧 그 상자의 말이다. */}
-        {title ? (
+      <HeadRow
+        gap={compact ? 1 : 1.25}
+        lineHeightPx={compact ? 13 * LINE_HEIGHT.caption : 15 * LINE_HEIGHT.body}
+        leadPx={ICON.mark}
+        actionPx={CONTROL.controlDense}
+        /* 아이콘은 색만 상태를 말하는 **유일한** 자리이고, 그래서 이것만은 `aria-hidden` 이 아니다: 모양이 나르는 뜻을
+           낭독기에도 같은 낱말로 준다. */
+        lead={(
+          <Icon
+            role="img"
+            aria-label={toneWord}
+            sx={{ display: "block", flexShrink: 0, fontSize: remPx(ICON.mark), color: `${paletteKey}.main` }}
+          />
+        )}
+        action={action || null}
+      >
+        <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.25 }}>
+          {/* 제목은 **호출부가 줄 때만** 선다. 안 주면 본문이 곧 그 상자의 말이다. */}
+          {title ? (
+            <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, color: "text.primary" }}>
+              {title}
+            </Box>
+          ) : null}
+          {/* 제목이 있으면 본문은 보조 잉크다 — 둘의 색이 갈려야 한 덩어리로 안 뭉친다.
+              제목이 없으면 본문이 그 상자의 유일한 말이므로 본문 잉크로 선다.
+              상태별 색 변화는 없다(그것은 아이콘의 일이다). 본문 아래 목록(`ul`)은 글 칸 시작점에 선다(RULES §1). */}
           <Box
             component="span"
+            className="k-callout-body"
             sx={{
-              fontWeight: FONT_WEIGHT.semibold, color: "text.primary",
-              fontSize: compact ? FONT_SIZE.caption : FONT_SIZE.body,
+              minWidth: 0, color: title ? "text.secondary" : "text.primary",
+              "& ul": { mt: 0.75, mb: 0, pl: 2.5 }, "& li + li": { mt: 0.5 },
             }}
           >
-            {title}
+            {children}
           </Box>
-        ) : null}
-        {/* 제목이 있으면 본문은 보조 잉크다 — 둘의 색이 갈려야 한 덩어리로 안 뭉친다.
-            제목이 없으면 본문이 그 상자의 유일한 말이므로 본문 잉크로 선다.
-            상태별 색 변화는 없다(그것은 아이콘의 일이다). */}
-        <Box
-          component="span"
-          className="k-callout-body"
-          sx={{ minWidth: 0, color: title ? "text.secondary" : "text.primary" }}
-        >
-          {children}
+          <TechDetail label={detailLabel}>{detail}</TechDetail>
         </Box>
-        <TechDetail label={detailLabel}>{detail}</TechDetail>
-      </Box>
-      {action ? (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>{action}</Box>
-      ) : null}
+      </HeadRow>
     </Box>
   );
 }
@@ -2400,7 +2448,10 @@ function GroupHeaderMeta({ group }) {
  *
  * 역할은 `toolbar` 다(SEM-02) — 제목 계층이 아니라 상태에 따라 나타나는 컨트롤 묶음이라 스크린리더가 「일괄 작업」
  * 으로 식별하고 건너뛸 수 있게 한다. 선택이 없으면 아무것도 그리지 않는다(발의 오른쪽은 비운다). 일괄 동작은 30 이고
- * 채움이 필요하면 이 묶음 **안에서만** 하나다(`data-list-selection` — 화면 채움 수에 안 센다). */
+ * 채움이 필요하면 이 묶음 **안에서만** 하나다(`data-list-selection` — 화면 채움 수에 안 센다).
+ *
+ * 이 묶음은 밀집 줄(30)이다(D-526) — 안에 선 고르개 · 입력도 컨트롤 높이 변수(`densityVars("dense")`)를 받아 30 단추와 같은
+ * 높이 · 같은 윗선에 선다. 예전에는 「일괄 지정」 칸이 34 로 서서 옆 30 단추와 2px 씩 어긋났다. */
 export function SelectionBar({ count, unit = "개", clearLabel = "해제", onClear, children, sx }) {
   if (!count) return null;
   return (
@@ -2408,7 +2459,7 @@ export function SelectionBar({ count, unit = "개", clearLabel = "해제", onCle
       data-list-selection=""
       role="toolbar"
       aria-label="일괄 작업"
-      sx={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 1, minWidth: 0, ...sx }}
+      sx={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 1, minWidth: 0, ...densityVars("dense"), ...sx }}
     >
       {/* 단위는 목록이 센다 — 사람 목록은 「명」이다. 문구는 화면이 원래 쓰던 낱말 그대로다. */}
       <Typography component="span" variant="caption" color="text.secondary" sx={{ ...NUMERIC, whiteSpace: "nowrap" }}>
@@ -3453,21 +3504,71 @@ export function Modal({ open, onClose, title, size = "md", children, footer, dir
  * `/profile` 이 이 트랙을 먼저 만들었고(`FIELD_ROWS`), 새 티켓이 둘째 소비처라 키트로 올린다.
  * 도움말과 오류는 셋째 줄 한 자리를 나눠 쓴다 — 오류가 있으면 오류가 선다(`aria-describedby` 는
  * 입력 쪽이 `helpId` 를 가리킨다). */
-/* 필드 줄은 36 이 **바닥**이다 — 한 줄 칸은 정확히 36 으로 서고, 고른 칩이 여럿이라 두 줄로 접히는 칸(담당자)은
-   그만큼 자라 아래 도움말과 겹치지 않는다. 라벨 줄이 20 으로 고정이라 같은 줄의 입력칸 윗선은 그대로 같다. */
-export const FIELD_ROWS = `${remPx(20)} minmax(${remPx(CONTROL.input)}, auto) auto`;
+/* 필드 줄은 컨트롤 높이(34, 밀집 줄 30)가 **바닥**이다 — 한 줄 칸은 정확히 그 높이로 서고, 고른 칩이 여럿이라 두 줄로
+   접히는 칸(담당자)은 그만큼 자라 아래 도움말과 겹치지 않는다. 라벨 줄이 20 으로 고정이라 같은 줄의 입력칸 윗선은 그대로
+   같다(D-527). 높이의 정본은 `theme.js::controlHeight` 하나다 - 그릇이 `densityVars("dense")` 로 30 을 주면 함께 준다. */
+export const FIELD_ROWS = `${remPx(20)} minmax(var(--clovir-control-h, ${remPx(CONTROL.control)}), auto) auto`;
 
-export function FormFieldCell({ label, htmlFor, labelId, required, help, error, helpId, children, sx }) {
+/* 폼 칸 폭 토큰(D-527). 칸 하나가 혼자 설 때의 상한이다 - 줄(`FieldRow`) 안에서는 격자가 폭을 정한다. */
+export const FIELD_WIDTH = { sm: "10rem", md: "16rem", lg: "24rem", xl: "32rem", full: "none" };
+
+/**
+ * 폼 칸 하나 — **라벨 20 · 컨트롤 34 · 도움말 auto 의 고정 세로 트랙**에 **동작 칸**이 붙는다 (핸드오프 README 정렬 규약 1 ·
+ * RULES §7, D-527).
+ *
+ * 열은 `minmax(0,1fr) [auto]` 다. 라벨이 두 칸 전체, 컨트롤과 `action`(단추 하나 이상)이 둘째 줄에서 **윗선 · 높이가 같고**,
+ * 도움말 · 오류가 셋째 줄 **두 칸 전체**에 선다(단추 밑으로도 이어진다). 예전에는 공용 칸에 동작 자리가 없어 화면마다
+ * 단추를 `flex-end` · `flex-start` · `center` 로 따로 줄 세웠고, AI 모델 칸의 「다시 불러오기」는 도움말 바닥에 붙어 도움말 끝
+ * 뒤로 밀렸다.
+ *
+ * 도움말과 오류는 셋째 줄 한 자리를 나눠 쓴다 — 오류가 있으면 오류가 선다(두 줄이 쌓여 높이가 흔들리지 않는다).
+ * `aria-describedby` 는 입력 쪽이 `helpId` 를 가리킨다. `width` 는 혼자 설 때의 상한(sm 10 · md 16 · lg 24 · xl 32rem), `span`
+ * 은 `FieldRow` 의 12칸 격자에서 문턱별로 차지할 칸 수(`fieldSpan`), `density="dense"` 는 컨트롤 줄을 30 으로 낮춘다.
+ */
+export function Field({
+  label, htmlFor, labelId, required, help, error, helpId, action, width = "full", span, density, children, className, sx,
+}) {
   return (
     <Box
       data-form-field=""
-      sx={{ display: "grid", gridTemplateRows: FIELD_ROWS, alignContent: "start", minWidth: 0, ...sx }}
+      className={className ? `k-field ${className}` : "k-field"}
+      sx={{
+        display: "grid",
+        gridTemplateColumns: action ? "minmax(0,1fr) auto" : "minmax(0,1fr)",
+        gridTemplateRows: FIELD_ROWS,
+        columnGap: 1,
+        alignContent: "start",
+        minWidth: 0,
+        maxWidth: FIELD_WIDTH[width] || width,
+        ...densityVars(density),
+        ...(span ? fieldSpan(span) : null),
+        ...sx,
+      }}
     >
-      <FieldLabel htmlFor={htmlFor} id={labelId} required={required} sx={{ mb: 0, lineHeight: 1.25, alignSelf: "start" }}>
+      <FieldLabel
+        htmlFor={htmlFor} id={labelId} required={required}
+        sx={{ gridColumn: "1 / -1", gridRow: 1, mb: 0, lineHeight: 1.25, alignSelf: "start" }}
+      >
         {label}
       </FieldLabel>
-      <Box sx={{ minWidth: 0, display: "flex", alignItems: "stretch", "& > *": { flex: "1 1 auto", minWidth: 0 } }}>{children}</Box>
-      <Box id={helpId} sx={{ minWidth: 0, pt: 0.5 }}>
+      <Box
+        className="k-field-control"
+        sx={{ gridColumn: 1, gridRow: 2, minWidth: 0, display: "flex", alignItems: "stretch", "& > *": { flex: "1 1 auto", minWidth: 0 } }}
+      >
+        {children}
+      </Box>
+      {action ? (
+        <Box
+          className="k-field-action"
+          sx={{ gridColumn: 2, gridRow: 2, display: "flex", alignItems: "flex-start", gap: 1, alignSelf: "start" }}
+        >
+          {action}
+        </Box>
+      ) : null}
+      {/* 셋째 줄은 도움말 · 오류가 있거나, 입력이 가리키는 자리(`helpId`)가 있을 때 선다 - 나중에 오류가 들어설 자리가 늘
+          같은 노드라야 `aria-describedby` 가 끊기지 않는다. 둘 다 없으면 빈 줄이 4px 를 더하지 않는다. */}
+      {error || help || helpId ? (
+      <Box id={helpId} sx={{ gridColumn: "1 / -1", gridRow: 3, minWidth: 0, pt: 0.5 }}>
         {error ? (
           <Typography
             component="p"
@@ -3481,6 +3582,80 @@ export function FormFieldCell({ label, htmlFor, labelId, required, help, error, 
           <Typography component="p" sx={{ m: 0, fontSize: FONT_SIZE.micro, color: "text.secondary", ...KO_WORD_BREAK }}>{help}</Typography>
         ) : null}
       </Box>
+      ) : null}
+    </Box>
+  );
+}
+
+/* 옛 이름. 내 프로필과 새 티켓이 먼저 만든 칸이고, 이제 `Field` 가 그린다. */
+export function FormFieldCell(props) {
+  return <Field {...props} />;
+}
+
+/**
+ * 관련 칸을 한 줄에 — 12칸 컨테이너 질의 격자(`FORM_FIELD_GRID_12`). 칸마다 `span={{ wide, mid }}` 로 차지할 칸 수를 말하고,
+ * 칸이 좁아지면 2칸 · 1칸으로 접힌다. 줄 단위 `action` 은 칸 묶음 오른쪽의 제 칸이고, 라벨 줄을 비운 같은 세로 트랙
+ * (`FIELD_ROWS`)이라 첫 줄 입력과 윗선 · 높이가 같다(D-527). 칸이 한 열로 접혀도 동작은 첫 입력 줄에 남는다.
+ *
+ * `columns` 는 값이 폭을 정하는 짧은 칸(시각 · 포트처럼)의 줄이다 - `["9.5rem", "9.5rem"]` 처럼 칸마다 상한을 말하면 칸과
+ * 동작이 왼쪽에 붙어 선다(남는 폭을 나누지 않는다). 이때는 컨테이너 질의가 필요 없다.
+ */
+export function FieldRow({ children, action, columns, sx }) {
+  const fixed = Array.isArray(columns) && columns.length > 0;
+  const fields = fixed
+    ? (
+      <Box sx={{ display: "grid", gap: FORM_FIELD_GAP, alignItems: "start", gridTemplateColumns: columns.map((c) => `minmax(0, ${c})`).join(" ") }}>
+        {children}
+      </Box>
+    )
+    : (
+      <Box sx={{ ...FORM_FIELD_CONTAINER, minWidth: 0 }}>
+        <Box sx={FORM_FIELD_GRID_12}>{children}</Box>
+      </Box>
+    );
+  return (
+    <Box
+      data-field-row=""
+      sx={{
+        display: "grid",
+        gridTemplateColumns: action ? (fixed ? "auto auto" : "minmax(0, 1fr) auto") : "minmax(0, 1fr)",
+        justifyContent: fixed ? "start" : undefined,
+        columnGap: FORM_FIELD_GAP,
+        alignItems: "start",
+        minWidth: 0,
+        ...sx,
+      }}
+    >
+      {fields}
+      {action ? (
+        <Box className="k-field-row-action" sx={{ display: "grid", gridTemplateRows: FIELD_ROWS, minWidth: 0 }}>
+          <span aria-hidden="true" />
+          <Box className="k-field-row-action-slot" sx={{ gridRow: 2, display: "flex", alignItems: "flex-start", gap: 1 }}>
+            {action}
+          </Box>
+        </Box>
+      ) : null}
+    </Box>
+  );
+}
+
+/**
+ * 폼의 구획 — **카드가 아니다**(F7 카드 규율). 머리(제목 1.0625rem/700 + 필요할 때만 한 문장 설명) → 1px 선 → 칸 목록(간격
+ * 20). 연속된 구획(메일 · AI 연결 · 초기 설정)은 한 판 위에서 머리와 선으로만 나뉜다 - 구획마다 카드를 두르지 않는다.
+ * 구획과 구획 사이는 담는 쪽 간격에 12px 를 더한 거리다(`screens.css` 의 `.k-form-section + .k-form-section`, 페이지 흐름 28 ·
+ * 판 안 26) - 앞 구획의 마지막 칸과 다음 구획의 머리가 붙어 보이지 않게 한다.
+ */
+export function FormSection({ title, description, action, titleAs = "h3", children, sx }) {
+  return (
+    <Box
+      component="section"
+      className="k-form-section"
+      data-form-section=""
+      sx={{ minWidth: 0, display: "flex", flexDirection: "column", rowGap: 1.5, ...sx }}
+    >
+      <SectionHeader title={title} help={description} action={action} component={titleAs} sx={{ mb: 0 }} />
+      <Box sx={{ borderTop: 1, borderColor: "rule" }} />
+      <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5, minWidth: 0, pt: 0.5 }}>{children}</Box>
     </Box>
   );
 }
@@ -3569,10 +3744,13 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
   // 빨간 테두리(error)만으로는 스크린리더가 "무엇이 문제인지"를 읽을 수 없었다.
   const helpText = invalid && errorMessage ? errorMessage : (pasteNotice || staticHelp);
   const helpId = helpText ? id + "-helper-text" : undefined;
+  /* 칸의 셋째 줄(`Field`)이 그리는 값 — 오류가 있으면 오류가 도움말 자리를 대신한다(D-527). */
+  const fieldError = invalid && errorMessage ? errorMessage : null;
+  const fieldHelp = fieldError ? null : (pasteNotice || staticHelp || null);
 
   if (f.type === "checkbox") {
     return (
-      <Box className="k-field" sx={{ mb: 2.5 }}>
+      <Box className="k-field">
         <FormControlLabel
           control={
             <Checkbox
@@ -3600,18 +3778,17 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
     !(f.options || []).some((o) => String(o.value) === (value != null ? String(value) : ""));
   const hasOptions = (f.options || []).length > 0;
 
-  // helperText의 id는 MUI가 `${id}-helper-text`로 만들고 입력의 aria-describedby에 직접
-  // 걸어 준다. 여기서 id를 덮어쓰면 그 연결이 끊겨, 도움말이 시각적으로만 남고 스크린리더가
-  // 읽지 않는다(예전 키트가 손으로 걸어 두던 동작이라 조용히 사라질 뻔했다 — kit.test.jsx가 잡음).
+  // 도움말 · 오류는 칸의 셋째 줄(`Field`)이 `${id}-helper-text` 자리에 그리고, 입력은 그 자리를 `aria-describedby` 로
+  // 가리킨다(아래 `inputProps` · `SelectProps`). MUI 의 `helperText` 는 쓰지 않는다 — 칸 안에 도움말 줄이 하나 더 서고
+  // 오류가 도움말을 대신하는 자리가 둘로 갈린다. 연결이 끊기면 도움말이 시각적으로만 남는다(kit.test.jsx 가 잡는다).
   const common = {
     id,
     fullWidth: true,
     size: "small",
     error: !!invalid,
     required,
-    // `label` 은 안 넘긴다 — 라벨은 위의 `FieldLabel` 이 그린다(지시 17). MUI 에 넘기면
+    // `label` 은 안 넘긴다 — 라벨은 칸(`Field`)의 첫째 줄이 그린다(지시 17). MUI 에 넘기면
     // 떠 있는 라벨이 하나 더 생겨 같은 글자가 두 번 보인다.
-    helperText: helpText,
     value: value != null ? value : "",
     onChange: (e) => onChange(e.target.value),
     sx: { mb: 0 },
@@ -3622,8 +3799,7 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
      원래도 날짜만 다뤘다(네이티브 `input[type=date]` 가 처음부터 시각을 안 받았다). */
   if (f.type === "date") {
     return (
-      <Box className="k-field" sx={{ mb: 2.5 }}>
-        <FieldLabel htmlFor={id} required={required}>{f.label}</FieldLabel>
+      <Field label={f.label} htmlFor={id} required={required}>
         <DateField
           id={id}
           value={value}
@@ -3632,7 +3808,7 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
           helperText={helpText}
           required={required}
         />
-      </Box>
+      </Field>
     );
   }
 
@@ -3642,8 +3818,7 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
    * 부품**을 쓴다 — 같은 값을 고르는 자리가 표면마다 다른 상호작용을 갖지 않는다(C8). */
   if (f.type === "entity") {
     return (
-      <Box className="k-field" sx={{ mb: 2.5 }}>
-        <FieldLabel id={id + "-label"} required={required}>{f.label}</FieldLabel>
+      <Field label={f.label} labelId={id + "-label"} required={required}>
         <EntityCombobox
           id={id}
           label={undefined}
@@ -3656,14 +3831,13 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
           layout="form"
           sx={{ width: "100%", maxWidth: "none" }}
         />
-      </Box>
+      </Field>
     );
   }
 
   if (f.type === "select") {
     return (
-      <Box className="k-field" sx={{ mb: 2.5 }}>
-      <FieldLabel id={id + "-label"} required={required}>{f.label}</FieldLabel>
+      <Field label={f.label} labelId={id + "-label"} required={required} help={fieldHelp} error={fieldError} helpId={helpId}>
       <TextField
         {...common}
         select
@@ -3673,7 +3847,7 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
            선택 항목을 아예 안 그린다 — 상자가 **완전히 빈 백지**가 된다(사용자 추가 모달의
            부서·직책 select 가 잉크 0px 로 실측됐다). 같은 화면의 **필터** select 는
            `EMPTYABLE_SELECT` 로 이미 이 함정을 피하고 있었는데 폼만 안 쓰고 있었다. */
-        SelectProps={{ labelId: id + "-label", displayEmpty: true }}
+        SelectProps={{ labelId: id + "-label", displayEmpty: true, "aria-describedby": helpId }}
       >
         {selNeedEmpty ? (
           <MenuItem value="" disabled={required}>
@@ -3682,13 +3856,12 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
         ) : null}
         {(f.options || []).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
       </TextField>
-      </Box>
+      </Field>
     );
   }
 
   return (
-    <Box className="k-field" sx={{ mb: 2.5 }}>
-    <FieldLabel htmlFor={id} required={required}>{f.label}</FieldLabel>
+    <Field label={f.label} htmlFor={id} required={required} help={fieldHelp} error={fieldError} helpId={helpId}>
     <TextField
       {...common}
       multiline={multiline}
@@ -3710,11 +3883,12 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
       inputProps={{
         ...(f.type === "email" ? { inputMode: "email", autoCapitalize: "none" } : null),
         ...(maxLength ? { maxLength } : null),
+        ...(helpId ? { "aria-describedby": helpId } : null),
       }}
       /* JSON은 사람이 중첩 구조를 손으로 편집한다 — 가변폭 폰트로는 중괄호·들여쓰기가 안 맞는다. */
       InputProps={isJson ? { sx: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: FONT_SIZE.bodySm } } : undefined}
     />
-    </Box>
+    </Field>
   );
 }
 
@@ -3916,7 +4090,12 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
     <Modal open={open} onClose={requestClose} title={title} size={sz} footer={footer}>
       {/* 필드를 <form>으로 감싸 Enter가 자연스럽게 제출되게 한다(textarea/json은 여러 줄 입력을
           위해 기본 Enter 동작 유지). */}
-      <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      <Box
+        component="form"
+        onSubmit={(e) => { e.preventDefault(); submit(); }}
+        /* 칸 사이 간격은 폼이 준다(20, D-527) - 칸이 각자 아래 여백을 들지 않는다. */
+        sx={{ display: "flex", flexDirection: "column", rowGap: 2.5, minWidth: 0 }}
+      >
         {/* **한 오류에 표현 하나** (PLAN C5 «Feedback 위계»).
             예전에는 필드 하나가 틀렸을 때 전폭 테두리 상자 **와** 그 필드 아래 인라인 문구가
             동시에 떴다 — 같은 문자열이 두 번. C5 는 전폭 상자를 「행동이 있는 것」에만 허용하고,
@@ -3924,7 +4103,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
             그 칸으로 스크롤·포커스한다). 그래서 **필드를 지목한 오류는 인라인만** 쓴다.
             전폭 상자는 필드를 지목하지 못한 오류(서버 거절·네트워크)에만 남는다 — 그때는
             인라인으로 붙일 자리가 없어서 상자가 유일한 자리다. */}
-        {err && !errField ? <MuiAlert severity="error" className="k-form-err" sx={{ mb: 2.5 }} role="alert">{err}</MuiAlert> : null}
+        {err && !errField ? <Callout tone="danger" className="k-form-err" role="alert">{err}</Callout> : null}
         {shownFields.map((f) => <FormField key={f.name} field={f} value={chosen(f)} invalid={errField === f.name}
           onChange={(val) => set(f.name, val)}
           errorMessage={errField === f.name ? err : undefined}
@@ -3933,7 +4112,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
             이 <form> 안에 없다. type="submit"이 하나도 없으면 브라우저에 따라 단일 텍스트
             입력에서 Enter가 폼을 제출하지 않는다. */}
         <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
-      </form>
+      </Box>
     </Modal>
   );
 }
@@ -4113,88 +4292,60 @@ export function PageHeader({ area, title, actions, overflow, crumbRoot, size = "
   /* `Math.random()` 이었다 — 렌더마다 id 가 바뀌어 `aria-controls` 가 매번 다른 노드를 가리켰다. */
   const autoId = React.useId();
   const helpId = help ? "page-help-" + autoId : undefined;
+  /* 머리는 **한 상자**다(D-528): 경로 → [제목 + 도움말] … [동작] → 한 문장 설명 → 도움말 펼침. 설명과 도움말이 머리 밖 형제였을
+     때는 흐름 그릇(`.c-screen`, 간격 16)이 그 사이를 벌렸고, 접힌 도움말(높이 0)에도 간격이 붙었다. 머리 안에서는 설명이 제목에
+     바짝 붙고(4), 머리와 다음 덩어리 사이는 그릇이 준다. 흐름 밖(모달 안 등)에서만 아래 여백이 남는다. */
   return (
-    <>
-      <Box
-        className="k-page-head"
-        /* 아래 여백은 **다음에 무엇이 오는가**가 정한다. 짧은 설명이 오면 그것은 제목의
-           일부라 바짝 붙고(1), 그 설명이 자기 아래로 화면 간격을 만든다. 설명도 도움말도
-           없으면 예전과 같다. */
-        sx={{ position: "relative", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: isSection ? 1.5 : 3, flexWrap: "wrap", mb: (description || (help && helpOpen)) ? 1 : (isSection ? 1.5 : 3) }}
-      >
-        <Box sx={{ position: "relative", zIndex: 1, flex: 1, minWidth: 0 }}>
-          {crumb ? (
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: FONT_WEIGHT.semibold }}>
-              {crumb}
-            </Typography>
+    <Box
+      className="k-page-head"
+      sx={{ position: "relative", display: "flex", flexDirection: "column", rowGap: 0.5, minWidth: 0, mb: isSection ? 1.5 : 3 }}
+    >
+      {crumb ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontWeight: FONT_WEIGHT.semibold }}>
+          {crumb}
+        </Typography>
+      ) : null}
+      {/* [제목 + 도움말] … [동작] 이 **제목 줄 가운데선**에 선다. 예전에는 한 줄을 `flex-end` 로 바닥 정렬해 경로와 제목을 한
+          덩어리로 보고 동작을 그 덩어리 바닥에 붙였다. 제목 줄(1.75rem × 1.22)과 동작(34)의 높이가 거의 같아 가운데 정렬이 곧
+          첫 줄 정렬이다. 주 행동과 파괴적 행동을 같은 줄에서 경쟁시키지 않는다(지시 11 · 12, E8) — 드물거나 되돌리기 어려운
+          것은 `overflow` 메뉴로 간다. */}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: isSection ? 1.5 : 3, flexWrap: "wrap", minWidth: 0 }}>
+        <Box sx={{ position: "relative", zIndex: 1, flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Typography variant={isSection ? "h6" : "h4"} component={isSection ? "h2" : "h1"}>{heading}</Typography>
+          {help ? (
+            <IconButton
+              /* 크기는 **이 줄의 이웃**을 따른다 — 같은 줄 오른쪽의 동작은 기본 버튼(34)이다(W5 재정정). */
+              onClick={() => setHelpOpen((v) => !v)}
+              aria-expanded={helpOpen}
+              aria-controls={helpId}
+              aria-label={helpOpen ? "도움말 닫기" : "도움말 보기"}
+              sx={{ color: "text.secondary" }}
+            >
+              <HelpOutlineRoundedIcon fontSize={isSection ? "small" : "medium"} />
+            </IconButton>
           ) : null}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: crumb ? 0.5 : 0 }}>
-            <Typography variant={isSection ? "h6" : "h4"} component={isSection ? "h2" : "h1"}>{heading}</Typography>
-            {help ? (
-              <IconButton
-                /* 크기는 **이 줄의 이웃**을 따른다 (W5 재정정 — 복원된 프로브가 잡았다).
-                   같은 줄 오른쪽의 동작은 `PageHeader` 계약상 **기본 버튼(34)** 이다 — 구획
-                   머리(`isSection`)도 마찬가지다(조직 콘솔의 「조직 추가」·「부서 추가」가 그렇다).
-                   처음에는 `isSection` 일 때만 30 으로 두었는데, 실측이 그 예외가 틀렸다고
-                   말했다: 2560 에서 조직 화면 넷이 전부 4.5px 로 걸렸다. 예외를 지운다. */
-                onClick={() => setHelpOpen((v) => !v)}
-                aria-expanded={helpOpen}
-                aria-controls={helpId}
-                aria-label={helpOpen ? "도움말 닫기" : "도움말 보기"}
-                sx={{ color: "text.secondary" }}
-              >
-                <HelpOutlineRoundedIcon fontSize={isSection ? "small" : "medium"} />
-              </IconButton>
-            ) : null}
-          </Box>
         </Box>
-        {/* 동작 줄 — **주 행동과 파괴적 행동을 같은 줄에서 경쟁시키지 않는다** (지시 11 · 12,
-            E8). `actions` 는 이 화면에서 할 일이고, `overflow` 는 드물거나 되돌리기 어려운
-            것들이다. 예전에는 페이지 머리에 «목록 · 수정 · 원본 열기 · 삭제» 넷이 나란히
-            놓였고 그중 삭제가 채운 빨강이라 가장 자주 하는 일(수정)과 시선을 다퉜다.
-            `DataScreen` 은 이미 행 단위로 같은 판단(`isRiskyHeader`)을 하는데 페이지
-            레벨에는 그 자리가 없었다 — 이제 있다. */}
-        {/* 이 줄에 `alignItems` 를 주지 않는다 — 헤더 행 자체가 `flex-end` 로 바닥을
-            맞추므로 기본 stretch 가 맞다.
-            (원인 귀속 정정) 이 주석은 한때 조직 화면 넷의 `control_baseline_mismatch`
-            신규 fail 24셀을 «잠깐 넣었던 alignItems:center» 탓으로 적어 두었는데, **틀렸다.**
-            그 fail 을 낸 배포본(`kit.TfNSaiDa.js`)에는 `alignItems` 가 없다 — stretch 상태에서
-            나는 실패다. 독립 검수가 배포 PNG 를 직접 찍어 원인을 짚었다: 「?」 글리프와
-            「조직 추가」 버튼의 중심 y 가 **둘 다 242.5 로 정확히 같다**(어긋남 0px). 이
-            assertion 은 거대 flex 컨테이너의 각 행에서 `querySelector` 로 **첫 후손 컨트롤**을
-            뽑아 짝지어서, 깊이가 다른 두 컨트롤(빈 문자열 표본 포함)을 비교하고 있다 —
-            시각 결함이 아니라 프로브 기하 노이즈다. 이 줄은 이 실패의 원인이 아니고,
-            해당 24셀은 라우트 Surface 넷에 OPEN Finding 으로 이미 걸려 있다(W8·W12).
-            assertion 자체는 PLAN 이 W5 에서 `--fail-on` 으로 승격하는 대상이다. */}
         {actions || (overflow && overflow.length) ? (
-          <Box className="k-page-actions" sx={{ position: "relative", zIndex: 1, display: "flex", gap: 1, flexWrap: "wrap" }}>
+          <Box className="k-page-actions" sx={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
             {actions}
             {overflow && overflow.length ? <OverflowMenu items={overflow} /> : null}
           </Box>
         ) : null}
       </Box>
-      {/* 짧은 화면 설명 — **자리와 간격이 화면마다 같다** (지시 21).
-          예전에는 화면 여섯이 각자 `<Typography sx={{ mb: 3 }}>` 을 손으로 적었고 바닥
-          여백이 1.5·2.5·3 으로 갈려 있었다. 그래서 같은 성격의 두 화면을 나란히 열면
-          목록 시작점이 서로 달랐다.
-          `70ch` 를 안 건다 — 이것은 긴 산문이 아니라 한 문장이다(CLAUDE.md §10). */}
+      {/* 짧은 화면 설명 — **자리와 간격이 화면마다 같다** (지시 21). 한 문장이라 `70ch` 를 걸지 않는다(CLAUDE.md §10). */}
       {description ? (
-        <Typography
-          className="k-page-desc"
-          variant="body2" color="text.secondary" component="p"
-          sx={{ mb: help && helpOpen ? 1 : (isSection ? 1.5 : 3), ...KO_WORD_BREAK }}
-        >
+        <Typography className="k-page-desc" variant="body2" color="text.secondary" component="p" sx={{ m: 0, ...KO_WORD_BREAK }}>
           {description}
         </Typography>
       ) : null}
       {help ? (
         <Collapse in={helpOpen} id={helpId}>
-          <Box sx={{ mb: isSection ? 1.5 : 3 }}>
+          <Box sx={{ pt: 1 }}>
             <Callout tone={helpTone}>{help}</Callout>
           </Box>
         </Collapse>
       ) : null}
-    </>
+    </Box>
   );
 }
 
@@ -4217,13 +4368,15 @@ export function PageHeader({ area, title, actions, overflow, crumbRoot, size = "
  * 이라는 **두 번째 구획 부품**을 따로 들고 있었다 — 같은 성질의 묶음이 콘솔마다 다른
  * 부품으로 그려지면 한쪽에 붙인 것(괘선·도움말)이 다른 쪽에 영영 안 온다. 단계 하나를
  * 받게 해서 부품을 하나로 합친다. */
-export function Section({ title, action, help, rule = false, component = "section", titleAs = "h3", children, sx }) {
+export function Section({ title, action, help, rule = false, component = "section", titleAs = "h3", flush = false, children, sx }) {
   /* 호출부의 `sx` 가 함수일 수도 있다(테마를 읽는 자리). 객체로만 받아 펼치면 함수는
      **조용히 사라진다** — 이 저장소가 여러 번 밟은 "선언은 있는데 화면에는 없다" 의 한 형태다.
-     `Surface` 가 두 형태를 모두 받으므로 여기서 형태를 유지한 채 넘긴다. */
+     `Surface` 가 두 형태를 모두 받으므로 여기서 형태를 유지한 채 넘긴다.
+     `flush` — 아래 구획 간격을 걷는다. 그릇(흐름 · 격자 · 판)이 간격을 주는 자리다(숫자 여백을 화면이 적지 않는다). */
+  const gapSx = { mb: flush ? 0 : SECTION_GAP };
   const merged = typeof sx === "function"
-    ? (theme) => ({ mb: SECTION_GAP, ...sx(theme) })
-    : { mb: SECTION_GAP, ...sx };
+    ? (theme) => ({ ...gapSx, ...sx(theme) })
+    : { ...gapSx, ...sx };
   return (
     <Surface tone="none" component={component} sx={merged}>
       {title ? <SectionTitle title={title} action={action} help={help} component={titleAs} sx={rule ? { mb: 1 } : undefined} /> : null}
@@ -4242,24 +4395,40 @@ export function Section({ title, action, help, rule = false, component = "sectio
  * PA-RC-0001: 이 컴포넌트가 그리는 17px가 바로 RD-1의 sectionTitle 단계다 — variant="h6"
  * + sx fontSize 오버라이드 대신 theme.js의 그 variant를 직접 쓴다(같은 값, letterSpacing도
  * body1/body2와 같은 계열로 맞춰짐 — h6 기본엔 없던 값이라 시각적으로 더 일관돼진다). */
-export function SectionTitle({ title, children, action, help, component = "h3", sx }) {
+/**
+ * 구획 머리 (D-528). [제목 + 건수] … [동작] 이 **제목 줄 가운데선**에 서고, 도움말은 그 아래 전체 폭 한 줄이다.
+ *
+ * 예전 `SectionTitle` 은 제목과 도움말을 한 상자에 쌓고 동작을 **그 상자의** 가운데에 맞췄다 - 도움말이 있으면 단추가 제목과
+ * 도움말 사이 어딘가에 떠 있었다(내 프로필은 `flex-start` 로 덮어 썼다). 동작은 제목 줄에만 선다.
+ */
+/* 머리 아래 간격은 숫자가 아니라 뜻으로 고른다(정적 검사 `primitive-geometry-override`): normal 12 · tight 8 · none 0(그릇이
+   간격을 주는 자리 - 격자 · 흐름). */
+const SECTION_HEADER_SPACING = { normal: 1.5, tight: 1, none: 0 };
+
+export function SectionHeader({ title, children, action, help, count, component = "h3", spacing = "normal", sx }) {
   const label = title != null ? title : children;
   return (
-    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap", mb: 1.5, ...sx }}>
-      <Box sx={{ minWidth: 0 }}>
-        <Typography component={component} variant="sectionTitle">{label}</Typography>
-        {/* 설명은 제목보다 두 단 작다(0.8125rem) — 확정 규약의 카드 머리 한 쌍이다.
-            0.875rem 이면 제목(1.0625rem)과 두 줄이 거의 같은 무게라 어느 쪽이 이름인지
-            멀리서 안 갈린다. */}
-        {help ? (
-          <Typography color="text.secondary" sx={{ mt: 0.5, fontSize: FONT_SIZE.caption, lineHeight: LINE_HEIGHT.caption }}>
-            {help}
-          </Typography>
-        ) : null}
+    <Box className="k-section-header" sx={{ minWidth: 0, mb: SECTION_HEADER_SPACING[spacing] ?? 1.5, ...sx }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap", minWidth: 0 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flexWrap: "wrap" }}>
+          <Typography component={component} variant="sectionTitle">{label}</Typography>
+          {count != null ? <CountChip value={count} compact /> : null}
+        </Box>
+        {action ? <Box className="k-section-header-action" sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>{action}</Box> : null}
       </Box>
-      {action}
+      {/* 설명은 제목보다 두 단 작다(0.8125rem) — 확정 규약의 카드 머리 한 쌍이다. 동작 상자 안에 넣지 않는다. */}
+      {help ? (
+        <Typography color="text.secondary" sx={{ mt: 0.5, fontSize: FONT_SIZE.caption, lineHeight: LINE_HEIGHT.caption, ...KO_WORD_BREAK }}>
+          {help}
+        </Typography>
+      ) : null}
     </Box>
   );
+}
+
+/* 옛 이름 - 판 안의 소제목을 그리던 부품이다. 이제 `SectionHeader` 가 그린다. */
+export function SectionTitle(props) {
+  return <SectionHeader {...props} />;
 }
 
 /** 판 **안쪽**의 정보 묶음 — 판을 새로 만들지 않고 실선과 여백과 소제목으로 가른다.
@@ -4274,12 +4443,14 @@ export function SectionTitle({ title, children, action, help, component = "h3", 
  *
  * 소제목은 기본 `h3` 다 — 판 제목이 `h2` 인 화면(홈의 구역들)에서 단계를 안 건너뛴다.
  */
-export function SubGroup({ title, help, component = "h3", first = false, children, sx }) {
+export function SubGroup({ title, help, component = "h3", first = false, spacing = "normal", children, sx }) {
+  /* `spacing="tight"` — 위 실선은 그대로 두고 바깥 위 간격만 좁힌다(바로 위가 같은 판의 목록일 때). 숫자 여백을 화면이
+     적지 않게 뜻으로 고른다(정적 검사 `primitive-geometry-override`). */
   return (
     <Box
       sx={{
         minWidth: 0,
-        ...(first ? null : { mt: 2.5, pt: 2.5, borderTop: 1, borderColor: "divider" }),
+        ...(first ? null : { mt: spacing === "tight" ? 0.5 : 2.5, pt: 2.5, borderTop: 1, borderColor: "divider" }),
         ...sx,
       }}
     >

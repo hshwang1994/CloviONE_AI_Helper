@@ -158,7 +158,7 @@ export function Diagnostics() {
               hasText={!!text} copied={copied} onCopy={doCopy} onDownload={doDownload} />
           </>
         } />
-      {bundleFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{bundleFailure}</Callout> : null}
+      {bundleFailure ? <Callout tone="danger" compact>{bundleFailure}</Callout> : null}
       {/* 스켈레톤은 최초 수집 때만, 재수집(refetch) 중에는 이전 번들을 그대로 두어 읽던 맥락이 사라지지 않게 한다.
           (재수집 진행은 헤더의 '수집 중…' 버튼 상태가 알려 준다.) */}
       {(q.isFetching && !bundle) ? <Skeleton kind="page" lines={4} />

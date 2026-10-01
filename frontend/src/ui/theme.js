@@ -133,10 +133,16 @@ export const LINE_HEIGHT = {
  * IconButton 은 34px 로 그리고 `::after` 로 40px 를 잡는다 — 아이콘 열의 리듬을 깨지 않고
  * 목표만 넓힌다. */
 export const CONTROL = {
+  /* **컨트롤 높이는 둘이다**(D-526). `control` 34 = 페이지 머리 · 도구 줄 · 필터 줄 · 폼 · 판 머리 · 카드와 모달 발의
+     입력 · 선택 · 자동완성 · 날짜 · 검색 · 단추 · 세그먼티드. `controlDense` 30 = 표 행 · 목록 행 · 선택 발 · 메시지 상자 ·
+     체크리스트 행의 단추와 입력. 한 줄에 서는 컨트롤은 언제나 같은 밀도다. 예전에는 입력만 36 이라 같은 줄의 34 단추와
+     2px, 30 단추와 6px 어긋났다. 아래 `button` · `buttonSm` · `input` 은 이 둘의 옛 이름이다. */
+  control: 34,
+  controlDense: 30,
   buttonSm: 30,
   button: 34,
   buttonLg: 40,
-  input: 36,
+  input: 34,
   iconButton: 34,
   iconButtonHit: 40,
   tab: 40,
@@ -193,6 +199,18 @@ export const ICON = { mark: 16, inline: 18, nav: 20, action: 20, hero: 24 };
 
 /** px 계약값을 4K 레버가 따라오는 rem 문자열로. 값의 정본은 위 표 하나다. */
 export function remPx(px) { return `${px / 16}rem`; }
+
+/* 입력 칸 높이는 **CSS 변수 하나**가 정한다(D-526). 기본은 `CONTROL.control`(34)이고, 밀집 줄(표 행 안의 칸 · 선택 발 ·
+   체크리스트 행)은 그 줄의 그릇이 `--clovir-control-h` 를 30 으로 바꾼다(`densityVars("dense")`). 그래서 입력 · 선택 ·
+   자동완성 · 날짜 칸이 줄마다 높이를 따로 적지 않고 같은 줄의 단추와 같은 높이로 선다. */
+export const CONTROL_HEIGHT_VAR = "--clovir-control-h";
+export const controlHeight = `var(${CONTROL_HEIGHT_VAR}, ${remPx(CONTROL.control)})`;
+/** 그릇에 펼쳐 넣는 밀도 변수. `dense` 면 그 안의 입력 칸이 30 으로 선다. */
+export function densityVars(density) {
+  return density === "dense" ? { [CONTROL_HEIGHT_VAR]: remPx(CONTROL.controlDense) } : {};
+}
+/* MUI 입력 상자의 글자 줄은 `1.4375em` 이다. 위아래 여백을 그 차이의 반으로 주면 상자가 정확히 변수 높이로 선다. */
+const INPUT_PAD_Y = `calc((${controlHeight} - 1.4375em) / 2)`;
 
 /* 스위치 — **보이는 크기와 누르는 자리를 따로 잰다** (D-525). 크기는 하나다(`size` 변형 없음).
  *
@@ -1072,8 +1090,8 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
           inputRoot: {
             paddingTop: 0,
             paddingBottom: 0,
-            minHeight: remPx(CONTROL.input),
-            height: remPx(CONTROL.input),
+            minHeight: controlHeight,
+            height: controlHeight,
             alignItems: "center",
             /* 칩이 있으면 한 줄 높이(36)에 가두지 않는다. 고정 height + padding 0 이면
                칩이 상자 위에 붙고, 옆 자리표시자만 가운데에 선다(프로젝트 다중 선택 실측). */
@@ -1081,7 +1099,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
             "& .MuiAutocomplete-input": { alignSelf: "center" },
             "&:has(.MuiChip-root)": {
               height: "auto",
-              minHeight: remPx(CONTROL.input),
+              minHeight: controlHeight,
               paddingTop: 6,
               paddingBottom: 6,
               alignItems: "center",
@@ -1097,7 +1115,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       MuiOutlinedInput: {
         styleOverrides: {
           root: {
-            minHeight: remPx(CONTROL.input),
+            minHeight: controlHeight,
             borderRadius: RADIUS.sm,
             background: t.plate,
             /* 포커스 표시는 사각 `outline` 이 아니라 notchedOutline 이다.
@@ -1110,7 +1128,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
               borderColor: `var(--clovir-focus-ring, ${t.focusRing})`,
             },
           },
-          input: { paddingTop: 7, paddingBottom: 7 },
+          input: { paddingTop: INPUT_PAD_Y, paddingBottom: INPUT_PAD_Y },
         },
       },
       /* 날짜 칸(MUI X `DatePicker` 의 입력)은 윤곽 입력과 **다른 부품**이라 위 `MuiOutlinedInput` 규칙을 받지 않는다.
@@ -1119,7 +1137,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
       MuiPickersOutlinedInput: {
         styleOverrides: {
           root: {
-            minHeight: remPx(CONTROL.input),
+            minHeight: controlHeight,
             borderRadius: RADIUS.sm,
             background: t.plate,
             "&.Mui-focused:not(.Mui-error) .MuiPickersOutlinedInput-notchedOutline": {
@@ -1127,7 +1145,7 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
               borderColor: `var(--clovir-focus-ring, ${t.focusRing})`,
             },
           },
-          sectionsContainer: { paddingTop: 7, paddingBottom: 7 },
+          sectionsContainer: { paddingTop: INPUT_PAD_Y, paddingBottom: INPUT_PAD_Y },
         },
       },
       /* 판(plate). **테두리 하나뿐이고 그림자가 없다** — enclosure 는 기본값이 아니다(D-141). */

@@ -55,7 +55,7 @@ export function Integrity() {
     render: () => (
       <>
         {t.key === "sprints" && closedSprints > 0 ? (
-          <Callout tone="info" variant="inline" sx={{ mb: 2 }}>
+          <Callout tone="info" variant="inline">
             팀이 정해지지 않은 닫힌 회차 {closedSprints}건은 기록이라 세지 않습니다.
           </Callout>
         ) : null}
@@ -77,9 +77,9 @@ export function Integrity() {
       defaultTab={landing.current}
     >
       {data.total_issues === 0 ? (
-        <Callout tone="ok" sx={{ mb: 2.5 }}>정리할 것이 없습니다. 모든 자원의 소속을 판정할 수 있습니다.</Callout>
+        <Callout tone="ok">정리할 것이 없습니다. 모든 자원의 소속을 판정할 수 있습니다.</Callout>
       ) : (
-        <Callout tone="warn" sx={{ mb: 2.5 }}>
+        <Callout tone="warn">
           정리할 항목이 모두 {data.total_issues}건 있습니다. 탭에서 항목을 골라 한 번에 고칠 수 있습니다.
         </Callout>
       )}

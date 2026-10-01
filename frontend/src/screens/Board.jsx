@@ -299,7 +299,7 @@ export function PostFormModal({ open, onClose, categories, mode = "create", post
         />
       </Box>
       {/* 저장 실패는 발 바로 위 — 누른 단추 곁에 남는다. 다시 저장하면 걷힌다. */}
-      {saveFailure ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{saveFailure}</Callout> : null}
+      {saveFailure ? <Callout tone="danger" compact>{saveFailure}</Callout> : null}
     </Modal>
   );
 }

@@ -150,7 +150,7 @@ function CommentComposer({ postId, parentId, palette, onDone, autoFocus }) {
         autoFocus={autoFocus}
         onChange={(e) => setBody(e.target.value)}
       />
-      {submitFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{submitFailure}</Callout> : null}
+      {submitFailure ? <Callout tone="danger" compact>{submitFailure}</Callout> : null}
       <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ mt: 1 }}>
         {parentId ? (
           /* 취소는 보조(흰 면)다 — 글자만 있는 단추는 목록 안 부수 동작의 어휘다(핸드오프 RULES §3). 댓글 수정의 취소와 같다. */
@@ -257,7 +257,7 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
             inputProps={{ "aria-label": "댓글 수정" }}
             onChange={(e) => setText(e.target.value)}
           />
-          {commentFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{commentFailure}</Callout> : null}
+          {commentFailure ? <Callout tone="danger" compact>{commentFailure}</Callout> : null}
           <Stack direction="row" gap={1} justifyContent="flex-end" sx={{ mt: 1 }}>
             <Button size="sm" onClick={() => { setEditing(false); setText(comment.body); }}>취소</Button>
             <Button variant="primary" size="sm" disabled={!text.trim() || saveEdit.isPending} onClick={() => saveEdit.mutate()}>저장</Button>
@@ -268,7 +268,7 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
           <Typography sx={{ my: 1, whiteSpace: "pre-wrap", ...KO_WORD_BREAK, fontSize: "0.9375rem" }}>
             {comment.body}
           </Typography>
-          {commentFailure ? <Callout tone="danger" compact sx={{ mb: 1 }}>{commentFailure}</Callout> : null}
+          {commentFailure ? <Callout tone="danger" compact>{commentFailure}</Callout> : null}
         </>
       )}
       <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between" flexWrap="wrap">
@@ -553,7 +553,7 @@ export function BoardPost() {
           )}
 
           {attachFailed && attachFailed.length ? (
-            <Callout tone="danger" compact sx={{ mt: 3 }}>
+            <Callout tone="danger" compact>
               {"글은 저장했지만 첨부 " + attachFailed.length + "개를 올리지 못했습니다: " + attachFailed.join(", ") + ". 다시 시도해 주세요."}
             </Callout>
           ) : null}

@@ -363,7 +363,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
                   주제를 적고 생성하면 아래 문제가 채워집니다. 그대로 쓰거나 수정하세요.
                 </Typography>
-                {genNotice ? <Callout tone="danger" compact sx={{ mt: 1 }}>{genNotice}</Callout> : null}
+                {genNotice ? <Callout tone="danger" compact>{genNotice}</Callout> : null}
               </Surface>
             ) : null}
             <QuizEditor questions={quizQs} setQuestions={setQuizQs} />
@@ -404,7 +404,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
         />
       </Box>
       {/* 방 만들기 실패는 발 바로 위 — 누른 단추 곁에 남는다. 다시 누르면 걷힌다. */}
-      {createFailure ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{createFailure}</Callout> : null}
+      {createFailure ? <Callout tone="danger" compact>{createFailure}</Callout> : null}
     </Modal>
   );
 }

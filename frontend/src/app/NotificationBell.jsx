@@ -598,7 +598,8 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
               : null}
           </Box>
           {/* 읽음 처리 실패는 팝오버 머리 바로 아래 — 가장 나중에 누른 동작 하나만 말하고 다음 동작에서 걷힌다. */}
-          {readFailure ? <Callout tone="danger" compact sx={{ mx: 1.5, my: 1, flexShrink: 0 }}>{readFailure}</Callout> : null}
+          {/* clovi-allow-geometry: 팝오버 목록 안의 띠라 목록 행과 같은 좌우 들여쓰기를 받는다. */}
+          {readFailure ? <Callout tone="danger" compact sx={{ mx: 1.5, flexShrink: 0 }}>{readFailure}</Callout> : null}
           {sysNotices.length ? (
             <Box sx={{ flexShrink: 0, borderBottom: 1, borderColor: "divider" }}>
               <Typography
@@ -630,9 +631,10 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
           {otherListError && !listPending && !listError ? (
             /* 부분 실패는 메시지 박스(주의)다 — 나머지 목록은 멀쩡하므로 오류가 아니라 주의이고,
                다시 부르는 동작은 상자의 오른쪽 칸에 선다(30 보조 — 조합 계약 C-4, 글자 단추가 아니다). */
+            /* clovi-allow-geometry: 팝오버 목록 안의 띠라 목록 행과 같은 좌우 들여쓰기를 받는다. */
             <Callout
               tone="warn" compact
-              sx={{ mx: 1.5, my: 1, flexShrink: 0 }}
+              sx={{ mx: 1.5, flexShrink: 0 }}
               action={<Button size="sm" onClick={() => listOther.refetch()}>다시 불러오기</Button>}
             >
               {audienceLabel(otherAudience)} 알림을 불러오지 못했습니다.

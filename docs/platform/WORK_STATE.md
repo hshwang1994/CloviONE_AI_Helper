@@ -18,9 +18,10 @@
 |---|---|---|
 | P0 랩 읽기 전용 기준선(`INVENTORY/13_UX_AI_MAIL_BASELINE.md`, `EVIDENCE/mail/2026-10-01-lab-preflight.md`) · `ux-before` 캡처 68장 | `11537fef` | - |
 | P1 메일 보안 핵심(`smtp` 시스템 관리자 전용 · 비밀 칸 고정 · 0042 · 설치기 옛 비밀 복사 · 발송 기록 받는 사람 범위 · 0043 · 모든 종류 받는 사람 재검사 · 열람 권한 fail-closed) | `65aec555` | D-545 · D-547 |
-| P2 설정 캐시 판 번호(요청 길목 · 워커 잡 직전 · 반복마다, 초당 한 번) | 이 커밋 | D-532 |
+| P2 설정 캐시 판 번호(요청 길목 · 워커 잡 직전 · 반복마다, 초당 한 번) | `175cc7cc` | D-532 |
+| P3 컨트롤 높이 34 · 30(입력 포함) · `Field` · `FieldRow` · `FormSection` · `HeadRow` · `FlowStack` · 메시지 상자 머리 줄 · 여백 걷기(75 + 38자리) · `Card padding` · 정적 검사 `callout-margin` · `primitive-geometry-override` · 시각 규율 프로브(`visual_probes.py`) · 대조표(`visual_review.py`) | 이 커밋 | D-526 ~ D-528 · D-553 |
 
-- 다음: P3 컨트롤 높이 · `Field` · `HeadRow` · `FlowStack` · 메시지 상자 · 카드 규율(F1 · F2 · F7, D-526 ~ D-528 · D-553).
+- 다음: P4 표 열 배분(F3, D-529). P3 ~ P6 를 마친 뒤 `verify.py --full` 을 한 번 돈다(계획 7절).
 
 ## 끝남 — 공통 스위치 개편 (2026-10-01)
 

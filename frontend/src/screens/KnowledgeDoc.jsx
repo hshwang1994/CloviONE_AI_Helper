@@ -293,7 +293,7 @@ function Attachments({ documentId, items, onChanged, readOnly = false }) {
           if (picked.length) upload.mutate(picked);
         }}
       />
-      {attachNotice ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{attachNotice}</Callout> : null}
+      {attachNotice ? <Callout tone="danger" compact>{attachNotice}</Callout> : null}
       {items.length === 0 ? (
         <EmptyState layout="inline" title="이 문서에 붙은 파일이 없습니다." />
       ) : (
@@ -942,7 +942,7 @@ export function KnowledgeDoc() {
         )}
       />
 
-      {headFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{headFailure}</Callout> : null}
+      {headFailure ? <Callout tone="danger" compact>{headFailure}</Callout> : null}
 
       {/* 🔴 **이 문서가 휴지통에 있다는 사실을 화면이 말한다.**
           누가 언제 버렸는지까지 적는다 — 그 둘이 「내가 되살릴 수 있는가」의 근거이기도 하다
@@ -951,7 +951,7 @@ export function KnowledgeDoc() {
         <Callout
           tone="warn"
           title="이 문서는 휴지통에 있습니다"
-          sx={{ mb: 2 }}
+         
           /* 메시지 박스의 동작은 30 보조다(핸드오프 RULES §1) — 같은 「복원」이 페이지 머리의 채움으로 이미 서 있어, 여기까지 채움이면
              한 화면에 같은 일의 채움이 둘이었다(조합 계약 C-4). */
           action={canRestore ? (
@@ -1023,7 +1023,7 @@ export function KnowledgeDoc() {
           {history ? (
             <Card>
               <Section title="판 이력">
-                {restoreFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{restoreFailure}</Callout> : null}
+                {restoreFailure ? <Callout tone="danger" compact>{restoreFailure}</Callout> : null}
                 {versions.isLoading && <Skeleton kind="list" rows={4} />}
                 {versions.isError && (
                   <ErrorState layout="region" error={versions.error} onRetry={() => versions.refetch()} />

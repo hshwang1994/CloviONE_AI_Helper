@@ -43,6 +43,7 @@
 /* 치수의 정본 px. 아래 rem 상수가 전부 여기서 나온다. */
 export const DENSITY_PX = {
   cardPadding: 20,      // 판(plate) 안쪽 여백 — 핸드오프 D-16
+  cardPaddingCompact: 10, // 칸반 · 회의 목록처럼 판이 한 줄 행인 자리의 안쪽 여백
   healthCardPadding: 16, // 작은 상태 타일 안쪽 여백
   gridGap: 24,          // 판끼리의 간격
   healthGridGap: 16,    // 작은 타일끼리의 간격
@@ -271,6 +272,7 @@ export const BUDGET_SCROLL = { flex: "0 1 auto", minHeight: 0 };
 /* 화면에서 그대로 쓰는 값들. sx 에 넣기 좋은 모양으로 미리 만들어 둔다 —
  * 호출부마다 rem() 을 다시 부르면 결국 또 숫자가 흩어진다. */
 export const CARD_PADDING = rem(DENSITY_PX.cardPadding);        // 20px
+export const CARD_PADDING_COMPACT = rem(DENSITY_PX.cardPaddingCompact); // 10px
 export const TILE_PADDING = rem(DENSITY_PX.healthCardPadding);  // 16px
 export const GRID_GAP = rem(DENSITY_PX.gridGap);                // 24px
 export const TILE_GRID_GAP = rem(DENSITY_PX.healthGridGap);     // 16px
@@ -362,6 +364,8 @@ const FORM_FIELD_GAP_REM = 1.25;
 const formFieldsFit = (n) =>
   `@container form-fields (min-width: ${n * FORM_FIELD_MIN_REM + (n - 1) * FORM_FIELD_GAP_REM}rem)`;
 export const FORM_FIELD_CONTAINER = { containerType: "inline-size", containerName: "form-fields" };
+/* 폼 칸 사이 간격 — 12칸 격자와 폭을 직접 말하는 줄(`FieldRow columns`)이 같은 값을 쓴다. */
+export const FORM_FIELD_GAP = `${FORM_FIELD_GAP_REM}rem`;
 export const FORM_FIELD_GRID = {
   display: "grid",
   gap: `${FORM_FIELD_GAP_REM}rem`,

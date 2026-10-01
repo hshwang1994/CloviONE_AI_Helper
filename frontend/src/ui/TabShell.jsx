@@ -4,6 +4,7 @@ import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 import { useAuth } from "../app/auth.jsx";
 import { Button, Card, CountChip, EmptyState, ErrorState, PageHeader, Skeleton } from "./kit.jsx";
+import { FlowStack } from "./layout.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { HeaderActionsHost, HeaderActionsProvider, useHeaderActionsSlot } from "./HeaderSlot.jsx";
 
@@ -78,7 +79,7 @@ export function TabShell(props) {
 }
 
 function TabShellBody({
-  area, title, crumbRoot, tabs, ariaLabel, deniedHelp, idPrefix = "tabshell", actions, children, defaultTab,
+  area, title, crumbRoot, tabs, ariaLabel, deniedHelp, idPrefix = "tabshell", actions, children, defaultTab, help: screenHelp,
 }) {
   const defs = (tabs || []).filter(Boolean);
   /* 주소에 `?tab=` 이 없을 때 켜지는 탭. 모르는 키를 주면 첫 탭이다 — 조립 실수가 빈 그릇이 되지 않게. */
@@ -117,8 +118,9 @@ function TabShellBody({
   if (auth.isError) return <ErrorState error={auth.error} onRetry={() => auth.refetch()} />;
   if (!activeDef) return null;
 
-  /* 권한이 없는 탭의 도움말은 안 그린다 — 안내판이 그 자리를 대신한다. */
-  const rawHelp = roleDenied ? null : activeDef.help;
+  /* 권한이 없는 탭의 도움말은 안 그린다 — 안내판이 그 자리를 대신한다. 탭이 제 도움말을 갖지 않으면 화면 전체의 도움말
+     (`help`)이 그 자리에 선다 — 예전에는 그릇이 그 값을 받지 않아 조직 정합성의 화면 설명이 어디에도 없었다. */
+  const rawHelp = roleDenied ? null : (activeDef.help || screenHelp || null);
   const help = typeof rawHelp === "function" ? rawHelp(role) : (rawHelp || null);
 
   return (
@@ -159,9 +161,10 @@ function TabShellBody({
           action={<Button variant="primary" href="#/dashboard">대시보드로 이동</Button>}
         />
       ) : (
-        <Box role="tabpanel" id={panelId(activeKey)} aria-labelledby={tabId(activeKey)} tabIndex={0}>
+        /* 탭 판도 흐름이다(D-528) - 탭 화면의 덩어리 사이 간격 16 을 판이 주고, 덩어리마다 손으로 적던 위아래 여백을 걷는다. */
+        <FlowStack role="tabpanel" id={panelId(activeKey)} aria-labelledby={tabId(activeKey)} tabIndex={0}>
           {activeDef.render()}
-        </Box>
+        </FlowStack>
       )}
     </Box>
   );

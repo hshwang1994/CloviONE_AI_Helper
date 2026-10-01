@@ -702,7 +702,7 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
           ) : null}
         </Box>
         {/* 저장 실패는 발 바로 위 — 누른 단추 곁에 남는다. 다시 저장하면 걷힌다. */}
-        {saveFailure ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{saveFailure}</Callout> : null}
+        {saveFailure ? <Callout tone="danger" compact>{saveFailure}</Callout> : null}
         <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true" />
       </form>
     </Modal>
@@ -1182,11 +1182,11 @@ function WritingAid({ doc, onInsert }) {
        레일에는 바닥 높이를 따로 걸지 않는다 — 1열(레일이 폼 아래)에서 바닥을 걸면 내용보다 긴 빈 판이 선다(1200 실측). */
     <Card data-page-fill="grow" sx={{ display: "grid", gap: 1.75, alignContent: "start" }}>
       {/* 판 제목과 도움말 한 쌍(`SectionTitle help`) — 문장은 그대로다. */}
-      <SectionTitle
+      <SectionTitle spacing="none"
         component="h2"
         title="작성 도움"
         help={<>좋은 티켓은 <strong>왜 하는지와 무엇을 하면 끝인지</strong>가 적혀 있습니다. 아래를 누르면 설명에 그 절이 들어갑니다.</>}
-        sx={{ mb: 0 }}
+
       />
       {list(core)}
       {/* 묶음 이름은 오른쪽으로 흐르는 실선과 한 줄이다 — 항목 줄의 위 선과 겹쳐 두 줄 선이 되지 않는다. */}
@@ -1430,7 +1430,7 @@ export function NewTicket() {
           <Box component="form" onSubmit={(e) => { e.preventDefault(); submit(); }} sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto" }}>
           <Box sx={{ maxWidth: "72rem", display: "flex", flexDirection: "column", flex: "1 1 auto" }}>
             {/* 폼 안 안내는 메시지 박스다(핸드오프 RULES §7) — 문장과 링크는 그대로다. */}
-            <Callout sx={{ mb: 2.5 }}>
+            <Callout>
               간단한 티켓은 여기서 바로 만듭니다. 긴 배경은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 더 정확합니다.
             </Callout>
             {/* 칸은 12칸 격자에 선다(핸드오프 RULES §7 · 계획 표 8): 제목 12 / 프로젝트 6 · 진행상태 3 · 우선순위 3 /

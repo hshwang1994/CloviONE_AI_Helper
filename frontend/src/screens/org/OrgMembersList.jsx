@@ -128,13 +128,11 @@ export function OrgMembersList({ scope, title = "구성원", membership = "", on
   const filtered = chips.length > 0 || state !== "active" || descendants;
 
   return (
-    <Section
+    <Section flush
       title={title}
       titleAs="h3"
       /* 수는 제목 옆 칩이다 - 지금 조건에 맞는 사람의 수(서버의 `total`)다. */
-      action={list.total != null ? <CountChip value={`${list.total}명`} /> : null}
-      sx={{ mb: 0 }}
-    >
+      action={list.total != null ? <CountChip value={`${list.total}명`} /> : null}>
       <Box sx={{ display: "grid", rowGap: 2 }}>
         <FilterBar
           search={<SearchBox value={q} onSearch={setQ} placeholder="이름, 이메일 검색" ariaLabel={`${title} 검색`} />}

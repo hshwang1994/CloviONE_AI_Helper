@@ -79,7 +79,7 @@ describe("글이 흐르는 부품 — 자리 안에서 줄바꿈", () => {
     const st = getComputedStyle(box);
     expect(st.whiteSpace).not.toBe("nowrap");
     expect(st.wordBreak).toBe("keep-all");
-    // 글 칸의 바닥이 0 이라 긴 URL 이 동작 칸이나 판 밖으로 밀어내지 않는다.
-    expect(st.gridTemplateColumns).toContain("minmax(0,1fr)");
+    // 글 칸의 바닥이 0 이라 긴 URL 이 동작 칸이나 판 밖으로 밀어내지 않는다(칸은 머리 줄 `HeadRow` 가 나눈다).
+    expect(getComputedStyle(box.querySelector(".k-head-row")).gridTemplateColumns).toContain("minmax(0,1fr)");
   });
 });

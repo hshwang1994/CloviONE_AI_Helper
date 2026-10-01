@@ -217,11 +217,11 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
           />
         </Box>
         {conflict ? (
-          <Callout tone="warn" compact sx={{ mt: 1.5 }}>
+          <Callout tone="warn" compact>
             같은 이름의 뷰가 이미 있습니다. ‘덮어쓰기’를 누르면 그 뷰의 조건이 지금 조건으로 바뀝니다.
           </Callout>
         ) : null}
-        {saveFailure ? <Callout tone="danger" compact sx={{ mt: 1.5 }}>{saveFailure}</Callout> : null}
+        {saveFailure ? <Callout tone="danger" compact>{saveFailure}</Callout> : null}
       </Modal>
     </>
   );

@@ -357,8 +357,8 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - **크기 리터럴 0**: 행 안 · 입력 도구 아이콘 단추는 테마의 작은 단추(30)다(대화 행 동작 · 보낼 첨부 제거 · AI 도우미
   첨부 도구 · 설정 도메인 제거). 스프린트 회의 결정 줄의 티켓 단추는 높이 덮어쓰기를 걷어 30 으로 선다(계획 표 5).
 - 표 머리글 조작기(정렬 · 필터)는 `CONTROL.tableCellDense` 30 이다.
-- 내 프로필 조용시간의 「시간 저장」은 입력칸(36) 높이로 늘어나 있었다(`alignSelf: stretch`) — 기본 단추 34 로 서고 윗선만
-  맞춘다(G, 계획 표 5 「발 버튼 정렬」, ACCEPTANCE C1).
+- 내 프로필 조용시간의 「시간 저장」은 입력칸(36) 높이로 늘어나 있었다(`alignSelf: stretch`) — 이제 `FieldRow` 의 동작 칸에서
+  입력칸과 같은 34 · 같은 윗선으로 선다(D-527, ACCEPTANCE C1).
 
 ## 0-13. 판 · 판 제목 · 칸 이름 (핸드오프 RULES §6 · §7 · 계획 B-8 · §0-11)
 
@@ -683,6 +683,25 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 | `screens/knowledge/documentColumns.jsx` | `table-tag` | 문서 목록 제목 칸의 문서 태그(최대 넷 + 「+N」) | 태그는 사람이 붙인 낱말이라 흰 면 + 1px 테두리의 `Tag` 다(핸드오프 RULES §2 · 문서 시안 표 안 태그 · ACCEPTANCE J2). 표 안 점 + 낱말은 정해진 축 값의 규칙이다 |
 | `screens/ProjectDocuments.jsx` | `table-tag` | 프로젝트 문서 탭 제목 칸의 문서 태그 | 문서 목록과 같은 이유 |
 | `screens/dev/KitGallery.jsx` | `table-tag` | 데이터 표 절 문서 견본의 태그 | 문서 목록 조합 그대로를 세운 견본이다 — 문서 목록과 같은 이유 |
+
+## 0-19. 컨트롤 높이 · 폼 칸 · 머리 줄 · 흐름 · 카드 규율 (D-526 ~ D-528 · D-553)
+
+- **컨트롤 높이 둘**: 34(`CONTROL.control`) · 30(`CONTROL.controlDense`). 입력은 `controlHeight` 변수 하나에서 나오고, 밀집 그릇
+  (`densityVars("dense")` — 선택 발 `SelectionBar`)이 30 으로 낮춘다. 줄 칸(`filters.jsx` 의 칸 안 접두 칸)도 같은 변수다.
+- **폼 칸 = `Field`**(라벨 20 · 컨트롤 34 · 도움말 auto, 동작 칸, 폭 토큰), **줄 = `FieldRow`**(12칸 컨테이너 격자 또는 `columns`, 줄 동작 칸),
+  **구획 = `FormSection`**(카드 아님, 머리 + 1px 선 + 칸 목록). `FormFieldCell` 은 `Field` 의 별칭이고 설정형 `FormField` 도 `Field` 로 그린다.
+  소비처: 비밀 칸 · AI 설정 · 내 프로필 조용시간 · 사용자 일괄 가져오기 · 모든 `FormModal`. 조직 정합성 일괄 작업 줄은 선택 발의 칸 안
+  접두 이름 칸이다.
+- **머리 줄 = `HeadRow`**(`ui/layout.jsx`): 메시지 상자 · 스위치 줄(`SettingRow` 넓은 갈래)이 그 위에 선다. 구획 머리 = `SectionHeader`
+  (옛 `SectionTitle` 별칭, `spacing` · `count`), 페이지 머리는 한 상자(`.k-page-head`).
+- **흐름 = `FlowStack`**(page 16 · card 14 · tight 8) · `.c-screen`(16) · `Card stack`(14, 발이 있으면 본문 상자가 준다) · 탭 판. 구획 ·
+  필터 면 · 하위 묶음의 바깥 여백은 `Section flush` · `FilterBar flush` · `SubGroup spacing` 으로 말한다. 흐름 밖 메시지 상자만 형제와
+  12px 한 간격을 스스로 갖고, gap 을 주는 flex · grid 그릇 안에서는 갖지 않는다(`data-gap-parent`).
+- **카드 여백 단계 = `Card padding`**(normal 20 · compact 10 · none 0). 칸반 · 회의 줄 카드는 `compact`, 대화 판은 `none`.
+- **정적 검사**: `check_composition.py` 의 `callout-margin` · `primitive-geometry-override`(위반 0, 까닭 표식 `clovi-allow-geometry:` 다섯
+  자리 — 채팅 채움 판 높이 · 백로그 행 높이 · 알림함 띠 둘 · 명령 팔레트 띠, 갤러리 견본 폭 둘은 견본이다).
+- **시각 규율 프로브**: `scripts/ui_qa/visual_probes.py`(`nested_card` · `brand_area` · `first_data_visible` + 보고 셋), 견본
+  `scripts/ui_qa/fixtures/visual/{good,bad}.html`, 대조표 `scripts/ui_qa/visual_review.py`.
 
 ## 1. 신설한 부품
 

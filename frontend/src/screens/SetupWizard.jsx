@@ -211,10 +211,10 @@ function NowRail({ data }) {
       ) : null}
       {next ? (
         <>
-          <SectionTitle
+          <SectionTitle spacing="none"
             component="h2"
             title="지금 할 차례"
-            sx={{ mb: 0 }}
+
             action={link ? <Button variant="primary" href={link.href}>{link.label}</Button> : null}
           />
           <Box data-setup-now={next.key} sx={{ display: "grid", gap: 0.5 }}>
@@ -238,7 +238,7 @@ function ItemSection({ title, items, all, data, onChoice, choosing }) {
   if (!items.length) return null;
   return (
     <Box component="section" aria-label={title} sx={{ display: "grid", gap: 1.5 }}>
-      <SectionTitle component="h2" title={title} sx={{ mb: 0 }} />
+      <SectionTitle spacing="none" component="h2" title={title}  />
       <Box component="ul" sx={ITEM_GRID}>
         {items.map((item) => {
           const position = `${all.indexOf(item) + 1}/${all.length}`;

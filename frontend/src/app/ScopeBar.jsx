@@ -143,7 +143,7 @@ export function ScopeBar() {
       tone={warn ? "warn" : "info"}
       compact
       title={summary.label}
-      sx={{ mb: 2 }}
+     
       action={enforced && !warn ? (
         <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
           {caveat}

@@ -343,10 +343,11 @@ function BacklogRow({ card, onOpen, signals, onAddToSprint, canAdd, busy = false
   return (
     /* 백로그는 표 모양의 목록이다 — 우선순위 「긴급」도 면 없이 점 + 낱말로 선다(RULES §2). */
     <FlatBadgeSurface>
+    {/* clovi-allow-geometry: 백로그는 표 모양의 목록이라 한 줄이 표 행 높이(`CONTROL.tableRow`)를 따른다. */}
     <Card
+      padding="compact"
       sx={{
         ...BACKLOG_GRID,
-        p: 1.25,
         minHeight: remPx(CONTROL.tableRow),
         cursor: "pointer",
         transition: (t) => t.transitions.create("background-color", { duration: 90 }),
@@ -1222,7 +1223,7 @@ function WorkBoardScreen() {
         <>
           {/* 칸반 판 위의 한 줄 — 지금 어디쯤인가와 다음에 할 일. 문맥 줄에 넣기에는 문장이 길어 필터 바 아래 한 줄이다. */}
           {tab === TAB_BOARD ? (
-            <Callout variant="inline" tone="info" title={boardNotice.title} sx={{ mb: 1.5 }}>
+            <Callout variant="inline" tone="info" title={boardNotice.title}>
               {boardNotice.body}
             </Callout>
           ) : null}
@@ -1232,7 +1233,7 @@ function WorkBoardScreen() {
             <Callout
               tone="info"
               compact
-              sx={{ mb: 1.5 }}
+             
               action={<Button size="sm" onClick={resetSort}>기본 순서로 보기</Button>}
             >
               정렬해서 보는 동안에는 끌어서 순서를 바꿀 수 없습니다.

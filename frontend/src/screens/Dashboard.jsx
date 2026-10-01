@@ -593,8 +593,8 @@ export function Dashboard() {
         // 크게 튀지 않게 한다.
         q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : (
           <Box>
-            <Card sx={{ mb: 3 }}><Skeleton lines={3} /></Card>
-            <Card sx={{ mb: 3 }}><Skeleton lines={2} /></Card>
+            <Card><Skeleton lines={3} /></Card>
+            <Card><Skeleton lines={2} /></Card>
             <Card><Skeleton lines={4} /></Card>
           </Box>
         )

@@ -346,7 +346,7 @@ export function TaxonomyManager({
       )}
       {/* 추가 · 이름 고치기 · 지우기 · 틀 저장의 실패는 이 창 발 바로 위다 — 쓰던 값이 그대로 있고, 다시 시도하면
           걷힌다(부르는 쪽이 `error` 를 준다, 핸드오프 계획 표 6). */}
-      {error ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{error}</Callout> : null}
+      {error ? <Callout tone="danger" compact>{error}</Callout> : null}
     </Modal>
   );
 }

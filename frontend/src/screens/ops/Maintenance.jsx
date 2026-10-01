@@ -241,7 +241,7 @@ export function Maintenance({ embedded = false } = {}) {
                 </>,
               )}
             >
-              {modeFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{modeFailure}</Callout> : null}
+              {modeFailure ? <Callout tone="danger" compact>{modeFailure}</Callout> : null}
             </SettingRow>
             <SettingRow
               last
@@ -297,7 +297,7 @@ export function Maintenance({ embedded = false } = {}) {
           ) : null}
           {msgChecked ? <Box sx={{ mt: 2 }} role="status"><Callout tone="success">{msgChecked}</Callout></Box> : null}
           {msgCheckErr ? (
-            <Callout tone="danger" compact sx={{ mt: 2 }}>{msgCheckErr}</Callout>
+            <Callout tone="danger" compact>{msgCheckErr}</Callout>
           ) : null}
         </Modal>
       ) : null}

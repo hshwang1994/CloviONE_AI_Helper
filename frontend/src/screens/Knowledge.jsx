@@ -446,7 +446,7 @@ export function Knowledge() {
 
       {/* 결과 수는 조건이 걸리면 필터 바 안 조건 줄이, 늘 목록 판 발이 말한다 — 목록 위 단독 「전체 N건」 줄은 없다
           (조합 계약 C-1). 「최근 열람」은 쪽을 안 나눈다 — 사람마다 다르고 길지 않다. */}
-      {listFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{listFailure}</Callout> : null}
+      {listFailure ? <Callout tone="danger" compact>{listFailure}</Callout> : null}
 
       {/* 🔴 좌측 레일이 없다. 폴더 축이 화면에서 걷히면서(문서 개편 5번) 레일에 남는
           것은 프로젝트 목록뿐이었는데, 그것은 이미 위 조건 줄의 고르개가 그린다 —

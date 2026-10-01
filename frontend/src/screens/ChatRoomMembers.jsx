@@ -416,7 +416,7 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId, p
 
   return (
     <Modal open={open} onClose={onClose} title="채팅방 관리" size="md" dirty={dirty} footer={<Button onClick={requestClose}>닫기</Button>}>
-      {manageFailure ? <Callout tone="danger" compact sx={{ mb: 2 }}>{manageFailure}</Callout> : null}
+      {manageFailure ? <Callout tone="danger" compact>{manageFailure}</Callout> : null}
       {/* 이 창은 따로 확정하는 입력 영역 둘이다(`data-form-scope`) — 이름 「저장」과 「초대」는 각 영역의 채움이라 창 안 채움 둘이
           한 확정을 다투는 것이 아니다(조합 계약 C-4 · 댓글 쓰는 칸과 같은 규칙). 창 발은 닫기 하나다. */}
       <Box component="section" data-form-scope="" sx={{ mb: 3 }}>

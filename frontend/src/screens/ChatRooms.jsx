@@ -181,7 +181,7 @@ export function GroupModal({ open, onClose }) {
             </>
           )}
       </Box>
-      {createFailure ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{createFailure}</Callout> : null}
+      {createFailure ? <Callout tone="danger" compact>{createFailure}</Callout> : null}
     </Modal>
   );
 }
@@ -225,7 +225,7 @@ function DirectModal({ open, onClose }) {
           )}
           </>
         )}
-      {startFailure ? <Callout tone="danger" compact sx={{ mt: 2.5 }}>{startFailure}</Callout> : null}
+      {startFailure ? <Callout tone="danger" compact>{startFailure}</Callout> : null}
     </Modal>
   );
 }
@@ -382,12 +382,13 @@ export function ChatRooms() {
           minHeight: { xs: 0, md: "28rem" },
         }}
       >
-        <Card sx={{ p: 0, overflow: "hidden", display: { xs: activeId ? "none" : "grid", md: "grid" }, minHeight: 0, minWidth: 0 }}>
+        <Card padding="none" sx={{ overflow: "hidden", display: { xs: activeId ? "none" : "grid", md: "grid" }, minHeight: 0, minWidth: 0 }}>
           {listPanel}
         </Card>
         <Card
+          padding="none"
           sx={{
-            p: 0, overflow: "hidden", display: { xs: activeId ? "grid" : "none", md: "grid" },
+            overflow: "hidden", display: { xs: activeId ? "grid" : "none", md: "grid" },
             gridTemplateRows: activeId ? { xs: "auto minmax(0, 1fr)", md: "minmax(0, 1fr)" } : "minmax(0, 1fr)",
             minHeight: 0, minWidth: 0,
           }}

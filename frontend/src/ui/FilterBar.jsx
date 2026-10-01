@@ -362,9 +362,11 @@ export function FilterConditionLine({ total, unit = "건", noun = "결과", chip
  *
  * 낱개 부품은 이 조합 안에서만 쓴다. 대장 예외(`docs/ui-renewal/COMPONENT_LEDGER.md` 「조합 예외」)만 낱개를
  * 직접 조립한다 — `scripts/check_composition.py` 가 그 표와 대조한다. */
-export function FilterBar({ search, children, end, conditions, divider = true, sx, ...rest }) {
+export function FilterBar({ search, children, end, conditions, divider = true, flush = false, sx, ...rest }) {
+  /* `flush` — 아래 간격을 걷는다. 그릇(흐름 · 판)이 간격을 주는 자리다(화면이 숫자 여백을 적지 않는다). */
+  const merged = flush ? { mb: 0, ...sx } : sx;
   return (
-    <FilterSurface divider={divider} sx={sx} data-filter-bar="" {...rest}>
+    <FilterSurface divider={divider} sx={merged} data-filter-bar="" {...rest}>
       <FilterRow>
         {search || null}
         {children}

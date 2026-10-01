@@ -148,7 +148,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
   return (
     <Card component="section" aria-label="댓글" sx={{ minWidth: 0 }}>
       {/* 판 제목은 판 제목 정본이다(`SectionTitle` — 핸드오프 RULES §6 카드 제목 1.0625rem/700). */}
-      <SectionTitle component="h2" title={`댓글 ${liveCount > 0 ? liveCount : ""}`} sx={{ mb: 1 }} />
+      <SectionTitle spacing="tight" component="h2" title={`댓글 ${liveCount > 0 ? liveCount : ""}`}  />
 
       {list.isPending ? <Skeleton lines={3} /> : null}
       {list.isError ? (
@@ -161,7 +161,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
         </Typography>
       ) : null}
 
-      {removeFailure ? <Callout tone="danger" compact sx={{ mb: 1 }}>{removeFailure}</Callout> : null}
+      {removeFailure ? <Callout tone="danger" compact>{removeFailure}</Callout> : null}
       <Box sx={{ display: "grid" }}>
         {comments.map((c) => (
           editingId === c.id ? (
@@ -173,7 +173,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
                 onChange={(e) => setEditDraft(e.target.value)}
                 inputProps={{ maxLength: MAX_COMMENT_CHARS, "aria-label": "댓글 수정" }}
               />
-              {updateFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{updateFailure}</Callout> : null}
+              {updateFailure ? <Callout tone="danger" compact>{updateFailure}</Callout> : null}
               <Stack direction="row" gap={1} sx={{ mt: 1, justifyContent: "flex-end" }}>
                 <Button size="sm" disabled={busy} onClick={() => { setEditingId(null); setEditDraft(""); }}>취소</Button>
                 <Button size="sm" variant="primary" disabled={busy || !editDraft.trim()}
@@ -208,7 +208,7 @@ export function CommentThread({ queryKey, listUrl, itemUrl, emptyHint, readOnly 
           placeholder="댓글을 입력하세요."
           inputProps={{ maxLength: MAX_COMMENT_CHARS, "aria-label": "댓글 입력" }}
         />
-        {createFailure ? <Callout tone="danger" compact sx={{ mt: 1 }}>{createFailure}</Callout> : null}
+        {createFailure ? <Callout tone="danger" compact>{createFailure}</Callout> : null}
         <Stack direction="row" gap={1} sx={{ mt: 1, justifyContent: "flex-end", alignItems: "center" }}>
           <Typography variant="caption" color="text.secondary">
             {draft.length}/{MAX_COMMENT_CHARS}

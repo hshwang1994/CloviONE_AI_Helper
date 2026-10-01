@@ -141,11 +141,25 @@
 @media (max-width: 760px) {
 }
 
-/* 설정형 화면(DataScreen) 세로 리듬 — 헤더(.k-page-head)·탐색 줄(FilterSurface)은 자체
-   margin-bottom 이 있으나 설명 콜아웃(.k-callout)은 없어, 설명·툴바가 서로 붙어 보였다.
-   루트 직계 자식에만 적용해 폼·모달 안의 콜아웃에는 영향을 주지 않는다.
-   (`.dash-grid` 규칙이 함께 있었다 — 그 클래스를 쓰는 JSX 가 한 곳도 없어 걷었다.) */
-.c-screen > .k-callout { margin-bottom: var(--space-lg, 16px); }
+/* 화면 그릇은 **흐름**이다 (RULES §0 「요소 사이 세로 간격은 16px 하나」, D-528).
+   간격은 덩어리가 아니라 그릇이 준다: 직계 자식 사이 16px, 자식의 위아래 바깥 여백은 지운다. 예전에는 페이지 머리 ·
+   필터 면 · 메시지 상자 · 구획이 각자 아래 여백(8 · 12 · 16 · 24 · 32)을 들고 있어 같은 성격의 두 화면을 나란히 열면 목록
+   시작점이 서로 달랐다. 선택자를 두 번 겹쳐(0,2,0) 자식의 sx 여백(0,1,0)보다 이긴다. 가로 여백(전폭 띠의 음수 여백)은
+   그대로 둔다. */
+.c-screen.c-screen { display: flex; flex-direction: column; row-gap: 1rem; min-width: 0; }
+.c-screen.c-screen > * { margin-block-start: 0; margin-block-end: 0; }
+
+/* 흐름 밖 메시지 상자의 간격 — 상자 자신이 형제와 한 간격(12px)을 갖는다. 흐름 그릇(`.k-flow` · `.c-screen` · `Card stack`)
+   안에서는 그릇의 규칙이 이것을 지우고, gap 을 주는 flex · grid 그릇 안에서는 상자가 여백을 더하지 않는다(`data-gap-parent`,
+   `kit.jsx::useGapParent` — 여백이 gap 에 더해져 두 상자 사이가 gap + 24 로 벌어졌다). 화면이 메시지 상자에 여백을 손으로 주지
+   않는다(정적 검사 `callout-margin`). */
+/* `:where()` 로 특이도를 (0,1,0) 으로 낮춘다 - 흐름 그릇의 지우기 규칙(0,2,0)이 순서와 상관없이 이긴다. */
+.k-callout:where(:not([data-gap-parent]):not(:first-child)) { margin-block-start: 0.75rem; }
+.k-callout:where(:not([data-gap-parent]):not(:last-child)) { margin-block-end: 0.75rem; }
+
+/* 연속된 폼 구획 사이 — 담는 쪽 간격에 12px 를 더한다(페이지 흐름 16 + 12 = 28 · 판 안 14 + 12 = 26, D-527). 다음 구획의 머리
+   선이 경계를 말하므로 테두리 · 면을 두르지 않는다. 특이도 (0,3,0) 이 흐름 그릇의 지우기 규칙(0,2,0)을 이긴다. */
+.k-form-section.k-form-section + .k-form-section { margin-block-start: 0.75rem; }
 
 /* 개발자 월간 리포트 — 표·지표·구획은 전부 kit 부품(`DataTable`·`MetricStrip`·`Section`)이
    그린다. 예전 손으로 만든 표의 규칙(kpi·bar·legend·grouprow …)은 소비처가 없어 걷었다.

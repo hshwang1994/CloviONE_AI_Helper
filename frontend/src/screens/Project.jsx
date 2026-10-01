@@ -169,7 +169,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
             </Stack>
           )}
         />
-        {deleteFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{deleteFailure}</Callout> : null}
+        {deleteFailure ? <Callout tone="danger" compact>{deleteFailure}</Callout> : null}
         {/* 목록 행 안이라 배지가 면을 갖지 않는다(핸드오프 RULES §2 · ACCEPTANCE F7). */}
         <FlatBadgeSurface>
         <Box component="ol" sx={{ m: 0, p: 0, display: "grid", gap: 0 }}>
@@ -235,10 +235,10 @@ function Overview({
   return (
     <Stack gap={2.5}>
       <Card>
-        <SectionTitle
+        <SectionTitle spacing="tight"
           component="h2"
           title="개요"
-          sx={{ mb: 1 }}
+
           action={(
             <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
               {canWrite ? <Button size="sm" onClick={onEdit}>수정</Button> : null}
@@ -253,7 +253,7 @@ function Overview({
             </Stack>
           )}
         />
-        {deptFailure ? <Callout tone="danger" compact sx={{ mb: 1 }}>{deptFailure}</Callout> : null}
+        {deptFailure ? <Callout tone="danger" compact>{deptFailure}</Callout> : null}
         <Box>
           <MetaRow label="상태">
             <Stack direction="row" gap={1} sx={{ flexWrap: "wrap" }}>
@@ -350,7 +350,7 @@ function Overview({
             </Stack>
           )}
         />
-        {progressFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{progressFailure}</Callout> : null}
+        {progressFailure ? <Callout tone="danger" compact>{progressFailure}</Callout> : null}
         {progressQuery.isPending ? <Skeleton lines={4} />
           : progressQuery.isError ? <ErrorState layout="region" error={progressQuery.error} onRetry={() => progressQuery.refetch()} />
           : (
@@ -374,7 +374,7 @@ function Overview({
             </Stack>
           )}
         />
-        {healthFailure ? <Callout tone="danger" compact sx={{ mb: 1.5 }}>{healthFailure}</Callout> : null}
+        {healthFailure ? <Callout tone="danger" compact>{healthFailure}</Callout> : null}
         {healthQuery.isPending ? <Skeleton lines={5} />
           : healthQuery.isError ? <ErrorState layout="region" error={healthQuery.error} onRetry={() => healthQuery.refetch()} />
           : <HealthBlock score={health.score} reasons={health.reasons} unknown={health.unknown} />}
