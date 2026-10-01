@@ -1,5 +1,9 @@
 """최초 실행 셋업 체크리스트 (9-3, P3).
 
+qa-contract-change: AI 항목의 문장을 AI 연결 화면의 상태 면과 같은 함수(`state_display`, A8 · D-539)가 만든다. 그래서 할 일의
+안내가 「…확인하세요」에서 「AI 연결 화면에서 제공자와 인증을 정하세요」로, 검색 모델이 없을 때의 메모가 「문서 검색 모델」에서
+「의미 검색 모델은 선택이며 지금은 낱말로 찾습니다」로 바뀌었다. 「할 일이고 무엇을 할지 말한다」는 성질은 그대로 잰다.
+
 ## 이 파일이 막는 것
 
 설치가 끝나고 관리자가 로그인해도 **그다음이 없었다.** 조직·Notion·매핑·LLM·연동을 전부
@@ -568,7 +572,7 @@ def test_search_without_generation_is_a_half_state_not_a_failure(client, sysadmi
     assert "AI 제공자를 아직 연결하지 않았습니다" in item["detail"]
     assert "문서 검색 모델" not in item["detail"], "검색은 되는데 검색 모델이 없다고 말한다"
     # 「안 됩니다」로 끝나면 안 된다 — 운영자가 무엇을 할지 말해야 한다.
-    assert "확인하세요" in item["action"]
+    assert "AI 연결 화면에서 제공자와 인증을 정하세요" in item["action"]
     assert item["question"] is None
 
 
@@ -576,5 +580,5 @@ def test_no_model_at_all_says_so(client, sysadmin):
     _set_gateway(client, embed=False, generate=False)
     item = _by_key(_items(client))["llm"]
     assert item["state"] == STATE_TODO
-    assert "AI 제공자를 아직 연결하지 않았습니다" in item["detail"] and "문서 검색 모델" in item["detail"]
+    assert "AI 제공자를 아직 연결하지 않았습니다" in item["detail"] and "의미 검색 모델은 선택이며" in item["detail"]
 

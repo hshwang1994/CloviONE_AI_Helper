@@ -310,7 +310,7 @@ export const AUTHORING_SCREENS = {
     help: "기간 안의 AI 호출을 기능, 사용자, 부서, 제공자, 모델, 결과, 날짜로 묶어 봅니다. 성공률은 제공자까지 간 호출 가운데 성공한 비율이고, 한도나 정책으로 막힌 호출은 따로 셉니다.",
     emptyTitle: "아직 AI 호출 기록이 없습니다",
     emptyHelp: "AI 연결을 먼저 설정하세요. 채팅이나 작업 공간에서 AI 를 쓰면 여기에 기록이 쌓입니다.",
-    emptyRelatedLink: { href: "#/settings?tab=ai", label: "AI 설정으로 이동" },
+    emptyRelatedLink: { href: "#/ai-connection", label: "AI 연결 열기" },
     filters: [
       /* 묶음 기준은 조건이 아니라 **보기 기준**이다(D-530) — 필터 바 오른쪽 끝에 서고 조건 수 · 칩 · 「필터 지우기」에 들지 않는다. */
       { key: "group_by", type: "select", role: "view", label: "보기 기준", value: "action", options: opt([["action", "기능"], ["user", "사용자"], ["department", "부서"], ["provider", "제공자"], ["model", "모델"], ["status", "결과"], ["day", "날짜"]]) },
@@ -338,7 +338,7 @@ export const AUTHORING_SCREENS = {
     help: "AI 호출 한 번이 한 줄입니다. 누가, 언제, 어떤 기능으로, 어느 모델에 얼마나 썼고 어떻게 끝났는지만 남기고 질문과 답의 본문은 남기지 않습니다. 기록은 180일 동안 둡니다.",
     emptyTitle: "아직 AI 호출 기록이 없습니다",
     emptyHelp: "AI 연결을 먼저 설정하세요. 채팅이나 작업 공간에서 AI 를 쓰면 여기에 기록이 쌓입니다.",
-    emptyRelatedLink: { href: "#/settings?tab=ai", label: "AI 설정으로 이동" },
+    emptyRelatedLink: { href: "#/ai-connection", label: "AI 연결 열기" },
     paginated: true, pageSize: 50,
     filters: [
       { key: "status", type: "select", label: "결과", options: opt([["ok", "성공"], ["error", "실패"], ["blocked_quota", "한도로 막힘"], ["blocked_policy", "정책으로 막힘"]]) },

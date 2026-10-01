@@ -74,6 +74,14 @@ SETTING_KEYS = (
 )
 VERIFY_TIMEOUT_SECONDS = 30
 VERIFY_DATA = "연결 확인"
+#: 연결 확인의 도구 시험(D-539). 아무 일도 하지 않는 도구 하나를 강제로 고르게 한다 — 도구 호출이 오는지만 잰다.
+PROBE_SYSTEM = "연결 확인입니다. 주어진 도구를 한 번 부르세요."
+PROBE_USER = "ping 도구를 한 번 부르세요."
+PROBE_TOOL = base.ToolSpec(
+    name="ping",
+    description="연결 확인용 도구입니다. 아무 일도 하지 않습니다.",
+    parameters={"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+)
 
 
 @dataclass(frozen=True)
@@ -908,9 +916,72 @@ class AiRuntime(_AssistantMixin):
             return {"ok": False, "status": contract.STATUS_UNCONFIGURED, "message": found[0]}
         result = self.generate(db, action_key=actions_mod.CONNECTION_TEST, data=VERIFY_DATA, verify=True)
         if result.ok:
-            return {"ok": True, "status": result.status, "message": "AI 제공자에 연결해 답을 받았습니다."}
+            # 생성이 되면 도구 시험을 한 번 더 한다(D-539). 도구 시험의 실패는 연결 확인을 실패시키지 않는다.
+            tools = self.probe_tools(db, config)
+            return {"ok": True, "status": result.status, "message": "AI 제공자에 연결해 답을 받았습니다.",
+                    "tools": tools}
         reason = state_mod.reason_text(result.error_code) if result.error_code else None
         return {"ok": False, "status": result.status, "message": reason or result.notice or contract.FALLBACK_NOTICE}
+
+    def probe_tools(self, db: Session, config: RuntimeConfig) -> str:
+        """도구 시험 — `ping` 도구 하나를 강제로 고르게 해 도구 호출을 받는지 잰다(D-539). 결과(`ok` · `unsupported` ·
+        `unknown`)를 능력 칸에 적고 돌려준다.
+
+        - 호출이 오면 `ok`, 제공자가 도구를 거절하면(`unsupported_capability`) `unsupported` 다. 그 밖의 실패(시간 초과 ·
+          일시 장애)는 아무것도 적지 않는다 — 모르는 것을 지어내지 않는다.
+        - 연결 상태(정상 · 장애)는 바꾸지 않는다. 생성이 방금 성공했고, 도구를 거절하는 모델도 답은 한다.
+        - 시스템 사용 기록 한 행을 남긴다(사람의 요청이 아니므로 사람의 한도를 쓰지 않는다).
+        """
+        method = config.method()
+        slot = method.secret_slot if method else None
+        adapter = self.adapter(config)
+        converse = getattr(adapter, "converse", None)
+        if adapter is None or not callable(converse):
+            return state_mod.TOOLS_UNKNOWN
+        lock = self._slot_lock(config)
+        try:
+            acquired = lock.acquire()
+        except WorkerLockError:
+            logger.exception("AI 동시 실행 슬롯을 잡지 못했다(도구 시험)")
+            return state_mod.TOOLS_UNKNOWN
+        if not acquired:
+            return state_mod.TOOLS_UNKNOWN
+        started = time.monotonic()
+        try:
+            try:
+                result = converse(
+                    system=PROBE_SYSTEM, turns=(base.UserTurn(text=PROBE_USER),), tools=(PROBE_TOOL,),
+                    tool_choice=base.forced_tool(PROBE_TOOL.name), model=config.model, max_output_tokens=64,
+                    timeout=float(min(config.timeout_seconds, VERIFY_TIMEOUT_SECONDS)),
+                )
+            except Exception:  # noqa: BLE001 - 어댑터 결함은 「모름」이다
+                logger.exception("AI 제공자 어댑터가 도구 시험에서 예상 못 한 예외를 냈다")
+                result = base.converse_failure(base.ERROR_REQUEST, "adapter_crashed")
+        finally:
+            lock.release()
+        latency_ms = int((time.monotonic() - started) * 1000)
+        if result.ok and any(call.name == PROBE_TOOL.name for call in result.tool_calls):
+            value = state_mod.TOOLS_OK
+        elif not result.ok and result.error_code == UNSUPPORTED_TOOLS_CODE:
+            value = state_mod.TOOLS_UNSUPPORTED
+        else:
+            value = state_mod.TOOLS_UNKNOWN
+        if value != state_mod.TOOLS_UNKNOWN:
+            self._set_tools_capability(config, slot, value)
+        if self._track_state:
+            from app.ai import usage
+            from app.ai.models import USAGE_ERROR, USAGE_OK
+
+            usage.record(
+                self._session_factory, actor=usage.Actor.of(None), action_key=actions_mod.CONNECTION_TEST,
+                status=USAGE_OK if result.ok else USAGE_ERROR, now=self._now(), provider=config.provider,
+                auth_method=config.auth_method, model=config.model,
+                error_code=None if result.ok else (result.error_code or "tool_probe_failed"),
+                input_tokens=getattr(result, "input_tokens", None), output_tokens=getattr(result, "output_tokens", None),
+                latency_ms=latency_ms, rounds=1, tool_calls=len(result.tool_calls) if result.ok else 0,
+                tool_names=[PROBE_TOOL.name] if value == state_mod.TOOLS_OK else [], mode=MODE_TOOLS,
+            )
+        return value
 
     def list_models(self, db: Session, *, provider: str, auth_method: str, ttl_seconds: float = 600) -> base.ModelList:
         """제공자의 모델 목록. 10분 동안 기억한다 - 화면을 열 때마다 제공자에 묻지 않는다."""

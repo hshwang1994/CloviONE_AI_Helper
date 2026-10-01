@@ -4,16 +4,18 @@
 
   1. 계정 연결(ChatGPT)이면 access token 이 30분 안에 끝날 때 미리 갱신한다. 사람의 요청이 갱신을 기다리지 않게 한다
   2. 갱신 토큰이 5일 안에 끝나면 관리자에게 한 번 알린다(끝나면 다시 로그인해야 한다)
-  3. 정상, 확인 전, 일시 장애에서는 모델 목록을 한 번 물어 자격을 가볍게 확인한다. 일시 장애였는데 답이 오면 정상으로
-     되돌리고, 키가 거절되면 막힌 상태로 바꿔 사람이 먼저 알게 한다. 토큰을 쓰는 생성은 하지 않는다
+  3. 정상, 확인 전, 일시 장애에서는 모델 목록을 한 번 물어 자격을 가볍게 확인한다. 키가 거절되면 막힌 상태로 바꿔
+     사람이 먼저 알게 한다. 목록이 답해도 상태를 **올리지 않는다** - 일시 장애에서 정상으로 돌아오는 길은 실제 생성의
+     성공(사람의 호출이나 연결 확인)뿐이다(D-539). 토큰을 쓰는 생성은 하지 않는다
   4. 일시 장애가 30분 넘게 이어지면 관리자에게 한 번 알린다
   5. 하루 지난 계정 연결 시도를 지운다
 
 ## 하지 않는 일
 
 재로그인 필요와 인증 또는 구성 오류는 사람이 고칠 때까지 자동으로 다시 시도하지 않는다. 설정이나 키를 저장하면 지문이
-바뀌어 확인 전으로 돌아간다(`app/ai/credentials/state.py`). 확인 전에서 모델 목록이 답해도 정상이라고 적지 않는다 -
-정상은 실제 생성이 성공한 뒤에만 쓴다.
+바뀌어 확인 전으로 돌아간다(`app/ai/credentials/state.py`). 모델 목록이 답해도 정상이라고 적지 않는다 - 정상은 같은
+설정 지문으로 실제 생성이 성공한 뒤에만 쓴다. 예전에는 일시 장애에서 목록이 답하면 정상으로 올렸다 - 목록은 되는데 생성은
+안 되는 모델(이름이 바뀌었거나 권한이 없다)에서 거짓 「정상」이 섰다.
 """
 
 from __future__ import annotations
@@ -60,11 +62,8 @@ def run_ai_health(runtime, session_factory, *, now: datetime) -> dict:
             if current in CHECK_STATES:
                 listing = runtime.check_credentials(config)
                 done["checked"] = listing.ok
-                if listing.ok:
-                    if current == state_mod.STATE_DEGRADED:
-                        runtime.record(config, result=state_mod.RESULT_OK, code=None, now=now)
-                elif listing.error_kind in (base.ERROR_AUTH, base.ERROR_REAUTH, base.ERROR_CONFIG,
-                                            base.ERROR_TRANSIENT):
+                if not listing.ok and listing.error_kind in (base.ERROR_AUTH, base.ERROR_REAUTH, base.ERROR_CONFIG,
+                                                             base.ERROR_TRANSIENT):
                     runtime.record(config, result=listing.error_kind, code=listing.error_code, now=now)
             db.expire_all()
             state_mod.notify_if_needed(db, config.provider, config.auth_method, now=now)

@@ -26,7 +26,7 @@ export function useSecretStatus(slot) {
   return { ...q, item };
 }
 
-export function SecretField({ slot, label, help, disabled = false, onChanged, width = "xl", span }) {
+export function SecretField({ slot, label, help, disabled = false, onChanged, width = "xl", span, saveLabel = "저장" }) {
   const inputId = useId();
   const helpId = useId();
   const qc = useQueryClient();
@@ -69,10 +69,10 @@ export function SecretField({ slot, label, help, disabled = false, onChanged, wi
       action={(
         <>
           <Button
-            aria-label={`${label} 저장`}
+            aria-label={`${label} ${saveLabel}`}
             onClick={() => save.mutate(value)} disabled={disabled || busy || !value.trim()} loading={save.isPending}
           >
-            저장
+            {saveLabel}
           </Button>
           {stored ? (
             <Button

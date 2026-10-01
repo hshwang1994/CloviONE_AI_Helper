@@ -49,6 +49,8 @@ export const SCREEN_ROLES = {
   approvals: CONSOLE_READ,
   prompts: CONSOLE_READ,
   policies: CONSOLE_READ,
+  // AI 연결(D-539) — 제공자 · 인증 · 모델 · AI 기능 스위치. 서버의 `AI_CONFIGURE` 와 같은 집합이다.
+  "ai-connection": ["system_admin"],
   integrity: CONSOLE_READ,
   "dev-report": SENSITIVE_READ,
   setup: ["system_admin"],
@@ -217,6 +219,8 @@ export const NAV = withRoles([
        `integrations` 표는 남는다: 대시보드·진단이 헬스 스윕 결과를 계속 읽는다. */
   ] },
   { group: "AI", icon: SmartToyOutlinedIcon, items: [
+    // 연결이 먼저다 - 연결 없이는 프롬프트 · 정책 · 한도가 아무 일도 하지 않는다(D-539).
+    { to: "/ai-connection", label: "AI 연결" },
     { to: "/prompts", label: "프롬프트" },
     { to: "/policies", label: "정책" },
     { to: "/ai-quotas", label: "사용 한도" },

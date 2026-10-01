@@ -39,11 +39,6 @@ EXEMPT: dict[str, str] = {
     # IP 단위 레이트리밋과 1회용 만료 토큰이 더 있다(app/auth/reset_router.py).
     "/forgot-password": "세션이 생기기 전이라 CSRF 토큰이 없다 — Origin 검사로 막는다",
     "/reset-password": "세션이 생기기 전이라 CSRF 토큰이 없다 — Origin 검사로 막는다",
-    # ChatGPT 계정 연결 도우미의 문(D-516). 관리자 PC 의 스크립트가 부르고 쿠키를 갖지 않는다 - 쿠키가 없으니
-    # CSRF 가 성립하지 않는다. 대신 한 번 쓰는 256비트 짝짓기 토큰(해시만 저장, 10분), IP 단위 속도 제한, 다른
-    # 사이트의 브라우저 요청을 막는 Origin 검사가 겹친다(app/ai/connect_router.py).
-    "/api/connect/openai/begin": "쿠키 없는 도우미 요청이다 — 짝짓기 토큰과 Origin 검사로 막는다",
-    "/api/connect/openai/complete": "쿠키 없는 도우미 요청이다 — 짝짓기 토큰과 Origin 검사로 막는다",
     # 첫 관리자 계정(D-522). 계정이 하나도 없는 서버라 세션이 있을 수 없다. 설치 콘솔에만 나온 128비트 일회용 코드(해시만
     # 저장, 5번 틀리면 폐기), IP 단위 속도 제한, Origin 검사가 겹친다. 사용자가 한 명이라도 있으면 경로 자체가 404 다.
     "/setup/first-admin": "계정이 없는 서버의 첫 계정이다 — 일회용 설정 코드와 Origin 검사로 막는다",
@@ -117,17 +112,14 @@ def test_login_is_the_only_unauthenticated_write_route(app):
     # 대신 셋을 겹쳐 둔다: Origin 검사(위 EXEMPT), IP 단위 레이트리밋, 그리고 실제 권한은
     # 메일함으로만 오는 1회용 만료 토큰이 증명한다. 이 목록이 또 늘어난다면 그때도
     # 같은 수준의 근거를 여기 적어야 한다.
-    # ChatGPT 계정 연결 도우미의 두 경로(D-516)도 같은 수준의 근거가 있다: 관리자가 화면에서 연 시도에만 붙고,
-    # 한 번 쓰는 256비트 짝짓기 토큰이 권한을 증명하며, 그 토큰은 해시로만 남고 10분 뒤 사라진다. Origin 검사와
-    # IP 단위 속도 제한이 위에 겹친다. 응답에는 토큰이 없다.
+    # ChatGPT 계정 연결 도우미의 쿠키 없는 두 경로(D-516)는 걷었다(D-540) - 붙여 넣기 로그인은 세션 · CSRF 가 있는
+    # 관리 API 안에서 끝난다. 다시 생기면 이 목록이 깨진다(`tests/regression/test_no_connect_helper.py` 도 막는다).
     # 첫 관리자 계정(D-522)은 계정이 하나도 없을 때만 열린다. 권한은 설치 콘솔에만 나온 일회용 코드가 증명한다.
     assert sorted(open_routes) == sorted(
         [
             "['POST'] /login",
             "['POST'] /forgot-password",
             "['POST'] /reset-password",
-            "['POST'] /api/connect/openai/begin",
-            "['POST'] /api/connect/openai/complete",
             "['POST'] /setup/first-admin",
         ]
     ), ("인증 없이 부를 수 있는 쓰기 라우트 목록이 달라졌다:\n  " + "\n  ".join(open_routes))

@@ -388,22 +388,20 @@ class AiCredentialState(UUIDPrimaryKeyMixin, Base):
 
 
 class AiOAuthTransaction(Base):
-    """ChatGPT 계정 연결 시도 하나 (계획 3.14, D-516). 규칙은 `app/ai/credentials/oauth.py` 에 있다.
+    """ChatGPT 계정 연결 시도 하나 (계획 A3, D-516 · D-540). 규칙은 `app/ai/credentials/oauth.py` 에 있다.
 
-    연결 도우미가 서버에 자신을 알리는 짝짓기 토큰은 **해시만** 둔다 - 원문은 시작 응답에 한 번 실리고 끝이다. PKCE
-    verifier 는 두지 않는다(서버 비밀 값과 state 로 다시 만든다). 인가 코드와 토큰도 두지 않는다.
+    PKCE verifier 는 두지 않는다(서버 비밀 값과 state 로 다시 만든다). 인가 코드와 토큰도 두지 않는다. 예전의 연결
+    도우미 짝짓기 토큰 칸은 0045 가 걷었다 - 붙여 넣기 흐름에는 도우미가 없다.
     """
 
     __tablename__ = "ai_oauth_transactions"
     __table_args__ = (
-        UniqueConstraint("pairing_token_hash", name="uq_ai_oauth_transactions_pairing"),
         UniqueConstraint("state", name="uq_ai_oauth_transactions_state"),
         Index("ix_ai_oauth_transactions_expires_at", "expires_at"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
-    pairing_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     state: Mapped[str] = mapped_column(String(100), nullable=False)
     nonce: Mapped[str] = mapped_column(String(100), nullable=False)
     #: 이번 시도가 인가 요청에 쓴 client_id(첫 연결이면 동적 등록 값).

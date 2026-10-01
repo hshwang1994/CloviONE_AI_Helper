@@ -46,6 +46,7 @@ const OrgConsole = React.lazy(() => import("../screens/OrgConsole.jsx"));
 const Search = React.lazy(() => import("../screens/Search.jsx"));
 const SchedulerCalendar = React.lazy(() => import("../screens/SchedulerCalendar.jsx"));
 const Integrity = React.lazy(() => import("../screens/Integrity.jsx").then((m) => ({ default: m.Integrity })));
+const AiConnection = React.lazy(() => import("../screens/ai/AiConnection.jsx"));
 
 // 라우트 청크가 통째로 아직 없다 — `UserRoutes.jsx::Lazy` 와 같은 이유로 화면 모양을 그린다.
 const ROUTES_FALLBACK = <Skeleton kind="page" lines={4} />;
@@ -238,7 +239,16 @@ function AdminRoutes() {
             그리고, 사용자는 자기가 찾던 화면 대신 엉뚱한 화면을 보면서 왜 그런지 듣지
             못한다. 지금은 아래 catch-all이 「이 주소는 없습니다」를 정직하게 말한다. */}
         <Route path="/system" element={<Navigate to="/settings?tab=os" replace />} />
-        <Route path="/llm-console" element={<Navigate to="/settings?tab=ai" replace />} />
+        <Route path="/llm-console" element={<Navigate to="/ai-connection" replace />} />
+        {/* AI 연결(D-539) — 설정의 AI 탭이 화면 하나가 됐다. `/settings?tab=ai` 는 SettingsShell 이 여기로 넘긴다. */}
+        <Route
+          path="/ai-connection"
+          element={(
+            <RequireRole roles={SCREEN_ROLES["ai-connection"]} help="이 화면은 시스템 관리자만 사용할 수 있습니다.">
+              <AiConnection />
+            </RequireRole>
+          )}
+        />
         <Route path="/maintenance" element={<Navigate to="/settings?tab=policy" replace />} />
         {/* FN-01: GET /status는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor) —
             navConfig.js의 /mail 항목과 같은 role 집합. */}

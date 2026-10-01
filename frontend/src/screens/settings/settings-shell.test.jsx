@@ -21,6 +21,9 @@ import { MemoryRouter, useLocation } from "react-router-dom";
  * 화면이 남아 있으면 없어진 쓰기 경로를 사람이 다시 열 수 있다고 말하는 셈이 된다.
  * 여기 남는 것은 그 화면이 걸려 있던 '연동' 탭이 **정말로 없다**는 단언 하나다.
  *
+ * qa-contract-change: 「AI」 탭이 「AI 연결」 화면(`/ai-connection`, D-539)이 되어 그릇의 탭은 셋이다. AI 탭을 누르던 시험은
+ * 옛 주소(`?tab=ai`)가 새 화면으로 넘어가는지로, AI 탭으로 h1 · 토글 반례를 재던 시험은 파일 저장소 탭으로 옮겼다.
+ *
  * qa-contract-change: 「시스템 정책 탭이 그려졌다」를 잡던 표식이 유지보수 판의 「현재 상태」 줄에서 「유지보수 모드」 설정 줄로 옮긴다 —
  * 유지보수 판 둘이 한 판의 설정 줄 둘이 되면서(D-501) 「현재 상태」 낱말이 없어졌다. 판정(그 탭이 그려졌는가 · 권한 없는 역할에게는
  * 안 그려졌는가)은 그대로이고, 기술 정보 토글이 그릇 머리에 서는지 재는 시험 둘을 더한다.
@@ -76,7 +79,7 @@ function renderShell(initialPath = "/settings") {
 const currentPath = () => screen.getByTestId("location-probe").textContent;
 
 describe("설정 탭 — role별 가시성", () => {
-  it("system_admin은 네 탭을 전부 본다", () => {
+  it("system_admin은 세 탭을 전부 본다", () => {
     currentRole = "system_admin";
     renderShell();
     expect(screen.getByRole("tab", { name: "시스템 정책" })).toBeInTheDocument();
@@ -84,11 +87,12 @@ describe("설정 탭 — role별 가시성", () => {
     // 파일 저장소(S20) — S8 의 `/api/storage/*` 를 부르는 첫 화면이고 권한이 os·ai 와
     // 같은 집합이라(STORAGE_CONFIGURE = SYSTEM_ADMIN_ONLY) 이 그릇의 제약을 만족한다.
     expect(screen.getByRole("tab", { name: "파일 저장소" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "AI" })).toBeInTheDocument();
+    // AI 는 탭이 아니라 「AI 연결」 화면이다(D-539).
+    expect(screen.queryByRole("tab", { name: "AI" })).not.toBeInTheDocument();
     // '연동' 탭은 안에 Notion 관리 화면 하나만 들고 있었고, 그 화면이 없어지면서 함께
     // 없어졌다. 빈 탭으로 남기면 사용자는 자기가 못 보는 내용이 있다고 읽는다.
     expect(screen.queryByRole("tab", { name: "연동" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("tab").length).toBe(4);
+    expect(screen.getAllByRole("tab").length).toBe(3);
   });
 
   // Handoff required_tests: "역할 4종(user·operator·auditor·system_admin) × 신규 탭 전체
@@ -151,12 +155,10 @@ describe("설정 탭 — 전환하면 실제로 다른 화면을 그린다", () 
     expect(await screen.findByText("서비스")).toBeInTheDocument();
   });
 
-  it("'AI' 탭을 누르면 AI 설정 고유 영역(연결 상태)이 나타난다", async () => {
+  it("옛 AI 탭 주소는 「AI 연결」 화면으로 넘어간다", async () => {
     currentRole = "system_admin";
-    const user = userEvent.setup();
-    renderShell();
-    await user.click(screen.getByRole("tab", { name: "AI" }));
-    expect(await screen.findByText("연결 상태")).toBeInTheDocument();
+    renderShell("/settings?tab=ai");
+    await waitFor(() => expect(screen.getByTestId("location-probe")).toHaveTextContent("/ai-connection"));
   });
 
   // 없어진 '연동' 탭의 옛 주소(#/settings?tab=integration)가 즐겨찾기에 남아 있을 수 있다.
@@ -192,14 +194,14 @@ describe("설정 탭 — 옛 안내 4문단은 삭제됐다 (Handoff acceptance_
 /* 그릇의 머리 — 제목은 고정이고(D-452) 탭별 설명은 제목 옆 `?` 다(D-453). 예전에는 탭
    라벨이 h1 이라 「AI」가 화면 제목이었고, 설명은 탭 본문 첫 줄의 문단이었다. */
 describe("그릇의 머리 — 제목 고정·탭별 도움말 (D-452 · D-453)", () => {
-  it("AI 탭을 열어도 h1 은 「설정」이다 — 탭 라벨 「AI」가 제목이 되지 않는다", async () => {
+  it("파일 저장소 탭을 열어도 h1 은 「설정」이다 — 탭 라벨이 제목이 되지 않는다", async () => {
     currentRole = "system_admin";
-    renderShell("/settings?tab=ai");
-    await screen.findByRole("tab", { name: "AI" });
+    renderShell("/settings?tab=storage");
+    await screen.findByRole("tab", { name: "파일 저장소" });
     const h1s = screen.getAllByRole("heading", { level: 1 });
     expect(h1s).toHaveLength(1);
     expect(h1s[0]).toHaveTextContent("설정");
-    expect(h1s[0]).not.toHaveTextContent("AI");
+    expect(h1s[0]).not.toHaveTextContent("파일 저장소");
   });
 
   it("OS 탭의 설명은 제목 옆 `?` 도움말이다 — 본문 첫 줄 문단이 아니다", async () => {
@@ -254,8 +256,8 @@ describe("기술 정보 토글 — 그릇 머리의 동작 자리 (D-454 · D-50
     const user = userEvent.setup();
     renderShell();
     await screen.findByRole("button", { name: "기술 정보(설정 키) 보기" });
-    await user.click(screen.getByRole("tab", { name: "AI" }));
-    await screen.findByText("연결 상태");
+    await user.click(screen.getByRole("tab", { name: "OS와 서비스 동작" }));
+    await screen.findByText("서비스");
     expect(screen.queryByRole("button", { name: "기술 정보(설정 키) 보기" })).toBeNull();
   });
 });

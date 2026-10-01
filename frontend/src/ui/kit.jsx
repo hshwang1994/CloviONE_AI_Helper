@@ -3723,7 +3723,8 @@ export const FIELD_WIDTH = { sm: "10rem", md: "16rem", lg: "24rem", xl: "32rem",
  * 은 `FieldRow` 의 12칸 격자에서 문턱별로 차지할 칸 수(`fieldSpan`), `density="dense"` 는 컨트롤 줄을 30 으로 낮춘다.
  */
 export function Field({
-  label, htmlFor, labelId, required, help, error, helpId, action, width = "full", span, density, children, className, sx,
+  label, htmlFor, labelId, required, help, error, helpId, action, width = "full", span, density, fit = false, children,
+  className, sx,
 }) {
   return (
     <Box
@@ -3750,7 +3751,10 @@ export function Field({
       </FieldLabel>
       <Box
         className="k-field-control"
-        sx={{ gridColumn: 1, gridRow: 2, minWidth: 0, display: "flex", alignItems: "stretch", "& > *": { flex: "1 1 auto", minWidth: 0 } }}
+        /* `fit` — 제 폭을 갖는 컨트롤(세그먼티드처럼 선택지 수가 폭인 것)은 칸을 채우지 않는다. 늘이면 선택지 둘짜리가 칸 끝까지
+           벌어져 빈 띠가 된다(P10 캡처). 입력 · 선택 칸은 그대로 채운다. */
+        sx={{ gridColumn: 1, gridRow: 2, minWidth: 0, display: "flex", alignItems: "stretch",
+          "& > *": { flex: fit ? "0 0 auto" : "1 1 auto", minWidth: 0 } }}
       >
         {children}
       </Box>

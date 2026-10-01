@@ -53,7 +53,6 @@ from app.jobs.router import router as jobs_router
 from app.auth.reset_router import router as password_reset_router
 from app.setup.first_admin import router as first_admin_router
 from app.mail.router import router as mail_router
-from app.ai.connect_router import router as ai_connect_router
 from app.ai.usage_router import router as ai_usage_router
 from app.ai.console.router import router as ai_console_router
 from app.offboarding.router import router as offboarding_router
@@ -309,8 +308,6 @@ def create_app(
     # 거기 있다), 이 라우터는 레지스트리로 표현할 수 없는 것만 맡는다. 시크릿 파일과 실제
     # 연결 테스트가 그것이다.
     app.include_router(ai_console_router)
-    # ChatGPT 계정 연결 도우미의 문(D-516). 로그인 세션 없이 짝짓기 토큰으로만 증명한다 - 이유는 라우터 머리말에 있다.
-    app.include_router(ai_connect_router)
     # AI 사용 통계(계획 3.11, D-517) - 호출 기록을 기간과 조건으로 묶어 보인다.
     app.include_router(ai_usage_router)
     app.include_router(admin_router)

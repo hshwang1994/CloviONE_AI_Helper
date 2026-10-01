@@ -1,7 +1,10 @@
 """0038 — ChatGPT 계정 연결 시도 표와 갱신 토큰 만료 알림 시각 (계획 3.14 · 3.15, D-516).
 
+qa-contract-change: 맨 위(head)에서 짝짓기 토큰 해시의 유일 제약을 더는 단언하지 않는다 - 0045 가 연결 도우미와 함께 그 칸을
+걷었다(D-540, `tests/regression/test_migration_0045_chatgpt_paste.py`). state 의 유일 제약과 표 · 칸의 생김과 사라짐은 그대로 잰다.
+
 못박는 성질:
-1. 올리면 시도 표와 알림 시각 칸이 생기고, 짝짓기 토큰 해시와 state 는 중복될 수 없다.
+1. 올리면 시도 표와 알림 시각 칸이 생기고, state 는 중복될 수 없다.
 2. 내리면 둘 다 사라지고 연결 상태 표의 다른 칸은 그대로다. 다시 올려도 된다.
 """
 
@@ -53,7 +56,7 @@ def test_upgrade_creates_the_attempt_table_and_downgrade_removes_it(db, db_url):
         columns = {c["name"] for c in inspector.get_columns("ai_credential_state")}
         assert "refresh_warned_at" in columns
         uniques = {tuple(u["column_names"]) for u in inspector.get_unique_constraints("ai_oauth_transactions")}
-        assert {("pairing_token_hash",), ("state",)} <= uniques
+        assert ("state",) in uniques
 
         _alembic(db_url, "downgrade", BEFORE)
         inspector = sa.inspect(engine)

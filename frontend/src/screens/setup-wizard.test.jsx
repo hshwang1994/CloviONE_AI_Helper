@@ -316,6 +316,8 @@ describe("링크", () => {
       // 적은 것이라 새 경로가 생기면 여기도 같이 늘려야 한다. `notion-console` 은 화면과
       // 함께 라우트도 없어져 여기서 뺐다 — 남겨 두면 죽은 링크를 검사가 눈감아 준다.
       "llm-console",
+      // AI 연결(D-539) — 설정의 AI 탭이 화면 하나가 됐다. AdminRoutes 가 직접 건다.
+      "ai-connection",
       // 조직 콘솔 셋(D-406) — registry 를 떠났지만 AdminRoutes 가 직접 건다
       // (ORG_CONSOLE_KEYS). registry 키 합산만 믿으면 살아 있는 이 경로들을
       // 죽은 링크로 오판한다.
@@ -344,7 +346,7 @@ describe("링크", () => {
     // app/setup/probes.py::probe_llm 은 이제 Model Gateway 의 capabilities 를 읽고, 그
     // 안내가 「AI 설정을 확인하세요」라고 말한다(S11 이전에는 러너 화면이었다). 링크가
     // 다른 곳으로 가면 그 문구를 따라도 이 항목을 고칠 수 있는 화면에 도달하지 못한다.
-    expect(SETUP_LINKS.llm.href).toBe("#/settings?tab=ai");
+    expect(SETUP_LINKS.llm.href).toBe("#/ai-connection");
   });
 });
 

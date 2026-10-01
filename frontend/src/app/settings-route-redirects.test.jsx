@@ -62,12 +62,18 @@ function renderRoute(path) {
 describe("옛 설정류 주소 → /settings 탭 리다이렉트", () => {
   it.each([
     ["/system", "OS와 서비스 동작"],
-    ["/llm-console", "AI"],
     ["/maintenance", "시스템 정책"],
   ])("%s 는 대시보드가 아니라 '%s' 탭으로 간다", async (path, tabLabel) => {
     renderRoute(path);
     expect(await screen.findByRole("tab", { name: tabLabel, selected: true }, WAIT)).toBeInTheDocument();
     // 대시보드로 뭉뚱그려 튕기지 않았다는 것도 명시적으로 못박는다(Dashboard.jsx의 h1 제목).
+    expect(screen.queryByRole("heading", { name: "대시보드" })).not.toBeInTheDocument();
+  });
+
+  // AI 탭은 「AI 연결」 화면이 됐다(D-539) — 옛 `/llm-console` 은 탭이 아니라 그 화면으로 간다.
+  it("/llm-console 는 대시보드가 아니라 「AI 연결」 화면으로 간다", async () => {
+    renderRoute("/llm-console");
+    expect(await screen.findByRole("heading", { name: /AI 연결/, level: 1 }, WAIT)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "대시보드" })).not.toBeInTheDocument();
   });
 

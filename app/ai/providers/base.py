@@ -122,8 +122,9 @@ PROVIDERS: dict[str, ProviderSpec] = {
     PROVIDER_ANTHROPIC: ProviderSpec(
         PROVIDER_ANTHROPIC, "Anthropic",
         (AuthMethod(AUTH_API_KEY, "API 키", SLOT_ANTHROPIC_API_KEY,
-                    "Anthropic 콘솔에서 발급한 조직 API 키를 넣습니다.", "API 키를 아직 넣지 않았습니다."),),
-        help="Anthropic 은 조직 API 키로만 연결할 수 있습니다.",
+                    "Claude 구독 계정으로는 연결할 수 없습니다. Anthropic 콘솔에서 발급한 API 키를 넣으세요.",
+                    "API 키를 아직 넣지 않았습니다."),),
+        help="Anthropic 은 콘솔에서 발급한 API 키로만 연결할 수 있습니다.",
     ),
     PROVIDER_OPENAI: ProviderSpec(
         PROVIDER_OPENAI, "OpenAI",
@@ -141,6 +142,45 @@ PROVIDERS: dict[str, ProviderSpec] = {
 
 def provider_spec(key: str | None) -> ProviderSpec | None:
     return PROVIDERS.get(key or "")
+
+
+# ── 추천 모델 (D-539) ─────────────────────────────────────────────────────────
+#
+# 인증이 끝나면 화면이 모델 목록을 저절로 받고, 모델이 비어 있을 때만 이 표가 고른 하나를 **명시적으로** 저장한다(감사에
+# `auto: true`). 사람이 고른 모델을 바꾸지 않는다. 표는 이름의 앞머리 순서다 — 같은 앞머리 안에서는:
+#   - Anthropic 은 서버가 준 순서(최신 먼저)의 첫 것을 쓴다(`GET /v1/models` 는 만든 날 내림차순이다).
+#   - OpenAI API 키는 앞머리와 똑같은 이름(별칭)을 먼저, 없으면 `mini` · `nano` 가 아닌 가장 짧은 이름을 쓴다(날짜가 붙은
+#     고정판보다 별칭이 짧다).
+#   - ChatGPT 요금제는 표가 없다. 서버 순서의 첫 `visibility=list` 모델이다(목록이 이미 그것만 담는다, `openai.parse_models`).
+#
+# 이름 표 자체는 `app/ai/catalog.py::RECOMMENDED_MODEL_PREFIXES` 에 있다 - 모델 이름이 제품에 적히는 자리는 그 파일 하나다(D-201).
+_SMALL_MARKERS = ("mini", "nano")
+
+
+def recommend(provider: str, auth_method: str, models) -> str | None:
+    """모델 목록(`[{id, label}]`, 서버 순서) → 추천 하나. 목록이 비면 None."""
+    ids = [m.get("id") for m in models or () if isinstance(m, dict) and isinstance(m.get("id"), str) and m.get("id")]
+    if not ids:
+        return None
+    from app.ai.catalog import RECOMMENDED_MODEL_PREFIXES
+
+    prefixes = RECOMMENDED_MODEL_PREFIXES.get((provider, auth_method))
+    if prefixes is None:
+        return None
+    if not prefixes:
+        return ids[0]
+    for prefix in prefixes:
+        if provider == PROVIDER_ANTHROPIC:
+            hit = next((i for i in ids if i.startswith(prefix)), None)
+            if hit:
+                return hit
+            continue
+        if prefix in ids:
+            return prefix
+        family = [i for i in ids if i.startswith(prefix + "-") and not any(m in i for m in _SMALL_MARKERS)]
+        if family:
+            return min(family, key=lambda i: (len(i), i))
+    return None
 
 
 def build_adapter(provider: str, auth_method: str, *, outbound, secrets, tokens=None) -> ProviderAdapter | None:

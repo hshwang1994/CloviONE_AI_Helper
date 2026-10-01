@@ -1,6 +1,11 @@
-"""AI 설정 API — `/api/admin/ai` (계획 3.13 · 3.14, D-515).
+"""AI 연결 API — `/api/admin/ai` (계획 A3, D-515 · D-539). 화면은 `/ai-connection` 이다.
 
 qa-contract-replaced-by: tests/integration/test_llm_console.py
+
+qa-contract-change: 모델 목록 응답에 추천 표지(`recommended` · `recommended_id`)가 붙고, 인증 · 모델을 바꾸거나 AI 사용을 켜면
+저장 응답이 연결 확인 잡을 함께 연다(D-539) — 그래서 「확인 잡의 감사가 정확히 한 행」 단언을 「저장이 연 확인을 「지금 확인」이
+다시 쓰고, 감사에 까닭이 남는다」로 옮겼다. 확인 단추를 누르지 않아도 정상에 닿는다는 성질과 상태 낱말(확인 중 · 꺼짐)은 새
+시험이 잰다.
 
 옛 `/api/admin/llm` 시험을 대신한다. 서버에 로그인된 명령줄 도구와 환경 변수 오버레이가 없어졌으므로 그 둘을 재던
 단언(로그인 안내, 환경 변수 우선순위, 실행 파일)은 옮기지 않았다. 연결 확인이 잡이고 한 번만 시도한다는 것, 감사에
@@ -11,8 +16,10 @@ qa-contract-replaced-by: tests/integration/test_llm_console.py
   * 화면이 한 번에 받는 값: 설정, 연결 상태, 제공자 표(지원하는 인증 방식만), AI 기능 스위치, 범위.
   * 저장은 한 벌로 검사한다 - 모르는 제공자, 모델 없이 켜기, 범위 밖 제한 시간은 422 다. 저장은 감사에 남는다.
   * 키를 넣으면 끝 네 글자만 보인다. 키는 어디에도 되돌아오지 않는다.
-  * 모델 목록은 제공자에게서 받고, 못 받으면 502 와 까닭이다.
-  * 연결 확인은 잡이다. 워커가 돌면 결과와 연결 상태가 함께 온다.
+  * 모델 목록은 제공자에게서 받고, 못 받으면 502 와 까닭이다. 추천은 표의 앞머리 순서다(저장하지 않는다).
+  * 연결 확인은 잡이다. 인증 · 모델을 바꾸거나 AI 사용을 켜면 저절로 열리고, 워커가 돌면 결과와 연결 상태가 함께 온다.
+  * 상태 낱말은 서버가 정한다: 미설정 · 확인 중 · 꺼짐 · 정상 · 연결 오류(초기 설정의 AI 항목과 같은 함수).
+  * 연결 확인은 도구 시험까지 한다 - 도구 호출이 오면 「도구 호출 사용 가능」이다. 도구 시험의 실패는 확인을 실패시키지 않는다.
 """
 
 from __future__ import annotations
@@ -105,16 +112,38 @@ def test_models_come_from_the_provider_and_a_failure_is_a_502(client, login_as, 
     fake_http.on(MODELS, json_body={"data": [{"id": "claude-a", "display_name": "Claude A"}]})
     good = client.get("/api/admin/ai/models", params={"provider": "anthropic", "auth_method": "api_key"},
                       headers={"X-CSRF-Token": csrf})
-    assert good.status_code == 200 and good.json()["models"] == [{"id": "claude-a", "label": "Claude A"}]
+    assert good.status_code == 200
+    assert good.json() == {"models": [{"id": "claude-a", "label": "Claude A", "recommended": False}],
+                           "recommended_id": None}
+
+
+def test_the_recommendation_follows_the_table_and_is_not_saved(client, login_as, settings, fake_http):
+    (settings.secrets_dir / "ai.anthropic.api_key").write_text(KEY, encoding="utf-8")
+    csrf = login_as("system_admin")
+    fake_http.on(MODELS, json_body={"data": [
+        {"id": "claude-haiku-9-1", "display_name": "Claude Haiku 9.1"},
+        {"id": "claude-sonnet-9-2", "display_name": "Claude Sonnet 9.2"},
+        {"id": "claude-sonnet-9-1", "display_name": "Claude Sonnet 9.1"},
+    ]})
+    body = client.get("/api/admin/ai/models", params={"provider": "anthropic", "auth_method": "api_key"},
+                      headers={"X-CSRF-Token": csrf}).json()
+    assert body["recommended_id"] == "claude-sonnet-9-2", "서버 순서(최신 먼저)의 첫 sonnet 이 추천이다"
+    assert [m["id"] for m in body["models"] if m["recommended"]] == ["claude-sonnet-9-2"]
+    assert client.get("/api/admin/ai").json()["config"]["model"] == "", "추천만으로 저장하지 않는다"
 
 
 def test_verify_is_a_one_shot_job_whose_result_carries_the_state(client, login_as, app, settings, fake_http,
                                                                   fake_clock, db):
     (settings.secrets_dir / "ai.anthropic.api_key").write_text(KEY, encoding="utf-8")
     csrf = login_as("system_admin")
-    assert _put(client, csrf, {"provider": "anthropic", "model": "claude-test"}).status_code == 200
+    saved = _put(client, csrf, {"provider": "anthropic", "model": "claude-test"})
+    assert saved.status_code == 200
+    opened = saved.json()["verify_job_id"]
+    assert opened, "인증 · 모델이 정해졌는데 확인을 저절로 열지 않았다"
+    assert saved.json()["state"]["display"]["label"] == "확인 중"
     fake_http.on(MESSAGES, json_body=_ok(text="확인"))
     started = client.post("/api/admin/ai/verify", headers={"X-CSRF-Token": csrf}).json()
+    assert started["job_id"] == opened, "큐에 있는 확인이 있으면 같은 설정을 두 번 재지 않는다"
     pending = client.get(f"/api/admin/ai/verify/{started['job_id']}", headers={"X-CSRF-Token": csrf}).json()
     assert pending["pending"] is True and pending["result"] is None, "큐에 있는데 결과를 지어냈다"
 
@@ -126,7 +155,68 @@ def test_verify_is_a_one_shot_job_whose_result_carries_the_state(client, login_a
 
     db.expire_all()
     assert db.get(Job, started["job_id"]).max_attempts == 1
-    assert db.execute(select(AuditLog).where(AuditLog.action == "ai.connection.test")).scalar_one()
+    reasons = sorted(row.after_json for row in db.execute(
+        select(AuditLog).where(AuditLog.action == "ai.connection.test")).scalars())
+    assert len(reasons) == 2 and '"config"' in reasons[0] and '"manual"' in reasons[1], reasons
+
+
+def test_saving_the_connection_reaches_ok_without_pressing_verify(client, login_as, app, settings, fake_http,
+                                                                    fake_clock):
+    """D-539: 키를 넣고 모델을 정하면 사람이 확인 단추를 누르지 않아도 「확인 중 → 정상」이다. 제한 시간만 바꾸면 다시
+    재지 않는다. AI 사용을 켜면 다시 잰다. 꺼져 있으면 연결이 정상이어도 낱말은 「꺼짐」이다."""
+    (settings.secrets_dir / "ai.anthropic.api_key").write_text(KEY, encoding="utf-8")
+    csrf = login_as("system_admin")
+    assert client.get("/api/admin/ai").json()["state"]["display"]["label"] == "미설정"
+    fake_http.on(MESSAGES, json_body=_ok(text="확인"))
+    assert _put(client, csrf, {"provider": "anthropic", "model": "claude-test"}).json()["verify_job_id"]
+    _drain(app, settings, fake_clock)
+    shown = client.get("/api/admin/ai").json()["state"]
+    assert shown["verifying"] is False and shown["state"] == "ok"
+    assert shown["display"]["label"] == "꺼짐", "AI 사용이 꺼져 있으면 연결이 정상이어도 꺼짐이다"
+
+    assert _put(client, csrf, {"timeout_seconds": 45}).json()["verify_job_id"] is None, "연결의 성질이 아닌 값"
+    turned_on = _put(client, csrf, {"generation_enabled": True}).json()
+    assert turned_on["verify_job_id"], "AI 사용을 켜면 다시 잰다"
+    _drain(app, settings, fake_clock)
+    assert client.get("/api/admin/ai").json()["state"]["display"]["label"] == "정상"
+
+
+def test_an_automatically_chosen_model_is_marked_in_the_audit(client, login_as, settings, db):
+    (settings.secrets_dir / "ai.anthropic.api_key").write_text(KEY, encoding="utf-8")
+    csrf = login_as("system_admin")
+    assert _put(client, csrf, {"provider": "anthropic", "model": "claude-sonnet-9-2", "auto_model": True}).status_code == 200
+    db.expire_all()
+    row = db.execute(select(AuditLog).where(AuditLog.action == "ai.config.update")).scalar_one()
+    assert '"auto": true' in row.after_json and "claude-sonnet-9-2" in row.after_json
+
+
+def test_verify_also_probes_tools_and_a_refusal_does_not_fail_it(client, login_as, app, settings, fake_http,
+                                                                   fake_clock):
+    import json as _json
+
+    import httpx
+
+    (settings.secrets_dir / "ai.anthropic.api_key").write_text(KEY, encoding="utf-8")
+    csrf = login_as("system_admin")
+    seen: list = []
+
+    def provider(request):
+        body = _json.loads(request.content)
+        seen.append(body)
+        if body.get("tools"):
+            assert body["tool_choice"] == {"type": "tool", "name": "ping"}
+            return httpx.Response(200, json={"content": [{"type": "tool_use", "id": "t1", "name": "ping", "input": {}}],
+                                             "stop_reason": "tool_use",
+                                             "usage": {"input_tokens": 3, "output_tokens": 2}}, request=request)
+        return httpx.Response(200, json=_ok(text="확인"), request=request)
+
+    fake_http.on_handler(MESSAGES, provider)
+    _put(client, csrf, {"provider": "anthropic", "model": "claude-test"})
+    _drain(app, settings, fake_clock)
+    body = client.get("/api/admin/ai").json()
+    assert body["state"]["state"] == "ok"
+    assert body["capabilities"]["tools"] == "ok", "도구 호출을 받았는데 모른다고 했다"
+    assert [bool(b.get("tools")) for b in seen] == [False, True], "생성 한 번, 도구 시험 한 번이다"
 
 
 def test_verify_right_after_saving_reads_what_was_saved_not_a_stale_worker_cache(
@@ -190,3 +280,4 @@ def test_a_failed_verify_says_why_in_our_words(client, login_as, app, settings, 
     assert done["result"]["ok"] is False and "API 키가 거부" in done["result"]["message"]
     assert "raw-secret-ish" not in str(done), "제공자 원문이 화면으로 나갔다"
     assert done["state"]["state"] == "error"
+    assert client.get("/api/admin/ai").json()["state"]["display"]["label"] == "연결 오류"

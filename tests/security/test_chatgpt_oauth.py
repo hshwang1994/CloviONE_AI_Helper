@@ -1,16 +1,21 @@
-"""ChatGPT 계정 연결 흐름의 보안 (계획 3.14, D-516).
+"""ChatGPT 계정 연결 흐름의 보안 — 붙여 넣기 로그인 하나 (계획 A3, D-516 · D-540).
+
+qa-contract-change: 연결 도우미와 짝짓기 토큰이 없어졌다(D-540). 짝짓기 토큰의 길이 · 해시 저장 · 한 번 쓰기 · 같은 거절 문장,
+도우미 문의 Origin 검사 · 속도 제한 · 파일 내려주기 시험은 그 대상이 사라져 걷었다. 그 자리는 「도우미 문이 다시 생기지 않는다」
+(이 파일과 `tests/regression/test_no_connect_helper.py`)와 「시도마다 높은 포트를 무작위로 고른다」가 잰다. state 다섯 번 · 교환
+계약 · 응답에 비밀 없음 · 시도의 주인 · 루프백 주소만 받기 · 로그아웃 성질은 그대로 옮겼다.
 
 못박는 성질:
-1. 짝짓기 토큰은 256비트 무작위 값이고 서버에는 해시만 있다. 원문은 시작 응답에만 실리고 DB, 감사, 로그 어디에도 없다.
-2. 짝짓기 토큰은 한 번만 쓴다. 틀린 토큰, 다시 쓴 토큰, 만료된 토큰은 같은 한 문장으로 거절된다.
-3. state 가 틀린 끝내기는 실패로 세고, 다섯 번이면 그 시도를 닫는다.
-4. 인가 코드 교환은 공식 계약대로다: 도우미가 고른 포트의 같은 redirect_uri, 서버가 만든 PKCE verifier, client secret
+1. 시작 응답은 `flow: "paste"` 와 인가 주소이고, 시도마다 49152 ~ 65535 의 포트를 새로 고른다. 명령 · 도우미 내려받기가 없다.
+2. state 가 틀린 끝내기는 실패로 세고, 다섯 번이면 그 시도를 닫는다(맞는 state 도 더는 받지 않는다).
+3. 인가 코드 교환은 공식 계약대로다: 이 시도의 포트로 만든 같은 redirect_uri, 서버가 만든 PKCE verifier, client secret
    없음. ID 토큰의 nonce 가 틀리면 믿지 않는다. 요금제 사용 권한을 받지 못하면 연결하지 않는다.
-5. 응답에는 토큰과 인가 코드가 없다 - 계정 이름만 있다.
-6. 연결 시도는 시작한 관리자와 그 세션만 본다. AI 설정 권한이 없는 역할은 시작할 수 없다.
-7. 대체 경로는 루프백 주소와 정해진 경로와 이 시도의 포트만 받는다.
-8. 도우미의 문은 다른 사이트에서 온 브라우저 요청을 받지 않고, 한 IP 의 요청 폭주를 막는다.
-9. 로그아웃은 제공자에 갱신 토큰 무효화를 요청하고, 결과와 상관없이 이 서버의 토큰을 지운다.
+4. 응답 · 감사 · 로그에는 토큰과 인가 코드가 없다 - 계정 이름만 있다.
+5. 연결 시도는 시작한 관리자와 그 세션만 본다. AI 설정 권한이 없는 역할은 시작할 수 없다.
+6. 붙여 넣은 주소는 루프백 주소와 정해진 경로와 이 시도의 포트만 받는다. 끝난 시도에 같은 주소를 다시 넣어도 코드를 두 번
+   쓰지 않는다. 새로 시작하면 앞 시도는 닫힌다. 10분이 지나면 끝낼 수 없다.
+7. 쿠키 없는 도우미 문(`/api/connect/*`)과 도우미 파일(`/connect/*`)은 없다.
+8. 로그아웃은 제공자에 갱신 토큰 무효화를 요청하고, 결과와 상관없이 이 서버의 토큰을 지운다.
 """
 
 from __future__ import annotations
@@ -19,7 +24,6 @@ import base64
 import hashlib
 import json
 import logging
-import re
 import time
 from urllib.parse import parse_qs, urlsplit
 
@@ -30,7 +34,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from app.ai.credentials import chatgpt
+from app.ai.credentials import chatgpt, oauth
 
 pytestmark = pytest.mark.security
 
@@ -63,20 +67,10 @@ def _id_token(key, *, nonce: str, aud: str = ISSUED) -> str:
                        "exp": now + 600, "nonce": nonce}, key, algorithm="RS256", headers={"kid": "k1"})
 
 
-def _start(client, csrf) -> tuple[dict, str]:
+def _start(client, csrf) -> dict:
     reply = client.post("/api/admin/ai/oauth/openai/start", headers={"X-CSRF-Token": csrf})
     assert reply.status_code == 200, reply.text
-    body = reply.json()
-    token = re.search(r"--token (\S+)", body["commands"]["unix"]).group(1)
-    return body, token
-
-
-def _helper(app) -> TestClient:
-    return TestClient(app, raise_server_exceptions=False)
-
-
-def _begin(helper, token, port=1460):
-    return helper.post("/api/connect/openai/begin", json={"pairing_token": token, "port": port})
+    return reply.json()
 
 
 def _query(url: str) -> dict:
@@ -101,91 +95,90 @@ def _provider(fake_http, key, *, nonce_from, scope="openid profile email offline
     fake_http.on(chatgpt.JWKS_URL, json_body=_jwks(key))
 
 
-def _complete(helper, token, tx, *, state, code="AUTH-CODE-1", client_id=ISSUED):
-    return helper.post("/api/connect/openai/complete", json={
-        "pairing_token": token, "transaction_id": tx,
-        "callback": {"code": code, "state": state, "client_id": client_id,
-                     "scope": "openid chatgpt.tokens.use.direct"},
-    })
+def _paste(client, csrf, tx, url):
+    return client.post(f"/api/admin/ai/oauth/openai/transactions/{tx}/complete",
+                       json={"callback_url": url}, headers={"X-CSRF-Token": csrf})
 
 
-# ── 1 · 2: 짝짓기 토큰 ────────────────────────────────────────────────────────
+def _callback(started, *, state=None, code="AUTH-CODE-1", client_id=ISSUED, port=None):
+    query = _query(started["authorize_url"])
+    redirect = query["redirect_uri"] if port is None else f"http://127.0.0.1:{port}/auth/callback"
+    return (f"{redirect}?code={code}&state={state or query['state']}&client_id={client_id}"
+            "&scope=chatgpt.tokens.use.direct")
 
 
-def test_the_pairing_token_is_long_random_and_stored_only_as_a_hash(client, login_as, db, caplog):
-    caplog.set_level(logging.DEBUG)
-    started, token = _start(client, login_as("system_admin"))
-    assert len(base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))) >= 32, "256비트보다 짧다"
-    row = db.execute(text("SELECT * FROM ai_oauth_transactions WHERE id = :id"),
-                     {"id": started["transaction_id"]}).mappings().one()
-    assert row["pairing_token_hash"] == hashlib.sha256(token.encode()).hexdigest()
-    assert token not in json.dumps({k: str(v) for k, v in row.items()})
-    audits = db.execute(text("SELECT coalesce(after_json::text, '') FROM audit_logs WHERE action = 'ai.oauth.start'"))
-    assert all(token not in value for (value,) in audits)
-    assert token not in caplog.text
+# ── 1: 시작 ───────────────────────────────────────────────────────────────────
 
 
-def test_wrong_reused_and_expired_tokens_are_refused_alike(app, client, login_as, fake_clock):
+def test_start_is_a_paste_flow_on_a_fresh_high_port_each_time(client, login_as):
     csrf = login_as("system_admin")
-    _started, token = _start(client, csrf)
-    helper = _helper(app)
-    wrong = _begin(helper, "x" * 43)
-    assert wrong.status_code == 403
-    assert _begin(helper, token).status_code == 200
-    reused = _begin(helper, token)
-    assert reused.status_code == 403
-    assert reused.json()["error"]["message"] == wrong.json()["error"]["message"], "까닭을 자세히 말하지 않는다"
-    _second, fresh = _start(client, csrf)
-    fake_clock.advance(11 * 60)
-    assert _begin(helper, fresh).status_code == 403, "10분이 지난 토큰"
+    first, second = _start(client, csrf), _start(client, csrf)
+    for started in (first, second):
+        assert started["flow"] == "paste" and started["phase"] == "browser"
+        assert not {"commands", "downloads", "server_url", "fingerprint"} & set(started), "도우미 흔적이 남았다"
+        redirect = urlsplit(_query(started["authorize_url"])["redirect_uri"])
+        assert (redirect.scheme, redirect.hostname, redirect.path) == ("http", "127.0.0.1", "/auth/callback")
+        assert oauth.PORT_MIN <= redirect.port <= oauth.PORT_MAX
+        assert started["redirect_uri"] == _query(started["authorize_url"])["redirect_uri"]
+    ports = {urlsplit(_query(s["authorize_url"])["redirect_uri"]).port for s in (first, second)}
+    states = {_query(s["authorize_url"])["state"] for s in (first, second)}
+    assert len(states) == 2, "시도마다 state 가 새로 생긴다"
+    # 포트는 무작위라 두 번이 겹칠 수는 있다 - 범위와 분포는 아래 시험이 잰다.
+    assert all(oauth.PORT_MIN <= port <= oauth.PORT_MAX for port in ports)
 
 
-def test_starting_again_closes_the_previous_attempt(app, client, login_as):
+def test_ports_are_drawn_from_the_whole_dynamic_range():
+    drawn = {oauth.pick_port() for _ in range(400)}
+    assert all(oauth.PORT_MIN <= port <= oauth.PORT_MAX for port in drawn)
+    assert len(drawn) > 300, "같은 포트가 너무 자주 나온다 - 무작위가 아니다"
+
+
+def test_starting_again_closes_the_previous_attempt(client, login_as, fake_http, signing_key):
     csrf = login_as("system_admin")
-    _first, old = _start(client, csrf)
+    old = _start(client, csrf)
     _start(client, csrf)
-    assert _begin(_helper(app), old).status_code == 403
-
-
-# ── 3: state ──────────────────────────────────────────────────────────────────
-
-
-def test_state_mismatches_count_and_five_close_the_attempt(app, client, login_as, fake_http, signing_key):
-    started, token = _start(client, login_as("system_admin"))
-    helper = _helper(app)
-    begun = _begin(helper, token).json()
-    real_state = _query(begun["authorize_url"])["state"]
-    _provider(fake_http, signing_key, nonce_from=lambda: _query(begun["authorize_url"])["nonce"])
-    for _ in range(5):
-        assert _complete(helper, token, started["transaction_id"], state="forged").status_code == 409
-    closed = _complete(helper, token, started["transaction_id"], state=real_state)
-    assert closed.status_code == 403, "다섯 번 틀린 뒤에는 맞는 state 도 받지 않는다"
+    _provider(fake_http, signing_key, nonce_from=lambda: _query(old["authorize_url"])["nonce"])
+    late = _paste(client, csrf, old["transaction_id"], _callback(old))
+    assert late.status_code == 409
+    assert "새 연결" in late.json()["error"]["message"]
     assert not [r for r in fake_http.requests if str(r.url).startswith(chatgpt.TOKEN_URL)]
 
 
-# ── 4 · 5: 교환과 응답 ────────────────────────────────────────────────────────
+# ── 2: state ──────────────────────────────────────────────────────────────────
+
+
+def test_state_mismatches_count_and_five_close_the_attempt(client, login_as, fake_http, signing_key):
+    csrf = login_as("system_admin")
+    started = _start(client, csrf)
+    tx = started["transaction_id"]
+    _provider(fake_http, signing_key, nonce_from=lambda: _query(started["authorize_url"])["nonce"])
+    for _ in range(5):
+        assert _paste(client, csrf, tx, _callback(started, state="forged")).status_code == 409
+    closed = _paste(client, csrf, tx, _callback(started))
+    assert closed.status_code == 409, "다섯 번 틀린 뒤에는 맞는 state 도 받지 않는다"
+    assert not [r for r in fake_http.requests if str(r.url).startswith(chatgpt.TOKEN_URL)]
+
+
+# ── 3 · 4: 교환과 응답 ────────────────────────────────────────────────────────
 
 
 def test_the_code_exchange_follows_the_contract_and_leaks_nothing(app, client, login_as, fake_http, signing_key,
                                                                    db, caplog):
     caplog.set_level(logging.DEBUG)
     csrf = login_as("system_admin")
-    started, token = _start(client, csrf)
-    helper = _helper(app)
-    begun = _begin(helper, token, port=1461).json()
-    query = _query(begun["authorize_url"])
-    assert query["redirect_uri"] == "http://127.0.0.1:1461/auth/callback"
+    started = _start(client, csrf)
+    query = _query(started["authorize_url"])
     assert query["client_id"] == chatgpt.DYNAMIC_CLIENT_ID and query["agent_name_hint"] == "ClovirAssist"
     assert query["ext_agent_host_id"].startswith("urn:uuid:")
     seen: list = []
     _provider(fake_http, signing_key, nonce_from=lambda: query["nonce"], seen=seen)
-    done = _complete(helper, token, started["transaction_id"], state=query["state"])
+    done = _paste(client, csrf, started["transaction_id"], _callback(started))
     assert done.status_code == 200, done.text
-    assert done.json() == {"ok": True, "account_label": EMAIL}
+    assert done.json()["ok"] is True and done.json()["account_label"] == EMAIL
 
     form = seen[0]
     assert form["grant_type"] == "authorization_code" and form["code"] == "AUTH-CODE-1"
-    assert form["client_id"] == ISSUED and form["redirect_uri"] == "http://127.0.0.1:1461/auth/callback"
+    assert form["client_id"] == ISSUED and form["redirect_uri"] == query["redirect_uri"]
     assert "client_secret" not in form
     digest = hashlib.sha256(form["code_verifier"].encode("ascii")).digest()
     assert base64.urlsafe_b64encode(digest).rstrip(b"=").decode() == query["code_challenge"]
@@ -201,27 +194,28 @@ def test_the_code_exchange_follows_the_contract_and_leaks_nothing(app, client, l
     everything = done.text + polled.text + json.dumps(overview) + caplog.text
     audits = db.execute(text("SELECT coalesce(after_json::text, '') FROM audit_logs WHERE action LIKE 'ai.oauth.%'"))
     everything += " ".join(value for (value,) in audits)
-    for secret in ("ACCESS-SECRET-VALUE", "REFRESH-SECRET-VALUE", "AUTH-CODE-1", token, form["code_verifier"]):
+    for secret in ("ACCESS-SECRET-VALUE", "REFRESH-SECRET-VALUE", "AUTH-CODE-1", form["code_verifier"]):
         assert secret not in everything, "응답, 감사, 로그에 토큰이나 코드가 새면 안 된다"
+
+    again = _paste(client, csrf, started["transaction_id"], _callback(started))
+    assert again.status_code == 409 and len(seen) == 1, "끝난 시도에 같은 주소를 넣어 코드를 두 번 썼다"
 
 
 def test_a_wrong_nonce_or_missing_plan_scope_does_not_connect(app, client, login_as, fake_http, signing_key):
     csrf = login_as("system_admin")
     for kwargs, reason in (({"id_nonce": "someone-elses-nonce"}, "id_token_invalid"),
                            ({"scope": "openid profile email offline_access"}, "plan_scope_missing")):
-        started, token = _start(client, csrf)
-        helper = _helper(app)
-        begun = _begin(helper, token).json()
-        query = _query(begun["authorize_url"])
+        started = _start(client, csrf)
+        query = _query(started["authorize_url"])
         _provider(fake_http, signing_key, nonce_from=lambda q=query: q["nonce"], **kwargs)
-        failed = _complete(helper, token, started["transaction_id"], state=query["state"])
+        failed = _paste(client, csrf, started["transaction_id"], _callback(started))
         assert failed.status_code == 409, failed.text
         polled = client.get(f"/api/admin/ai/oauth/openai/transactions/{started['transaction_id']}").json()
         assert (polled["phase"], polled["error_code"]) == ("failed", reason)
     assert not (app.state.settings.secrets_dir / SLOT).exists()
 
 
-# ── 6: 누가 볼 수 있는가 ──────────────────────────────────────────────────────
+# ── 5: 누가 볼 수 있는가 ──────────────────────────────────────────────────────
 
 
 def test_only_system_admins_can_start(client, login_as):
@@ -229,72 +223,66 @@ def test_only_system_admins_can_start(client, login_as):
     assert client.post("/api/admin/ai/oauth/openai/start", headers={"X-CSRF-Token": csrf}).status_code == 403
 
 
-def test_another_admin_or_another_session_cannot_poll(app, client, login_as, make_user):
-    started, _token = _start(client, login_as("system_admin"))
+def test_another_admin_or_another_session_cannot_poll_or_complete(app, client, login_as, make_user):
+    started = _start(client, login_as("system_admin"))
     path = f"/api/admin/ai/oauth/openai/transactions/{started['transaction_id']}"
     assert client.get(path).status_code == 200
-    with TestClient(app, raise_server_exceptions=False) as other:
+    with TestClient(app, base_url="https://testserver", raise_server_exceptions=False) as other:
         make_user(email="other-sa@goodmit.co.kr", role="system_admin")
-        assert other.post("/login", json={"email": "other-sa@goodmit.co.kr",
-                                           "password": "Str0ng-Passw0rd!"}).status_code == 200
+        login = other.post("/login", json={"email": "other-sa@goodmit.co.kr", "password": "Str0ng-Passw0rd!"})
+        assert login.status_code == 200
         assert other.get(path).status_code == 404
-    with TestClient(app, raise_server_exceptions=False) as same_person:
+        csrf = login.json().get("csrf_token") or other.cookies.get("csrf_token") or ""
+        refused = other.post(path + "/complete", json={"callback_url": _callback(started)},
+                             headers={"X-CSRF-Token": csrf})
+        assert refused.status_code in (403, 404), "남의 시도를 끝낼 수 있다"
+    with TestClient(app, base_url="https://testserver", raise_server_exceptions=False) as same_person:
         assert same_person.post("/login", json={"email": "system-admin@goodmit.co.kr",
                                                  "password": "Str0ng-Passw0rd!"}).status_code == 200
         assert same_person.get(path).status_code == 404, "같은 사람이라도 다른 세션은 이 시도를 모른다"
 
 
-# ── 7: 대체 경로 ──────────────────────────────────────────────────────────────
+# ── 6: 붙여 넣은 주소 ─────────────────────────────────────────────────────────
 
 
-def test_the_manual_path_accepts_only_this_attempts_loopback_callback(app, client, login_as, fake_http, signing_key):
+def test_only_this_attempts_loopback_callback_is_accepted(client, login_as, fake_http, signing_key):
     csrf = login_as("system_admin")
-    started, _token = _start(client, csrf)
+    started = _start(client, csrf)
     tx = started["transaction_id"]
-    manual = client.post(f"/api/admin/ai/oauth/openai/transactions/{tx}/manual", headers={"X-CSRF-Token": csrf})
-    assert manual.status_code == 200
-    query = _query(manual.json()["authorize_url"])
-    assert query["redirect_uri"] == "http://127.0.0.1:1455/auth/callback"
-    _provider(fake_http, signing_key, nonce_from=lambda: query["nonce"])
-    tail = f"?code=C1&state={query['state']}&client_id={ISSUED}&scope=chatgpt.tokens.use.direct"
-    for bad in ("http://localhost:1455/auth/callback", "http://127.0.0.1:1455/callback",
-                "http://127.0.0.1:9999/auth/callback", "https://127.0.0.1:1455/auth/callback",
-                "http://evil.example:1455/auth/callback"):
-        refused = client.post(f"/api/admin/ai/oauth/openai/transactions/{tx}/complete",
-                              json={"callback_url": bad + tail}, headers={"X-CSRF-Token": csrf})
+    port = urlsplit(started["redirect_uri"]).port
+    other_port = oauth.PORT_MIN if port != oauth.PORT_MIN else oauth.PORT_MAX
+    _provider(fake_http, signing_key, nonce_from=lambda: _query(started["authorize_url"])["nonce"])
+    tail = _callback(started).split("?", 1)[1]
+    for bad in (f"http://localhost:{port}/auth/callback", f"http://127.0.0.1:{port}/callback",
+                f"http://127.0.0.1:{other_port}/auth/callback", f"https://127.0.0.1:{port}/auth/callback",
+                f"http://evil.example:{port}/auth/callback"):
+        refused = _paste(client, csrf, tx, bad + "?" + tail)
         assert refused.status_code == 409, bad
-    done = client.post(f"/api/admin/ai/oauth/openai/transactions/{tx}/complete",
-                       json={"callback_url": "http://127.0.0.1:1455/auth/callback" + tail},
-                       headers={"X-CSRF-Token": csrf})
+    done = _paste(client, csrf, tx, _callback(started))
     assert done.status_code == 200 and done.json()["account_label"] == EMAIL
 
 
-# ── 8: 도우미의 문 ────────────────────────────────────────────────────────────
+def test_an_expired_attempt_cannot_be_completed(client, login_as, fake_http, signing_key, fake_clock):
+    csrf = login_as("system_admin")
+    started = _start(client, csrf)
+    _provider(fake_http, signing_key, nonce_from=lambda: _query(started["authorize_url"])["nonce"])
+    fake_clock.advance(11 * 60)
+    late = _paste(client, csrf, started["transaction_id"], _callback(started))
+    assert late.status_code == 409 and "시간이 지났" in late.json()["error"]["message"]
 
 
-def test_the_helper_door_refuses_cross_site_browser_requests(app, client, login_as):
-    _started, token = _start(client, login_as("system_admin"))
-    reply = _helper(app).post("/api/connect/openai/begin", json={"pairing_token": token, "port": 1460},
-                              headers={"Sec-Fetch-Site": "cross-site"})
-    assert reply.status_code == 403 and reply.json()["error"]["code"] == "origin_mismatch"
+# ── 7: 도우미 문은 없다 ───────────────────────────────────────────────────────
 
 
-def test_the_helper_door_limits_a_flood_from_one_address(app):
-    helper = _helper(app)
-    codes = [_begin(helper, "y" * 43).status_code for _ in range(12)]
-    assert codes[0] == 403 and codes[-1] == 429
+def test_the_helper_door_and_files_are_gone(client, login_as):
+    login_as("system_admin")
+    for path in ("/api/connect/openai/begin", "/api/connect/openai/complete"):
+        assert client.post(path, json={"pairing_token": "x" * 43, "port": 50000}).status_code in (404, 405), path
+    for path in ("/connect/clovirassist-connect.ps1", "/connect/clovirassist-connect.py"):
+        assert client.get(path).status_code == 404, path
 
 
-def test_helper_files_are_served_and_nothing_else(client):
-    got = client.get("/connect/clovirassist-connect.py")
-    assert got.status_code == 200 and "attachment" in got.headers["content-disposition"]
-    assert b"api/connect/openai/begin" in got.content
-    assert client.get("/connect/clovirassist-connect.ps1").status_code == 200
-    for bad in ("/connect/main.py", "/connect/..%2Fapp%2Fmain.py", "/connect/%2e%2e%2fconfig%2fallowed-services.json"):
-        assert client.get(bad).status_code == 404, bad
-
-
-# ── 9: 로그아웃 ───────────────────────────────────────────────────────────────
+# ── 8: 로그아웃 ───────────────────────────────────────────────────────────────
 
 
 def test_logout_revokes_then_forgets_even_if_revocation_fails(app, client, login_as, fake_http):

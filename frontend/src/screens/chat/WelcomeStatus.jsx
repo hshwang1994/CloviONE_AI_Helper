@@ -63,7 +63,7 @@ export function AssistantUnavailable({ assistant, layout = "page" }) {
         help={unavailableHelp(assistant)}
         action={(
           <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center">
-            {admin ? <Button variant="primary" size="sm" href="#/settings?tab=ai">AI 연결 열기</Button> : null}
+            {admin ? <Button variant="primary" size="sm" href="#/ai-connection">AI 연결 열기</Button> : null}
             <Button size="sm" href="#/ai">문서에서 찾기</Button>
           </Stack>
         )}

@@ -15693,7 +15693,7 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/s22-final/results.json"
    },
-   "status": "IN_PROGRESS",
+   "status": "RETIRED",
    "wave": "W8",
    "findings": [
     {
@@ -15912,7 +15912,8 @@
      "measured_note": "후보 2건 · 가장 빈 면 356x833 잉크 60% (내용 폭 비 0.91) div#settings-tabpanel-ai > div.c-screen.MuiBox-root > div.MuiPaper-root.MuiPaper-elevation",
      "sample_combo": "390x844/light"
     }
-   }
+   },
+   "status_note": "2026-10-02 P10(D-539): 설정의 AI 탭은 「AI 연결」 화면(`/ai-connection`, `screens/ai/AiConnection.jsx`)이 됐다. 이 탭 주소는 그 화면으로 넘긴다. 새 화면의 감사는 아직 하지 않았다(Acceptance 회차의 일)."
   },
   {
    "id": "admin_settings__os",

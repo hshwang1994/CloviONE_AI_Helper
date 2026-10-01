@@ -402,7 +402,7 @@ export function Chat() {
             {/* 지난 대화를 보는 중에 AI 를 쓸 수 없게 되면 스레드는 그대로 두고 입력 칸 위에서 까닭을 말한다. */}
             {unavailable && cid && items.length ? (
               <Callout tone="warn" compact
-                action={assistant.can_configure ? <Button size="sm" href="#/settings?tab=ai">AI 연결 열기</Button> : null}>
+                action={assistant.can_configure ? <Button size="sm" href="#/ai-connection">AI 연결 열기</Button> : null}>
                 {assistant.notice} {unavailableHelp(assistant)}
               </Callout>
             ) : null}

@@ -111,7 +111,7 @@ describe("AI 도우미 — 쓸 수 없을 때", () => {
     renderChat();
     expect(await screen.findByText("AI 연결에 문제가 있어 지금은 답할 수 없습니다.")).toBeInTheDocument();
     expect(screen.getByText("AI 연결 화면에서 연결 상태를 확인하세요.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "AI 연결 열기" })).toHaveAttribute("href", "#/settings?tab=ai");
+    expect(screen.getByRole("link", { name: "AI 연결 열기" })).toHaveAttribute("href", "#/ai-connection");
   });
 
   it("보내는 순간 409 가 오면 실패 문장 대신 상태를 다시 읽어 판을 그리고 쓴 글을 잃지 않는다", async () => {

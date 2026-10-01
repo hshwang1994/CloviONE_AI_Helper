@@ -65,7 +65,9 @@ def test_chatgpt_model_listing_uses_the_plan_catalog(client, login_as, app, fake
     ]})
     reply = client.get("/api/admin/ai/models?provider=openai&auth_method=chatgpt")
     assert reply.status_code == 200, reply.text
-    assert reply.json()["models"] == [{"id": "gpt-6.1-sol", "label": "GPT-6.1 Sol"}]
+    # 요금제 목록은 서버 순서의 첫 `visibility=list` 모델이 추천이다(D-539).
+    assert reply.json() == {"models": [{"id": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "recommended": True}],
+                            "recommended_id": "gpt-6.1-sol"}
     sent = [r for r in fake_http.requests if str(r.url).startswith(openai.MODELS_URL)][0]
     assert sent.headers["Authorization"] == "Bearer chatgpt-at"
 

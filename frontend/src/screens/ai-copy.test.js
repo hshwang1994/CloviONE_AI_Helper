@@ -23,7 +23,8 @@ describe("AI 화면 문구", () => {
     expect(REGISTRY["ai-quotas"].emptyTitle).toBe("한도가 없으면 제한 없이 사용합니다");
     expect(REGISTRY["ai-usage-stats"].emptyTitle).toBe("아직 AI 호출 기록이 없습니다");
     expect(REGISTRY["ai-usage-stats"].emptyHelp).toContain("AI 연결을 먼저 설정하세요");
-    expect(REGISTRY["ai-usage-stats"].emptyRelatedLink.href).toBe("#/settings?tab=ai");
+    // AI 설정 탭은 「AI 연결」 화면이 됐다(D-539).
+    expect(REGISTRY["ai-usage-stats"].emptyRelatedLink.href).toBe("#/ai-connection");
   });
 
   it("AI 화면에는 저장된 뷰가 없고, 호출 기록만 저장된 뷰 기준을 따른다", () => {

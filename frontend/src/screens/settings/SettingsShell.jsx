@@ -4,7 +4,7 @@ import { useAuth } from "../../app/auth.jsx";
 import { TabShell } from "../../ui/TabShell.jsx";
 import { Settings } from "./SettingsMain.jsx";
 import { SystemOps, HELP as SYSTEM_OPS_HELP } from "../SystemOps.jsx";
-import { AiSettings } from "./AiSettings.jsx";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { StorageProviders, HELP as STORAGE_HELP } from "../StorageProviders.jsx";
 import { Maintenance } from "../ops/Maintenance.jsx";
 
@@ -71,7 +71,6 @@ export const TAB_DEFS = [
      같다: `STORAGE_CONFIGURE` 는 `SYSTEM_ADMIN_ONLY`(app/authz/permissions.py)라 os·ai 탭과
      정확히 같은 집합이다 — 탭마다 role 이 균일해야 한다는 이 그릇의 제약을 그대로 만족한다. */
   { key: "storage", label: "파일 저장소", roles: ["system_admin"], help: STORAGE_HELP },
-  { key: "ai", label: "AI", roles: ["system_admin"] },
 ];
 /** 탭 키만 뽑은 목록 — 커버리지 대조용(`registry-surface-parity.test.js`). */
 export const SETTINGS_TAB_KEYS = TAB_DEFS.map((t) => t.key);
@@ -79,6 +78,7 @@ export const SETTINGS_TAB_KEYS = TAB_DEFS.map((t) => t.key);
 const SYSTEM_ADMIN_TAB_HELP = "이 화면은 시스템 관리자만 사용할 수 있습니다.";
 
 export function SettingsShell() {
+  const [params] = useSearchParams();
   const auth = useAuth();
   const role = auth.data && auth.data.role;
   /* 본문 분기에 role 을 한 번 더 건다(위 「role 게이트를 두 번 거는 이유」). 탭 줄에서 이미
@@ -95,8 +95,9 @@ export function SettingsShell() {
     ),
     os: () => (isSystemAdmin ? <SystemOps embedded /> : null),
     storage: () => (isSystemAdmin ? <StorageProviders embedded /> : null),
-    ai: () => (isSystemAdmin ? <AiSettings /> : null),
   };
+  /* AI 탭은 「AI 연결」 화면이 됐다(D-539). 옛 주소(알림 · 즐겨찾기 · 다른 화면의 링크)는 그 화면으로 넘긴다. */
+  if (params.get("tab") === "ai") return <Navigate to="/ai-connection" replace />;
   /* 사이드바가 이 화면을 「설정」 묶음에 두므로 빵부스러기도 「설정」이다(S20). 제목은 고정이고
      탭은 아래다(D-452) — 예전에는 탭 라벨이 h1 이라 「AI」가 제목이었다. 전환할 곳이 없는 탭
      줄(system_admin 이 아니면 항상 1개)은 그릇이 그리지 않는다. */

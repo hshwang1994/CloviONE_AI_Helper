@@ -1,3 +1,6 @@
+/* qa-contract-change: AI 묶음 첫 항목으로 「AI 연결」(`/ai-connection`, D-539)이 들어와 항목 수가 25 → 26 이다. 설정의 AI 탭이 화면
+ * 하나가 된 것이라 합치기 결과가 뒤집힌 것이 아니다 — 설정 탭이 하나 줄었다(`settings-shell.test.jsx`). AI 묶음 순서 단언에 그 항목을
+ * 더하고, 옛 설정 탭 주소가 사이드바에 다시 생기지 않는다는 단언을 하나 더한다. */
 /* qa-contract-change: 사이드바 항목 수 기대값을 27 → 26 으로 내린다. S20 이 「Notion 사용자 연결」을 걷어내면서 이 숫자를 안 옮겼다 — 그 회차는 표적 검증으로 끝났고 이 파일은 표적에 안 들어 있었다. 숫자만 고치면 「합치기로 줄었다」와 「기능이 사라져 줄었다」가 다시 섞이므로, 사라진 주소 `/notion-mapping` 을 이름으로 함께 못 박는다(기존 넷과 같은 방식). 단언 수는 줄지 않고 하나 늘었다. */
 import { describe, it, expect } from "vitest";
 
@@ -61,7 +64,7 @@ describe("관리자 사이드바 — 그룹이 질문에 답한다 (지시 30)",
 
   it("AI 재료가 한 자리에 모인다 — 예전엔 자동화·연동·감사 셋에 흩어져 있었다", () => {
     expect(pathsOf(NAV, "AI")).toEqual([
-      "/prompts", "/policies", "/ai-quotas", "/ai-usage",
+      "/ai-connection", "/prompts", "/policies", "/ai-quotas", "/ai-usage",
     ]);
   });
 
@@ -95,15 +98,16 @@ describe("짝을 이루는 화면은 형제 항목이 아니라 한 화면의 �
   // 27 → 26 이 됐다. 이 숫자는 「합치기로 줄었다」와 「기능이 사라져 줄었다」를 구별하지
   // 못하므로, 사라진 다섯을 이름으로 함께 못 박는다.
   // 「외부 연동」을 걷으면서 26 → 25 다(그 표가 다시 채워지지 않아 언제나 빈 화면이었다).
-  it("합쳐서 36항목이 25항목이 됐다", () => {
+  it("합쳐서 36항목이 26항목이 됐다 — AI 연결은 설정의 AI 탭이 화면이 된 것이다", () => {
     const total = NAV.reduce((sum, g) => sum + g.items.length, 0);
-    expect(total).toBe(25);
+    expect(total).toBe(26);
     const all = NAV.flatMap((g) => g.items.map((i) => i.to));
     expect(all).not.toContain("/runners");
     expect(all).not.toContain("/workflows");
     expect(all).not.toContain("/documents");
     expect(all).not.toContain("/templates");
     expect(all).not.toContain("/notion-mapping");
+    expect(all).not.toContain("/settings?tab=ai");
   });
 });
 

@@ -67,7 +67,7 @@ export const SETUP_LINKS = {
   admin_account: { href: "#/users", label: "사용자 화면 열기" },
   mail: { href: "#/settings?setting=smtp", label: "메일 설정 열기" },
   organization: { href: "#/departments", label: "부서 화면 열기" },
-  llm: { href: "#/settings?tab=ai", label: "AI 설정 열기" },
+  llm: { href: "#/ai-connection", label: "AI 연결 열기" },
   integrations: { href: "#/diagnostics", label: "진단에서 연동 상태 보기" },
   tls: { href: "#/diagnostics", label: "진단에서 인증서 확인" },
 };

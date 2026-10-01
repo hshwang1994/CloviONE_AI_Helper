@@ -26,7 +26,8 @@
 ## 이 서버가 갱신을 맡는다
 
 자체 호스팅 VM 지침 그대로다: 로그인은 브라우저가 있는 PC 에서 끝나지만 이후 갱신은 서버가 제 `ext_agent_host_id` 로
-한다. 연결 도우미(`tools/connect/`)는 콜백 주소만 서버에 넘기고 토큰을 보지 않는다.
+한다. 로그인은 붙여 넣기 하나다 - 관리자가 붙여 넣는 콜백 주소에는 인가 코드만 있고, 코드는 서버의 PKCE verifier
+없이는 쓸모가 없다(`app/ai/credentials/login_flow.py`, D-540).
 """
 
 from __future__ import annotations

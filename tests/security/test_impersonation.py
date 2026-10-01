@@ -90,9 +90,7 @@ def test_every_write_route_is_blocked_while_impersonating(impersonating, app):
         # 세션이 생기기 전 경로 — 임퍼소네이션과 무관하다(인증 의존성이 아예 없어서
         # get_current_auth 의 읽기 전용 가드를 지나지 않는다). 이 목록은
         # tests/security/test_csrf_coverage.py 의 '인증 없는 쓰기 라우트' 목록과 같아야 한다.
-        if route.path in ("/login", "/forgot-password", "/reset-password",
-                          "/api/connect/openai/begin", "/api/connect/openai/complete",
-                          "/setup/first-admin"):
+        if route.path in ("/login", "/forgot-password", "/reset-password", "/setup/first-admin"):
             continue
         path = route.path
         for param in route.param_convertors:

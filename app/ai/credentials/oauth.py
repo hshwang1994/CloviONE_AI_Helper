@@ -1,37 +1,31 @@
-"""ChatGPT 계정 연결 시도 — 연결 도우미와 서버가 한 번의 로그인을 주고받는 규칙 (계획 3.14, D-516).
-
-## 왜 도우미가 필요한가
-
-공식 계약상 인가는 `http://127.0.0.1:<포트>/auth/callback` 으로만 돌아온다. 그 주소는 **브라우저가 도는 PC** 이지
-원격 서버가 아니다(자체 호스팅 VM 지침). 그래서 순수 웹 화면만으로는 콜백을 받을 수 없다. 관리자 PC 에서 도는 작은
-도우미(`tools/connect/`)가 콜백만 받아 서버에 넘기고, 인가 코드를 토큰으로 바꾸는 일은 서버가 제 PKCE verifier 로
-한다. 토큰은 도우미를 거치지 않는다.
+"""ChatGPT 계정 연결 시도 — 붙여 넣기 로그인 한 번의 규칙 (계획 A3, D-516 · D-540).
 
 ## 순서
 
-  1. 관리자가 시작한다(`start`) - 짝짓기 토큰(256비트, 원문은 응답에 한 번)과 state, nonce 를 만든다. 10분 동안 유효하다
-  2. 도우미가 짝짓기 토큰과 자기가 연 포트를 알린다(`begin`) - 서버가 그 포트로 인가 주소를 만들어 준다
-  3. 관리자가 브라우저에서 승인하면 도우미가 콜백을 받아 넘긴다(`complete_from_helper`)
+  1. 관리자가 시작한다(`start`) - state, nonce, 이번 시도의 루프백 포트(49152 ~ 65535 무작위)를 만들고 인가 주소를
+     돌려준다. 10분 동안 유효하다. 화면은 같은 클릭 안에서 연 새 창을 그 주소로 보낸다
+  2. 관리자가 ChatGPT 에서 승인하면 새 창이 ``http://127.0.0.1:<포트>/auth/callback?code=…&state=…`` 에서 멈춘다
+  3. 관리자가 그 주소를 붙여 넣는다(`complete_manual`) - 루프백 주소, 정해진 경로, 이 시도의 포트만 받는다
   4. 서버가 state 를 맞추고 코드를 토큰으로 바꾸고 ID 토큰을 검증한 뒤 묶음을 비밀 칸에 쓴다
-  5. 화면은 `view` 를 물어 「도우미를 기다리는 중 → 브라우저에서 승인하는 중 → 연결됨」을 그린다
+  5. 화면은 「연결됨」을 그리고 모델 목록 · 연결 확인으로 이어 간다
 
-도우미를 돌릴 수 없는 PC 는 대체 경로가 있다: 화면이 인가 주소를 주고(`manual_authorize`), 관리자가 승인 뒤 브라우저가
-멈춘 콜백 주소를 붙여 넣는다(`complete_manual`). 같은 끝내기 규칙을 지난다.
+흐름이 왜 이 모양인지(순수 웹 왕복이 공식적으로 안 되는 까닭)는 `login_flow.py` 머리말에 있다. 예전의 연결 도우미와
+짝짓기 토큰은 걷었다(D-540).
 
-## 짝짓기 토큰의 규칙
+## 포트를 시도마다 고르는 까닭
 
-사람이 외워 치는 값이 아니라 복사한 명령으로 전달되므로 짧게 줄이지 않는다(`secrets.token_urlsafe(32)`). 서버에는
-sha256 해시만 두고, 한 번 쓰면 끝이며, state 가 틀리는 실패가 다섯 번이면 그 시도를 닫는다. 로그와 감사에는 원문을
-적지 않는다. 확인에 실패한 까닭을 도우미에게 자세히 말하지 않는다 - 틀린 토큰과 만료된 토큰은 같은 한 문장이다.
+예전에는 붙여 넣기 경로가 1455 하나를 썼다. 관리자 PC 에서 다른 프로그램(다른 OAuth 도구)이 그 포트를 듣고 있으면
+승인 뒤 브라우저가 그 프로그램에 코드를 넘긴다. 시도마다 높은 포트를 무작위로 고르면 우연히 겹칠 일이 없다. 공식
+계약은 포트만 바뀔 수 있고 같은 시도 안에서 인가와 교환이 같은 주소이기만 하면 된다.
 
 ## 실패 기록은 커밋한다
 
-실패 횟수와 닫힘은 요청이 실패로 끝나도 남아야 한다(그래야 다섯 번이 센다). 그래서 실패를 적은 뒤 커밋하고 예외를 올린다.
+state 가 틀린 실패는 다섯 번이면 그 시도를 닫는다. 횟수와 닫힘은 요청이 실패로 끝나도 남아야 한다(그래야 다섯 번이
+센다). 그래서 실패를 적은 뒤 커밋하고 예외를 올린다.
 """
 
 from __future__ import annotations
 
-import hashlib
 import hmac
 import logging
 import secrets as pysecrets
@@ -51,18 +45,17 @@ logger = logging.getLogger("app.ai.oauth")
 TX_TTL = timedelta(minutes=10)
 TX_KEEP = timedelta(days=1)
 MAX_FAILURES = 5
-MIN_PORT, MAX_PORT = 1024, 65535
+#: 루프백 포트는 동적 · 사설 범위에서 시도마다 고른다(머리말).
+PORT_MIN, PORT_MAX = 49152, 65535
 MIN_SESSION_SECRET = 16
 
-PHASE_WAITING = "waiting_helper"
 PHASE_BROWSER = "browser"
 PHASE_DONE = "done"
 PHASE_FAILED = "failed"
-OPEN_PHASES = (PHASE_WAITING, PHASE_BROWSER)
+OPEN_PHASES = (PHASE_BROWSER,)
 
 PHASE_MESSAGES = {
-    PHASE_WAITING: "연결 도우미를 기다리고 있습니다. 안내한 명령을 이 PC 에서 실행하세요.",
-    PHASE_BROWSER: "브라우저에서 ChatGPT 승인을 기다리고 있습니다.",
+    PHASE_BROWSER: "ChatGPT 에서 승인한 뒤 주소창의 주소를 붙여 넣으세요.",
     PHASE_DONE: "ChatGPT 계정을 연결했습니다.",
     PHASE_FAILED: "ChatGPT 계정을 연결하지 못했습니다.",
 }
@@ -79,7 +72,6 @@ FAILURE_MESSAGES = {
     "secret_store_unavailable": "비밀 저장 도우미에 연결할 수 없어 계정 정보를 저장하지 못했습니다.",
     "superseded": "새 연결을 시작해 이 연결을 닫았습니다.",
 }
-PAIRING_REJECTED = "연결 요청을 확인하지 못했습니다. 화면에서 연결을 다시 시작한 뒤 새 명령을 실행하세요."
 
 
 class OAuthFlowError(AppError):
@@ -88,22 +80,12 @@ class OAuthFlowError(AppError):
     default_message = PHASE_MESSAGES[PHASE_FAILED]
 
 
-class PairingRejectedError(AppError):
-    status_code = 403
-    code = "ai_pairing_rejected"
-    default_message = PAIRING_REJECTED
-
-
 class ServerSecretMissingError(AppError):
     status_code = 409
     code = "ai_oauth_unavailable"
     default_message = (
         "서버의 세션 비밀 값(SESSION_SECRET)이 없어 계정 연결을 시작할 수 없습니다. 설치 설정을 확인하세요."
     )
-
-
-def hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def _model():
@@ -115,11 +97,22 @@ def _model():
 # ── 시작 ─────────────────────────────────────────────────────────────────────
 
 
-def start(db: Session, *, admin_user_id: str, session_id: str | None, session_secret: str, now: datetime):
-    """새 시도 하나. (행, 짝짓기 토큰 원문)을 돌려준다 - 원문은 이 응답에만 실린다.
+def pick_port() -> int:
+    return PORT_MIN + pysecrets.randbelow(PORT_MAX - PORT_MIN + 1)
 
-    같은 관리자가 열어 둔 옛 시도는 닫는다. 도우미 두 개가 서로 다른 시도에 붙는 혼란을 막는다.
+
+def redirect_for(row) -> str:
+    return chatgpt.redirect_uri(row.redirect_port)
+
+
+def start(db: Session, *, admin_user_id: str, session_id: str | None, session_secret: str, now: datetime,
+          port: int | None = None):
+    """새 시도 하나. (행, 인가 주소)를 돌려준다.
+
+    같은 관리자가 열어 둔 옛 시도는 닫는다 — 앞 창에서 늦게 붙여 넣은 주소가 새 시도를 덮지 않는다.
     """
+    from app.ai.credentials import state as state_mod
+
     if len(session_secret or "") < MIN_SESSION_SECRET:
         raise ServerSecretMissingError()
     model = _model()
@@ -128,19 +121,24 @@ def start(db: Session, *, admin_user_id: str, session_id: str | None, session_se
         .where(model.admin_user_id == admin_user_id, model.phase.in_(OPEN_PHASES))
         .values(phase=PHASE_FAILED, error_code="superseded", updated_at=now)
     )
-    token = pysecrets.token_urlsafe(32)
+    account = state_mod.account_row(db, base.PROVIDER_OPENAI, base.AUTH_CHATGPT, now=now)
+    host = state_mod.host_id(db, base.PROVIDER_OPENAI, base.AUTH_CHATGPT, now=now)
+    client_id = account.client_id or chatgpt.DYNAMIC_CLIENT_ID
     row = model(
-        id=str(uuid.uuid4()), provider=base.PROVIDER_OPENAI, pairing_token_hash=hash_token(token),
-        state=pysecrets.token_urlsafe(32), nonce=pysecrets.token_urlsafe(32), admin_user_id=admin_user_id,
-        session_id=session_id, phase=PHASE_WAITING, failures=0, created_at=now, updated_at=now,
-        expires_at=now + TX_TTL,
+        id=str(uuid.uuid4()), provider=base.PROVIDER_OPENAI, state=pysecrets.token_urlsafe(32),
+        nonce=pysecrets.token_urlsafe(32), admin_user_id=admin_user_id, session_id=session_id,
+        phase=PHASE_BROWSER, failures=0, redirect_port=int(port or pick_port()), client_id_used=client_id,
+        created_at=now, updated_at=now, expires_at=now + TX_TTL,
     )
     db.add(row)
     db.flush()
-    return row, token
-
-
-# ── 도우미 ───────────────────────────────────────────────────────────────────
+    verifier = chatgpt.pkce_verifier(session_secret, row.state)
+    url = chatgpt.authorize_url(
+        client_id=client_id, redirect=redirect_for(row), state=row.state, nonce=row.nonce,
+        challenge=chatgpt.pkce_challenge(verifier), host_id=host,
+        login_hint=account.account_label if account.account_label and "@" in account.account_label else None,
+    )
+    return row, url
 
 
 def _fail(db: Session, row, *, code: str, now: datetime, count: bool = False) -> None:
@@ -163,64 +161,6 @@ def _expire_if_needed(db: Session, row, now: datetime) -> None:
         row.error_code = "expired"
         row.updated_at = now
         db.flush()
-
-
-def _by_pairing_token(db: Session, token, now: datetime):
-    if not isinstance(token, str) or not token:
-        raise PairingRejectedError()
-    model = _model()
-    row = db.execute(
-        select(model).where(model.pairing_token_hash == hash_token(token)).with_for_update()
-    ).scalar_one_or_none()
-    if row is None:
-        raise PairingRejectedError()
-    _expire_if_needed(db, row, now)
-    if row.phase not in OPEN_PHASES:
-        db.commit()
-        raise PairingRejectedError()
-    return row
-
-
-def _authorize_for(db: Session, row, *, port: int, now: datetime, session_secret: str) -> str:
-    from app.ai.credentials import state as state_mod
-
-    if len(session_secret or "") < MIN_SESSION_SECRET:
-        raise ServerSecretMissingError()
-    account = state_mod.account_row(db, base.PROVIDER_OPENAI, base.AUTH_CHATGPT, now=now)
-    host = state_mod.host_id(db, base.PROVIDER_OPENAI, base.AUTH_CHATGPT, now=now)
-    client_id = account.client_id or chatgpt.DYNAMIC_CLIENT_ID
-    row.redirect_port = int(port)
-    row.client_id_used = client_id
-    row.phase = PHASE_BROWSER
-    row.updated_at = now
-    db.flush()
-    verifier = chatgpt.pkce_verifier(session_secret, row.state)
-    return chatgpt.authorize_url(
-        client_id=client_id, redirect=chatgpt.redirect_uri(port), state=row.state, nonce=row.nonce,
-        challenge=chatgpt.pkce_challenge(verifier), host_id=host,
-        login_hint=account.account_label if account.account_label and "@" in account.account_label else None,
-    )
-
-
-def begin(db: Session, *, pairing_token, port, session_secret: str, now: datetime) -> dict:
-    """도우미가 자신과 포트를 알린다. 인가 주소를 돌려준다."""
-    row = _by_pairing_token(db, pairing_token, now)
-    if row.phase != PHASE_WAITING:
-        _fail(db, row, code="", now=now, count=True)
-        raise PairingRejectedError()
-    if not isinstance(port, int) or isinstance(port, bool) or not (MIN_PORT <= port <= MAX_PORT):
-        raise OAuthFlowError("도우미가 알린 포트가 올바르지 않습니다.")
-    url = _authorize_for(db, row, port=port, now=now, session_secret=session_secret)
-    return {"transaction_id": row.id, "authorize_url": url, "redirect_uri": chatgpt.redirect_uri(port)}
-
-
-def complete_from_helper(db: Session, *, pairing_token, transaction_id, callback, context) -> dict:
-    now = context.now
-    row = _by_pairing_token(db, pairing_token, now)
-    if row.id != transaction_id or row.phase != PHASE_BROWSER:
-        _fail(db, row, code="", now=now, count=True)
-        raise PairingRejectedError()
-    return _complete(db, row, callback=callback if isinstance(callback, dict) else {}, context=context)
 
 
 # ── 관리자 화면 ───────────────────────────────────────────────────────────────
@@ -253,17 +193,6 @@ def poll(db: Session, *, transaction_id: str, admin_user_id: str, session_id: st
     return view(_own(db, transaction_id, admin_user_id=admin_user_id, session_id=session_id, now=now))
 
 
-def manual_authorize(db: Session, *, transaction_id: str, admin_user_id: str, session_id: str | None,
-                     session_secret: str, now: datetime) -> dict:
-    """대체 경로: 도우미 없이 인가 주소를 받는다. 승인 뒤 브라우저가 멈춘 주소를 붙여 넣는다."""
-    row = _own(db, transaction_id, admin_user_id=admin_user_id, session_id=session_id, now=now)
-    if row.phase not in OPEN_PHASES:
-        raise OAuthFlowError(view(row)["message"])
-    port = row.redirect_port or chatgpt.DEFAULT_REDIRECT_PORT
-    url = _authorize_for(db, row, port=port, now=now, session_secret=session_secret)
-    return {"transaction_id": row.id, "authorize_url": url, "redirect_uri": chatgpt.redirect_uri(port)}
-
-
 def parse_callback_url(raw, *, port: int | None) -> dict:
     """붙여 넣은 콜백 주소 → 콜백 값. 루프백 주소와 정해진 경로와 이 시도의 포트만 받는다."""
     if not isinstance(raw, str) or len(raw) > 8192:
@@ -290,7 +219,9 @@ def complete_manual(db: Session, *, transaction_id: str, admin_user_id: str, ses
     now = context.now
     row = _own(db, transaction_id, admin_user_id=admin_user_id, session_id=session_id, now=now)
     if row.phase != PHASE_BROWSER:
-        raise OAuthFlowError(view(row)["message"] if row.phase == PHASE_FAILED else "먼저 인가 주소를 여세요.")
+        # 끝난 시도에 같은 주소를 다시 붙여 넣어도 코드를 두 번 쓰지 않는다.
+        raise OAuthFlowError(view(row)["message"] if row.phase == PHASE_FAILED
+                             else "이 연결은 이미 끝났습니다. 다시 연결하려면 처음부터 시작하세요.")
     callback = parse_callback_url(callback_url, port=row.redirect_port)
     return _complete(db, row, callback=callback, context=context)
 

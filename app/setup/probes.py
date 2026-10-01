@@ -53,7 +53,7 @@ LINK_USERS = ("#/users", "사용자 화면 열기")
 LINK_DEPARTMENTS = ("#/departments", "부서 화면 열기")
 LINK_MAIL_SETTING = ("#/settings?setting=smtp", "메일 설정 열기")
 LINK_MAIL_SCREEN = ("#/mail", "메일 발송 화면 열기")
-LINK_AI = ("#/settings?tab=ai", "AI 설정 열기")
+LINK_AI = ("#/ai-connection", "AI 연결 열기")
 LINK_DIAGNOSTICS_INTEGRATIONS = ("#/diagnostics", "진단에서 연동 상태 보기")
 LINK_DIAGNOSTICS_TLS = ("#/diagnostics", "진단에서 인증서 확인")
 # 인증서 만료가 이만큼 가까우면 다시 할 일이다.
@@ -225,12 +225,13 @@ def probe_organization(ctx: ProbeContext) -> Outcome:
 
 
 def probe_llm(ctx: ProbeContext) -> Outcome:
-    """AI 는 선택 항목이다(D-520). 검색은 Gateway, 답변 생성은 AI 런타임의 연결 상태(여섯 가지, D-516)를 읽는다.
+    """AI 는 선택 항목이다(D-520). 판정은 AI 연결 화면의 상태 면과 같은 함수가 한다(A8, `state_display`).
 
-    런타임은 저장된 연결 상태만 읽고 제공자에 붙지 않는다. 확인 전과 일시 장애는 물어볼 일이고, 미설정 · 꺼짐 · 재로그인
-    필요 · 인증이나 구성 오류는 할 일이다.
+    런타임은 저장된 연결 상태만 읽고 제공자에 붙지 않는다. 정상이면 완료다 - 도구 지원을 알든 모르든. 의미 검색 모델이
+    없어도 완료이고 메모만 단다(낱말 검색이 자연어 질문을 덮는다, D-536). 설치 명령을 안내하지 않는다 - 그 안내는 AI 연결
+    화면의 색인 줄에 있다. AI 사용 꺼짐 · 미설정 · 막힘은 할 일, 확인 전 · 확인 중 · 일시 장애는 확인할 일이다.
     """
-    from app.ai.credentials import state as ai_state
+    from app.ai.console import service as console
 
     gateway = ctx.gateway
     if gateway is None:
@@ -246,48 +247,17 @@ def probe_llm(ctx: ProbeContext) -> Outcome:
     info = runtime.status(ctx.db)
     checked_at = info.get("checked_at")
     configured = bool(info.get("provider"))
-    search_note = "" if embed.available else " 문서 검색 모델은 아직 설치되지 않아 낱말이 맞는 문서만 찾습니다."
-
-    if info["state"] == ai_state.STATE_UNCONFIGURED:
-        return _todo(
-            "AI 제공자를 아직 연결하지 않았습니다." + search_note,
-            "AI 설정 화면에서 제공자와 인증을 넣고 연결을 확인하세요. AI 를 쓰지 않는다면 이 항목을 사용하지 않음으로 "
-            "표시하세요.",
-            link=LINK_AI, configured=configured,
-        )
-    if not info["generation_enabled"]:
-        return _todo(
-            "AI 연결은 설정됐지만 답변 생성이 꺼져 있습니다." + search_note,
-            "AI 설정 화면에서 답변 생성을 켜세요.",
-            link=LINK_AI, checked_at=checked_at,
-        )
-    if info["state"] in (ai_state.STATE_REAUTH, ai_state.STATE_ERROR):
-        reason = info.get("reason") or info.get("message") or ""
-        return _todo(
-            f"AI 연결이 막혀 있습니다. {reason}".strip(),
-            "AI 설정 화면에서 다시 로그인하거나 키를 다시 넣은 뒤 연결을 확인하세요.",
-            link=LINK_AI, checked_at=checked_at,
-        )
-    if info["state"] == ai_state.STATE_UNVERIFIED:
-        return _unknown(
-            "AI 연결을 아직 확인하지 않았습니다." + search_note,
-            "AI 설정 화면에서 연결 확인을 눌러 주세요.",
-            link=LINK_AI, checked_at=checked_at,
-        )
-    if info["state"] == ai_state.STATE_DEGRADED:
-        return _unknown(
-            "AI 연결이 잠시 불안정합니다. 사용자의 요청은 막지 않습니다." + search_note,
-            "잠시 뒤 AI 설정 화면에서 연결 확인을 다시 눌러 주세요.",
-            link=LINK_AI, checked_at=checked_at,
-        )
-    if embed.available:
-        return _done("문서 검색과 답변 생성이 모두 동작합니다.", link=LINK_AI, checked_at=checked_at)
-    # 답변은 되고 의미 검색 모델만 없다. 검색은 낱말 레인으로 동작하므로 설계된 상태이지 고장이 아니다(D-201).
-    return _unknown(
-        "답변 생성은 동작합니다. 문서 검색 모델이 없어 낱말이 맞는 문서만 찾습니다.",
-        "의미 검색이 필요하면 서버에서 sudo clovirassist ai --download-model 을 실행해 문서 검색 모델을 넣으세요.",
-        link=LINK_AI, checked_at=checked_at,
-    )
+    shown = console.state_display(info, verifying=console.pending_verify(ctx.db) is not None,
+                                  embed_available=bool(embed.available))
+    setup = shown["setup"]
+    detail = " ".join(filter(None, [setup["detail"], setup.get("note")]))
+    if setup["state"] == console.SETUP_DONE:
+        return _done(detail, link=LINK_AI, checked_at=checked_at)
+    if setup["state"] == console.SETUP_TODO:
+        return _todo(detail, setup.get("action") or "AI 연결 화면을 여세요.", link=LINK_AI,
+                     configured=configured, checked_at=checked_at)
+    return _unknown(detail, setup.get("question") or "AI 연결 화면에서 지금 확인을 누르세요.", link=LINK_AI,
+                    checked_at=checked_at)
 
 
 # ── 외부 연동 ────────────────────────────────────────────────────────────────

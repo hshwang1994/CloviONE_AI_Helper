@@ -19,7 +19,7 @@
 - 내 프로필(`/#/profile`): 알림 판 전체를 찍고(밀도), 첫 스위치를 실제로 바꿔 **저장이 도는 동안 다른 스위치가 비활성으로
   바뀌지 않고 누른 스위치는 바로 바뀌는가**를 본다. 저장 시간을 벌리려고 네트워크 지연 500ms 를 건다. 끝나면 원래 값으로
   되돌린다.
-- 메일(`/admin#/mail`) · AI 설정(`/admin#/settings?tab=ai`): 스위치 판을 찍고 hover · 키보드 초점만 만든다(저장하지 않는다).
+- 메일(`/admin#/mail`) · AI 연결(`/admin#/ai-connection`): 스위치 판을 찍고 hover · 키보드 초점만 만든다(저장하지 않는다).
 
 ## 판정 규율
 
@@ -464,7 +464,7 @@ def profile_states(run: Run, ctx, page, base: str, theme: str, vp: str, settle: 
 def admin_states(run: Run, page, base: str, theme: str, vp: str, settle: int) -> None:
     for route_id, pattern, prefix in (
         ("admin_mail", re.compile(r"메일 허용$"), "mail"),
-        ("admin_settings-ai", re.compile(r"^AI 채팅$"), "ai"),
+        ("admin_ai-connection", re.compile(r"^AI 도우미$"), "ai"),
     ):
         try:
             _goto(page, base, route_id, settle)

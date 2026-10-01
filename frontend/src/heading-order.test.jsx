@@ -51,21 +51,23 @@ beforeEach(() => {
 });
 
 describe("heading 순서 — 건너뛰지 않는다(PA-RC-0012)", () => {
-  it("AiSettings: h1 다음이 h6이 아니라 h2다", async () => {
+  // AI 설정 탭은 「AI 연결」 화면이 됐다(D-539) - 같은 heading 성질을 새 화면에서 잰다.
+  it("AiConnection: h1 다음이 h6이 아니라 h2다", async () => {
     apiMock.mockImplementation((path) => {
       if (path === "/api/admin/ai") {
         return Promise.resolve({
           config: { generation_enabled: false, provider: "", auth_method: "", model: "", timeout_seconds: 60, max_concurrency: 2 },
-          state: { state: "unconfigured", label: "미설정", message: "m", problems: ["p"] },
+          state: { state: "unconfigured", label: "미설정", message: "m", problems: ["p"],
+            display: { key: "unconfigured", label: "미설정", kind: "muted", message: "m" } },
           providers: [], features: {}, limits: { timeout_seconds: [5, 300], max_concurrency: [1, 8] },
         });
       }
       return Promise.resolve({});
     });
-    const { AiSettings } = await import("./screens/settings/AiSettings.jsx");
-    const { container } = qcRender(<AiSettings />);
-    await screen.findByText("연결 상태");
-    assertSequentialHeadings(container, "AiSettings");
+    const { AiConnection } = await import("./screens/ai/AiConnection.jsx");
+    const { container } = qcRender(<AiConnection />);
+    await screen.findByText("제공자와 인증");
+    assertSequentialHeadings(container, "AiConnection");
   });
 
   it("MailStatus: h1 다음이 h6이 아니라 h2다", async () => {

@@ -381,7 +381,8 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     # 그 이름으로 기록하는 것이 가장 조용한 종류의 거짓이라 목록에서 지운다.
     _a("admin_settings-os", "/settings?tab=os", "설정 — OS와 서비스 동작",
        "system_admin", ("system_admin",)),
-    _a("admin_settings-ai", "/settings?tab=ai", "설정 — AI",
+    # AI 연결(D-539) — 설정의 AI 탭이 화면 하나가 됐다. 옛 주소는 아래 별칭이 이 화면으로 넘긴다.
+    _a("admin_ai-connection", "/ai-connection", "AI 연결",
        "system_admin", ("system_admin",)),
     # 파일 저장소(S20). S8 이 만든 `/api/storage/*` 를 부르는 첫 화면이다 — 그 전에는
     # 이 설치의 파일이 어디에 쌓이는지 화면 어디에도 없었다.
@@ -427,7 +428,7 @@ ADMIN_ROUTES: tuple[Route, ...] = (
 ALIAS_ROUTES: tuple[Route, ...] = (
     _alias("admin_system", "/system", "/settings?tab=os", "시스템 설정(옛 주소)",
            "system_admin", ("system_admin",)),
-    _alias("admin_llm-console", "/llm-console", "/settings?tab=ai",
+    _alias("admin_llm-console", "/llm-console", "/ai-connection",
            "AI 관리(옛 주소)", "system_admin", ("system_admin",)),
     _alias("admin_maintenance", "/maintenance", "/settings?tab=policy",
            "유지보수(옛 주소)", "operator",
@@ -468,7 +469,6 @@ SURFACE_ID_OVERRIDES: dict[str, str] = {
     "admin_departments-detail": "admin_departments-id",
     "admin_schedules": "admin_schedules__schedules",
     "admin_schedules-calendar-tab": "admin_schedules__scheduler-calendar",
-    "admin_settings-ai": "admin_settings__ai",
     "admin_settings-os": "admin_settings__os",
     "admin_settings-storage": "admin_settings__storage",
     "admin_users-detail": "admin_users-id",

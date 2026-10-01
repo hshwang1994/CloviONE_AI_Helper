@@ -1,9 +1,15 @@
-"""AI 연결 주기 확인 — 배치 워커의 15분 틱 (계획 3.15, D-516).
+"""AI 연결 주기 확인 — 배치 워커의 15분 틱 (계획 3.15, D-516 · D-539).
+
+qa-contract-change: 「일시 장애는 가벼운 확인(모델 목록)이 답하면 정상으로 돌아온다」를 뒤집었다(D-539). 정상은 같은 설정
+지문으로 실제 생성이 성공한 뒤에만 서고, 모델 목록은 생성 권한 · 모델 이름을 재지 않는다 — 목록은 되는데 생성은 안 되는
+모델에서 거짓 「정상」이 섰다. 이제 그 시험은 「목록이 답해도 일시 장애 그대로」를 잰다. 연결 시도 정리 시험은 0045 가 짝짓기
+토큰 칸을 걷어 그 칸 없이 시도를 만든다.
 
 못박는 성질:
 1. 계정 연결의 access token 이 30분 안에 끝나면 틱이 미리 갱신한다.
 2. 갱신 토큰이 5일 안에 끝나면 관리자에게 한 번 알린다. 새 갱신 토큰을 받기 전에는 다시 알리지 않는다.
-3. 일시 장애는 가벼운 확인(모델 목록)이 답하면 정상으로 돌아온다. 키가 거절되면 막힌 상태가 되고 관리자가 안다.
+3. 가벼운 확인(모델 목록)은 상태를 올리지 않는다 - 일시 장애는 실제 생성이 성공할 때만 정상으로 돌아온다. 키가 거절되면
+   막힌 상태가 되고 관리자가 안다.
 4. 일시 장애가 30분 넘게 이어지면 관리자에게 한 번 알린다.
 5. 하루 지난 계정 연결 시도는 지운다. 열린 채 만료된 시도는 닫는다.
 6. 틱은 주기를 지킨다 - 워커 루프가 도는 만큼 제공자에 묻지 않는다.
@@ -114,7 +120,7 @@ def test_an_ending_refresh_token_is_announced_once_per_refresh_token(app, db, fa
     assert health.run_ai_health(runtime, app.state.session_factory, now=now + timedelta(minutes=30))["warned"] is True
 
 
-def test_degraded_returns_to_ok_when_the_light_check_answers(app, fake_clock):
+def test_a_light_check_does_not_lift_degraded_to_ok(app, fake_clock):
     configure_ai(app)
     adapter = CheckAdapter(base.ModelList(ok=True, models=({"id": "m", "label": "m"},)))
     runtime = _runtime(app, adapter)
@@ -124,6 +130,9 @@ def test_degraded_returns_to_ok_when_the_light_check_answers(app, fake_clock):
     assert _state(app, runtime) == state_mod.STATE_DEGRADED
     health.run_ai_health(runtime, app.state.session_factory, now=fake_clock.now())
     assert adapter.checks == 1
+    assert _state(app, runtime) == state_mod.STATE_DEGRADED, "모델 목록만으로 정상을 지어냈다"
+    # 실제 생성의 성공만이 정상으로 되돌린다(사람의 호출이나 연결 확인).
+    runtime.record(config, result=state_mod.RESULT_OK, code=None, now=fake_clock.now())
     assert _state(app, runtime) == state_mod.STATE_OK
 
 
@@ -160,9 +169,9 @@ def test_old_connection_attempts_are_closed_and_then_removed(app, db, fake_clock
     admin = make_user(email="sa4@goodmit.co.kr", role="system_admin")
     now = fake_clock.now()
 
-    def attempt(ident, expires_at, phase="waiting_helper"):
+    def attempt(ident, expires_at, phase="browser"):
         db.add(AiOAuthTransaction(
-            id=ident, provider="openai", pairing_token_hash=ident.ljust(64, "0"), state=ident + "-s",
+            id=ident, provider="openai", state=ident + "-s", redirect_port=50000,
             nonce=ident + "-n", admin_user_id=admin.id, phase=phase, failures=0, created_at=now, updated_at=now,
             expires_at=expires_at))
 

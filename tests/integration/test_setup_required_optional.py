@@ -1,5 +1,8 @@
 """초기 설정의 필수와 선택, 「사용하지 않음」, 저장된 상태로 읽는 메일과 AI (계획 3.5, D-520).
 
+qa-contract-change: AI 항목의 링크가 설정의 AI 탭(`#/settings?tab=ai`)에서 AI 연결 화면(`#/ai-connection`)으로 옮겼고(D-539), 확인
+전의 물음이 「연결 확인을 눌러 주세요」에서 「AI 연결 화면에서 지금 확인을 누르세요」로 바뀌었다(상태 면과 같은 함수, A8).
+
 못박는 성질:
 1. 설치가 끝났는가(`complete`)는 필수 항목(관리자 계정, 조직과 부서, TLS)만 본다. 메일과 AI 가 비어 있어도 필수가 끝나면
    완료이고, 남은 선택 항목은 `optional_pending` 이 따로 말한다.
@@ -125,8 +128,8 @@ def test_ai_is_a_question_until_the_connection_is_checked(client, login_as):
     login_as("system_admin")
     configure_ai(client.app)
     llm = _by_key(_checklist(client))["llm"]
-    assert llm["state"] == "unknown" and "연결 확인" in llm["question"]
-    assert llm["href"] == "#/settings?tab=ai"
+    assert llm["state"] == "unknown" and "지금 확인" in llm["question"]
+    assert llm["href"] == "#/ai-connection" and llm["link_label"] == "AI 연결 열기"
 
 
 def test_only_a_system_admin_changes_the_choices_and_values_are_checked(client, login_as):

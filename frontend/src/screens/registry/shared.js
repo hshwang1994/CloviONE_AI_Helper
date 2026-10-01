@@ -228,7 +228,7 @@ export const OBJ_ROUTE = {
      `storage`·`ai` 탭은 `system_admin` 전용이라, 감사자·운영자·일반 관리자가 그 주소로
      가면 「대시보드로 이동」만 있는 거부 화면을 본다. 좁은 것은 화면이 아니라 탭이므로
      아래 `OBJ_ROUTE_ROLES` 에 그 둘을 적는다. */
-  storage_provider: "#/settings?tab=storage", llm_config: "#/settings?tab=ai", ai_config: "#/settings?tab=ai",
+  storage_provider: "#/settings?tab=storage", llm_config: "#/ai-connection", ai_config: "#/ai-connection",
   mail_delivery: "#/mail", mail_settings: "#/mail",
 };
 // OBJ_ROUTE 대상 화면 중 일부는 App.jsx의 SCREEN_ROLES로 더 좁게 제한된다(예: 사용자·부서·직책은

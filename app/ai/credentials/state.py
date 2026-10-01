@@ -62,7 +62,7 @@ STATE_LABELS: dict[str, str] = {
     STATE_OK: "정상",
     STATE_DEGRADED: "일시 장애",
     STATE_REAUTH: "재로그인 필요",
-    STATE_ERROR: "인증 또는 구성 오류",
+    STATE_ERROR: "연결 오류",
 }
 
 BLOCKING_STATES = frozenset({STATE_UNCONFIGURED, STATE_REAUTH, STATE_ERROR})
@@ -107,11 +107,11 @@ FALLBACK_REASON = "AI 호출이 실패했습니다."
 
 STATE_MESSAGES: dict[str, str] = {
     STATE_UNCONFIGURED: "AI 제공자, 인증, 모델 중 아직 정하지 않은 것이 있습니다.",
-    STATE_UNVERIFIED: "설정을 저장했지만 아직 연결을 확인하지 않았습니다. 연결 확인을 눌러 보세요.",
+    STATE_UNVERIFIED: "아직 연결을 확인하지 않았습니다.",
     STATE_OK: "마지막 호출이 성공했습니다.",
     STATE_DEGRADED: "제공자가 잠시 응답하지 못하고 있습니다. 다음 호출이 다시 시도하고, 성공하면 저절로 정상으로 돌아옵니다.",
     STATE_REAUTH: "계정 연결이 끊겼습니다. 다시 로그인해야 합니다.",
-    STATE_ERROR: "AI 연결을 쓸 수 없습니다. 아래 까닭을 고친 뒤 연결 확인을 누르세요.",
+    STATE_ERROR: "AI 연결을 쓸 수 없습니다.",
 }
 
 

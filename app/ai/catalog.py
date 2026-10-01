@@ -145,3 +145,16 @@ def embedding_model(model_id: str | None) -> EmbeddingModel | None:
     if not model_id:
         return EMBEDDING_MODELS[DEFAULT_EMBEDDING_MODEL_ID]
     return EMBEDDING_MODELS.get(model_id.strip())
+
+
+# ── 생성 모델 추천 (D-539) ────────────────────────────────────────────────────
+#
+# 생성 모델은 여전히 운영 선택이다(D-201) - 설정에서 오고, 사람이 고른 모델을 제품이 바꾸지 않는다. 이 표는 **모델이 비어
+# 있을 때만** 쓰는 제안이다: 인증이 끝난 뒤 받은 목록에서 고른 하나를 화면이 명시적으로 저장하고(감사에 `auto: true`), 관리자는
+# 언제든 바꾼다. 고르는 규칙(같은 앞머리 안의 순서)은 `app/ai/providers/base.py::recommend` 에 있다. 키는 (제공자, 인증 방식)이고
+# 값은 이름 앞머리의 우선순위다. 빈 튜플은 「서버가 준 순서의 첫 모델」(ChatGPT 요금제 목록은 이미 보여도 되는 것만 담는다).
+RECOMMENDED_MODEL_PREFIXES: dict[tuple[str, str], tuple[str, ...]] = {
+    ("anthropic", "api_key"): ("claude-sonnet", "claude-opus", "claude-haiku"),
+    ("openai", "api_key"): ("gpt-5", "gpt-4.1", "gpt-4o"),
+    ("openai", "chatgpt"): (),
+}

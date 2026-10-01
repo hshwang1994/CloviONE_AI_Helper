@@ -89,8 +89,8 @@ RELATED_DESTINATIONS: dict[str, str] = {
     # delegations`)은 관리 콘솔 화면이라 위임받은 일반 사용자는 열 수 없다. 예전에는 표에 칸이
     # 없어서 이 알림만 눌러도 아무 데도 가지 않았다.
     "approval_delegation": "/my-approvals",
-    # AI 연결 상태(ai_provider_state, D-516) - AI 설정 화면으로 간다. 받는 사람은 시스템 관리자뿐이라 그 화면을 연다.
-    "ai_config": "/settings?tab=ai",
+    # AI 연결 상태(ai_provider_state, D-516) - AI 연결 화면으로 간다(D-539). 받는 사람은 시스템 관리자뿐이라 그 화면을 연다.
+    "ai_config": "/ai-connection",
     # 옮긴 AI 정책 검토(ai_policy_migrated, D-519) - 정책 화면의 초안 목록으로 간다. 옮긴 것은 초안이라 발행해야 걸린다.
     "policy_review": "/policies?status=draft",
 }
