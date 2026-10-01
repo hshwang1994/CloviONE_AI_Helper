@@ -194,7 +194,9 @@ describe("문서에서 찾기", () => {
   it("임베딩 모델이 없으면 **지금 무엇으로 찾고 있는지**를 말한다", async () => {
     stubStatus({ embed: false });
     await renderWorkspace();
-    expect(screen.getByText(/낱말이 일치하는 문서만 찾습니다/)).toBeInTheDocument();
+    expect(screen.getByText("의미 검색 모델이 없어 낱말이 맞는 문서만 찾습니다.")).toBeInTheDocument();
+    // 생성이 켜진 설치에서 「AI 기능이 꺼져 있습니다」라고 거짓을 말하지 않는다.
+    expect(screen.queryByText(/AI 기능이 꺼져 있습니다/)).toBeNull();
   });
 
   it("찾은 것이 없으면 데이터가 없다고 하지 않고 **다시 찾아보라**고 한다", async () => {

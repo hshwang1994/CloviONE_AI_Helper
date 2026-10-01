@@ -29,7 +29,7 @@ function answer(structured, content = "답입니다.") {
 describe("도우미 답의 구조", () => {
   it("걸린 시간은 서버가 잰 값이다", () => {
     renderMessage(answer({ kind: "assistant", elapsed_ms: 3200 }));
-    expect(screen.getByText("3.2초")).toBeInTheDocument();
+    expect(screen.getByText("걸린 시간 3.2초")).toBeInTheDocument();
   });
 
   it("「찾지 못함」은 찾아본 검색어와 문서에서 찾기 길을 함께 보인다", () => {
@@ -81,7 +81,7 @@ describe("도우미 답의 구조", () => {
       { type: "document", id: "d1", title: "연차 규정", route: "/knowledge/d1" },
     ] }, "AI 연결이 끊겨 있습니다. 관리자에게 알려 주세요."));
     expect(screen.queryByRole("link", { name: "연차 규정" })).toBeNull();
-    expect(screen.queryByText("1.0초")).toBeNull();
+    expect(screen.queryByText(/1\.0초/)).toBeNull();
     expect(screen.queryByRole("button", { name: "복사" })).toBeNull();
   });
 });

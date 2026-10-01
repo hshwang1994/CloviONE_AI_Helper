@@ -78,7 +78,7 @@ export function AssistantUnavailable({ assistant, layout = "page" }) {
  * 있어서, 상태를 전한다고 주장하면서 아무 상태도 전하지 않는 장식이었다. 포즈 결정은 순수 함수
  * mascotMode(chat-helpers.js)가 하고 여기서는 그리기만 한다(그래야 매핑을 테스트할 수 있다).
  * 그림만으로 상태를 전하지 않는다 — 옆의 한 줄 문구가 같은 정보를 글자로 준다. */
-export function MascotStatus({ mode }) {
+export function MascotStatus({ mode, text }) {
   return (
     <Stack direction="row" alignItems="center" gap={1} sx={{ flexShrink: 0, minWidth: 0 }}>
       <MascotPose mode={mode} place="chatStatus" />
@@ -86,7 +86,7 @@ export function MascotStatus({ mode }) {
         role="status" aria-live="polite"
         sx={{ display: { xs: "none", lg: "block" }, fontSize: FONT_SIZE.bodySm, color: "text.secondary", whiteSpace: "nowrap" }}
       >
-        {MASCOT_PHASE_TEXT[mode]}
+        {text || MASCOT_PHASE_TEXT[mode]}
       </Typography>
     </Stack>
   );

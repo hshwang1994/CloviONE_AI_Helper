@@ -19,7 +19,7 @@ import {
   Section,
   Skeleton,
   useToast,
-  FieldLabel,
+  Field,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { PROJECT_NONE, navEntriesFrom } from "./knowledge/constants.js";
@@ -172,62 +172,61 @@ export function AiWorkspace() {
   return (
     <Box className="c-screen">
       <PageHeader
-        area="AI"
+        crumbRoot="도우미"
+        area="AI 도우미"
         title="문서에서 찾기"
         help="사내 문서에서 근거를 찾고, 그 근거가 어느 문서 어디인지 보여 줍니다."
       />
 
+      {/* 의미 검색 모델이 없다는 사실만 말한다 — 서버의 일반 문장(「AI 기능이 꺼져 있습니다.」)은 생성이 켜진 설치에서
+          거짓이 된다. 까닭의 원문(설치 상태)은 기술 정보 안에 둔다. */}
       {semanticOff ? (
-        <Callout tone="warn" detail={capabilities.embed.detail}>
-          {capabilities.embed.notice} 지금은 낱말이 일치하는 문서만 찾습니다.
+        <Callout tone="info" detail={capabilities.embed.detail || capabilities.embed.notice}>
+          의미 검색 모델이 없어 낱말이 맞는 문서만 찾습니다.
         </Callout>
       ) : null}
 
+      {/* 묻는 칸은 공용 칸(`Field`)의 한 줄 입력이다 — 단추와 높이 · 윗선이 같다(D-527). 여러 줄 칸은 단추보다 키가
+          커져 단추가 떠 보였다(P9 캡처). 왜 못 쓰는지와 오늘 쓴 양은 칸의 도움말 줄이 말한다. */}
       <Card>
-        <Stack
+        <Box
           component="form"
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1.5}
-          alignItems={{ sm: "flex-end" }}
           onSubmit={(event) => {
             event.preventDefault();
             run();
           }}
         >
-          {/* 라벨은 칸 위에 선다(`FieldLabel`) — 칸 안으로 내려앉으면 값이 들어간 뒤 무엇을 묻는 칸이었는지 사라진다. */}
-          <Box sx={{ minWidth: 0, flex: 1, width: "100%" }}>
-            <FieldLabel htmlFor="ai-workspace-question">무엇을 찾고 있습니까?</FieldLabel>
+          <Field
+            label="무엇을 찾고 있습니까?"
+            htmlFor="ai-workspace-question"
+            help={
+              assistantOff
+                ? `${assistant.notice} 문서 찾기는 그대로 쓸 수 있습니다.`
+                : quotaDay && quotaDay.limit != null
+                  ? `오늘 AI 사용량은 ${quotaDay.used}/${quotaDay.limit}입니다.`
+                  : undefined
+            }
+            action={(
+              <>
+                <Button variant="primary" type="submit" disabled={busy || !draft.trim()} loading={search.isPending}>
+                  문서 찾기
+                </Button>
+                {/* 못 쓰는 단추를 숨기지 않는다 — 왜 못 쓰는지는 도움말 줄이 말한다. */}
+                <Button type="button" onClick={askAssistant} disabled={!draft.trim() || assistantOff}>
+                  AI 도우미에게 묻기
+                </Button>
+              </>
+            )}
+          >
             <TextField
               id="ai-workspace-question"
+              size="small"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               fullWidth
-              multiline
-              maxRows={4}
             />
-          </Box>
-          <Stack direction="row" spacing={1}>
-            <Button variant="primary" type="submit" disabled={busy || !draft.trim()} loading={search.isPending}>
-              문서 찾기
-            </Button>
-            {/* 못 쓰는 단추를 숨기지 않는다 — 왜 못 쓰는지는 아래 한 줄이 말한다. */}
-            <Button type="button" onClick={askAssistant} disabled={!draft.trim() || assistantOff}>
-              AI 도우미에게 묻기
-            </Button>
-          </Stack>
-        </Stack>
-        {assistantOff ? (
-          <Typography
-            sx={{ mt: 1.5, fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}
-          >
-            {assistant.notice} 문서 찾기는 그대로 쓸 수 있습니다.
-          </Typography>
-        ) : null}
-        {!assistantOff && quotaDay && quotaDay.limit != null ? (
-          <Typography sx={{ mt: 1, textAlign: "right", fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
-            오늘 AI 사용량 {quotaDay.used}/{quotaDay.limit}
-          </Typography>
-        ) : null}
+          </Field>
+        </Box>
       </Card>
 
       {failure ? <ErrorState layout="region" error={failure} /> : null}

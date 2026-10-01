@@ -185,7 +185,8 @@ export function Message({
         {elapsed ? (
           <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}
             title="답을 만드는 데 걸린 시간">
-            {elapsed}
+            {/* 이름을 붙인다 — 바로 옆의 보낸 시각과 붙어 「4.2초 오전 11:56」 한 덩어리로 읽혔다(P9 캡처). */}
+            걸린 시간 {elapsed}
           </Typography>
         ) : null}
         {m.created_at ? (
