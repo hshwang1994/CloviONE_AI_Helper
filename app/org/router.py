@@ -39,12 +39,13 @@ from app.org.service import (
     bulk_usage_count,
     create_item,
     delete_item,
-    delete_precheck,
+    department_impact,
     detached_message,
     ensure_may_suspend_org,
     get_or_404,
     item_view,
     list_items,
+    organization_impact,
     scope_clause,
     update_item,
     normalize_name,
@@ -177,13 +178,17 @@ def _make_org_router(
             org_name=names.get(getattr(row, "org_id", None)),
             child_department_count=child_count,
         )
-        if model is Department:
-            # **삭제 판정은 서버가 한 번만 내린다** (org-01). 상세 판이 자기 계산으로
-            # 「지금 삭제할 수 있습니다」라고 말하던 시절에는 인원과 하위 부서 둘만 세어,
-            # 프로젝트·지식 공간·팀 채팅방이 매달린 부서에서 눌러 보면 409 였다. 갈래·건수·
-            # 라벨·이유 문장을 여기서 실어 화면이 그리기만 하게 한다.
-            body["delete_precheck"] = delete_precheck(db, row.id)
+        # 삭제 판정은 상세에 싣지 않는다(D-533) — 고를 때마다 COUNT 열두어 번을 돌았고, 평소 화면이 「지울 수 없습니다」를
+        # 늘 보였다. 화면이 「삭제」 · 「비활성화」를 누를 때 아래 `/impact` 가 답한다(판정은 그대로 서버 한 곳이다).
         return {body_key: body}
+
+    if model is Department:
+        @router.get("/{item_id}/impact")
+        def get_department_impact(item_id: str, db: Session = Depends(get_db),
+                                  principal: Principal = Depends(get_principal)):
+            """지우거나 비활성화하면 무엇이 달라지는가(D-533). 삭제 판정은 409 와 같은 문장이다. 범위 밖은 404."""
+            row = get_or_404(db, model, item_id, principal.management)
+            return department_impact(db, row.id)
 
     @router.post("", status_code=201)
     def create_org_item(
@@ -323,6 +328,11 @@ def _scope_users(stmt, scope):
     return stmt if scope is None else apply_user_scope(stmt, scope)
 
 
+# 조직의 인원은 **지금 쓸 수 있는 계정**이다(D-533) — 예전 수는 보관 · 비활성 계정까지 세어, 조직 정지 확인 창이 그 수를
+# 「로그아웃될 사람」으로 말했다. 정지 영향은 `/impact` 가 따로 센다(시스템 관리자는 끊지 않는다).
+_LIVE_USER = (User.archived_at.is_(None), User.active.is_(True))
+
+
 def _bulk_org_counts(
     db: Session, org_ids: list[str], scope=None
 ) -> tuple[dict[str, int], dict[str, int]]:
@@ -337,7 +347,7 @@ def _bulk_org_counts(
     ).all()
     user_rows = db.execute(
         _scope_users(select(User.org_id, func.count()), scope)
-        .where(User.org_id.in_(ids)).group_by(User.org_id)
+        .where(User.org_id.in_(ids), *_LIVE_USER).group_by(User.org_id)
     ).all()
     return {r[0]: r[1] for r in dept_rows}, {r[0]: r[1] for r in user_rows}
 
@@ -360,9 +370,9 @@ def _org_view(
     조직 이름·상태를 바꾸는 PATCH 는 `require_global_management` 를 지난다(org-07). 그런데
     이 응답은 범위를 좁힌 관리자에게도 자기 조직 행을 준다 — 그 사람의 상세 판은 「수정」
     버튼을 그려 놓고, 저장할 때가 되어서야 403 을 받는다. 같은 판이 「비활성화」에 대해서는
-    이미 판정을 재현하고 안내까지 붙이므로(`OrgDetailPanel.jsx`), 판정의 정본인 서버가
+    이미 판정을 재현하고 까닭을 붙이므로(`screens/org/OrgWorkspace.jsx` — 비활성 메뉴 항목의 설명), 판정의 정본인 서버가
     (D-194) 답을 함께 실어 준다. 화면이 같은 규칙을 다시 적으면 반드시 갈라진다 —
-    부서 삭제(`delete_precheck`)가 같은 이유로 이미 그렇게 한다.
+    부서 삭제 판정(`delete_precheck`, `/impact` 가 싣는다)이 같은 이유로 이미 그렇게 한다.
 
     `scope` 를 안 받았으면 `False` 다. **모르면 좁게 답한다** — 넓게 틀리면 버튼이 서고,
     그 버튼은 눌러 봐야 403 이다.
@@ -379,7 +389,7 @@ def _org_view(
         user_counts.get(row.id, 0) if user_counts is not None
         else db.execute(
             _scope_users(select(func.count()).select_from(User), scope)
-            .where(User.org_id == row.id)
+            .where(User.org_id == row.id, *_LIVE_USER)
         ).scalar_one()
     )
     return {
@@ -463,6 +473,17 @@ def list_organizations(
         ],
         "total": len(rows),
     }
+
+
+@organizations_router.get("/{org_id}/impact")
+def get_organization_impact(
+    org_id: str,
+    db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """조직을 비활성화하면 누가 로그아웃되는가(D-533). 범위 밖은 404 — 목록 · 단건과 같은 문이다."""
+    row = _visible_org_or_404(db, org_id, principal)
+    return organization_impact(db, row.id)
 
 
 @organizations_router.get("/{org_id}")

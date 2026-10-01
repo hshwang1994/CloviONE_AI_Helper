@@ -12,8 +12,8 @@ import { CROSS_SCREEN_KEYS } from "../data-screen/crossScreenKeys.js";
 
 export const TREE_ENDPOINT = "/api/admin/departments/tree";
 
-/** 조직도 트리. `active` 는 서버 필터다(GET ?active=) — 화면에서 거르면 걸러진 부모
- * 아래 자식이 통째로 사라지는데, 서버는 그 경우 고아를 최상위로 끌어올려 준다. */
+/** 조직도 트리 — 전량 응답이다. 조직 관리 작업 공간은 `active` 없이 하나만 받고 「사용 중만」을 화면에서 거른다(조상을 남긴다,
+ * `orgTreeModel.js`). 서버 거르기(`?active=`)는 걸러진 부모의 자식을 맨 위로 끌어올려 계층을 틀었다 — 인자는 다른 소비처를 위해 남긴다. */
 export function useOrgTreeQuery(active) {
   return useQuery({
     queryKey: ["org-tree", active || ""],
@@ -41,6 +41,29 @@ export function useDepartmentItem(id) {
     select: (data) => (data && data.department) || data,
     enabled: Boolean(id),
     retry: false,
+  });
+}
+
+/** 부서를 지우거나 비활성화하면 무엇이 달라지는가(D-533) — 창이 **열려 있을 때만** 묻는다. 뿌리가 `departments` 라
+ * 조직 · 부서를 고친 뒤의 무효화(`invalidateOrgCaches`)가 함께 닿는다. */
+export function useDeptImpact(id, enabled) {
+  return useQuery({
+    queryKey: ["departments", "impact", id],
+    queryFn: () => api("/api/admin/departments/" + encodeURIComponent(id) + "/impact"),
+    enabled: Boolean(id) && Boolean(enabled),
+    retry: false,
+    staleTime: 0,
+  });
+}
+
+/** 조직을 비활성화하면 누가 로그아웃되는가(D-533) — 창이 열려 있을 때만 묻는다. */
+export function useOrgImpact(id, enabled) {
+  return useQuery({
+    queryKey: ["organizations", "impact", id],
+    queryFn: () => api("/api/admin/organizations/" + encodeURIComponent(id) + "/impact"),
+    enabled: Boolean(id) && Boolean(enabled),
+    retry: false,
+    staleTime: 0,
   });
 }
 

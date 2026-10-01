@@ -261,8 +261,8 @@ def test_delete_department_counts_archived_users_too(client, admin_csrf):
         f"앞은 「건」, 뒤는 「명」으로 같은 사람을 센다: {r.json()['error']['message']}"
     )
     precheck = client.get(
-        f"/api/admin/departments/{dept_id}", headers=_headers(admin_csrf)
-    ).json()["department"]["delete_precheck"]
+        f"/api/admin/departments/{dept_id}/impact", headers=_headers(admin_csrf)
+    ).json()["delete"]
     assert precheck["blockers"][0]["archived_count"] == 1, (
         f"화면이 보관 계정을 갈라 말할 근거가 응답에 없다: {precheck}"
     )
@@ -543,8 +543,8 @@ def test_a_project_still_blocks_the_delete_and_says_what_is_archived(
 ):
     """지우면 조용히 깨지는 갈래는 그대로 막는다 — 그리고 **보관된 것을 말한다** (xc-04).
 
-    보관된 프로젝트는 프로젝트 화면에 안 보이는데 삭제는 막는다. 「프로젝트 1건」이라고만
-    답하면 관리자는 그 1건을 끝내 찾지 못한다.
+    보관된 프로젝트는 프로젝트 화면에 안 보이는데 삭제는 막는다. 「프로젝트 1개」라고만
+    답하면 관리자는 그 1개를 끝내 찾지 못한다. 프로젝트는 셀 수 있는 것이라 「개」로 센다(D-533).
     """
     from datetime import datetime
 
@@ -568,41 +568,41 @@ def test_a_project_still_blocks_the_delete_and_says_what_is_archived(
     assert err["details"]["archived"]["projects"] == 1, (
         f"무엇이 보관된 것인지 응답이 말하지 않는다: {err['details']}"
     )
-    assert "보관된 프로젝트 1건" in err["message"], (
-        f"화면에서 못 찾을 1건을 그냥 「프로젝트 1건」이라고만 말한다: {err['message']}"
+    assert "보관된 프로젝트 1개" in err["message"], (
+        f"화면에서 못 찾을 1개를 그냥 「프로젝트 1개」라고만 말한다: {err['message']}"
     )
 
 
 def test_the_department_detail_says_whether_it_can_be_deleted(
     client, admin_csrf, db, make_project
 ):
-    """삭제 판정은 **서버가 한 번** 내리고 상세 응답이 그것을 싣는다 (org-01).
+    """삭제 판정은 **서버가 한 번** 내리고 `/impact` 가 그것을 싣는다 (org-01 · D-533).
 
     화면이 인원과 하위 부서만 세던 시절에는 「지금 삭제할 수 있습니다」라고 말해 놓고
-    누르면 409 였다.
+    누르면 409 였다. 판정은 상세 응답에서 걷어 「삭제」를 누를 때 묻는 `/impact` 로 옮겼다.
     """
     dept_id = _mk_dept(client, admin_csrf, name="판정팀").json()["department"]["id"]
 
     # 아무것도 안 매달린 부서는 지울 수 있다고 말한다(오탐 방지).
-    body = client.get(
-        f"/api/admin/departments/{dept_id}", headers=_headers(admin_csrf)
-    ).json()["department"]
-    assert body["delete_precheck"]["deletable"] is True
-    assert body["delete_precheck"]["blockers"] == []
+    verdict = client.get(
+        f"/api/admin/departments/{dept_id}/impact", headers=_headers(admin_csrf)
+    ).json()["delete"]
+    assert verdict["deletable"] is True
+    assert verdict["blockers"] == []
 
     make_project(name="판정용 프로젝트", dept=dept_id)
     _mk_team_room(db, dept_id, "판정팀 방")
 
     precheck = client.get(
-        f"/api/admin/departments/{dept_id}", headers=_headers(admin_csrf)
-    ).json()["department"]["delete_precheck"]
+        f"/api/admin/departments/{dept_id}/impact", headers=_headers(admin_csrf)
+    ).json()["delete"]
     assert precheck["deletable"] is False, (
         f"프로젝트가 매달렸는데 지울 수 있다고 말한다: {precheck}"
     )
     kinds = {b["kind"]: b for b in precheck["blockers"]}
     assert kinds["projects"]["count"] == 1
     assert kinds["projects"]["label"] == "프로젝트", "서버와 화면이 라벨을 두 벌 갖는다"
-    assert "프로젝트 1건" in precheck["reason"], (
+    assert "프로젝트 1개" in precheck["reason"], (
         f"무엇 때문에 못 지우는지 한 문장으로 말하지 않는다: {precheck['reason']}"
     )
     # 막지 않는 갈래는 blockers 가 아니라 detachables 다 — 화면이 둘을 다르게 말해야 한다.

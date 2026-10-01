@@ -48,6 +48,7 @@ import { declaredRowName, rowNameOf } from "./rowName.js";
 import { ANYWHERE_BREAK, OVERFLOW, SHRINK, columnLayoutWidth, planColumnCollapse, resolveColumn, rootFontPx, tableMinWidth } from "./columnTypes.js";
 import { planColumns } from "./columnPlan.js";
 import { CONTROL, densityVars, EMPTY_STATE_MAX_CH, ERROR_STATE_MAX_CH, FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, LINE_HEIGHT, MOTION, NUMERIC, RADIUS, SCROLL_BOX_STICKY_TOP, TABLE_CARD_QUERY, remPx, stickyTopSx } from "./theme.js";
+import { WorkspaceModeContext } from "./workspaceMode.js";
 import { CARD_PADDING, CARD_PADDING_COMPACT, SECTION_GAP, FORM_FIELD_CONTAINER, FORM_FIELD_GAP, FORM_FIELD_GRID_12, fieldSpan } from "./density.js";
 import { FlowStack, HeadRow } from "./layout.jsx";
 export { FLOW_GAP, FlowStack, HeadRow, centerPad } from "./layout.jsx";
@@ -545,29 +546,45 @@ export const Button = React.forwardRef(function Button({ variant: askedVariant =
  * 내보내는 이유: 「메뉴 항목 한 줄은 어떻게 생겼나」를 확인하려면 메뉴를 여는 화면을 하나씩
  * 열어야 했다. 대조표(`/kit`)가 같은 함수를 불러 열린 상태를 붙박이로 세운다 — 값을 베끼지
  * 않고 실제 항목을 그린다. */
-export function overflowMenuItems(items, onPick) {
+export function overflowMenuItems(items, onPick, idBase = "menu") {
   const list = (items || []).filter(Boolean);
   return list.map((it, i) => {
     const danger = it.tone === "danger";
     /* 파괴적 항목은 앞의 항목들과 실선으로 가른다 — 마우스가 미끄러져 바로 위 항목을
-       누르려다 삭제를 누르는 일을 막는 물리적 간격이다. */
+       누르려다 삭제를 누르는 일을 막는 물리적 간격이다. `divider` 는 같은 선을 다른 묶음 앞에 긋는다
+       (예: 대상 동작 · 옮겨 가는 링크 · 상세 정보). */
     const firstDanger = danger && !(list[i - 1] && list[i - 1].tone === "danger");
+    const rule = (firstDanger || it.divider) && i > 0;
+    /* 할 수 없는 동작은 지우지 않고 까닭 한 줄과 함께 비활성으로 둔다 — 항목 이름은 동작 낱말 그대로이고(`aria-label`),
+       까닭은 설명(`aria-describedby`)이다. 비활성 항목의 흐린 처리는 이름만 받고 까닭은 읽히는 굵기로 남긴다. */
+    const helpId = it.help ? `${idBase}-help-${it.key || i}` : undefined;
     return (
       <MenuItem
         key={it.key || it.label || i}
         disabled={it.disabled}
+        aria-label={it.help ? it.label : undefined}
+        aria-describedby={helpId}
         {...(it.href ? { component: "a", href: it.href } : null)}
         onClick={() => { if (onPick) onPick(it); if (it.onClick) it.onClick(); }}
         sx={{
           fontSize: FONT_SIZE.bodySm,
           color: danger ? "error.strong" : "text.primary",
-          borderTop: firstDanger && i > 0 ? 1 : 0,
+          borderTop: rule ? 1 : 0,
           borderColor: "divider",
-          mt: firstDanger && i > 0 ? 0.5 : 0,
-          pt: firstDanger && i > 0 ? 1 : undefined,
+          mt: rule ? 0.5 : 0,
+          pt: rule ? 1 : undefined,
+          ...(it.help ? {
+            flexDirection: "column", alignItems: "flex-start", whiteSpace: "normal", maxWidth: "20rem",
+            "&.Mui-disabled": { opacity: 1 },
+          } : null),
         }}
       >
-        {it.label}
+        {it.help ? (
+          <>
+            <Box component="span" sx={{ color: it.disabled ? "text.disabled" : "inherit" }}>{it.label}</Box>
+            <Box component="span" id={helpId} sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>{it.help}</Box>
+          </>
+        ) : it.label}
       </MenuItem>
     );
   });
@@ -576,6 +593,9 @@ export function overflowMenuItems(items, onPick) {
 export function OverflowMenu({ items, ariaLabel = "더 보기", size }) {
   const list = (items || []).filter(Boolean);
   const [anchorEl, setAnchorEl] = React.useState(null);
+  const idBase = React.useId();
+  /* 까닭이 달린 비활성 항목은 키보드로도 닿아야 까닭이 읽힌다 — 그런 항목이 있을 때만 비활성 항목에 초점이 선다. */
+  const reachDisabled = list.some((it) => it.disabled && it.help);
   if (!list.length) return null;
   const iconSize = size === "sm" || size === "small" ? "small" : size;
 
@@ -598,9 +618,9 @@ export function OverflowMenu({ items, ariaLabel = "더 보기", size }) {
         onClose={close}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
-        slotProps={{ paper: { sx: { minWidth: "12rem" } } }}
+        slotProps={{ paper: { sx: { minWidth: "12rem" } }, list: { disabledItemsFocusable: reachDisabled } }}
       >
-        {overflowMenuItems(list, close)}
+        {overflowMenuItems(list, close, idBase)}
       </Menu>
     </>
   );
@@ -2788,7 +2808,11 @@ export function RowActions({ actions, ariaLabel = "행 작업 더 보기", max =
    body="table"`) 안에서만 쓴다 — 문서 흐름 페이지의 표는 창이 굴린다. */
 const FILL_FRAME = { flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" };
 
-export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, empty, emptyState, emptyAction, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total, rowHeight, placement = "plain", list, selection, note, fill = false }) {
+export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, empty, emptyState, emptyAction, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total, rowHeight, placement = "plain", list, selection, note, fill: fillAsked = false }) {
+  /* `fill` 은 「채움 작업 공간이면 판 몸을 채워 직접 굴린다」다(D-531). 흐름(좁거나 낮은 창)의 판은 문서와 함께 흐르므로 표도
+     흐른다 — 높이 제한 없는 표 상자를 스크롤 창으로 두면 굴러가지 않고, 그 안의 감시점이 늘 보여 끝까지 받는다. */
+  const workspaceMode = React.useContext(WorkspaceModeContext);
+  const fill = fillAsked && workspaceMode !== false;
   // §15.1 재검수 — `VirtualTableBody` 는 스크롤 창을 스스로 안 만든다(문서 전체가 표
   // 흐름을 지키게, `VirtualRows`와 다른 이유는 그 부품 docblock 참고). 이 상자가 그 창
   // 이다 — `virtualize` 를 안 쓰면 아무도 안 읽는다(회귀 0).

@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「더 보기」와 주 동작(부서 추가 · 하위 부서 추가)이 상세 판 머리에서 페이지 머리로 옮겨 갔다(판 안의 30px 주 동작이 머리의 34px 보조 단추보다 작아 위계가 거꾸로 읽혔다). 판 머리에는 「수정」 하나가 남는다 — 판 안에서 단추를 찾던 단언을 페이지 머리(`.k-page-actions`)로 옮겼다.
+/* qa-contract-change: 조직 관리가 작업 공간이 되며(O1 · D-533, D-510 을 뒤집는다) 「부서 추가」 · 「하위 부서 추가」는 페이지 머리에서 오른쪽 판 머리로, 「수정」은 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겼다 — 단추를 찾는 자리만 옮겼고 요청 본문 · 후보 · 문구 단언은 그대로다.
+ *
+ * qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「더 보기」와 주 동작(부서 추가 · 하위 부서 추가)이 상세 판 머리에서 페이지 머리로 옮겨 갔다(판 안의 30px 주 동작이 머리의 34px 보조 단추보다 작아 위계가 거꾸로 읽혔다). 판 머리에는 「수정」 하나가 남는다 — 판 안에서 단추를 찾던 단언을 페이지 머리(`.k-page-actions`)로 옮겼다.
  *
  * qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 추가가 페이지 머리에서 조직 판의 「부서 추가」로 옮겨 갔고, 창이 그 조직을 고정해 조직 칸 없이 열린다(요청에는 org_id 가 실린다). 조직 칸 단언을 「조직 칸이 없고 org_id 가 실린다」로 바꾸고, 만든 뒤 새 항목으로 옮겨 가는 단언을 더했다. 수정의 diff 단언은 그대로다.
  *
@@ -95,6 +97,13 @@ function renderAt(path = "/organizations") {
 const WAIT = { timeout: 8000 };
 vi.setConfig({ testTimeout: 20000 });
 const panel = () => screen.getByTestId("org-console-panel");
+const paneHead = () => panel().querySelector("[data-pane-head]");
+
+/** 「더 보기 › 수정」 — 수정은 판 머리 단추가 아니라 메뉴의 첫 항목이다(D-533). 「더 보기」는 화면에 하나다(판 머리). */
+async function openEdit() {
+  await userEvent.click(await screen.findByRole("button", { name: /작업 더 보기$/ }, WAIT));
+  await userEvent.click(within(await screen.findByRole("menu", {}, WAIT)).getByRole("menuitem", { name: "수정" }));
+}
 
 beforeEach(() => { apiMock.mockReset(); authState.kind = "global"; });
 
@@ -124,7 +133,7 @@ describe("조직 추가", () => {
     await screen.findByTestId("org-console-tree", {}, WAIT);
     await within(panel()).findByRole("heading", { name: "클로비원" }, WAIT);
     expect(screen.queryByRole("button", { name: "조직 추가" })).toBeNull();
-    expect(within(document.querySelector(".k-page-actions")).getByRole("button", { name: "부서 추가" })).toBeInTheDocument();
+    expect(within(paneHead()).getByRole("button", { name: "부서 추가" })).toBeInTheDocument();
   });
 });
 
@@ -133,7 +142,7 @@ describe("부서 추가", () => {
     mockApi();
     renderAt();
     await within(panel()).findByRole("heading", { name: /./ }, WAIT);
-    await userEvent.click(await within(document.querySelector(".k-page-actions")).findByRole("button", { name: "부서 추가" }, WAIT));
+    await userEvent.click(await screen.findByRole("button", { name: "부서 추가" }, WAIT));
     const dlg = await screen.findByRole("dialog", { name: "클로비원에 부서 추가" }, WAIT);
     await userEvent.click(within(dlg).getByLabelText(/상위 부서/));
     expect(await screen.findByRole("option", { name: "영업팀" }, WAIT)).toBeInTheDocument();
@@ -159,8 +168,7 @@ describe("수정은 바뀐 것만 보낸다(diff)", () => {
   it("무변경 저장은 요청 없이 「변경된 내용이 없습니다.」", async () => {
     mockApi();
     renderAt();
-    const p = await screen.findByTestId("org-console-panel", {}, WAIT);
-    await userEvent.click(await within(p).findByRole("button", { name: "수정" }, WAIT));
+    await openEdit();
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     await userEvent.click(within(dlg).getByRole("button", { name: "저장" }));
     expect(await screen.findByText("변경된 내용이 없습니다.", {}, WAIT)).toBeInTheDocument();
@@ -170,8 +178,7 @@ describe("수정은 바뀐 것만 보낸다(diff)", () => {
   it("조직 이름을 바꾸면 그 필드만 PATCH 로 나간다", async () => {
     mockApi();
     renderAt();
-    const p = await screen.findByTestId("org-console-panel", {}, WAIT);
-    await userEvent.click(await within(p).findByRole("button", { name: "수정" }, WAIT));
+    await openEdit();
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     const box = within(dlg).getByLabelText(/조직 이름/);
     await userEvent.clear(box);
@@ -188,8 +195,7 @@ describe("수정은 바뀐 것만 보낸다(diff)", () => {
   it("부서 수정의 상위 후보에서 자기 자신은 빠진다", async () => {
     mockApi();
     renderAt("/departments/dep-sales");
-    const p = await screen.findByTestId("org-console-panel", {}, WAIT);
-    await userEvent.click(await within(p).findByRole("button", { name: "수정" }, WAIT));
+    await openEdit();
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     await userEvent.click(within(dlg).getByLabelText(/상위 부서/));
     expect(await screen.findByRole("option", { name: "개발팀" }, WAIT)).toBeInTheDocument();

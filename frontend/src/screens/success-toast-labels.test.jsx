@@ -1,4 +1,6 @@
-/* qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「하위 부서 추가」와 「더 보기」가 상세 판 머리에서 페이지 머리로 옮겨 갔다 — 같은 세 문장(추가 · 저장 · 삭제)을 새 자리에서 계속 못박는다.
+/* qa-contract-change: 조직 관리가 작업 공간이 되며(O1 · D-533, D-510 을 뒤집는다) 「부서 추가」 · 「하위 부서 추가」는 페이지 머리에서 오른쪽 판 머리로, 「수정」은 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겼다 — 단추를 찾는 자리만 옮겼고 요청 본문 · 후보 · 문구 단언은 그대로다. 삭제는 영향 확인 창(`/impact`)이라 표본에 그 답을 싣는다.
+ *
+ * qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「하위 부서 추가」와 「더 보기」가 상세 판 머리에서 페이지 머리로 옮겨 갔다 — 같은 세 문장(추가 · 저장 · 삭제)을 새 자리에서 계속 못박는다.
  *
  * qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 추가의 입구가 페이지 머리에서 부서 판의 「하위 부서 추가」로, 삭제가 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겨 갔다 — 같은 세 문장(추가 · 저장 · 삭제)을 새 입구에서 계속 못박는다.
  *
@@ -110,6 +112,12 @@ describe("부서 — 추가·수정·삭제가 전부 문장형이다 (조직 �
         return Promise.resolve({ department: { id: "d1", name: "고친이름" } });
       }
       if (u.startsWith("/api/admin/departments/tree")) return Promise.resolve({ items: TREE2 });
+      if (u === "/api/admin/departments/d1/impact") {
+        return Promise.resolve({
+          delete: { deletable: true, blockers: [], detachables: [], summary: null, reason: null },
+          deactivate: { members: 0, child_departments: 0, projects: 0, scoped_admins: 0, open_sprints: 0 },
+        });
+      }
       if (u === "/api/admin/departments/d1") {
         return Promise.resolve({ department: {
           id: "d1", name: "기존부서", active: true, parent_id: null, org_id: "o1",
@@ -138,7 +146,7 @@ describe("부서 — 추가·수정·삭제가 전부 문장형이다 (조직 �
     renderOrgConsoleAt("/departments/d1");
     const panel = await screen.findByTestId("org-console-panel", {}, WAIT_ORG);
     await within(panel).findByRole("heading", { name: "기존부서" }, WAIT_ORG);
-    await user.click(within(document.querySelector(".k-page-actions")).getByRole("button", { name: "하위 부서 추가" }));
+    await user.click(within(panel.querySelector("[data-pane-head]")).getByRole("button", { name: "하위 부서 추가" }));
     const dialog = await screen.findByRole("dialog", { name: "기존부서에 하위 부서 추가" });
     await user.type(within(dialog).getByLabelText(/부서 이름/), "새부서");
     await user.click(within(dialog).getByRole("button", { name: "추가" }));
@@ -150,8 +158,9 @@ describe("부서 — 추가·수정·삭제가 전부 문장형이다 (조직 �
     mockDepartments();
     const user = userEvent.setup();
     renderOrgConsoleAt("/departments/d1");
-    const panel = await screen.findByTestId("org-console-panel", {}, WAIT_ORG);
-    await user.click(await within(panel).findByRole("button", { name: "수정" }, WAIT_ORG));
+    // 수정은 「더 보기」의 첫 항목이다(D-533).
+    await user.click(await screen.findByRole("button", { name: "기존부서 작업 더 보기" }, WAIT_ORG));
+    await user.click(within(await screen.findByRole("menu", {}, WAIT_ORG)).getByRole("menuitem", { name: "수정" }));
 
     const editDialog = await screen.findByRole("dialog", { name: /수정/ });
     const nameInput = within(editDialog).getByLabelText(/부서 이름/);
@@ -169,12 +178,13 @@ describe("부서 — 추가·수정·삭제가 전부 문장형이다 (조직 �
     const panel = await screen.findByTestId("org-console-panel", {}, WAIT_ORG);
     // 삭제는 파괴적 동작이라 「더 보기」 메뉴의 항목이다.
     await within(panel).findByRole("heading", { name: "기존부서" }, WAIT_ORG);
-    await user.click(within(document.querySelector(".k-page-actions")).getByRole("button", { name: "기존부서 작업 더 보기" }));
+    await user.click(within(panel.querySelector("[data-pane-head]")).getByRole("button", { name: "기존부서 작업 더 보기" }));
     const menu = await screen.findByRole("menu", {}, WAIT_ORG);
     await user.click(within(menu).getByRole("menuitem", { name: "삭제" }));
 
-    const dialogs = await screen.findAllByRole("dialog", {}, WAIT_ORG);
-    await user.click(within(dialogs[dialogs.length - 1]).getByRole("button", { name: "삭제" }));
+    // 삭제 창은 열 때 서버에 영향을 묻는다 — 지울 수 있다는 답이 오면 확정 단추가 선다.
+    const dialog = await screen.findByRole("dialog", { name: "기존부서를 삭제하시겠습니까?" }, WAIT_ORG);
+    await user.click(within(dialog).getByRole("button", { name: "삭제" }));
 
     expect(await screen.findByText("삭제했습니다.")).toBeInTheDocument();
     // revert-to-verify 근거: 옛 패턴("삭제 완료")은 더 이상 어디에도 없어야 한다.

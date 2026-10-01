@@ -5,6 +5,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { StateRegion, Surface } from "./kit.jsx";
 import { HeadRow } from "./layout.jsx";
 import { ScrollRootContext } from "./scrollRoot.js";
+import { WorkspaceModeContext } from "./workspaceMode.js";
 import { WORKSPACE_TRACKS } from "./density.js";
 import { BREAKPOINTS, SCROLL_BOX_STICKY_TOP } from "./theme.js";
 
@@ -30,8 +31,8 @@ export const WORKSPACE_FILL_QUERY = `(min-width:${BREAKPOINTS.lg}px) and (min-he
 
 /** 앱 틀이 깔아 두는 등록 창구(`{ register() → 해제 함수 }`). 없으면(시험 · 단독 임베드) 채움은 늘 꺼져 있다. */
 export const WorkspaceShellContext = React.createContext(null);
-/* 지금 판 격자가 채움인가 — 판이 몸을 스크롤 상자로 만들지 정한다. */
-const WorkspaceModeContext = React.createContext(false);
+/* 지금 판 격자가 채움인가는 `workspaceMode.js` 의 문맥이 든다 — 판이 몸을 스크롤 상자로 만들지 정하고, 표(`DataTable fill`)가
+   채움일 때만 직접 굴린다. */
 
 /** 앱 틀의 상태 — 채움을 원하는 화면 수와 창의 기준. `fill` 이 참이면 main · 본문 상자가 창 높이 묶음이 된다. */
 export function useWorkspaceShellState() {
@@ -93,8 +94,9 @@ export function Workspace({ header, tracks = "tree", children, sx }) {
  *   body         "scroll"(몸이 굴러간다, 기본) · "table"(몸 안의 `DataTable fill` 이 직접 굴린다)
  *   bodyLabel    몸의 접근 이름 — 몸이 키보드로 굴러가는 영역이라 이름이 있어야 한다
  *   flowMaxHeight  흐름 모드에서 몸의 높이 상한(트리처럼 길어지는 판) — 그 높이 안에서 굴러간다
+ * 나머지 속성(`data-*` 등)은 판 뿌리에 붙는다.
  */
-export function WorkspacePane({ label, head, toolbar, foot, children, body = "scroll", bodyLabel, flowMaxHeight, sx }) {
+export function WorkspacePane({ label, head, toolbar, foot, children, body = "scroll", bodyLabel, flowMaxHeight, sx, ...rest }) {
   const fill = React.useContext(WorkspaceModeContext);
   const scrolls = fill ? body === "scroll" : !!flowMaxHeight;
   const bodySx = fill
@@ -108,6 +110,7 @@ export function WorkspacePane({ label, head, toolbar, foot, children, body = "sc
       component="section"
       aria-label={label}
       data-workspace-pane=""
+      {...rest}
       sx={{
         p: 0, minWidth: 0, display: "flex", flexDirection: "column",
         /* 채움이면 판이 자기 모서리로 안을 자른다(굴러가는 몸이 둥근 모서리 밖으로 비치지 않게). 흐름이면 자르지 않는다 — 판이
@@ -153,15 +156,28 @@ export function WorkspacePane({ label, head, toolbar, foot, children, body = "sc
   );
 }
 
-/** 판 머리 — 위에 작은 경로 줄(선택), 그 아래 [앞 아이콘] [제목 …] [동작] 한 줄(`HeadRow`, 첫 줄 가운데선). */
-export function PaneHead({ above, lead, title, titleAs = "h2", action, children }) {
+/** 판 머리 — 위에 작은 경로 줄(선택), 그 아래 [앞 아이콘] [제목 · 상태 …] [동작] 한 줄(`HeadRow`, 첫 줄 가운데선).
+ *
+ *   titleRef  제목에 초점을 옮겨야 하는 화면(한 열 배치에서 고른 결과로 옮겨 가기)이 준다 — 주면 제목이 `tabIndex=-1` 이다
+ *   meta      제목 바로 옆의 짧은 상태(정상이 아닐 때만 서는 점 + 낱말). 제목이 말줄임이 되어도 상태는 잘리지 않는다 */
+export function PaneHead({ above, lead, title, titleAs = "h2", titleRef, meta, action, children }) {
   return (
     <Box data-pane-head-row="" sx={{ minWidth: 0, display: "grid", rowGap: 0.5 }}>
       {above ? <Box sx={{ minWidth: 0 }}>{above}</Box> : null}
       <HeadRow lead={lead} action={action}>
-        <Typography component={titleAs} variant="sectionTitle" sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {title}
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", columnGap: 1, minWidth: 0 }}>
+          <Typography
+            component={titleAs}
+            variant="sectionTitle"
+            ref={titleRef}
+            tabIndex={titleRef ? -1 : undefined}
+            title={typeof title === "string" ? title : undefined}
+            sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
+            {title}
+          </Typography>
+          {meta ? <Box sx={{ flexShrink: 0, display: "inline-flex", alignItems: "center" }}>{meta}</Box> : null}
+        </Box>
         {children}
       </HeadRow>
     </Box>

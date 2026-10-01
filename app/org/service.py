@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.db import DEFAULT_WRITE_CONFLICT_RETRIES, is_insert_race, write_conflict_backoff
-from app.core.text import object_particle, topic_particle
+from app.core.text import object_particle, subject_particle, topic_particle
 from app.org.constants import DEFAULT_ORG_ID, ORG_SUSPENDED
 from app.core.errors import (
     ConflictError,
@@ -458,6 +458,7 @@ def dependents(db: Session, dept_id: str) -> dict[str, int]:
     from app.team_chat.models import ChatRoom
     from app.team_docs.models import DocumentCache
     from app.users.models import User
+    from app.work.models import SPRINT_CLOSED, Sprint
 
     def _count(clause) -> int:
         return _count_where(db, clause)
@@ -496,6 +497,11 @@ def dependents(db: Session, dept_id: str) -> dict[str, int]:
         # 이 부서를 **관리 범위로 배정받은** 관리자. 지우면 그 계정은 관리 대상이 없는
         # 상태가 되는데, 화면에는 "관리 범위: 지정된 부서 없음" 으로만 보인다.
         "scoped_admins": _count(User.scope_dept_id == dept_id),
+        # 회차(D-533) — `sprints.department_id` 는 `SET NULL` 이라 지우면 그 팀의 회차가 조용히 「팀 미정」이 된다. 진행 · 예정
+        # 회차는 팀 사용자에게서 사라지고 담기 · 열기가 막히므로 **막는다**. 닫힌 회차는 지난 기록이라 **떼어 낸다** — 회차의
+        # 팀은 바꿀 수 없어서 닫힌 회차까지 막으면 지울 수 없는 부서가 생긴다(`detach_dependents`).
+        "open_sprints": _count_where(db, Sprint.department_id == dept_id, Sprint.state != SPRINT_CLOSED),
+        "closed_sprints": _count_where(db, Sprint.department_id == dept_id, Sprint.state == SPRINT_CLOSED),
     }
     return {k: v for k, v in found.items() if v}
 
@@ -509,15 +515,23 @@ _DEPENDENT_LABELS = {
     "legacy_documents": "옛 문서 기록",
     "chat_rooms": "팀 채팅방",
     "scoped_admins": "이 부서를 관리 범위로 가진 관리자",
+    "open_sprints": "진행 중이거나 예정된 회차",
+    "closed_sprints": "닫힌 회차",
 }
 
-#: 갈래마다 **세는 단위**. 사람은 「명」, 나머지는 「건」이다.
+#: 갈래마다 **세는 단위**. 사람은 「명」, 셀 수 있는 것은 「개」, 기록(문서)은 「건」이다.
 #:
 #: 🔴 한 문장이 같은 사람을 두 단위로 셌다. 「소속 사용자 1건이 연결되어 있어 …
 #: 그중 보관된 계정 1명은 …」 — 읽는 사람은 1건과 1명이 같은 행인지 다른 행인지 끝내 알 수
 #: 없다. 아래 `_ARCHIVED_LABELS` 가 이미 사람을 「명」으로 세고 있었으므로, 갈라진 쪽은
 #: 여기다. 「이 부서를 관리 범위로 가진 관리자」도 사람이라 같은 단위를 쓴다.
-_DEPENDENT_UNITS = {"users": "명", "scoped_admins": "명"}
+#:
+#: 셀 수 있는 것(부서 · 프로젝트 · 공간 · 방 · 회차)은 「개」다(D-533 — 「프로젝트 24개」). 「건」은 문서처럼 기록을 셀 때만 쓴다.
+_DEPENDENT_UNITS = {
+    "users": "명", "scoped_admins": "명",
+    "child_departments": "개", "projects": "개", "knowledge_spaces": "개", "chat_rooms": "개",
+    "open_sprints": "개", "closed_sprints": "개",
+}
 
 
 def _counted(kind: str, count: int) -> str:
@@ -529,13 +543,13 @@ def _counted(kind: str, count: int) -> str:
 #: 「보관된 계정 1명」이라고 말해야 관리자가 어디를 찾아야 하는지 안다.
 _ARCHIVED_LABELS = {
     "users": ("보관된 계정", "명"),
-    "projects": ("보관된 프로젝트", "건"),
-    "knowledge_spaces": ("보관된 지식 공간", "건"),
+    "projects": ("보관된 프로젝트", "개"),
+    "knowledge_spaces": ("보관된 지식 공간", "개"),
 }
 
 #: 지우면 **조용히 깨지거나 사라지는** 갈래. 부서 삭제를 막는다.
 BLOCKING_DEPENDENTS = (
-    "users", "child_departments", "projects", "knowledge_spaces", "documents", "scoped_admins",
+    "users", "child_departments", "projects", "knowledge_spaces", "documents", "scoped_admins", "open_sprints",
 )
 
 #: 부서를 잃어도 **그 자체로 살아 있는** 갈래. 막지 않고 삭제와 같은 트랜잭션에서 떼어 낸다.
@@ -545,7 +559,7 @@ BLOCKING_DEPENDENTS = (
 #: 그 방은 방장이 없어 아무도 파할 수 없고 방의 부서를 바꾸는 경로도 제품에 없다. 옛 문서
 #: 기록은 화면에 존재조차 하지 않는다. 그래서 「사람이 한 번이라도 있었던 부서」가 영영
 #: 안 지워졌다 — 막는 대신 연결만 끊는다. 방의 대화도, 옛 기록도 지우지 않는다.
-DETACHABLE_DEPENDENTS = ("chat_rooms", "legacy_documents")
+DETACHABLE_DEPENDENTS = ("chat_rooms", "legacy_documents", "closed_sprints")
 
 
 def archived_dependents(db: Session, dept_id: str) -> dict[str, int]:
@@ -577,7 +591,7 @@ def archived_dependents(db: Session, dept_id: str) -> dict[str, int]:
 def _blocked_summary(blocking: dict[str, int]) -> str:
     """삭제가 막힌 이유의 첫 문장만 - `_blocked_message` 의 앞머리와 같은 말이다."""
     parts = ", ".join(_counted(k, v) for k, v in blocking.items())
-    return f"이 부서에 {parts}이 연결되어 있어 삭제할 수 없습니다."
+    return f"이 부서에 {parts}{subject_particle(parts)} 연결되어 있어 삭제할 수 없습니다."
 
 
 def _blocked_message(blocking: dict[str, int], archived: dict[str, int]) -> str:
@@ -592,12 +606,11 @@ def _blocked_message(blocking: dict[str, int], archived: dict[str, int]) -> str:
         names = ", ".join(
             f"{_ARCHIVED_LABELS[k][0]} {v}{_ARCHIVED_LABELS[k][1]}" for k, v in archived.items()
         )
-        hidden = f" 그중 {names}은 목록에 보이지 않으니 보관함을 함께 확인해 주세요."
+        hidden = f" 그중 {names}{topic_particle(names)} 목록에 보이지 않으니 보관함을 함께 확인해 주세요."
     return (
-        # 앞 조각이 언제나 「N건」이나 「N명」으로 끝나고 둘 다 받침이 있으므로 조사는 '이'
-        # 하나다(「이(가)」 같은 괄호 표기를 쓰지 않는다 — 화면 문구는 완전한 한 문장이어야
-        # 한다, CLAUDE.md §10).
-        f"이 부서에 {parts}이 연결되어 있어 삭제할 수 없습니다.{hidden}"
+        # 조사는 앞 조각의 끝 글자 받침으로 고른다 — 「N개」로 끝나면 「가」, 「N명」 · 「N건」이면 「이」다(「이(가)」 같은
+        # 괄호 표기를 쓰지 않는다 — 화면 문구는 완전한 한 문장이어야 한다, CLAUDE.md §10).
+        f"이 부서에 {parts}{subject_particle(parts)} 연결되어 있어 삭제할 수 없습니다.{hidden}"
         " 먼저 다른 부서로 옮기거나, '비활성'으로 두면 새로 고를 수는 없지만 기존 연결은"
         " 그대로 유지됩니다."
     )
@@ -607,7 +620,7 @@ def detached_message(detached: dict[str, int]) -> str:
     """떼어 낸 것을 말하는 한 문장. 조용히 끊으면 나중에 「왜 이 방이 부서를 잃었나」를
     아무도 설명할 수 없다."""
     names = ", ".join(_counted(k, v) for k, v in detached.items())
-    return f"{names}은 부서 연결만 끊고 그대로 두었습니다."
+    return f"{names}{topic_particle(names)} 부서 연결만 끊고 그대로 두었습니다."
 
 
 def detach_dependents(db: Session, dept_id: str) -> dict[str, int]:
@@ -625,6 +638,7 @@ def detach_dependents(db: Session, dept_id: str) -> dict[str, int]:
     from app.core.ownership import OWNER_UNSET
     from app.team_chat.models import ChatRoom
     from app.team_docs.models import DocumentCache
+    from app.work.models import SPRINT_CLOSED, Sprint
 
     rooms = db.execute(
         update(ChatRoom)
@@ -638,8 +652,36 @@ def detach_dependents(db: Session, dept_id: str) -> dict[str, int]:
         .values(owner_dept_id=None, owner_kind=OWNER_UNSET)
         .execution_options(synchronize_session=False)
     ).rowcount
+    # 닫힌 회차는 「팀 미정」으로 남긴다(D-533). 이름은 조직 안 팀 미정 회차끼리 유일해야 하므로(`uq_sprints_name`) 겹치면 옛
+    # 부서 이름을 붙인다 — 「9-2」가 둘이 되는 대신 「9-2 (플랫폼개발팀)」이다. 겹치지 않으면 이름을 그대로 둔다.
+    closed = list(db.execute(
+        select(Sprint).where(Sprint.department_id == dept_id, Sprint.state == SPRINT_CLOSED).order_by(Sprint.created_at)
+    ).scalars())
+    if closed:
+        dept_row = db.get(Department, dept_id)
+        dept_name = dept_row.name if dept_row else ""
+        taken = {
+            (org_id, name) for org_id, name in db.execute(
+                select(Sprint.org_id, Sprint.name).where(Sprint.department_id.is_(None))
+            ).all()
+        }
+        for sprint in closed:
+            name = sprint.name
+            if (sprint.org_id, name) in taken:
+                n = 1
+                while True:
+                    suffix = f" ({dept_name})" if n == 1 else f" ({dept_name} {n})"
+                    name = sprint.name[: 120 - len(suffix)] + suffix
+                    if (sprint.org_id, name) not in taken:
+                        break
+                    n += 1
+            sprint.name = name
+            sprint.department_id = None
+            taken.add((sprint.org_id, name))
     db.flush()
-    detached = {"chat_rooms": int(rooms or 0), "legacy_documents": int(legacy or 0)}
+    detached = {
+        "chat_rooms": int(rooms or 0), "legacy_documents": int(legacy or 0), "closed_sprints": len(closed),
+    }
     return {k: v for k, v in detached.items() if v}
 
 
@@ -662,12 +704,13 @@ def delete_precheck(db: Session, dept_id: str) -> dict:
                 "kind": kind,
                 "label": _DEPENDENT_LABELS[kind],
                 "count": count,
+                "unit": _DEPENDENT_UNITS.get(kind, "건"),
                 "archived_count": hidden.get(kind, 0),
             }
             for kind, count in blocking.items()
         ],
         "detachables": [
-            {"kind": kind, "label": _DEPENDENT_LABELS[kind], "count": count}
+            {"kind": kind, "label": _DEPENDENT_LABELS[kind], "count": count, "unit": _DEPENDENT_UNITS.get(kind, "건")}
             for kind, count in detachable.items()
         ],
         "reason": (
@@ -677,6 +720,50 @@ def delete_precheck(db: Session, dept_id: str) -> dict:
         ),
         # 판에 먼저 서는 한 문장(계획 3.6). 긴 이유(보관 계정 안내 · 대안)는 `reason` 이 들고 화면이 「자세히」로 편다.
         "summary": _blocked_summary(blocking) if blocking else None,
+    }
+
+
+def department_impact(db: Session, dept_id: str) -> dict:
+    """부서를 지우거나 비활성화하면 무엇이 달라지는가 (D-533). 화면이 **열 때만** 묻는다.
+
+    상세 GET 이 판정을 늘 싣던 동안에는 부서를 고를 때마다 COUNT 열두어 번을 돌았고, 평소 화면이 「지울 수 없습니다」를
+    늘 보여 줬다. 이제 「삭제」 · 「비활성화」를 누를 때 이 함수 하나가 답한다 — 삭제 판정은 `delete_precheck`(409 와 같은
+    문장)이고, 비활성화는 지워지지 않고 남는 것들의 수다(새 배치 · 새 하위 부서만 막힌다).
+    """
+    from app.projects.models import Project
+    from app.users.models import User
+
+    found = dependents(db, dept_id)
+    return {
+        "delete": delete_precheck(db, dept_id),
+        "deactivate": {
+            "members": _count_where(db, User.department_id == dept_id, User.archived_at.is_(None)),
+            "child_departments": found.get("child_departments", 0),
+            "projects": _count_where(db, Project.dept_id == dept_id, Project.archived_at.is_(None)),
+            "scoped_admins": found.get("scoped_admins", 0),
+            "open_sprints": found.get("open_sprints", 0),
+        },
+    }
+
+
+def organization_impact(db: Session, org_id: str) -> dict:
+    """조직을 비활성화하면 누가 로그아웃되는가 (D-533).
+
+    예전 확인 창은 조직의 사람 수(`user_count` — 보관 · 비활성 계정과 시스템 관리자까지 센 수)를 「로그아웃될 사람」으로
+    말했다. 실제로 끊기는 사람은 지금 쓸 수 있는 계정(활성 · 보관 안 됨) 가운데 시스템 관리자가 아닌 사람이다 — 시스템
+    관리자는 정지를 풀 사람이 남도록 끊지 않는다(`router._revoke_org_sessions` 가 끊는 대상 중 지금 로그인할 수 있는 계정만 센다).
+    """
+    from app.users.models import User
+
+    in_org = (User.org_id == org_id,)
+    live = (*in_org, User.archived_at.is_(None))
+    return {
+        "suspend": {
+            "signed_out_users": _count_where(db, *live, User.active.is_(True), User.role != "system_admin"),
+            "exempt_system_admins": _count_where(db, *live, User.active.is_(True), User.role == "system_admin"),
+            "inactive_users": _count_where(db, *live, User.active.is_(False)),
+            "archived_users": _count_where(db, *in_org, User.archived_at.is_not(None)),
+        },
     }
 
 

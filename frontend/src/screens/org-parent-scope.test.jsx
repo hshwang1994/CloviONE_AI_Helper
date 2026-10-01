@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「더 보기」와 주 동작(부서 추가 · 하위 부서 추가)이 상세 판 머리에서 페이지 머리로 옮겨 갔다(판 안의 30px 주 동작이 머리의 34px 보조 단추보다 작아 위계가 거꾸로 읽혔다). 판 머리에는 「수정」 하나가 남는다 — 판 안에서 단추를 찾던 단언을 페이지 머리(`.k-page-actions`)로 옮겼다.
+/* qa-contract-change: 조직 관리가 작업 공간이 되며(O1 · D-533, D-510 을 뒤집는다) 「부서 추가」 · 「하위 부서 추가」는 페이지 머리에서 오른쪽 판 머리로, 「수정」은 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겼다 — 단추를 찾는 자리만 옮겼고 요청 본문 · 후보 · 문구 단언은 그대로다.
+ *
+ * qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「더 보기」와 주 동작(부서 추가 · 하위 부서 추가)이 상세 판 머리에서 페이지 머리로 옮겨 갔다(판 안의 30px 주 동작이 머리의 34px 보조 단추보다 작아 위계가 거꾸로 읽혔다). 판 머리에는 「수정」 하나가 남는다 — 판 안에서 단추를 찾던 단언을 페이지 머리(`.k-page-actions`)로 옮겼다.
  *
  * qa-contract-change: 조직 관리 IA 재설계(P6)로 부서 추가 창의 조직 칸이 없어졌다 — 조직은 창을 연 자리(조직 판 · 부서 판)가 고정한다. 「조직 칸을 바꾸면 후보가 따라간다」 단언을 「A 조직에서 열면 A 의 부서만, B 조직의 부서에서 열면 B 의 부서만」으로 옮기고, 정지된 조직의 상태 표시(org-17)를 조직 후보 라벨에서 창의 안내로 옮겼다. 미사용 부서를 후보에서 빼는 단언(xb-08)을 더했다.
  *
@@ -129,15 +131,21 @@ async function optionNames(dlg, label) {
   return names;
 }
 
-/** 고른 대상의 주 동작(조직이면 「부서 추가」, 부서면 「하위 부서 추가」)으로 부서 추가 창을 연다. 단추는 페이지
- * 머리에 선다(D-510). */
+/** 고른 대상의 주 동작(조직이면 「부서 추가」, 부서면 「하위 부서 추가」)으로 부서 추가 창을 연다. 단추는 오른쪽 판
+ * 머리에 선다(D-533). */
 async function openCreate(path, heading, opener, title) {
   mockApi();
   renderAt(path);
   const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
   await within(panel).findByRole("heading", { name: heading }, WAIT);
-  await userEvent.click(within(document.querySelector(".k-page-actions")).getByRole("button", { name: opener }));
+  await userEvent.click(within(panel.querySelector("[data-pane-head]")).getByRole("button", { name: opener }));
   return screen.findByRole("dialog", { name: title }, WAIT);
+}
+
+/** 「더 보기 › 수정」 — 수정은 판 머리 단추가 아니라 메뉴의 첫 항목이다(D-533). 「더 보기」는 화면에 하나다(판 머리). */
+async function openEdit() {
+  await userEvent.click(await screen.findByRole("button", { name: /작업 더 보기$/ }, WAIT));
+  await userEvent.click(within(await screen.findByRole("menu", {}, WAIT)).getByRole("menuitem", { name: "수정" }));
 }
 
 function lastPost() {
@@ -205,8 +213,7 @@ describe("부서 수정의 상위 부서 후보", () => {
   it("이 부서가 속한 조직의 사용 중인 부서만 후보다(자기 자신은 여전히 빠진다)", async () => {
     mockApi();
     renderAt("/departments/dep-sales");
-    const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
-    await userEvent.click(await within(panel).findByRole("button", { name: "수정" }, WAIT));
+    await openEdit();
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     const names = await optionNames(dlg, /상위 부서/);
     expect(names).toEqual(["(최상위)", "개발팀", "남은팀"]);
@@ -216,8 +223,7 @@ describe("부서 수정의 상위 부서 후보", () => {
   it("지금 상위 부서가 미사용이면 그 값은 후보에 남는다 — 이름만 고치는 창이 지금 값을 잃지 않는다", async () => {
     mockApi();
     renderAt("/departments/dep-kid");
-    const panel = await screen.findByTestId("org-console-panel", {}, WAIT);
-    await userEvent.click(await within(panel).findByRole("button", { name: "수정" }, WAIT));
+    await openEdit();
     const dlg = await screen.findByRole("dialog", {}, WAIT);
     expect(within(dlg).getByLabelText(/상위 부서/)).toHaveTextContent("옛본부");
     expect(await optionNames(dlg, /상위 부서/)).toEqual(["(최상위)", "영업팀", "개발팀", "옛본부"]);

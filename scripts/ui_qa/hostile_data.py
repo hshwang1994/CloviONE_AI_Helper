@@ -7,6 +7,8 @@
   long    : 긴 한글 문장(줄바꿈 기회 있음) · 긴 URL(줄바꿈 기회 **없음**, 표를 가장 잘 깨뜨린다)
   many    : 목록 항목을 200개로 복제 (페이지네이션·가상화·성능)
   weird   : RTL(히브리) · 이모지 · 결합 문자 · 제로폭 공백 · `<script>` 문자열(이스케이프 확인)
+  tree    : 조직도 응답(`/api/admin/departments/tree`)을 5단계 · 200줄 · 긴 이름 섞인 트리로 바꾼다(O1 · D-533).
+            다른 응답은 그대로 둔다 — `--modes tree --routes admin_organizations` 로 쓴다
 
 보는 것: 가로 넘침 · 잘림(overflow:hidden) · 세로 붕괴 · 렌더 시간 · JS 예외.
 
@@ -120,6 +122,8 @@ def transform(payload, mode: str):
             return [walk(x) for x in o]
         return o
 
+    if mode == "tree":
+        return synth_tree(payload)
     out = walk(payload)
     if mode == "many" and isinstance(out, dict):
         for key in ("items", "data", "results", "rows"):
@@ -133,6 +137,41 @@ def transform(payload, mode: str):
                     out["total"] = len(out[key])
                 break
     return out
+
+
+def synth_tree(payload):
+    """조직도 응답이면 5단계 · 200줄 트리로 바꾼다. 조직도가 아니면(행에 `kind` · `depth` 가 없으면) 그대로 돌려준다.
+
+    서버 계약 그대로 깊이 우선 평탄 목록이다(`app/org/tree.py`) — 화면의 `nestRows` 가 깊이로 되접는다."""
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not (isinstance(items, list) and items and all(isinstance(r, dict) and "depth" in r and "kind" in r for r in items)):
+        return payload
+    org = next((r for r in items if r.get("kind") == "organization"), None)
+    if org is None:
+        return payload
+    rows = [dict(org, child_count=4, subtree_user_count=600)]
+    made = [0]
+
+    def grow(parent, depth, path):
+        width = 4 if depth == 1 else 3
+        for k in range(width):
+            if made[0] >= 199 or depth > 5:
+                return
+            made[0] += 1
+            n = made[0]
+            name = (LONG_KO[:60] + f" {n}") if n % 17 == 0 else f"합성 {depth}단계 {n:03d}팀"
+            row = {
+                "id": f"synthetic-dept-{n:03d}", "kind": "department", "name": name, "slug": None,
+                "depth": depth, "path": f"{path} › {name}", "parent_id": parent, "org_id": org.get("id"),
+                "active": n % 23 != 0, "user_count": n % 7, "child_count": 0, "subtree_user_count": (n % 7) * 3,
+                "cycle": False, "created_at": org.get("created_at"),
+            }
+            rows.append(row)
+            if depth < 5:
+                grow(row["id"], depth + 1, row["path"])
+
+    grow(None, 1, org.get("name") or "")
+    return dict(payload, items=rows)
 
 
 SELFTEST_HTML = r"""() => {
