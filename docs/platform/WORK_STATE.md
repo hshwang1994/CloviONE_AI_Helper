@@ -17,6 +17,7 @@
 - 잰 것: 표적 vitest · `verify.py` TARGETED_OK, `kit_measure --fail-on switch_geometry` 282표본 0실패(옛 빌드 270표본 전부 실패),
   `switch_states` 174/174(같은 하네스로 옛 빌드를 임시 worktree 에서 돌리면 라벨 · 가장자리 클릭 · 초점 링 · 저장 판정이 실패한다).
   캡처 라벨은 `switch-before` · `switch-after` 이고 Acceptance 정본을 옮기지 않는다.
+- 배포: `5aadfbb6` 를 랩 운영 설치에 올렸다(아래 CHECKPOINT). DEPLOY_VERIFY_OK.
 - 남은 일: 범위 밖으로 넘긴 넷이 BACKLOG P-117 ~ P-120 이다(방해금지 이름, AI 답변 생성 초안 스위치, 초점 프로브, 고대비).
 
 ## 끝남 — 관리자 · 사용자 화면 전반 개선 회차 (2026-09-30, 사람의 자격이 필요한 측정만 남았다)
@@ -74,13 +75,12 @@
 - session: 사용자가 여덟 가지를 auto 모드로 끝까지 지시했고(구현 → 표적 검증 → 문서 → 커밋), 검증이 끝난 뒤 **배포까지** 지시했다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`7bf15f4d`** (2026-10-01 09:57 KST, 사용자 지시로 관리자 화면 개선 회차 전체를 올렸다) — 마이그레이션
-  `0030_search_fold → 0041_ai_policies`, Stage 0 ~ 18 전부 OK, VERIFY_OK, 밖에서 본 `verify_deploy.sh` DEPLOY_VERIFY_OK(정적 자산
-  54/54 새 번들). 옛 `llm_*` 는 `ai_provider=anthropic` · API 키 방식으로 옮겨졌지만 키와 모델이 없어 AI 는 「미설정」이다(배포 전에도
-  키 파일이 없어 답을 못 만들었다). 옛 시드 프롬프트 3건과 정책 2건은 보관되고 정책 초안 3건과 관리자 알림(`ai_policy_migrated`)이
-  생겼다. 티켓 요청자는 1,310건 중 236건이 채워졌다. 허용 목록에는 OpenAI 두 호스트만 더해졌다. 임베딩은 배포 전후 모두 꺼짐이다.
-  스냅샷 `/var/backups/clovirassist/20261001-095658`, 설치 로그 `/var/log/clovirassist/install-20261001-095658.log`.
-  되돌리려면 `sudo clovirassist rollback`(타임스탬프 스냅샷만 고른다, D-524). 그 전 배포는 `f0232c51`(2026-09-21).
+- deployed: **`5aadfbb6`** (2026-10-01 14:58 KST, 사용자 지시로 공통 스위치 개편을 올렸다) — 마이그레이션 없음(`0041_ai_policies`
+  그대로), Stage 0 ~ 18 전부 OK, VERIFY_OK, 밖에서 본 `verify_deploy.sh` DEPLOY_VERIFY_OK(정적 자산 54/54 새 번들). 스냅샷
+  `/var/backups/clovirassist/20261001-145850`, 설치 로그 `/var/log/clovirassist/install-20261001-145850.log`. 되돌리려면
+  `sudo clovirassist rollback`(D-524). 원격 QA 계정(`dist/ui-qa-remote`)이 랩에서 보관 상태라 원격 `switch_geometry` 는 재지 못했다 —
+  같은 번들을 로컬에서 282표본 0실패로 쟀다. 그 전 배포는 `7bf15f4d`(2026-10-01 09:57, 관리자 화면 개선 회차 — 그 배포가 옮긴 AI
+  설정 · 정책 초안의 상태는 위 그 회차 절이 말한다).
 - verification: 아래 「이번 회차가 잰 것」.
 - capture: 전량 정본은 **`s22-final`** 그대로다(D-306). 이번 회차의 부분 캡처는 `p8-admin` · `p8-admin2` · `p8-user` · `p8-recheck` ·
   `p8-org2` · `p8-mystats` 이고 Acceptance 정본을 옮기지 않는다. 뼈대 기준 라벨은 **`p8-geo`** 다 — 작업 보드는 D-497 이 상단을
