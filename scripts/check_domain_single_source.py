@@ -171,7 +171,9 @@ RULES: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
         # **정의는 호출이 아니다.** `app/llm/prompt.py` 가 이 함수를 만드는 자리라
         # `def` 뒤는 빼고 본다 — 안 그러면 정의 파일 자신이 위반이 되고, 그 예외를
         # 목록에 적으면 그 파일에서의 진짜 호출도 함께 통과한다.
-        r"(?<!def )build_prompt\s*\(",
+        # AI 도우미의 틀(`assistant_system` · `user_turn` · `fence`, D-535)도 같은 문이다 - 도구 결과를 칸에 넣는 자리가
+        # 런타임 밖에 생기면 그 결과는 난스 없이 모델에 간다.
+        r"(?<!def )\b(?:build_prompt|assistant_system|user_turn|fence)\s*\(",
         "🔴 난스 구분자와 neutralize 를 안 지나는 생성 경로가 하나라도 생기면 그 경로에서 "
         "프롬프트 주입 방어가 통째로 없다 (D-202)",
     ),

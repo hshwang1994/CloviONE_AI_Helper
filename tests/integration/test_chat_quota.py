@@ -19,6 +19,19 @@ from datetime import datetime
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _ai_ready(request):
+    """메시지를 보내려면 AI 를 지금 쓸 수 있어야 한다(D-538) - 꺼져 있거나 미설정이면 409 `ai_unavailable` 이다.
+
+    공용 앱(`client`)을 쓰는 시험에만 건다 - 제 앱을 따로 만드는 시험은 그 앱의 설정을 스스로 정한다.
+    """
+    if "client" not in request.fixturenames:
+        return
+    from tests.fakes.ai import configure_ai
+
+    configure_ai(request.getfixturevalue("app"))
+
+
 @pytest.fixture()
 def capped(db, make_user):
     """하루 1회 상한이 걸린 사용자."""
@@ -137,6 +150,8 @@ def test_the_admin_screen_says_chat_is_enforced(client, login_as):
     """
     login_as("system_admin")
     kinds = {e["kind"] for e in client.get("/api/admin/ai-quotas").json()["enforced_on"]}
-    assert "chat.answer" in kinds, (
+    assert "assistant.chat" in kinds, (
         f"관리자 화면이 채팅에 상한이 걸린다는 사실을 말하지 않는다: {kinds}"
     )
+    # 은퇴한 옛 채팅 액션은 「지금 거는 곳」이 아니다(D-535).
+    assert "chat.answer" not in kinds and "workspace.ask" not in kinds

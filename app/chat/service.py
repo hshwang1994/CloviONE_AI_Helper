@@ -198,6 +198,10 @@ def list_messages(db: Session, conversation: Conversation, *, after: str | None 
     return rows
 
 
+#: 글 없이 이미지만 보낸 메시지의 본문. 워커는 이 글을 질문으로 보내지 않는다(`app/jobs/handlers/chat_message.py`).
+IMAGE_ONLY_CONTENT = "(이미지 첨부)"
+
+
 def post_user_message(
     db: Session,
     user: User,
@@ -208,17 +212,20 @@ def post_user_message(
     settings: Settings,
     now: datetime,
     attachments: list | None = None,
-    screen_context: str | None = None,
+    screen_context: dict | None = None,
 ):
-    """Save the user message and enqueue the answer job. Returns (message, job)."""
-    import json as _json
+    """Save the user message and enqueue the answer job. Returns (message, job).
 
+    ``screen_context`` 는 서랍이 보낸 화면 대상 ``{kind, ref, label}`` 이다(D-538). 사용자 메시지의 구조에 남겨 재시도 ·
+    다시 만들기에도 같은 대상으로 묻고, 잡 payload 에도 싣는다. 대상을 믿지는 않는다 - 워커가 대화 주인의 권한으로 다시
+    읽은 것만 모델에 간다(`app/ai/assistant/history.py`).
+    """
     from app.chat.attachments import attachment_names, validate_attachments
 
     images = validate_attachments(attachments)
     content = (content or "").strip()
     if not content and images:
-        content = "(이미지 첨부)"
+        content = IMAGE_ONLY_CONTENT
     if not content:
         raise ValidationAppError("메시지를 입력하세요.")
     if len(content) > settings.max_message_length:
@@ -249,11 +256,7 @@ def post_user_message(
         role=ROLE_USER_MSG,
         content=content,
         # Names only — image bytes are never stored on the platform (§13 확장).
-        structured_payload_json=(
-            _json.dumps({"attachments": attachment_names(images)}, ensure_ascii=False)
-            if images
-            else None
-        ),
+        structured_payload_json=_user_structured(attachment_names(images) if images else None, screen_context),
         processing_status=PROC_PENDING,
     )
     db.add(message)
@@ -279,13 +282,37 @@ def post_user_message(
     return message, job
 
 
+def _user_structured(attachment_names: list | None, screen_context: dict | None) -> str | None:
+    import json as _json
+
+    body = {}
+    if attachment_names:
+        body["attachments"] = attachment_names
+    if screen_context:
+        body["screen_context"] = screen_context
+    return _json.dumps(body, ensure_ascii=False) if body else None
+
+
+def _stored_screen_context(message: Message) -> dict | None:
+    """사용자 메시지에 남긴 화면 대상. 재시도 · 다시 만들기가 같은 대상으로 묻는다."""
+    import json as _json
+
+    raw = message.structured_payload_json
+    try:
+        body = _json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        return None
+    value = body.get("screen_context") if isinstance(body, dict) else None
+    return value if isinstance(value, dict) else None
+
+
 def _build_job_payload(
     user: User,
     conversation: Conversation,
     message: Message,
     *,
     attachments: list[dict] | None = None,
-    screen_context: str | None = None,
+    screen_context: dict | None = None,
 ) -> dict:
     # Requester comes ONLY from the authenticated session user (spec §11.2).
     payload = {
@@ -320,7 +347,8 @@ def _reenqueue(
     return jobs_repo.enqueue(
         db,
         job_type=JOB_TYPE_CHAT_MESSAGE,
-        payload=_build_job_payload(user, conversation, message, attachments=attachments),
+        payload=_build_job_payload(user, conversation, message, attachments=attachments,
+                                   screen_context=_stored_screen_context(message)),
         now=now,
         user_id=user.id,
         conversation_id=conversation.id,

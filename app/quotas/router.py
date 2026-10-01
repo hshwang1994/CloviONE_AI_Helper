@@ -190,9 +190,11 @@ def list_quotas(
     return {
         "items": items,
         # 화면이 "쿼터를 어디에 거는가"를 스스로 지어내지 않게 서버가 말해 준다.
-        # 액션 표에서 계산한다 - 한도에 세는 액션이 늘면 이 목록도 저절로 는다(계획 3.10).
+        # 액션 표에서 계산한다 - 한도에 세는 액션이 늘면 이 목록도 저절로 는다(계획 3.10). 은퇴한 액션은 지난 기록의
+        # 셈에만 남으므로 「지금 거는 곳」으로 말하지 않는다(D-535).
         "enforced_on": [
-            {"kind": key, "label": action.label} for key, action in ACTIONS.items() if action.counts_quota
+            {"kind": key, "label": action.label} for key, action in ACTIONS.items()
+            if action.counts_quota and not action.retired
         ],
         "periods": list(ALL_PERIODS),
     }

@@ -416,6 +416,22 @@ def test_narrative_is_added_when_the_model_answers(narrative_client):
     assert body["tickets"]["due_today"]["count"] == 1
 
 
+def test_a_narrative_is_the_requesters_own_usage(narrative_client):
+    """홈 문장 요약도 요청한 사람의 한 칸이다(D-537) - 시스템 호출로 남으면 한도 확인을 지나고도 한 칸을 안 쓴다."""
+    from sqlalchemy import select
+
+    from app.ai.models import AiUsageRecord
+    from app.users.models import User
+
+    client, app = narrative_client
+    _use(app, ScriptedGenerate(text="오늘 마감 1건입니다."))
+    assert _get(client, "/api/assistant/briefing?narrate=true")["narrative"]["text"] == "오늘 마감 1건입니다."
+    with app.state.session_factory() as session:
+        me = session.execute(select(User).where(User.email == EMAIL)).scalar_one()
+        rows = session.execute(select(AiUsageRecord).where(AiUsageRecord.action_key == "home.narrative")).scalars().all()
+        assert [(r.actor_kind, r.user_id, r.status) for r in rows] == [("user", me.id, "ok")]
+
+
 @pytest.mark.parametrize("break_model", ["timeout", "busy", "credential_error", "empty"])
 def test_numbers_survive_every_model_failure_mode(narrative_client, break_model):
     """계획서 Phase 5: '러너가 죽어도 숫자는 그대로 보여야 한다(문장만 빠진다).'

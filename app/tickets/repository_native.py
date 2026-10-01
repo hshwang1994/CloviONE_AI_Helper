@@ -387,6 +387,23 @@ class NativeTicketRepository:
             filters, page,
         )
 
+    def list_by_requester(
+        self, db: Session, *, user_id: str,
+        filters: TicketFilters | None = None, page: PageSpec | None = None,
+    ) -> TicketList:
+        """이 사람이 요청한 티켓. AI 도우미의 「내 업무 · 요청한 것」이 쓴다(D-535)."""
+        return self._list(db, select(TicketCache).where(TicketCache.requester_user_id == user_id), filters, page)
+
+    def list_watched_by(
+        self, db: Session, *, user_id: str,
+        filters: TicketFilters | None = None, page: PageSpec | None = None,
+    ) -> TicketList:
+        """이 사람이 지켜보는 티켓. AI 도우미의 「내 업무 · 지켜보는 것」이 쓴다(D-535)."""
+        from app.work.models import TicketWatcher
+
+        watched = select(TicketWatcher.ticket_id).where(TicketWatcher.user_id == user_id)
+        return self._list(db, select(TicketCache).where(TicketCache.id.in_(watched)), filters, page)
+
     def list_unassigned(
         self, db: Session, *, filters: TicketFilters | None = None,
         page: PageSpec | None = None,

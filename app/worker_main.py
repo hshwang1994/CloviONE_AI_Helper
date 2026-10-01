@@ -333,6 +333,9 @@ def _bootstrap(settings: Settings, clock: Clock):
             "settings_cache": settings_cache,
             "secret_provider": secrets,
             "ai_gateway": build_gateway(settings, outbound=outbound),
+            # AI 도우미의 도구는 호출마다 READ ONLY 세션을 새로 연다(D-535). 런타임의 대체 경로도 이것으로 사용
+            # 기록과 연결 상태를 적는다(`app/ai/runtime.py::runtime_for_worker`).
+            "session_factory": session_factory,
         },
     )
     # 생성은 AI 런타임 하나가 맡는다(D-515). 대화형 레인은 설정 캐시를 새로 읽는 틱이 없지만 런타임이 호출마다

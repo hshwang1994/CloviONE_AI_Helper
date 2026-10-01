@@ -142,6 +142,15 @@ class ConflictError(AppError):
     default_message = "Conflict"
 
 
+class AiUnavailableError(ConflictError):
+    """AI 를 지금 쓸 수 없다(꺼짐 · 미설정 · 연결 막힘). 한도를 예약하지 않고 잡도 만들지 않는다(D-538).
+
+    「찾지 못함」(도구가 0건을 돌려준 정상 답)과 다른 상태다. 화면은 이 코드로 입력을 막고 `details.notice` 를 보인다.
+    """
+
+    code = "ai_unavailable"
+
+
 class ValidationAppError(AppError):
     status_code = 422
     code = "validation_error"

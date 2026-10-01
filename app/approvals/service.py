@@ -84,6 +84,25 @@ def _object_type_ko(object_type: str) -> str:
     return _OBJECT_TYPE_KO.get(object_type, object_type)
 
 
+def request_type_label(request_type: str) -> str:
+    """요청 유형의 한국어 이름(모르는 유형은 원문 그대로). AI 도우미의 결재 도구가 쓴다."""
+    return _request_type_ko(request_type)
+
+
+#: 결재 상태의 화면 낱말(`frontend/src/screens/registry/governance.js` 의 결재 상태 선택지와 같다).
+STATUS_LABELS = {
+    APPROVAL_PENDING: "대기",
+    APPROVAL_APPROVED: "승인됨",
+    APPROVAL_REJECTED: "거절됨",
+    APPROVAL_EXPIRED: "만료",
+    APPROVAL_CANCELLED: "취소됨",
+}
+
+
+def status_label(status: str) -> str:
+    return STATUS_LABELS.get(status, status)
+
+
 def approval_view(
     row: Approval,
     now: datetime | None = None,
@@ -203,7 +222,7 @@ def deciders_for(db: Session, row: Approval, *, now: datetime) -> list[str]:
 
     `notifications.approver_user_ids` 는 "누가 결재할 역할·위임을 갖고 있는가" 만 답한다.
     승인 한 건에는 조건이 하나 더 있다 — 결재 경로와 개인 결재함이 함께 쓰는 **범위** 판정
-    (`app/approvals/router.py::decision_visible_user_ids`)이다. 그 조건이 목록에만 있고
+    (`decision_visible_user_ids`)이다. 그 조건이 목록에만 있고
     알림에는 없던 동안, 부서 범위 관리자는 다른 부서의 「승인 요청: 역할 변경」 벨을 받고
     들어간 결재함에서 「처리할 것이 없습니다」를 봤다 — 알림이 가리키는 줄이 관리 큐에도
     개인 결재함에도 없었다. 그 알림은 누를 곳이 없는 알림이다.
@@ -570,6 +589,88 @@ def list_sort_spec(now, *, admin: bool):
 def apply_scope(stmt: Select, visible: frozenset[str] | None) -> Select:
     clause = scope_clause(visible)
     return stmt if clause is None else stmt.where(clause)
+
+
+def decision_visible_user_ids(db: Session, *, principal, on_behalf_of: str | None) -> frozenset[str] | None:
+    """이 결재자가 결재할 수 있는 요청자 집합. 전역이면 ``None``(= 제한 없음).
+
+    **범위를 누구 기준으로 재는가는 위임 여부가 정한다**(D-385): 위임으로 결재하면 빌려준
+    사람이 닿던 곳까지가 한계이고, 역할로 결재하면 본인의 관리 범위다.
+
+    이 계산이 `_decide` 안에만 있었을 때 개인 결재함(`my_approvals`)은 아예 범위를 안 걸었다.
+    그래서 부서 범위 관리자의 결재함에 다른 부서의 역할 변경 요청이 요청자 이름·조직 경로·
+    바뀌는 역할까지 그대로 실려 보였고(관리 큐에서는 가려 둔 인사 정보다), 그 줄의 승인을
+    누르면 결재 경로가 같은 범위를 다시 재서 404 였다 — 「목록에 있으면 결재된다」가 깨진다.
+    목록 축과 결재 축이 이 함수 하나를 함께 쓴다(라우터가 여기서 가져간다 - 서비스는 라우터를 부르지 않는다).
+    """
+    from app.core.scope import management_scope, visible_user_ids
+
+    if on_behalf_of:
+        delegator = db.get(User, on_behalf_of)
+        return (
+            visible_user_ids(db, management_scope(db, delegator, principal.tree))
+            if delegator is not None
+            else frozenset()
+        )
+    return visible_user_ids(db, principal.management)
+
+
+def name_ids(rows) -> set[str | None]:
+    """목록 한 페이지에서 이름으로 해석해야 할 user id 전부 (요청자·결정자·위임자)."""
+    return {
+        i
+        for r in rows
+        for i in (r.requested_by, r.approver_id, r.decided_on_behalf_of)
+    }
+
+
+MY_BOXES = ("todo", "requested", "done")
+
+
+def list_my_approvals(db: Session, user: User, principal, *, box: str, now: datetime, self_approval_allowed: bool,
+                      offset: int = 0, limit: int = 20, sort=None) -> dict:
+    """내 결재함 한 쪽. 화면(`GET /api/approvals/mine`)과 AI 도우미의 결재 도구가 **같은 함수**를 쓴다(D-535).
+
+    세 칸이다. 「내가 올린 것」·「내가 결재한 것」은 판정 축이 '나' 라 범위를 걸지 않는다. 「할 일」은 결재 경로와
+    같은 두 조건(유효한 대기 건, 내가 닿을 수 있는 요청자)을 건다 - 그 칸의 모든 줄에 승인 버튼이 붙는다.
+    돌려주는 값은 ``{"rows", "total", "can_decide", "names"}`` 이다(보기 모양은 부른 쪽이 정한다).
+    """
+    from app.approvals import delegation as delegation_service
+    from app.core.sort import order_by
+
+    if box not in MY_BOXES:
+        raise ValueError(f"알 수 없는 결재함: {box}")
+    can_decide, on_behalf_of = delegation_service.resolve_authority(db, user, now)
+    stmt = select(Approval)
+    if box == "requested":
+        stmt = stmt.where(Approval.requested_by == user.id)
+    elif box == "done":
+        stmt = stmt.where(Approval.approver_id == user.id)
+    else:
+        if not can_decide:
+            # 결재 권한이 없으면 '할 일' 은 정의상 없다. 화면은 `can_decide` 로 "권한이 없다" 와 "지금 처리할 것이
+            # 없다" 를 구별한다.
+            return {"rows": [], "total": 0, "can_decide": False, "names": {}}
+        stmt = apply_scope(
+            stmt.where(pending_clause(now)),
+            decision_visible_user_ids(db, principal=principal, on_behalf_of=on_behalf_of),
+        )
+        # 자기 요청은 자기가 결재하지 않는다(서버 설정으로만 조정되는 기본값) — 할 일 칸에 띄워 두면 눌러 봐야
+        # 거절당하는 줄이 된다.
+        if not self_approval_allowed:
+            stmt = stmt.where(Approval.requested_by != user.id)
+
+    from sqlalchemy import func
+
+    total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+    rows = list(
+        db.execute(
+            # 허용 키와 기본값은 여기 든다 — 「상태」 축이 저장 상태가 아니라 **유효 상태**여야 하고(만료 지난
+            # pending), 그 판정이 위 필터 절과 같은 정의를 써야 한다(`effective_status_rank`).
+            stmt.order_by(*order_by(list_sort_spec(now, admin=False), sort)).offset(offset).limit(limit)
+        ).scalars()
+    )
+    return {"rows": rows, "total": int(total), "can_decide": can_decide, "names": resolve_names(db, name_ids(rows))}
 
 
 def get_scoped_approval_or_404(

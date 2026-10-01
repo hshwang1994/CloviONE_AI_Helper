@@ -17,9 +17,12 @@
 
 ## 생성이 없어도 검색과 인용은 계속 동작한다 (S10 Exit)
 
-`answer()` 는 인용을 **먼저** 만들고 생성은 그 뒤에 시도한다. 생성이 막혀 있으면
+`draft_document()` 는 인용을 **먼저** 만들고 생성은 그 뒤에 시도한다. 생성이 막혀 있으면
 `text` 가 None 이고 `notice` 가 왜인지 말한다 — 인용 목록은 그대로 나간다. 화면은
 그 상태에서도 근거 문서로 이동할 수 있다.
+
+질문에 답하는 일은 여기 없다. 채팅과 작업 공간의 「물어보기」는 AI 도우미 한 차례다(`app/ai/assistant/`, D-535) -
+근거가 0건이면 모델을 부르지 않던 옛 `answer()` 는 걷었다.
 """
 
 from __future__ import annotations
@@ -32,7 +35,7 @@ from app.ai import actions
 from app.ai.gateway import contract
 from app.ai.retrieval import service as retrieval_service
 
-__all__ = ["Answer", "answer", "draft_document"]
+__all__ = ["Answer", "draft_document"]
 
 # ── 지시문 ───────────────────────────────────────────────────────────────────
 #
@@ -98,34 +101,6 @@ def _generate(db: Session, runtime, *, action_key: str, question: str, retrieval
         delimiter_conflict=result.delimiter_conflict,
         truncated=result.truncated,
     )
-
-
-def answer(
-    db: Session,
-    user,
-    *,
-    raw_query: str | None,
-    gateway: contract.Gateway,
-    runtime,
-    action_key: str = actions.CHAT_ANSWER,
-    top_k: int = retrieval_service.TOP_K,
-    job_id: str | None = None,
-) -> Answer:
-    """질문 → (인용, 답변). 인용은 언제나 나가고 답변은 될 때만 나간다.
-
-    ``action_key`` 는 어느 화면의 질문인가다(채팅이면 `chat.answer`, 작업 공간이면 `workspace.ask`) - 출력 길이와 사용
-    기록이 그 이름으로 갈린다.
-    """
-    retrieval = retrieval_service.retrieve(
-        db, user, raw_query=raw_query, gateway=gateway, top_k=top_k
-    )
-    if retrieval.empty:
-        # 근거가 없으면 부르지 않는다. 빈 Context 로 부르면 모델은 무언가를 지어내고,
-        # 그 문장에는 인용이 하나도 안 붙는다 — 사람은 그것을 답으로 읽는다.
-        return Answer(retrieval=retrieval, status=contract.STATUS_EMPTY)
-    # 모델에는 표시형(100자)이 아니라 질문 원문이 간다 — 잘린 질문은 뒤의 조건을 잃는다(D-536).
-    return _generate(db, runtime, action_key=action_key, question=retrieval.question or retrieval.query,
-                     retrieval=retrieval, actor=user, job_id=job_id)
 
 
 def draft_document(

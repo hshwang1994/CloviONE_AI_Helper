@@ -62,8 +62,12 @@ def _clean(value) -> str | None:
     return text[:MAX_TEXT_CHARS] if text else None
 
 
-def narrate(runtime, db, settings, *, kind: str, facts: dict, requester: dict, settings_cache=None) -> dict:
+def narrate(runtime, db, settings, *, kind: str, facts: dict, requester: dict, settings_cache=None,
+            actor=None) -> dict:
     """사실 dict → {"enabled", "text", "error"}. **절대 예외를 던지지 않는다.**
+
+    ``actor`` 는 요청한 사람(`User`)이다. 사용 기록과 한도가 이 사람의 한 칸으로 센다(D-537) - 빠뜨리면 호출이
+    시스템의 것으로 남아 한도 확인(`consume`)을 지나고도 한 칸을 쓰지 않았다.
 
     모델에는 이미 계산된 사실만 보낸다 — 원본 티켓 목록 전체나 사용자 식별자를 넘기지
     않는다. 모델이 숫자를 다시 세지 않으므로, 문장이 화면의 숫자와 어긋날 여지가 구조적으로
@@ -82,7 +86,7 @@ def narrate(runtime, db, settings, *, kind: str, facts: dict, requester: dict, s
         from app.ai.actions import HOME_NARRATIVE
 
         result = runtime.generate(
-            db, action_key=HOME_NARRATIVE, data=json.dumps(payload, ensure_ascii=False, default=str),
+            db, action_key=HOME_NARRATIVE, data=json.dumps(payload, ensure_ascii=False, default=str), actor=actor,
         )
     except Exception:  # noqa: BLE001 — 어떤 실패든 숫자는 살아야 한다(계획서 Phase 5)
         # Gateway 는 실패를 값으로 돌려주는 계약이라 여기 오면 안 된다. 그래도 남겨 둔다 —

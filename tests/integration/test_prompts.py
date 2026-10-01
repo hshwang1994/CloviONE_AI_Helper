@@ -27,7 +27,7 @@ def _create(client, csrf, name="부분수정 프롬프트", content="원본 지�
     r = client.post(
         "/api/admin/prompts",
         # 발행하려면 사용처가 있어야 한다(D-518).
-        json={"name": name, "content": content, "purpose": purpose, "slot": "answer"},
+        json={"name": name, "content": content, "purpose": purpose, "slot": "draft"},
         headers=_h(csrf),
     )
     assert r.status_code == 201, r.text

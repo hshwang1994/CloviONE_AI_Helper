@@ -311,7 +311,7 @@ def prompt_slots_list(db: Session = Depends(get_db)):
     """사용처 목록. 화면의 사용처 고르기와 기본 문구 보기가 이 값을 쓴다 - 이름을 화면이 지어내지 않는다."""
     published = _published_slots(db)
     items = []
-    for entry in prompt_catalog.SLOTS.values():
+    for entry in prompt_catalog.live_slots():
         current = published.get(entry.key) if entry.editable else None
         items.append({
             "key": entry.key, "label": entry.label, "description": entry.description,
@@ -433,7 +433,7 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         builtin_items = []
         if want_builtin:
             published = _published_slots(db)
-            for entry in prompt_catalog.SLOTS.values():
+            for entry in prompt_catalog.live_slots():
                 if slot and entry.key != slot:
                     continue
                 builtin_items.append(_builtin_view(
@@ -612,7 +612,7 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             by_slot = usage_mod.slot_usage(db, since=_usage_since(request))
             published = _published_slots(db)
             items = []
-            for entry in prompt_catalog.SLOTS.values():
+            for entry in prompt_catalog.live_slots():
                 current = published.get(entry.key) if entry.editable else None
                 counts = by_slot.get(entry.key, {})
                 calls, errors = int(counts.get("calls", 0)), int(counts.get("errors", 0))

@@ -1,30 +1,22 @@
-"""chat_message job handler — **답을 제품 안에서 만든다** (S11 · D-202).
+"""chat_message job handler — AI 도우미 한 차례 (D-535 · D-537 · D-538).
 
 ## 무엇이 바뀌었나
 
-예전에는 이 핸들러가 n8n 웹훅(`127.0.0.1:5678`)을 부르고, n8n 이 Notion 작업 DB **전량**을
-읽어 러너(`127.0.0.1:8789`)에 넘겼다. 러너는 그 목록을 그대로 모델 프롬프트에 실었고,
-**요청자는 대명사 해석에만 쓰이고 필터로는 쓰이지 않았다.** 즉 화면에서 볼 수 없는 문서가
-답변의 근거가 될 수 있었다.
+예전(S11)에는 이 핸들러가 문서 조각만 찾아 그 결과가 0건이면 모델을 부르지 않고 「근거를 찾지 못했다」를 답으로 저장했다.
+연결이 「정상」이어도 자연어 질문은 낱말 AND 검색에서 거의 0건이라 채팅이 답을 못 했다. 이제 한 차례는 **도구를 쓰는
+대화**다: 일반 질문은 모델이 바로 답하고, 업무 질문은 대화 주인의 권한으로 도는 읽기 도구(티켓 · 프로젝트 · 결재 · 문서 ·
+사람)로 실제 데이터를 읽어 답한다(`app/ai/assistant/`). 「찾지 못했다」는 도구가 0건을 돌려준 정상 답이고, 「AI 를 쓸 수
+없다」는 요청 자체가 409 다(채팅 라우터) - 두 상태가 섞이지 않는다.
 
-이제는 `app/ai/retrieval` 이 답을 만든다. 그 경로는 `effective_visibility_clause` 가 만든
-후보 집합 **안에서만** 검색하므로, 사용자가 볼 수 없는 문서는 Context 에 들어갈 자리가
-없다(D-256). 권한 판정이 `LIMIT` 앞에 있다는 뜻이고, 그것이 옛 경로를 걷어낸 이유다 —
-「기능이 겹친다」가 아니라 **「하나는 권한을 안 본다」**다.
+## 순서
 
-## 생성으로 가는 문은 하나다
+  1. 대화 주인이 아직 활성이고 `AI_USE` 를 가졌는가 - 아니면 안내 답을 남기고 끝낸다(제공자를 부르지 않는다)
+  2. 사용자 메시지를 「처리 중」으로 **커밋한다** - 화면이 보고, 제공자 호출 내내 메시지 행을 잠그지 않는다
+     (`app/jobs/worker.py` 의 「느린 바깥 호출 앞에서 커밋한다」 규율)
+  3. 한 차례를 돌린다(`turn.run` → `AiRuntime.converse`). 도구 사이마다 진행 문구를 적고 커밋한다
+  4. 도우미 메시지(글 + 구조)를 남기고 사용자 메시지를 완료 · 실패로 바꾼다
 
-`app/ai/retrieval/answer.py::answer()` 를 부른다. AI 작업공간(`/ai`)이 부르는 것과 같은
-함수이고, 그래서 두 화면의 답이 같은 권한·같은 프롬프트 경계·같은 인용 규약을 지난다.
-여기서 런타임을 직접 부르지 않는다 — 부르는 순간 권한 필터와 인용 규약이 한쪽에만 걸리는
-두 번째 경로가 생긴다.
-
-## 실패는 세 종류이고 셋을 구별한다
-
-- **답했다**: 인용과 함께 저장하고 쿼터를 센다.
-- **근거가 없다**: 그것도 답이다. 실패로 표시하지 않는다 — 다시 눌러도 같은 결과다.
-- **생성이 막혔다**(모델 없음·시간 초과·다른 작업 중): 인용은 그대로 내보내고 왜인지
-  말한다. 사용자 메시지는 실패로 남겨 「다시 시도」를 살린다.
+한도는 런타임의 사용 기록 한 행이 센다(D-537) - 성공한 차례만 한 칸이다. 여기서 따로 적지 않는다.
 """
 
 from __future__ import annotations
@@ -36,7 +28,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.gateway import contract
-from app.ai.retrieval import answer as answer_mod
 from app.conversations.models import (
     PROC_DONE,
     PROC_FAILED,
@@ -52,22 +43,23 @@ from app.users.models import User
 
 logger = logging.getLogger("app.handlers.chat")
 
-#: 근거를 한 건도 못 찾았을 때. 「실패」가 아니라 **답**이다 — 다시 눌러도 같은 결과이므로
-#: 재시도를 권하지 않는다.
-NO_EVIDENCE_TEXT = (
-    "질문에 답할 근거를 사내 문서에서 찾지 못했습니다. "
-    "다른 낱말로 다시 물어보시거나, 찾는 내용이 담긴 문서를 먼저 등록해 주세요."
-)
-
 #: 이미지를 읽는 어댑터가 없다. 조용히 무시하면 사용자는 그림을 보고 답한 줄 안다.
 ATTACHMENT_NOTICE = "첨부한 이미지는 읽지 못했습니다. 필요한 내용은 글로 적어 주세요."
+
+#: 글 없이 이미지만 보냈다.
+EMPTY_QUESTION_TEXT = "질문을 글로 적어 주세요."
+
+#: 넣은 뒤 실행 전에 AI 를 쓸 수 없게 된 사람(비활성, 보관, AI 사용 권한 회수).
+NO_PERMISSION_TEXT = "AI 도우미를 쓸 수 있는 권한이 없어 답하지 않았습니다. 관리자에게 문의하세요."
+
+#: 차례가 막혔을 때 찾은 자료가 있으면 덧붙이는 문장.
+SOURCES_KEPT = "찾은 자료는 아래에 그대로 두었으니 직접 열어 확인해 주세요."
 
 
 def _requester(db: Session, conversation: Conversation) -> User:
     """권한 판정의 주체. **대화 주인이지 잡을 넣은 프로세스가 아니다.**
 
-    `answer()` 가 이 사람의 가시성으로 후보 집합을 만든다. 여기서 사람을 못 찾으면
-    답을 만들 수 없다 — 필터 없이 부르는 갈래를 두지 않는다.
+    도구가 이 사람의 권한으로 읽는다. 여기서 사람을 못 찾으면 답을 만들 수 없다 — 권한 없이 부르는 갈래를 두지 않는다.
     """
     user = db.get(User, conversation.user_id)
     if user is None:
@@ -140,38 +132,60 @@ def _has_attachments(payload: dict) -> bool:
     )
 
 
-def _reply(ans: answer_mod.Answer, *, had_attachments: bool) -> tuple[str, dict, bool]:
-    """(화면에 실을 글, 저장할 구조, 답을 냈는가).
+def _can_use(db: Session, owner: User) -> bool:
+    """대화 주인이 지금도 AI 도우미를 쓸 수 있는가 - 넣은 뒤 실행 전에 권한을 잃었을 수 있다(D-538)."""
+    from app.authz import permissions as perms
+    from app.authz.service import has_permission
 
-    인용은 **어느 갈래에서도** 함께 나간다. 생성이 막혀도 근거 문서로는 갈 수 있어야
-    한다(S10 Exit) — 그 성질을 채팅에서도 그대로 지킨다.
-    """
-    stored = ans.as_dict()
+    if not owner.active or owner.archived_at is not None:
+        return False
+    return has_permission(db, owner, perms.AI_USE)
+
+
+def _session_factory(db: Session, ctx: WorkerContext):
+    """도구의 READ ONLY 세션을 여는 공장. 워커는 `extras["session_factory"]` 를 두고, 없으면 같은 연결로 만든다."""
+    factory = (ctx.extras or {}).get("session_factory")
+    if factory is not None:
+        return factory
+    from sqlalchemy.orm import sessionmaker
+
+    return sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+
+
+def _texts(reply, *, had_attachments: bool) -> tuple[str, bool]:
+    """(화면에 실을 글, 실패인가). 막힌 차례도 찾은 자료가 있으면 출처로 남긴다."""
+    outcome = reply.outcome
+    if outcome.ok:
+        text = reply.text
+    elif outcome.error_code == "empty_question":
+        return (ATTACHMENT_NOTICE if had_attachments else EMPTY_QUESTION_TEXT), False
+    else:
+        notice = outcome.notice or contract.FALLBACK_NOTICE
+        text = f"{notice} {SOURCES_KEPT}" if reply.structured.get("sources") else notice
     if had_attachments:
-        stored = {**stored, "attachments_ignored": True}
+        text = f"{text}\n\n{ATTACHMENT_NOTICE}"
+    return text, not outcome.ok
 
-    if ans.ok:
-        text = ans.text
-        if had_attachments:
-            text = f"{text}\n\n{ATTACHMENT_NOTICE}"
-        return text, stored, True
 
-    if ans.retrieval.empty:
-        # 근거가 0 이면 모델을 아예 안 불렀다(answer.py). 빈 Context 로 부르면 모델은
-        # 무언가를 지어내고 그 문장에는 인용이 하나도 안 붙는다.
-        text = NO_EVIDENCE_TEXT
-        if had_attachments:
-            text = f"{text}\n\n{ATTACHMENT_NOTICE}"
-        return text, {**stored, "no_evidence": True}, False
-
-    # 근거는 찾았는데 문장을 못 만들었다. 왜인지 말한다 — 「안 됩니다」만 남기면 운영자가
-    # 고칠 수 있는 상태(모델 파일을 안 넣었다)와 못 고치는 상태를 구별하지 못한다.
-    notice = ans.notice or contract.FALLBACK_NOTICE
-    text = (
-        f"{notice} 찾은 근거 {len(ans.retrieval.citations)}건은 아래에 그대로 두었으니 "
-        "문서를 직접 열어 확인해 주세요."
-    )
-    return text, {**stored, "error_notice": True}, False
+def _finish(db: Session, job: Job, ctx: WorkerContext, payload: dict, *, conversation: Conversation,
+            message: Message, text: str, stored: dict, failed: bool, error_code: str | None) -> None:
+    # '-fail-{job.id}' ID는 on_failure의 안내 메시지와 같은 규약이다 — retry_message가 그 패턴으로 옛 안내를 지운다.
+    # 답에도 **job.id**를 쓴다(attempt_count가 아니다) — regenerate_message/retry_message가 만드는 새 Job은
+    # attempt_count=1부터 다시 세서 충돌한다(TEST SERVER 재생성 실측). job.id 는 전역에서 유일하다.
+    db.add(Message(
+        conversation_id=conversation.id,
+        message_id=f"a-{message.message_id}-fail-{job.id}" if failed else f"a-{message.message_id}-{job.id}",
+        role=ROLE_ASSISTANT_MSG,
+        content=text,
+        structured_payload_json=json.dumps({**stored, **({"error_notice": True} if failed else {})},
+                                           ensure_ascii=False),
+        processing_status=PROC_DONE,
+    ))
+    message.processing_status = PROC_FAILED if failed else PROC_DONE
+    message.error_code = error_code if failed else None
+    conversation.updated_at = ctx.clock.now()
+    strip_attachment_bytes(job, payload)  # terminal path — no bytes at rest
+    db.flush()
 
 
 def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
@@ -181,64 +195,45 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
         raise PermanentJobError("requester가 없는 payload: 위조 또는 손상")
 
     message = _load_message(db, job, payload)
-    message.processing_status = PROC_PROCESSING
-
     conversation = db.get(Conversation, message.conversation_id)
     if conversation is None:
         raise PermanentJobError("대상 대화가 존재하지 않습니다.")
-    user = _requester(db, conversation)
+    owner = _requester(db, conversation)
+    had_attachments = _has_attachments(payload)
 
-    db.flush()
+    if not _can_use(db, owner):
+        _finish(db, job, ctx, payload, conversation=conversation, message=message, text=NO_PERMISSION_TEXT,
+                stored={"kind": "assistant", "status": "no_permission"}, failed=True,
+                error_code="assistant_no_permission")
+        return
 
-    from app.ai.actions import CHAT_ANSWER
+    from app.ai.assistant import catalog
+    from app.ai.assistant import turn as turn_mod
     from app.ai.runtime import runtime_for_worker
+    from app.home import service as home_service
 
-    ans = answer_mod.answer(
-        db, user, raw_query=payload.get("content"), gateway=_gateway(ctx),
-        runtime=runtime_for_worker(ctx), action_key=CHAT_ANSWER, job_id=job.id,
+    # 처리 중을 **커밋한다** - 화면이 보고, 제공자를 부르는 동안 이 행을 잠그지 않는다.
+    message.processing_status = PROC_PROCESSING
+    progress = turn_mod.progress_writer(db, message, clock=ctx.clock)
+    progress("질문을 받았습니다.")
+
+    now = ctx.clock.now()
+    env = catalog.ToolEnv(
+        session_factory=_session_factory(db, ctx), user_id=owner.id, settings=ctx.settings,
+        outbound=ctx.outbound_client, gateway=_gateway(ctx), settings_cache=(ctx.extras or {}).get("settings_cache"),
+        now=now,
     )
-    text, stored, answered = _reply(ans, had_attachments=_has_attachments(payload))
-
-    # '-fail-{job.id}' ID는 on_failure의 안내 메시지와 같은 규약이다 — retry_message가 그
-    # 패턴으로 옛 안내를 지운다(재시도가 성공해도 '답을 못 받았다' 안내가 새 답변 옆에 그대로
-    # 남는 걸 막는다).
-    #
-    # answered일 때도 **job.id**를 쓴다(attempt_count가 아니다) — TEST SERVER 실사용
-    # (재생성 버튼) 실측으로 발견: attempt_count는 "이 잡 자신의" 재시도 횟수일 뿐이라,
-    # regenerate_message/retry_message가 만드는 **새 Job**은 매번 attempt_count=1부터
-    # 다시 센다. job.id(UUID)는 매 Job마다 전역적으로 유일해 그 충돌이 구조적으로 불가능하다.
-    #
-    # 「근거가 없다」는 답이므로 `-fail-` 을 안 붙인다. 그 접미사는 retry_message 가
-    # 지우는 대상이고, 지워도 되는 것은 안내뿐이다.
-    failed_suffix = not answered and not stored.get("no_evidence")
-    assistant = Message(
-        conversation_id=conversation.id,
-        message_id=(
-            f"a-{message.message_id}-fail-{job.id}"
-            if failed_suffix
-            else f"a-{message.message_id}-{job.id}"
-        ),
-        role=ROLE_ASSISTANT_MSG,
-        content=text,
-        structured_payload_json=json.dumps(stored, ensure_ascii=False),
-        processing_status=PROC_DONE,
+    reply = turn_mod.run(
+        db, owner=owner, user_message=message, conversation_id=conversation.id, runtime=runtime_for_worker(ctx),
+        env=env, screen_context=payload.get("screen_context"), today=home_service.local_today(ctx.settings, now),
+        job_id=job.id, progress=progress,
     )
-    db.add(assistant)
-
-    # 「근거가 없다」로 끝난 메시지는 실패가 아니다 — 같은 질문을 다시 넣어도 같은 답이고,
-    # 「다시 시도」를 켜 두면 사용자를 헛수고시킨다. 생성이 막힌 경우만 실패로 남긴다.
-    if failed_suffix:
-        message.processing_status = PROC_FAILED
-        message.error_code = f"assistant_{ans.status}"
-    else:
-        message.processing_status = PROC_DONE
-        message.error_code = None
-    conversation.updated_at = ctx.clock.now()
-
-    # 한도는 런타임의 호출 기록이 센다(D-517) - 모델이 실제로 답한 호출만 한 칸이 된다. 여기서 따로 적지 않는다.
-
-    strip_attachment_bytes(job, payload)  # terminal path — no bytes at rest
-    db.flush()
+    text, failed = _texts(reply, had_attachments=had_attachments)
+    stored = dict(reply.structured)
+    if had_attachments:
+        stored["attachments_ignored"] = True
+    _finish(db, job, ctx, payload, conversation=conversation, message=message, text=text, stored=stored,
+            failed=failed, error_code=f"assistant_{reply.outcome.status}")
 
 
 def on_failure(db: Session, job: Job, ctx: WorkerContext, error: str) -> None:

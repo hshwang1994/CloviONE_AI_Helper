@@ -41,9 +41,9 @@ def _seed_two_draft_versions(url: str, *, names=(NAME, NAME)) -> tuple[str, str]
     factory = make_session_factory(engine)
     try:
         with factory() as db:
-            a = Prompt(name=names[0], version=1, content="v1", status=STATUS_DRAFT, slot="answer")
+            a = Prompt(name=names[0], version=1, content="v1", status=STATUS_DRAFT, slot="draft")
             b = Prompt(name=names[1], version=1 if names[0] != names[1] else 2, content="v2", status=STATUS_DRAFT,
-                       slot="answer")
+                       slot="draft")
             db.add_all([a, b])
             db.commit()
             return a.id, b.id
@@ -137,7 +137,7 @@ def test_two_prompts_racing_for_one_use_leave_exactly_one_in_use(db_url):
 
             count = db.execute(
                 select(func.count()).select_from(Prompt).where(
-                    Prompt.slot == "answer", Prompt.status == STATUS_PUBLISHED,
+                    Prompt.slot == "draft", Prompt.status == STATUS_PUBLISHED,
                 )
             ).scalar_one()
             assert count == 1, f"경합 뒤 한 사용처에 발행본이 {count}개 남았다"

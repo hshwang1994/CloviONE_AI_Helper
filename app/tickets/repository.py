@@ -355,6 +355,20 @@ class TicketRepository(Protocol):
         self, db, *, filters: TicketFilters | None = None, page: PageSpec | None = None
     ) -> TicketList: ...
 
+    def list_by_requester(
+        self, db, *, user_id: str,
+        filters: TicketFilters | None = None, page: PageSpec | None = None,
+    ) -> TicketList:
+        """이 사람이 요청한 티켓(옛 이관 티켓은 요청자가 비어 있어 안 나온다)."""
+        ...
+
+    def list_watched_by(
+        self, db, *, user_id: str,
+        filters: TicketFilters | None = None, page: PageSpec | None = None,
+    ) -> TicketList:
+        """이 사람이 지켜보는 티켓."""
+        ...
+
     def list_all(
         self, db, *, filters: TicketFilters | None = None, page: PageSpec | None = None
     ) -> TicketList: ...

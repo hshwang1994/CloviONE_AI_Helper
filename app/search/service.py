@@ -16,11 +16,12 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import Integer, case, cast, literal, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.authz import CONSOLE_WRITE_ROLES
 from app.core.scope import Principal
+from app.core.search_text import keywords
 from app.search import query as q
 from app.search.models import (
     KIND_LABELS,
@@ -38,6 +39,12 @@ CANDIDATE_LIMIT = 400
 DEFAULT_PER_KIND = 8
 DEFAULT_TOTAL = 50
 MAX_PER_KIND = 50
+
+#: 일치 방식. 화면은 언제나 `all` 이다 — `any` 는 AI 도우미의 검색 도구만 쓴다(D-536).
+MATCH_ALL = "all"
+MATCH_ANY = "any"
+#: 맞은 낱말 하나가 점수에 더하는 값(AI 검색 레인과 같은 값, `app/ai/retrieval/query.py::KEYWORD_HIT_WEIGHT`).
+KEYWORD_HIT_WEIGHT = 0.5
 
 # 유형별 역할 게이트. **사용자 유형은 사용자 관리 화면을 열 수 있는 역할에게만** 나간다 —
 # `/api/admin/users` 가 admin+ 이므로 검색이 그 경계를 우회하면 안 되고, 아무나 사람을
@@ -85,15 +92,25 @@ def search(
     principal: Principal,
     per_kind: int = DEFAULT_PER_KIND,
     total_limit: int = DEFAULT_TOTAL,
+    match: str = MATCH_ALL,
+    only_kinds=None,
 ) -> dict:
-    """범위를 통과한 결과만 유형별로 묶어 돌려준다."""
+    """범위를 통과한 결과만 유형별로 묶어 돌려준다.
+
+    ``match="any"`` 는 AI 도우미의 검색 도구만 쓴다(D-536): 사람이 쓴 질문에서 낱말을 뽑아(`search_text.keywords`) 낱말마다
+    부분일치 가지를 OR 로 더하고 맞은 낱말 수를 점수에 더한다. 화면(`/api/search`)은 기본값 ``all`` 그대로다.
+    ``only_kinds`` 는 보여 줄 유형을 **더 좁히기만** 한다 - 역할이 못 보는 유형은 여전히 빠진다.
+    """
     text_query = q.normalize(raw_query)
     mode = q.mode_for(text_query)
-    if mode == q.MODE_EMPTY:
+    branches = q.keyword_branches(keywords(raw_query)) if match == MATCH_ANY else []
+    if mode == q.MODE_EMPTY and not branches:
         return _empty(text_query, mode)
 
     per_kind = max(1, min(int(per_kind or DEFAULT_PER_KIND), MAX_PER_KIND))
     kinds = allowed_kinds(principal.role)
+    if only_kinds is not None:
+        kinds = tuple(kind for kind in kinds if kind in set(only_kinds))
     if not kinds:
         return _empty(text_query, mode)
 
@@ -115,8 +132,17 @@ def search(
     # ⚠️ **범위·유형 조건은 여전히 LIMIT 보다 먼저 걸린다** (Z6). 그 성질이 이 이식으로
     # 흔들리지 않는 것이 중요하다 — 범위 밖 행이 상한을 채우면 내 범위 결과가 한 건도 안
     # 남는데, 화면에는 오류가 아니라 "결과 없음"으로 보여 아무도 신고하지 않는다.
-    stmt = stmt.where(q.clause_for(text_query, mode))
-    if mode == q.MODE_TRGM:
+    if branches:
+        # 낱말 OR(D-536). 질의 전체 가지도 함께 둔다 - 기억나는 구절을 그대로 친 질문도 맞는다.
+        whole = q.clause_for(text_query, mode) if mode != q.MODE_EMPTY else None
+        stmt = stmt.where(or_(*([whole] if whole is not None else []), *branches))
+        matched = cast(case((branches[0], 1), else_=0), Integer)
+        for branch in branches[1:]:
+            matched = matched + cast(case((branch, 1), else_=0), Integer)
+        score = (q.rank_expression(text_query) if mode == q.MODE_TRGM else literal(0.0)) + KEYWORD_HIT_WEIGHT * matched
+        stmt = stmt.order_by(score.desc(), SearchDocument.sort_key.desc(), SearchDocument.title)
+    elif mode == q.MODE_TRGM:
+        stmt = stmt.where(q.clause_for(text_query, mode))
         # 관련도 순. 동점이면 최신 것이 먼저다.
         stmt = stmt.order_by(
             q.rank_expression(text_query).desc(),
@@ -125,6 +151,7 @@ def search(
         )
     else:
         # 1~2자 질의는 트라이그램 점수가 의미를 갖지 못한다(창을 만들 수 없다) — 최신 순으로 답한다.
+        stmt = stmt.where(q.clause_for(text_query, mode))
         stmt = stmt.order_by(SearchDocument.sort_key.desc(), SearchDocument.title)
     rows = list(db.execute(stmt.limit(CANDIDATE_LIMIT)).scalars().all())
 

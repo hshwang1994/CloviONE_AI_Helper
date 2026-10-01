@@ -705,23 +705,30 @@ def _seed_s21(db, me, now) -> None:
     # 빈 화면만 보인다. 성공, 실패, 한도로 막힘을 한 줄씩 넘게 둔다.
     from app.ai.models import AiUsageRecord
 
+    # AI 도우미 한 차례는 한 행이고 도구 왕복의 모양(라운드 · 도구 이름 · 모드)을 함께 든다(D-537). 「(이전 방식)」 라벨을
+    # 보이도록 은퇴한 채팅 답변 한 줄도 둔다.
+    turns = {
+        0: (2, 1, ["search_documents"], "tools"),
+        1: (3, 2, ["my_work", "get_ticket"], "tools"),
+    }
     for i, (action, status, error, tokens) in enumerate((
-        ("chat.answer", "ok", None, (820, 240)),
-        ("chat.answer", "ok", None, (640, 180)),
-        ("workspace.ask", "ok", None, (1500, 420)),
+        ("assistant.chat", "ok", None, (820, 240)),
+        ("assistant.chat", "ok", None, (640, 180)),
+        ("chat.answer", "ok", None, (1500, 420)),
         ("workspace.draft", "error", "provider_timeout", (None, None)),
         ("game.quiz", "blocked_quota", None, (None, None)),
         ("report.weekly_summary", "ok", None, (2200, 300)),
     )):
+        rounds, calls, names, mode = turns.get(i, (None, None, None, None))
+        slot = {"assistant.chat": "assistant", "chat.answer": "answer"}.get(action)
         db.add(AiUsageRecord(
             id=str(_uuid.uuid4()), created_at=now - timedelta(hours=3 * i + 1), actor_kind="user",
             user_id=(me.id if i % 2 == 0 else other.id), action_key=action, provider="anthropic",
             auth_method="api_key", model="claude-haiku-4-5-20251001", status=status, error_code=error,
             input_tokens=tokens[0], output_tokens=tokens[1], latency_ms=(900 + 150 * i if status == "ok" else None),
-            prompt_slot=("answer" if action.endswith(("answer", "ask")) else None),
-            prompt_version=(1 if action.endswith(("answer", "ask")) else None),
-            prompt_source=("db" if action.endswith(("answer", "ask")) else None),
-            policy_ids_json="[]",
+            prompt_slot=slot, prompt_version=(1 if slot else None), prompt_source=("db" if slot else None),
+            policy_ids_json="[]", rounds=rounds, tool_calls=calls,
+            tool_names_json=_json.dumps(names) if names else None, mode=mode,
         ))
     db.flush()
 

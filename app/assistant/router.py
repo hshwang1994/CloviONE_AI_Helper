@@ -67,7 +67,7 @@ def _with_narrative(
             runtime_for_app(request.app), db, settings,
             kind=body.get("kind", ""), facts=body,
             requester={"user_id": user.id, "display_name": user.display_name},
-            settings_cache=cache,
+            settings_cache=cache, actor=user,
         )
 
     if db is None:

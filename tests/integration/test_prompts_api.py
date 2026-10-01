@@ -17,7 +17,7 @@ def _headers(csrf):
     return {"X-CSRF-Token": csrf}
 
 
-def _create_prompt(client, csrf, name="티켓 요약 프롬프트", content="v1 내용", slot="answer"):
+def _create_prompt(client, csrf, name="티켓 요약 프롬프트", content="v1 내용", slot="draft"):
     r = client.post(
         "/api/admin/prompts",
         json={"name": name, "content": content, "purpose": "테스트", "slot": slot},

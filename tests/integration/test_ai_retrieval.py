@@ -7,6 +7,8 @@
 오프라인 런타임(`tests/fakes/ai.py::offline_runtime`)을 함께 넘긴다.
 
 권한 축은 여기 없다 — `tests/security/test_ai_retrieval_permission.py` 가 본다.
+
+qa-contract-change: 채팅 · 작업 공간 질문의 옛 `answer()` 를 걷었다(D-535 - 질문은 AI 도우미 한 차례가 답한다). 근거 검색 → 생성의 같은 문(생성이 막혀도 인용이 나간다, 모델은 인용 밖을 못 본다, 근거가 없으면 부르지 않는다, 질문 원문이 간다)은 문서 초안(`draft_document`)이 그대로 지나므로 같은 단언을 그 소비자로 잰다.
 두 관심사를 한 파일에 섞으면 「권한 시험이 있다」는 말이 절반만 사실이 된다.
 """
 
@@ -313,8 +315,7 @@ def test_search_and_citations_keep_working_while_generation_is_blocked(db, reade
     _index(db, gateway)
 
     # 생성이 꺼진 설치 - 관리자가 아직 켜지 않았거나 연결이 막혔다.
-    result = answer_mod.answer(
-        db, reader, raw_query="연차", gateway=gateway, runtime=offline_runtime(blocked, enabled=False),
+    result = answer_mod.draft_document(db, reader, instruction="연차", gateway=gateway, runtime=offline_runtime(blocked, enabled=False),
     )
     assert result.ok is False
     assert result.notice
@@ -331,7 +332,7 @@ def test_the_model_only_sees_the_retrieved_chunks(db, reader, world):
     gateway = _gateway()
     _index(db, gateway)
 
-    result = answer_mod.answer(db, reader, raw_query="연차", gateway=gateway, runtime=offline_runtime(generator))
+    result = answer_mod.draft_document(db, reader, instruction="연차", gateway=gateway, runtime=offline_runtime(generator))
     assert result.ok
     _system, user_message = generator.calls[0]
     for cite in result.retrieval.citations:
@@ -345,8 +346,7 @@ def test_no_evidence_means_the_model_is_not_called_at_all(db, reader, world):
     gateway = _gateway()
     _index(db, gateway)
 
-    result = answer_mod.answer(
-        db, reader, raw_query="존재하지않는낱말조합xyz", gateway=gateway, runtime=offline_runtime(generator),
+    result = answer_mod.draft_document(db, reader, instruction="존재하지않는낱말조합xyz", gateway=gateway, runtime=offline_runtime(generator),
     )
     assert result.status == contract.STATUS_EMPTY
     assert generator.calls == []
@@ -357,7 +357,7 @@ def test_the_context_is_numbered_so_the_answer_can_point_back(db, reader, world)
     gateway = _gateway()
     _index(db, gateway)
 
-    result = answer_mod.answer(db, reader, raw_query="연차", gateway=gateway, runtime=offline_runtime(generator))
+    result = answer_mod.draft_document(db, reader, instruction="연차", gateway=gateway, runtime=offline_runtime(generator))
     _system, user_message = generator.calls[0]
     assert "[1]" in user_message
 

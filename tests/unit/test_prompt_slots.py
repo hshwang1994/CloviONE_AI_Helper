@@ -40,8 +40,10 @@ def test_every_use_carries_the_safety_frame(key):
 def test_the_quiz_is_not_told_to_stay_inside_a_body_it_does_not_have():
     assert catalog.get_slot(catalog.QUIZ).grounding == frame.KNOWLEDGE_RULE
     assert "JSON 배열" in catalog.get_slot(catalog.QUIZ).format_line, "퀴즈 파서가 기대는 형식이 고정 칸에 없다"
-    others = [s for k, s in catalog.SLOTS.items() if k != catalog.QUIZ]
+    others = [s for k, s in catalog.SLOTS.items() if k not in (catalog.QUIZ, catalog.ASSISTANT)]
     assert all(s.grounding == frame.GROUNDED_RULE for s in others)
+    # AI 도우미는 일반 지식으로도 답한다 - 사내 사실만 도구로 확인한 것으로 쓴다(D-535).
+    assert catalog.get_slot(catalog.ASSISTANT).grounding == frame.ASSISTANT_GROUNDING
 
 
 def test_the_weekly_summary_keeps_its_five_lines_as_an_editable_instruction():
@@ -68,7 +70,9 @@ def test_an_ordinary_instruction_passes():
 
 
 def test_uses_are_checked_by_name():
-    assert service.slot_problem(None) is None and service.slot_problem("answer") is None
+    assert service.slot_problem(None) is None and service.slot_problem("draft") is None
+    # 은퇴한 사용처는 고를 수 없다(D-535).
+    assert "바꿀 수 없습니다" in service.slot_problem(catalog.ANSWER)
     assert service.slot_problem("nope") == "알 수 없는 사용처입니다."
     assert "바꿀 수 없습니다" in service.slot_problem(catalog.CONNECTION_TEST)
     assert catalog.CONNECTION_TEST not in catalog.editable_keys()

@@ -41,6 +41,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -379,6 +380,9 @@ class AiCredentialState(UUIDPrimaryKeyMixin, Base):
     last_notified_state: Mapped[str | None] = mapped_column(String(32))
     #: 갱신 토큰이 곧 끝난다고 알린 시각. 갱신 토큰을 새로 받기 전에는 다시 알리지 않는다(D-516).
     refresh_warned_at: Mapped[datetime | None] = mapped_column(DateTime)
+    #: 지금 설정(지문)으로 제공자 · 모델이 도구를 받는가 — `{"tools": "ok|unsupported", "model", "checked_at", "fingerprint"}`
+    #: (0044, D-535). 도구를 거절하는 요금제 · 모델에는 서버 검색 뒤 도구 없는 한 번의 호출로 대신한다.
+    capabilities_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
@@ -470,6 +474,12 @@ class AiUsageRecord(Base):
     truncated_output: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     request_id: Mapped[str | None] = mapped_column(String(64))
     job_id: Mapped[str | None] = mapped_column(String(36))
+    #: 도우미 한 차례의 모양(0044, D-537) — 제공자를 부른 횟수, 실행한 도구 수, 도구 이름(인자는 싣지 않는다), 방식
+    #: (`tools` · `search_only`). 단발 기능의 행은 비어 있다.
+    rounds: Mapped[int | None] = mapped_column(SmallInteger)
+    tool_calls: Mapped[int | None] = mapped_column(SmallInteger)
+    tool_names_json: Mapped[str | None] = mapped_column(Text)
+    mode: Mapped[str | None] = mapped_column(String(16))
 
 
 class AiActionRequest(UUIDPrimaryKeyMixin, Base):

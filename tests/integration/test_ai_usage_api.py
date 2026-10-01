@@ -20,7 +20,7 @@ from app.ai.models import AiUsageRecord
 pytestmark = pytest.mark.integration
 
 
-def _rec(db, *, when, user_id=None, action="chat.answer", status="ok", provider="anthropic", model="m-1",
+def _rec(db, *, when, user_id=None, action="assistant.chat", status="ok", provider="anthropic", model="m-1",
          inp=None, out=None, latency=None, department_name=None) -> None:
     db.add(AiUsageRecord(
         id=str(uuid.uuid4()), created_at=when, actor_kind="user" if user_id else "system", user_id=user_id,
@@ -37,15 +37,15 @@ def test_grouping_by_feature_counts_success_blocked_and_tokens(client, login_as,
     _admin(login_as)
     now = fake_clock.now()
     for latency in (100, 300):
-        _rec(db, when=now, action="chat.answer", inp=100, out=20, latency=latency)
-    _rec(db, when=now, action="chat.answer", status="error")
-    _rec(db, when=now, action="chat.answer", status="blocked_quota")
-    _rec(db, when=now, action="workspace.ask", inp=50, out=5, latency=40)
+        _rec(db, when=now, action="assistant.chat", inp=100, out=20, latency=latency)
+    _rec(db, when=now, action="assistant.chat", status="error")
+    _rec(db, when=now, action="assistant.chat", status="blocked_quota")
+    _rec(db, when=now, action="workspace.draft", inp=50, out=5, latency=40)
     db.commit()
 
     body = client.get("/api/admin/ai/usage/stats").json()
     chat, ask = body["items"]
-    assert (chat["key"], chat["label"]) == ("chat.answer", "채팅 답변"), "호출이 많은 묶음이 먼저 온다"
+    assert (chat["key"], chat["label"]) == ("assistant.chat", "AI 도우미"), "호출이 많은 묶음이 먼저 온다"
     assert (chat["calls"], chat["ok"], chat["errors"], chat["blocked"]) == (4, 2, 1, 1)
     assert chat["success_rate"] == 67, "2/3 은 66.67 이고 서버가 한 번 반올림한다"
     assert (chat["input_tokens"], chat["output_tokens"], chat["avg_latency_ms"]) == (200, 40, 200)

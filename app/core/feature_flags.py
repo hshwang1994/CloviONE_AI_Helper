@@ -236,3 +236,15 @@ def db_flag(settings_cache, key: str) -> bool:
     if value is None:
         return FLAG_REGISTRY[key].default
     return bool(value)
+
+
+def flag_value(key: str, *, settings_cache, config_dir) -> bool:
+    """플래그의 지금 값 - 정본이 DB 든 파일이든 한 함수로 읽는다.
+
+    AI 도우미의 도구처럼 여러 플래그를 함께 보는 자리가 쓴다(D-535). 소유자를 모르고 `db_flag` 로 파일 소유 플래그를
+    읽으면 언제나 기본값이 나와, 관리자가 파일에서 끈 기능(게시판, 팀 채팅)이 도구에서는 켜진 채로 보인다.
+    """
+    spec = FLAG_REGISTRY[key]
+    if spec.owner == OWNER_DB:
+        return db_flag(settings_cache, key)
+    return bool(load_feature_flags(config_dir).get(key, spec.default))

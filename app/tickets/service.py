@@ -592,6 +592,31 @@ def list_my_tickets(
     return {"tickets": views, "total": _total(result, views)}
 
 
+def list_requested_tickets(
+    db: Session, outbound, settings, user: User, *, repo=None,
+    filters: TicketFilters | None = None, page: PageSpec | None = None,
+) -> dict:
+    """내가 요청한 티켓 한 쪽 — {"tickets": [...], "total": n}. **범위가 걸린다.**
+
+    「내 티켓」(담당)과 다르다: 요청은 내가 그 티켓을 맡았다는 뜻이 아니라, 요청한 뒤 프로젝트 범위가 바뀌었을 수
+    있다. 그래서 팀 티켓과 같은 두 그물을 건다 - 부른 쪽이 `build_filters(viewer=user)` 로 SQL 그물을, 여기서 파이썬
+    그물(`_drop_out_of_scope`)을. AI 도우미의 「내 업무」 도구가 쓴다(D-535).
+    """
+    result = _repo(settings, outbound, repo).list_by_requester(db, user_id=user.id, filters=filters, page=page)
+    views = _drop_out_of_scope(db, _drop_trashed(db, ticket_views(db, result.tickets)), user)
+    return {"tickets": views, "total": _total(result, views)}
+
+
+def list_watching_tickets(
+    db: Session, outbound, settings, user: User, *, repo=None,
+    filters: TicketFilters | None = None, page: PageSpec | None = None,
+) -> dict:
+    """내가 지켜보는 티켓 한 쪽 — {"tickets": [...], "total": n}. 범위는 `list_requested_tickets` 와 같다."""
+    result = _repo(settings, outbound, repo).list_watched_by(db, user_id=user.id, filters=filters, page=page)
+    views = _drop_out_of_scope(db, _drop_trashed(db, ticket_views(db, result.tickets)), user)
+    return {"tickets": views, "total": _total(result, views)}
+
+
 def list_unassigned_page(
     db: Session, outbound, settings, *, active_only: bool = True, repo=None, viewer=None,
     filters: TicketFilters | None = None, page: PageSpec | None = None, scope=None,

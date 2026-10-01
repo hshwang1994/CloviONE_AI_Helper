@@ -277,3 +277,23 @@ def directory(db: Session, exclude_user_id: str, *, org_id: str | None = None) -
     if org_id:
         stmt = stmt.where(User.org_id == org_id)
     return list(db.execute(stmt.order_by(User.display_name)).scalars().all())
+
+
+def directory_search(db: Session, viewer, query: str, *, limit: int = 10) -> tuple[list[User], int]:
+    """사람 찾기 — 팀 채팅 디렉터리와 **같은 칸**(같은 조직, 활성, 비보관)에서 이름 · 부서 이름 · 직책을 접어서 맞춘다.
+
+    AI 도우미의 「사람 찾기」 도구가 쓴다(D-535). 보는 사람 자신도 들어간다(「우리 팀에 누가 있어?」의 답에 나도 있다).
+    질의 전체가 어디에도 맞지 않으면 질문에서 뽑은 낱말 중 하나라도 맞는 사람을 찾는다. (사람 목록, 맞은 수)를 돌려준다.
+    """
+    from app.core.search_text import keywords, matches_folded
+
+    people = directory(db, "", org_id=getattr(viewer, "org_id", None))
+
+    def hit(user: User, needle: str) -> bool:
+        return any(matches_folded(value, needle) for value in (user.display_name, user.department, user.title) if value)
+
+    found = [u for u in people if hit(u, query)]
+    if not found:
+        words = keywords(query)
+        found = [u for u in people if any(hit(u, w) for w in words)] if words else []
+    return found[:limit], len(found)

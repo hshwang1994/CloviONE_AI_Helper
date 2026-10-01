@@ -9,6 +9,8 @@
 * 결과가 무엇을 찾았는지 말한다(`keywords`) — 「찾지 못했습니다」 문장이 그 낱말을 쓴다.
 * 모델에는 질문 원문이 간다 — 100자 표시형으로 잘리지 않는다.
 * 권한은 그대로다 — 낱말 가지도 `LIMIT` 앞의 권한 조건 안에서 돈다(볼 수 없는 문서는 낱말로도 안 나온다).
+
+qa-contract-change: 채팅 · 작업 공간 질문의 옛 `answer()` 를 걷었다(D-535 - 질문은 AI 도우미 한 차례가 답한다). 근거 검색 → 생성의 같은 문(생성이 막혀도 인용이 나간다, 모델은 인용 밖을 못 본다, 근거가 없으면 부르지 않는다, 질문 원문이 간다)은 문서 초안(`draft_document`)이 그대로 지나므로 같은 단언을 그 소비자로 잰다.
 """
 
 from __future__ import annotations
@@ -135,7 +137,7 @@ def test_the_model_receives_the_whole_question_not_the_display_cut(db, reader, w
     recorder = Recorder()
     question = "휴가 신청 " + "그리고 " * 40 + "마지막 조건은 사흘 전까지 내는 것인지 알려줘"
     assert len(query_mod.normalize_query(question)) == query_mod.MAX_QUERY_CHARS
-    result = answer_mod.answer(db, reader, raw_query=question, gateway=_gateway(), runtime=offline_runtime(recorder))
+    result = answer_mod.draft_document(db, reader, instruction=question, gateway=_gateway(), runtime=offline_runtime(recorder))
     assert result.ok
     _system, user_message = recorder.calls[0]
     assert "마지막 조건은 사흘 전까지 내는 것인지 알려줘" in user_message

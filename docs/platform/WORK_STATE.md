@@ -24,11 +24,13 @@
 | P5 필터 칸 선택지 폭 · 검색 칸 계단 · 「기간」 칸 하나(`PeriodFilter`, KST) · 보기 기준(`role: "view"`) · 켬/끔 조건 자리 · 목록 상태 일곱 갈래(`resolveListState` · `ListStateView`) · 빈 표의 머리 아래 띠 · 상태 자리(`StateRegion`) · 기능 깃발 문 `feature_disabled` · 정합성 짧은 이름 · P4 값 길이 결함(id) 수정 | `b22fe969` | D-530 |
 | P6 채움 모드(`ui/Workspace.jsx` — 고른 화면이 등록하고 창 1200 · 600 이상이면 main 이 창 높이, 판마다 몸만 굴러감) · `DataTable fill` · 스크롤 창 문맥(`scrollRoot.js`) · 견본 `#/kit/workspace` · 실브라우저 `workspace_e2e.py`(34/34 + 반례) | `4096e98a` | D-531 |
 | P7 조직 관리 작업 공간(트리 모델 · 판 머리 동작 · 까닭 붙은 비활성 메뉴 · 「상세 정보」 창 · `/impact` 영향 창 · 회차 막음과 떼어 냄 · 「개」 단위와 조사 · 조직 인원은 쓸 수 있는 계정 · 부서 구성원 기본 하위 포함 · 표 채움은 채움 작업 공간에서만) · 큰 조직 시드 · `workspace_e2e --target org` · `hostile_data --modes tree` | `c5789e84` | D-533 |
-| P8 AI 검색 낱말(`search_text.keywords` — 질문에서 낱말을 뽑아 두 레인에 OR, 맞은 낱말 점수, 모델에는 질문 원문) · 제공자 대화 계약 `converse()`(Anthropic · OpenAI API 키 · ChatGPT SSE, 아직 런타임에 잇지 않음) · 측정 `retrieval_keywords.py`(문장 질문 Recall@5 = 기준의 1.004 배) | 이 커밋 | D-536 |
+| P8 AI 검색 낱말(`search_text.keywords` — 질문에서 낱말을 뽑아 두 레인에 OR, 맞은 낱말 점수, 모델에는 질문 원문) · 제공자 대화 계약 `converse()`(Anthropic · OpenAI API 키 · ChatGPT SSE, 아직 런타임에 잇지 않음) · 측정 `retrieval_keywords.py`(문장 질문 Recall@5 = 기준의 1.004 배) | `48665462` | D-536 |
+| P9 백엔드: AI 도우미 런타임 `converse`(도구 라운드 넷 + 마무리, 상한, 호출마다 슬롯, 대체 모드와 능력 기록) · 도구 열둘(READ ONLY · 3초 · 사람 인자 없음) · 채팅 핸들러(권한 재확인 · 처리 중 커밋 · 진행 문구 · 지난 문답 · 화면 대상 다시 읽기) · 채팅 `AI_USE` · 409 `ai_unavailable` · `/api/ai/status` 도우미 칸 · AI 검색 · 초안 `DOCUMENT_READ` · `/api/ai/ask` 걷기 · 0044(사용 기록 칸 · 능력 칸 · 정책 대상 옮기기 · 사용처 `answer` 은퇴) · 홈 요약 사용 기록 주인 | 이 커밋 | D-535 · D-537 · D-538 |
 
 - P3 ~ P6 묶음 끝 `verify.py --full`(HEAD `4096e98a`, 2026-10-01 21:49 ~ 23:11): 정적 전량 · 백엔드 단위 · 회귀 · 보안 · 통합 네 청크 통과, 프런트 전량 4,100 / 4,102. 남은 둘(`home.test.jsx` · `projects.test.jsx` 각 1건)은 메모리 여유 약 1GB 에서 20초 시간 초과였고 단독 재실행 86 / 86 통과다.
 - P7 실측: `workspace_e2e --target org`(큰 조직 시드) 46 / 46 · 견본 34 / 34 · 반례 시험 통과, 캡처 `dist/ui-qa/p7-org` · `dist/ui-qa/org-workspace-e2e`(1366 · 1920 을 눈으로 봤다).
-- 다음: P9 AI 도우미 런타임 · 도구 · 핸들러 · 채팅 화면(A1 · A2, 0044, AI 보안 시험 전부, D-535 · D-537 · D-538).
+- P9 백엔드 표적: `verify.py`(실패 27건은 AI 가 꺼진 세계에서 메시지를 보내던 시험 · 은퇴한 사용처를 쓰던 시험이었고 고친 뒤 단독 재실행 통과), 새 시험 — 채팅 차례 13 · 도구 범위 13 · 주입 7 · 반복 상한 9 · 읽기 전용 5 · 차례당 한도 2 · `AI_USE` 2 · 등록 계약 52 · 지난 문답 9 · 0044 왕복.
+- 다음: P9 프런트(A2 — 쓸 수 없음 상태 · 첫 화면 · 출처 목록 · 진행 문구 · 서랍 화면 대상 · `/ai` 「문서에서 찾기」 · 메뉴 숨김 · 죽은 카드 코드 걷기).
 
 ## 끝남 — 공통 스위치 개편 (2026-10-01)
 

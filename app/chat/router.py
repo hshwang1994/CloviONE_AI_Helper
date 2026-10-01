@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import time
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
@@ -38,7 +39,9 @@ from app.core.deps import (
 )
 from app.core.errors import FeatureDisabledError, RateLimitedError
 from app.core.feature_flags import db_flag
-from app.ai.actions import CHAT_ANSWER
+from app.ai.actions import ASSISTANT_CHAT
+from app.authz import permissions as perms
+from app.core.deps import require_permission
 from app.quotas import service as ai_quotas
 from app.settings.gate import block_if_maintenance
 from app.users.models import User
@@ -50,10 +53,37 @@ router = APIRouter(tags=["chat"])
 # 채팅만 빠져 있었다. team_chat/router.py의 require_team_chat_enabled와 같은 패턴이지만,
 # 이 파일의 "/" 는 채팅 전용이 아니라 React 앱 전체의 진입점이라 여기 의존성에서 뺀다 —
 # 개별 API 엔드포인트에만 건다(아래).
-def require_chat_enabled(request: Request) -> None:
+def require_chat_enabled(request: Request, _user: User = Depends(require_permission(perms.AI_USE))) -> None:
+    # 채팅 경로는 전부 AI 사용 권한을 본다(D-538). 예전에는 작업 공간만 보고 채팅은 보지 않아 RBAC 로 좁힐 수
+    # 없었다(기본 역할은 모두 이 권한을 가진다).
     # DB 소유 플래그다(D-507) - 관리 화면에서 바꾼 값이 설정 캐시를 거쳐 바로 온다.
     if not db_flag(getattr(request.app.state, "settings_cache", None), "chat_enabled"):
         raise FeatureDisabledError("AI 도우미 채팅 기능이 비활성화되어 있습니다.")
+
+
+def require_ai_available(request: Request, db: Session, user: User) -> None:
+    """AI 를 지금 쓸 수 없으면 409 `ai_unavailable` - 한도를 예약하기 **전에**, 잡을 만들지 않고 막는다(D-538).
+
+    꺼짐 · 미설정 · 연결 막힘이 여기서 걸린다. 일시 장애는 막지 않는다(다음 호출이 다시 시도한다).
+    """
+    from app.ai.assistant.availability import assistant_status
+    from app.ai.runtime import runtime_for_app
+    from app.core.errors import AiUnavailableError
+
+    status = assistant_status(db, runtime=runtime_for_app(request.app), user=user,
+                              settings_cache=getattr(request.app.state, "settings_cache", None))
+    if not status["available"]:
+        raise AiUnavailableError(status["notice"], details={"reason": status["reason"]})
+
+
+class ScreenContext(BaseModel):
+    """서랍이 보낸 화면 대상(D-538). 사용자가 고칠 수 있는 값이라 워커가 대화 주인의 권한으로 다시 읽은 것만 쓴다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["ticket", "project", "document"]
+    ref: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    label: str = Field(default="", max_length=40)
 
 
 @router.get("/")
@@ -87,10 +117,8 @@ class MessageCreateRequest(BaseModel):
     content: str = Field(default="", max_length=20000)  # hard cap; policy limit checked in service
     client_message_id: str = Field(min_length=8, max_length=64)
     attachments: list[MessageAttachment] | None = Field(default=None, max_length=3)
-    # AI-30(Med): AssistantDrawer.jsx's routeContextLabel() — a short curated label, but this
-    # is client-supplied so it's capped like any other input, not trusted for anything beyond
-    # a hint forwarded to the assistant's conversational prompt.
-    screen_context: str | None = Field(default=None, max_length=100)
+    # 화면 대상(D-538). 옛 화면이 보내던 문자열(화면 이름)은 받고 버린다 - 대상이 없다.
+    screen_context: ScreenContext | str | None = Field(default=None)
 
 
 @router.get("/api/conversations", dependencies=[Depends(require_chat_enabled)])
@@ -210,11 +238,12 @@ def post_message(
     # 전체(확인 재검증 포함)를 다시 실행한다. `client_message_id` 기반 idempotency_key
     # (`jobs.repository.enqueue`)가 있어 재시도로 잡이 중복 적재되지 않는다 — 실패한
     # 시도는 커밋 전이라 rollback으로 전부 되감기고, 성공한 시도만 그 키로 한 번 적재된다.
+    require_ai_available(request, db, user)
     _CHAT_WRITE_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES
     message = job = None
     for _attempt in range(_CHAT_WRITE_RETRIES):
         try:
-            with ai_quotas.reserve(db, user=user, action_key=CHAT_ANSWER, now=request.app.state.clock.now(),
+            with ai_quotas.reserve(db, user=user, action_key=ASSISTANT_CHAT, now=request.app.state.clock.now(),
                                    session_factory=request.app.state.session_factory):
                 conversation = get_owned_conversation(db, user, conversation_id)
                 message, job = post_user_message(
@@ -226,7 +255,8 @@ def post_message(
                     settings=request.app.state.settings,
                     now=request.app.state.clock.now(),
                     attachments=attachments,
-                    screen_context=payload.screen_context,
+                    screen_context=(payload.screen_context.model_dump()
+                                    if isinstance(payload.screen_context, ScreenContext) else None),
                 )
                 db.commit()
             break
@@ -269,7 +299,8 @@ def retry(
     # 아무도 막지 않는 값이었다. 레이트리미터(폭주 차단)와는 다른 일이다: 저쪽은 초 단위
     # 버스트, 이쪽은 하루·한 달 총량이다.
     # 전송과 **같은 문지기**를 지난다 (Z15) — 한쪽만 묶으면 '다시 시도' 로 우회한다.
-    with ai_quotas.reserve(db, user=user, action_key=CHAT_ANSWER, now=request.app.state.clock.now(),
+    require_ai_available(request, db, user)
+    with ai_quotas.reserve(db, user=user, action_key=ASSISTANT_CHAT, now=request.app.state.clock.now(),
                                    session_factory=request.app.state.session_factory):
         message, job = retry_message(
             db,
@@ -302,7 +333,8 @@ def regenerate(
                 chat_limit_key
             ),
         )
-    with ai_quotas.reserve(db, user=user, action_key=CHAT_ANSWER, now=request.app.state.clock.now(),
+    require_ai_available(request, db, user)
+    with ai_quotas.reserve(db, user=user, action_key=ASSISTANT_CHAT, now=request.app.state.clock.now(),
                                    session_factory=request.app.state.session_factory):
         message, job = regenerate_message(
             db,

@@ -74,6 +74,25 @@ class SlotLock:
                 return True
         return False
 
+    def acquire_wait(self, seconds: float, *, poll: float = 0.25, sleep=None, monotonic=None) -> bool:
+        """슬롯이 빌 때까지 ``seconds`` 초까지 기다린다. AI 도우미의 워커만 쓴다(D-535).
+
+        도우미 한 차례는 제공자를 여러 번 부르고, 슬롯은 **호출마다** 잡고 놓는다 - 차례 전체를 쥐면 웹의 단발 호출이
+        굶는다. 그 사이 다른 호출이 슬롯을 잡았을 수 있으니 짧게 기다린다. 웹 요청은 기다리지 않는다(`acquire`).
+        """
+        import time
+
+        sleep = sleep or time.sleep
+        monotonic = monotonic or time.monotonic
+        deadline = monotonic() + max(0.0, float(seconds))
+        while True:
+            if self.acquire():
+                return True
+            left = deadline - monotonic()
+            if left <= 0:
+                return False
+            sleep(min(poll, left))
+
     def release(self) -> None:
         held, self._held = self._held, None
         if held is not None:

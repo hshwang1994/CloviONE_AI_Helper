@@ -167,6 +167,17 @@ def _branding(request: Request) -> dict:
     return {"product_name": name or fallback}
 
 
+def _capabilities(db: Session, user) -> dict:
+    """화면이 메뉴 · 단축키를 숨기는 데 쓰는 능력. 실패하면 거짓 - 단추 하나 때문에 `/api/me` 를 죽이지 않는다."""
+    from app.authz import permissions as perms
+    from app.authz.service import has_permission
+
+    try:
+        return {"ai_use": bool(has_permission(db, user, perms.AI_USE))}
+    except Exception:  # noqa: BLE001
+        return {"ai_use": False}
+
+
 @router.get("/api/me")
 def me(
     request: Request,
@@ -206,6 +217,8 @@ def me(
         # 올바른 패턴이 `home/readers.py` 에 이미 있었는데 **한 화면에만** 적용돼 있었다.
         # 화면에서 감추는 것은 편의일 뿐 통제가 아니다 — 라우터가 여전히 각자 막는다.
         "features": _menu_features(request),
+        # 이 사람이 가진 능력 - 메뉴와 서랍 단추를 숨길지 화면이 정한다(D-538). 통제는 서버 경로마다 다시 본다.
+        "capabilities": _capabilities(db, user),
         # 제품명은 **설정값**이다 (N5). 마이그레이션 0034 가 "제품명은 코드 상수가 아니라
         # 설정값" 이라고 선언해 놓고, 정작 사용자가 하루 종일 보는 SPA 는 상수였다 —
         # 값을 바꾸면 **로그인 화면만** 바뀌었다. 셸이 별도 요청 없이 쓰게 여기 싣는다.

@@ -26,13 +26,15 @@ from app.approvals.service import (
     approval_view,
     cancel,
     decide,
+    decision_visible_user_ids,
     get_scoped_approval_or_404,
     resolve_names,
 )
+from app.approvals.service import name_ids as _name_ids
 from app.core.sort import SortParams, order_by
 from app.core.audit import record_audit_from_request
 from app.core.authz import CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES
-from app.core.scope import Principal, management_scope, visible_user_ids
+from app.core.scope import Principal, visible_user_ids
 from app.core.deps import get_current_user, get_db, get_principal, require_csrf, require_roles
 from app.core.errors import ValidationAppError
 
@@ -88,39 +90,6 @@ def _view(
             db, {row.requested_by, row.approver_id, row.decided_on_behalf_of}
         )
     return approval_view(row, request.app.state.clock.now(), names=names, can_decide=can_decide)
-
-
-def _name_ids(rows) -> set[str | None]:
-    """목록 한 페이지에서 이름으로 해석해야 할 user id 전부 (요청자·결정자·위임자)."""
-    return {
-        i
-        for r in rows
-        for i in (r.requested_by, r.approver_id, r.decided_on_behalf_of)
-    }
-
-
-def decision_visible_user_ids(
-    db: Session, *, principal: Principal, on_behalf_of: str | None
-) -> frozenset[str] | None:
-    """이 결재자가 결재할 수 있는 요청자 집합. 전역이면 ``None``(= 제한 없음).
-
-    **범위를 누구 기준으로 재는가는 위임 여부가 정한다**(D-385): 위임으로 결재하면 빌려준
-    사람이 닿던 곳까지가 한계이고, 역할로 결재하면 본인의 관리 범위다.
-
-    이 계산이 `_decide` 안에만 있었을 때 개인 결재함(`my_approvals`)은 아예 범위를 안 걸었다.
-    그래서 부서 범위 관리자의 결재함에 다른 부서의 역할 변경 요청이 요청자 이름·조직 경로·
-    바뀌는 역할까지 그대로 실려 보였고(관리 큐에서는 가려 둔 인사 정보다), 그 줄의 승인을
-    누르면 결재 경로가 같은 범위를 다시 재서 404 였다 — 「목록에 있으면 결재된다」가 깨진다.
-    목록 축과 결재 축이 이 함수 하나를 함께 쓴다.
-    """
-    if on_behalf_of:
-        delegator = db.get(User, on_behalf_of)
-        return (
-            visible_user_ids(db, management_scope(db, delegator, principal.tree))
-            if delegator is not None
-            else frozenset()
-        )
-    return visible_user_ids(db, principal.management)
 
 
 # ── 개인 결재함 (0060) ────────────────────────────────────────────────────────
@@ -204,48 +173,19 @@ def my_approvals(
 
     위임받은 사람의 범위를 **위임자 기준**으로 재기 때문에 위임은 그대로 산다(D-385).
     """
-    now = request.app.state.clock.now()
-    can_decide, on_behalf_of = delegation_service.resolve_authority(db, user, now)
-
-    stmt = select(Approval)
-    if box == "requested":
-        stmt = stmt.where(Approval.requested_by == user.id)
-    elif box == "done":
-        stmt = stmt.where(Approval.approver_id == user.id)
-    else:
-        if not can_decide:
-            # 결재 권한이 없으면 '할 일' 은 정의상 없다. 빈 목록을 주되 그 이유를 함께
-            # 말한다 — 화면이 "권한이 없다" 와 "지금 처리할 것이 없다" 를 구별해야 한다.
-            return {
-                "items": [], "total": 0, "page": page.page, "page_size": page.page_size,
-                "can_decide": False,
-            }
-        stmt = apply_scope(
-            stmt.where(approval_service.pending_clause(now)),
-            decision_visible_user_ids(db, principal=principal, on_behalf_of=on_behalf_of),
-        )
-        # 자기 요청은 자기가 결재하지 않는다(서버 설정으로만 조정되는 기본값) — 할 일 칸에
-        # 띄워 두면 눌러 봐야 거절당하는 줄이 된다.
-        if not load_feature_flags(request.app.state.settings.config_dir).get("self_approval_allowed"):
-            stmt = stmt.where(Approval.requested_by != user.id)
-
-    total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
-    rows = list(
-        db.execute(
-            # 허용 키와 기본값은 서비스가 든다 — 「상태」 축이 저장 상태가 아니라 **유효 상태**
-            # 여야 하고(만료 지난 pending), 그 판정이 위 필터 절과 같은 정의를 써야 한다
-            # (`service.effective_status_rank`).
-            stmt.order_by(*order_by(approval_service.list_sort_spec(now, admin=False), sort))
-            .offset(page.offset).limit(page.page_size)
-        ).scalars()
+    found = approval_service.list_my_approvals(
+        db, user, principal, box=box, now=request.app.state.clock.now(),
+        self_approval_allowed=bool(
+            load_feature_flags(request.app.state.settings.config_dir).get("self_approval_allowed")
+        ),
+        offset=page.offset, limit=page.page_size, sort=sort,
     )
-    names = resolve_names(db, _name_ids(rows))
     return {
-        "items": [_view(request, db, r, names, can_decide=can_decide) for r in rows],
-        "total": total,
+        "items": [_view(request, db, r, found["names"], can_decide=found["can_decide"]) for r in found["rows"]],
+        "total": found["total"],
         "page": page.page,
         "page_size": page.page_size,
-        "can_decide": can_decide,
+        "can_decide": found["can_decide"],
     }
 
 

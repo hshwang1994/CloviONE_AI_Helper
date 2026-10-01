@@ -318,6 +318,59 @@ def notify_if_needed(db: Session, provider: str, auth_method: str, *, now: datet
         _notify_if_needed(db, row, now=now)
 
 
+# ── 제공자 능력 (D-535) ─────────────────────────────────────────────────────
+
+TOOLS_OK = "ok"
+TOOLS_UNSUPPORTED = "unsupported"
+TOOLS_UNKNOWN = "unknown"
+_TOOLS_VALUES = frozenset({TOOLS_OK, TOOLS_UNSUPPORTED})
+
+
+def capabilities(db: Session, config, secrets, *, secret_slot: str | None) -> dict:
+    """지금 설정(지문)에서 재 둔 능력. 다른 지문(모델 · 키 · 로그인이 바뀐 뒤)의 기록은 「모름」으로 읽는다.
+
+    도구를 받는지는 연결 확인의 도구 시험이나 도우미의 첫 라운드가 잰다. 모르면 도구를 보내 본다 - 거절되면 그때 적는다.
+    """
+    unknown = {"tools": TOOLS_UNKNOWN, "checked_at": None, "model": None}
+    row = _row(db, config.provider, config.auth_method)
+    if row is None or not row.capabilities_json:
+        return unknown
+    try:
+        data = json.loads(row.capabilities_json)
+    except ValueError:
+        return unknown
+    if not isinstance(data, dict) or data.get("fingerprint") != fingerprint(config, secrets, secret_slot):
+        return unknown
+    tools = data.get("tools")
+    return {
+        "tools": tools if tools in _TOOLS_VALUES else TOOLS_UNKNOWN,
+        "checked_at": data.get("checked_at") if isinstance(data.get("checked_at"), str) else None,
+        "model": data.get("model") if isinstance(data.get("model"), str) else None,
+    }
+
+
+def set_capability(db: Session, config, secrets, *, secret_slot: str | None, tools: str, now: datetime) -> None:
+    """능력 하나를 지금 지문으로 적는다. 연결 상태(status)는 바꾸지 않는다 - 도구를 거절하는 모델도 답은 한다."""
+    from app.ai.models import AiCredentialState
+
+    if tools not in _TOOLS_VALUES:
+        raise ValueError(f"알 수 없는 도구 능력 값: {tools}")
+    stamp = fingerprint(config, secrets, secret_slot)
+    row = _row(db, config.provider, config.auth_method, lock=True)
+    if row is None:
+        row = AiCredentialState(
+            provider=config.provider, auth_method=config.auth_method, status=STATE_UNVERIFIED,
+            config_fingerprint=stamp, consecutive_failures=0, created_at=now, updated_at=now,
+        )
+        db.add(row)
+    row.capabilities_json = json.dumps(
+        {"tools": tools, "model": config.model, "checked_at": now.isoformat(), "fingerprint": stamp},
+        ensure_ascii=False,
+    )
+    row.updated_at = now
+    db.flush()
+
+
 # ── 계정 연결 칸 (D-516) ─────────────────────────────────────────────────────
 
 

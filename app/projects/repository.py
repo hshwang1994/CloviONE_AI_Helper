@@ -88,8 +88,12 @@ def list_in_scope(
     limit: int = 50,
     sort: str | None = None,
     order: str | None = None,
+    member_user_id: str | None = None,
 ) -> tuple[list[Project], int]:
     """목록. 조건은 단건과 **같은 것 하나**다(`scope_clause`).
+
+    `member_user_id` 를 주면 그 사람이 구성원이거나 담당하는 프로젝트로 **더 좁힌다**(AI 도우미의 「내 프로젝트」,
+    D-535). 범위 조건은 그대로 먼저 걸린다.
 
     정렬은 전순서다. 화면 기본은 이름 오름차순이고, 그래도 같으면 id. 마지막 id 가
     없으면 같은 이름 행들의 상대 순서를 DB 가 마음대로 정하고, 그러면 OFFSET
@@ -108,6 +112,13 @@ def list_in_scope(
         stmt = stmt.where(search_clause)
     if status:
         stmt = stmt.where(Project.status == status)
+    if member_user_id:
+        from app.projects.models import ProjectMember
+
+        stmt = stmt.where(or_(
+            Project.id.in_(select(ProjectMember.project_id).where(ProjectMember.user_id == member_user_id)),
+            Project.owner_user_id == member_user_id,
+        ))
     if trouble:
         # **판정은 `health.py` 한 곳이다.** 문턱 숫자를 여기 다시 적으면 화면의 요약과
         # 목록이 서로 다른 프로젝트를 차질이라고 부르는 날이 온다.

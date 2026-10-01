@@ -17,6 +17,19 @@ pytestmark = pytest.mark.integration
 CLIENT_MSG_ID = "m0123456789abcdef0123456789abcdef"
 
 
+@pytest.fixture(autouse=True)
+def _ai_ready(request):
+    """메시지를 보내려면 AI 를 지금 쓸 수 있어야 한다(D-538) - 꺼져 있거나 미설정이면 409 `ai_unavailable` 이다.
+
+    공용 앱(`client`)을 쓰는 시험에만 건다 - 제 앱을 따로 만드는 시험은 그 앱의 설정을 스스로 정한다.
+    """
+    if "client" not in request.fixturenames:
+        return
+    from tests.fakes.ai import configure_ai
+
+    configure_ai(request.getfixturevalue("app"))
+
+
 def _headers(csrf):
     return {"X-CSRF-Token": csrf}
 

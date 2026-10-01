@@ -91,6 +91,13 @@ def counted_actions() -> tuple[str, ...]:
     return tuple(key for key, action in ACTIONS.items() if action.counts_quota)
 
 
+def _small(value) -> int | None:
+    """SMALLINT 칸. 음수나 숫자가 아닌 값은 비우고, 큰 값은 칸의 끝에서 자른다."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return min(value, 32767)
+
+
 def _clip(value, size: int):
     return value[:size] if isinstance(value, str) and value else None
 
@@ -108,8 +115,13 @@ def _department_name(db: Session, department_id: str | None) -> str | None:
 def record(session_factory, *, actor: Actor, action_key: str, status: str, now: datetime, provider=None,
            auth_method=None, model=None, error_code=None, input_tokens=None, output_tokens=None, latency_ms=None,
            prompt_slot=None, prompt_version=None, prompt_source=None, prompt_id=None, policy_ids=None,
-           truncated_input=False, truncated_output=False, request_id=None, job_id=None) -> None:
-    """한 행을 제 세션으로 적고 커밋한다. 성공한 사람의 호출이면 한도를 다 썼는지 그 자리에서 본다. 예외를 올리지 않는다."""
+           truncated_input=False, truncated_output=False, request_id=None, job_id=None, rounds=None,
+           tool_calls=None, tool_names=None, mode=None) -> None:
+    """한 행을 제 세션으로 적고 커밋한다. 성공한 사람의 호출이면 한도를 다 썼는지 그 자리에서 본다. 예외를 올리지 않는다.
+
+    ``rounds`` · ``tool_calls`` · ``tool_names`` · ``mode`` 는 AI 도우미 한 차례의 모양이다(D-537). 차례는 제공자를 여러 번
+    부르지만 사람의 요청 한 번이라 한 행이다. 도구는 **이름만** 남긴다 - 인자와 결과는 남기지 않는다.
+    """
     if session_factory is None:
         return
     from app.ai.models import USAGE_OK, AiUsageRecord
@@ -129,6 +141,8 @@ def record(session_factory, *, actor: Actor, action_key: str, status: str, now: 
                 policy_ids_json=json.dumps(sorted(policy_ids)) if policy_ids else None,
                 truncated_input=bool(truncated_input), truncated_output=bool(truncated_output),
                 request_id=_clip(request_id, 64), job_id=_clip(job_id, 36),
+                rounds=_small(rounds), tool_calls=_small(tool_calls),
+                tool_names_json=json.dumps(list(tool_names)[:32]) if tool_names else None, mode=_clip(mode, 16),
             ))
             db.flush()
             if status == USAGE_OK and actor.user_id and action_key in counted_actions():

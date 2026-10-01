@@ -5,6 +5,8 @@
 
 Retrieval 자체의 성질은 `test_ai_retrieval.py`, 권한 음성 시험은
 `tests/security/test_ai_retrieval_permission.py` 가 본다.
+
+qa-contract-change: 작업 공간의 질문(`/api/ai/ask`)을 걷었다(D-535). 질문은 AI 도우미 한 차례가 답하고 그 계약(답과 출처, 실패 차례는 한도를 안 쓴다)은 `test_chat_assistant_turn.py` 가 진다. 이 파일은 옛 경로가 404 인지, 상태 응답의 도우미 칸, 검색 · 초안의 문서 읽기 권한(D-538)을 잰다.
 """
 
 from __future__ import annotations
@@ -158,45 +160,54 @@ def test_search_does_not_ship_the_whole_chunk_to_the_browser(client, app, login_
     assert "excerpt" in body["citations"][0]
 
 
-# ── ask ──────────────────────────────────────────────────────────────────────
+# ── 질문은 도우미로 · 문서 읽기 권한 (D-535 · D-538) ────────────────────────────────
 
 
-def test_ask_needs_csrf(client, login_as, app, seeded):
-    login_as("user")
+def test_the_old_ask_route_is_gone(client, login_as, app, seeded):
+    """작업 공간의 질문은 AI 도우미 한 차례가 답한다 - 같은 일을 따로 하던 두 번째 길은 없다."""
+    csrf = login_as("user")
     _install(app, generate=Generator())
-    response = client.post("/api/ai/ask", json={"question": "연차"})
+    response = client.post("/api/ai/ask", json={"question": "연차"}, headers={"X-CSRF-Token": csrf})
+    assert response.status_code == 404
+
+
+def test_status_says_whether_the_assistant_can_answer(client, app, login_as, seeded):
+    login_as("user")
+    _install(app, generate=Generator(off=True))
+    off = client.get("/api/ai/status").json()["assistant"]
+    assert off["available"] is False
+    assert off["reason"] == "off"
+    assert off["notice"] == "AI 사용이 꺼져 있어 지금은 답할 수 없습니다."
+    # 일반 사용자는 AI 연결 화면을 열 수 없다 - 「AI 연결 열기」 링크를 주지 않는다.
+    assert off["can_configure"] is False
+
+    _install(app, generate=Generator())
+    on = client.get("/api/ai/status").json()["assistant"]
+    assert on == {"available": True, "reason": None, "notice": None, "mode": "unknown", "can_configure": False}
+
+
+def test_search_needs_document_read_as_well_as_ai_use(client, app, login_as, db, seeded):
+    """문서 본문을 근거로 쓰는 경로는 다른 문서 읽기 경로와 같은 권한을 본다(D-538)."""
+    from tests.fakes.authz import revoke
+
+    login_as("user")
+    _install(app)
+    assert client.get("/api/ai/search", params={"q": "연차"}).status_code == 200
+    revoke(db, "user", "DOCUMENT_READ")
+    assert client.get("/api/ai/search", params={"q": "연차"}).status_code == 403
+
+
+def test_a_draft_needs_document_read_as_well_as_ai_use(client, app, login_as, db, seeded):
+    from tests.fakes.authz import revoke
+
+    csrf = login_as("user")
+    _install(app, generate=Generator())
+    revoke(db, "user", "DOCUMENT_READ")
+    before = db.execute(select(func.count()).select_from(Document)).scalar_one()
+    response = client.post("/api/ai/documents", json={"title": "초안", "instruction": "연차 안내"},
+                           headers={"X-CSRF-Token": csrf})
     assert response.status_code == 403
-
-
-def test_ask_returns_the_answer_with_its_evidence(client, app, login_as, db, seeded):
-    csrf = login_as("user")
-    _install(app, generate=Generator(text="연차는 남은 일수 안에서 씁니다 [1]."))
-
-    before = _ai_calls(db)
-    body = client.post(
-        "/api/ai/ask", json={"question": "연차"}, headers={"X-CSRF-Token": csrf}
-    ).json()
-    assert body["answer"] == "연차는 남은 일수 안에서 씁니다 [1]."
-    assert body["citations"]
-    assert body["notice"] is None
-    assert _ai_calls(db) == before + 1
-
-
-def test_a_failed_generation_does_not_spend_the_quota(client, app, login_as, db, seeded):
-    """모델이 죽은 날 사용자가 답을 못 받고 상한만 잃으면 안 된다."""
-    csrf = login_as("user")
-    from tests.fakes.ai import timeout_failure
-
-    _install(app, generate=Generator(reply=timeout_failure()))
-
-    before = _ai_calls(db)
-    body = client.post(
-        "/api/ai/ask", json={"question": "연차"}, headers={"X-CSRF-Token": csrf}
-    ).json()
-    assert body["answer"] is None
-    assert body["notice"]
-    assert body["citations"]          # 근거는 그대로 나간다
-    assert _ai_calls(db) == before
+    assert db.execute(select(func.count()).select_from(Document)).scalar_one() == before
 
 
 # ── 문서 초안 ────────────────────────────────────────────────────────────────

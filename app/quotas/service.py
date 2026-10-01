@@ -411,8 +411,8 @@ class _Gate:
 class consume(_Gate):
     """확인 → AI 호출을 한 덩어리로 (동기 경로 전용).
 
-        with ai_quotas.consume(db, user=user, action_key=WORKSPACE_ASK, now=now, session_factory=factory):
-            result = runtime.generate(db, action_key=WORKSPACE_ASK, ..., actor=user)
+        with ai_quotas.consume(db, user=user, action_key=WORKSPACE_DRAFT, now=now, session_factory=factory):
+            result = runtime.generate(db, action_key=WORKSPACE_DRAFT, ..., actor=user)
 
     **따로 세지 않는다.** 런타임이 호출을 기록하면서 그것이 곧 한 칸이 된다(`app/ai/usage.py`) - 성공한 호출만
     센다는 규약 그대로다. 기록은 런타임이 제 세션으로 곧바로 커밋하므로, 잠금이 풀리는 순간 같은 사람의 다음
@@ -424,7 +424,7 @@ class consume(_Gate):
 class reserve(_Gate):
     """확인 → 큐 적재를 한 덩어리로 (호출과 기록을 워커가 하는 경로 전용).
 
-        with ai_quotas.reserve(db, user=user, action_key=CHAT_ANSWER, now=now, session_factory=factory):
+        with ai_quotas.reserve(db, user=user, action_key=ASSISTANT_CHAT, now=now, session_factory=factory):
             message, job = post_user_message(…)
             db.commit()   # 예약(잡 행)이 다른 요청에 보여야 뜻이 있다
 

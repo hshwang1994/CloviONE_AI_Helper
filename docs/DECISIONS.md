@@ -16206,6 +16206,46 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
 - **넘긴 것**: Acceptance 흐름(`s21_admin_org.py` · `pilot_b11.py`)의 옛 조작(사용 선택 칸 · 정보 구획 · 페이지 머리 동작 · 셋째 판)은 이번에 옮기지 않았다 —
   BACKLOG P-122(구현 완료 조건이 아니다, CLAUDE.md §7.0).
 
+### D-535. AI 도우미는 권한 범위의 읽기 전용 도구를 쓰는 대화다 (UI/UX · AI · 메일 회차 P9 · D-515 의 「도구 칸 없음」을 이 액션에 한해 바꾼다)
+
+- **원인**: 채팅은 문서 조각을 찾아 0건이면 모델을 부르지 않고 「근거를 찾지 못했다」를 답으로 저장했다. 그래서 연결이 「정상」이어도 일반 질문,
+  티켓 · 프로젝트 · 결재 질문은 설계상 답할 수 없었고, 런타임과 제공자 계약은 (system, user) 단발 한 쌍이라 도구를 실을 자리도 없었다(D-515).
+- **결정**:
+  - 새 액션 `assistant.chat`(「AI 도우미」, 읽기, 한도 셈, 출력 6,000자 · 2,000 토큰, 사용처 `assistant`, `tools=True`). 도구를 쓰는 것은 이 액션 하나다 —
+    주간 요약 · 홈 요약 · 퀴즈 · 연결 확인은 지금처럼 도구 없는 `generate()` 다. 옛 `chat.answer` · `workspace.ask` 는 `retired` 다(지난 기록의 이름과
+    그날의 한도 셈은 남고, 「지금 거는 곳」 목록에서는 빠진다). 사용처 `answer` 도 은퇴했다(고를 수 · 복제할 수 없고 목록에 없다, 0044 가 지시문을 보관했다).
+  - 런타임 `AiRuntime.converse`(`app/ai/runtime.py`): 막힘 판정 · 지시문 · 정책 · 연결 상태는 `generate()` 와 같은 길이다. 프롬프트 틀은
+    `assistant_system` · `user_turn` · `fence`(`app/llm/prompt.py`) — 사용자의 말은 **지시 칸**(구분자 흉내만 걷는다), 도구 결과 · 화면 대상 · 대체 모드의
+    검색 자료는 **난스 칸**(칸마다 재확인 문장)이고, 관리자 지시문과 문맥 줄(오늘 날짜, 묻는 사람, 화면 길잡이)은 시스템 쪽이다. 세 틀을 부르는 곳은 런타임
+    하나다(정적 규칙 「프롬프트 조립」에 더했다). 안전 틀 문장 「사내 정보는 도구로 확인한 것만 사실로 씁니다 …」은 사용처도 관리자도 바꿀 수 없다.
+  - 상한: 도구 라운드 넷 + 마무리 하나(`tool_choice=none`, 도구 목록은 그대로 싣는다), 라운드당 실행 넷 · 차례 합계 여덟, **모든 호출 id 에 결과**(상한을
+    넘은 호출에도 `too_many_calls`), 같은 이름 · 같은 인자는 다시 쓰기, 결과 하나 8,000자 · 차례 32,000자(오류 결과는 자르지 않는다 — 잘리면 모델이 왜
+    멈췄는지 모른다), 시간 예산 `min(4 × 제한 시간, 240)` 초. 슬롯은 **제공자 호출마다** 잡고 놓으며 워커는 20초까지 기다린다(`SlotLock.acquire_wait`) —
+    차례 전체를 쥐면 웹의 단발 호출이 굶는다. 마지막 라운드를 제공자가 거절(400)하거나 또 도구만 부르면 찾은 자료로 닫는 고정 문장이다.
+  - 대체 모드: 첫 라운드가 `unsupported_capability`(도구를 받지 않는 요금제 · 모델)면 그 사실을 `ai_credential_state.capabilities_json`(지금 지문)에 적고,
+    서버가 문서 검색과 통합 검색을 먼저 돌려 그 자료를 칸에 실어 도구 없이 한 번 부른다. 다음 차례는 처음부터 그 길이다. 도구를 실은 첫 호출이 성공하면
+    모를 때만 `ok` 를 적는다.
+  - 도구 열둘(`app/ai/assistant/catalog.py` · `readers.py`): 사내 문서 검색 · 문서 읽기 · 통합 검색 · 내 업무 · 티켓 보기 · 티켓 찾기 · 프로젝트 찾기 ·
+    프로젝트 요약 · 내 결재함 · 사람 찾기 · 최근 바뀐 자료 · 업무 요약. 바깥 스키마는 두 제공자 공용 모양이고 서버 인자 모델은 `extra="forbid"` 다.
+    **어떤 도구에도 사람 · id · 이메일 인자가 없다.** 호출마다 새 세션을 열어 `SET TRANSACTION READ ONLY` · `statement_timeout 3s` 를 걸고 대화 주인을
+    그 세션에서 다시 읽는다(보관 · 비활성이면 `unavailable`). 범위 밖 대상은 없는 대상과 같은 `not_found` · 같은 문장이고, 결과에 이메일 · 역할 · 사용자
+    id 가 없다. 문서 도구는 `DOCUMENT_READ`, 사람 찾기는 팀 채팅 플래그, 게시판은 게시판 플래그를 본다 — 플래그는 정본이 파일이든 DB 든
+    `feature_flags.flag_value` 하나로 읽는다(`db_flag` 로 파일 소유 플래그를 읽으면 언제나 기본값이라, 관리자가 끈 게시판이 도구에서는 켜진 채였다).
+  - 도구가 부르는 범위 함수는 화면의 것 그대로다. 새로 꺼낸 것: `tickets.service.list_requested_tickets` · `list_watching_tickets`(팀 티켓과 같은 두 그물),
+    `approvals.service.list_my_approvals`(라우터와 도구가 같은 함수, `decision_visible_user_ids` 를 서비스로 옮겼다), `team_chat.repository.directory_search`
+    (디렉터리와 같은 칸), `search.service.search(match="any", only_kinds)`(통합 검색 화면은 `all` 그대로), `projects.repository.list_in_scope(member_user_id)`.
+  - 핸들러(`app/jobs/handlers/chat_message.py`): 대화 주인이 아직 활성이고 `AI_USE` 를 가졌는지 다시 보고(아니면 안내 답, 제공자를 부르지 않는다),
+    「처리 중」을 **커밋**하고, 도구 사이마다 진행 문구를 적고 커밋한다. 지난 완결 문답 여섯 쌍(한쪽 1,200자 · 합계 6,000자)만 싣는다
+    (`app/ai/assistant/history.py`). 도우미 메시지의 구조는 `{kind, status, mode, sources, tools, rounds, elapsed_ms, truncated, notice, model}` 이고
+    출처는 서버가 만든 경로가 있는 항목만 열두 개까지 모은다. 글 없이 이미지만 보내면 글로 적어 달라는 안내다.
+- **잰 것**: `tests/integration/test_chat_assistant_turn.py`(13 — 답과 출처, 일반 질문, 「찾지 못함」은 정상 답, 모델이 받은 도구 결과에 범위 밖 문서 없음,
+  막힘은 실패와 까닭, 바깥 HTTP 없음, 한도는 답한 차례만, 세 라운드 = 한 행, 처리 중 커밋, 화면 대상 다시 읽기, 대체 모드와 능력 기록, 지난 문답, 꺼짐은 409),
+  `tests/security/test_assistant_tool_scope.py`(13 — 도구 열둘을 A-1 부서 사람으로, 범위 밖은 없는 것과 같은 결과), `test_assistant_injection.py`(7 — 모델이
+  설득당해 남의 티켓 · 결재 · 사람을 불러도 범위 안뿐, 칸과 가짜 표지, 모르는 인자 · 등록 밖 이름 · 깨진 인자, 권한으로 거른 도구 목록, 단발 생성은 도구 없음),
+  `test_assistant_loop_limits.py`(9), `test_assistant_readonly_tools.py`(5 — 쓰려는 도구는 거절되고 남는 것이 없음, 트랜잭션이 실제로 읽기 전용 · 3초),
+  `tests/unit/test_assistant_catalog.py`(52), `tests/integration/test_assistant_history.py`(9), `tests/regression/test_migration_0044_assistant_tools.py`.
+- **남은 것**: 쓰기 도구(티켓 만들기 등 — 승인 정책과 확인 창을 붙여 따로 설계, BACKLOG), 도우미의 이미지 읽기, 랩 실제 제공자 E2E(P18 — 열한 가지 질문).
+
 ### D-536. AI 검색은 사람이 쓴 질문에서 낱말을 뽑아 OR 순위로 찾고, 모델에는 질문 원문이 간다 (UI/UX · AI · 메일 회차 P8 · D-209 · D-260 의 AI 검색 범위를 넓힌다)
 
 - **원인**: AI 의 검색(채팅의 근거 · 「문서에서 찾기」 · 초안)은 검색창과 같은 규칙이었다 — 트라이그램 레인은 접은 질의 한 덩이이거나 낱말이 **전부 3자
@@ -16234,3 +16274,34 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
   측정 `scripts/bench/retrieval_keywords.py`(이 저장소의 한국어 문서 1526 chunk, 질문 300개, 벡터 없이 낱말 두 레인 + RRF):
   옛 레인에 문장 질문 Recall@1 0.000 · Recall@5 0.000 · MRR@10 0.000, 낱말 레인에 문장 질문 Recall@1 0.630 · Recall@5 0.957 · MRR@10 0.761, 낱말 레인에 낱말 질문(기준) Recall@1 0.617 · Recall@5 0.953 · MRR@10 0.759 —
   문장 질문의 Recall@5 가 기준의 1.004 배다(관문 0.8). 기술 문서라 절대값이 아니라 갈래 사이의 비교로 읽는다.
+
+### D-537. AI 사용 기록 한 행은 사람의 AI 요청 한 번이다 (UI/UX · AI · 메일 회차 P9 · D-517 을 다듬는다)
+
+- **결정**: AI 도우미 한 차례는 제공자를 여러 번 불러도 **한 행**이다 — `rounds` · `tool_calls` · `tool_names_json`(이름만, 인자와 결과는 남기지 않는다) ·
+  `mode`(`tools` · `search_only`)를 0044 가 더했다. 성공한 차례만 `ok` 한 행 = 한도 한 칸이고, 실패한 차례는 `error` 한 행이며 한도를 쓰지 않는다.
+  아무것도 시도하지 않은 차례(꺼짐 · 미설정 · 빈 질문)는 남기지 않는다. 연결 상태는 제공자 호출마다 적는다.
+  홈 문장 요약도 요청한 사람의 한 칸이다 — `narrate()` 가 `actor` 를 넘기지 않아 그 호출이 시스템의 것으로 남았고, 그래서 한도 확인(`consume`)을
+  지나고도 한 칸을 쓰지 않았다. 한도 화면의 「지금 거는 곳」(`enforced_on`)에는 은퇴한 액션이 나오지 않는다.
+- **잰 것**: `tests/security/test_assistant_quota_per_turn.py`(세 라운드 차례가 한 칸이고 다음 전송은 429 와 `blocked_quota` 행, 실패한 차례는 한 칸을 안 씀),
+  `test_chat_assistant_turn.py::test_a_multi_round_turn_is_one_usage_row`(라운드 셋 · 도구 둘 · 토큰 합), `test_assistant_api.py::test_a_narrative_is_the_requesters_own_usage`,
+  `test_chat_quota.py::test_the_admin_screen_says_chat_is_enforced`.
+
+### D-538. 채팅은 AI 사용 권한과 가용성을 먼저 보고, 화면 대상은 서버가 다시 읽은 것만 쓴다 (UI/UX · AI · 메일 회차 P9)
+
+- **원인**: 채팅은 `AI_USE` 를 보지 않아(작업 공간만 봤다) RBAC 로 좁힐 수 없었다. AI 를 쓸 수 없을 때도 메시지가 들어가 잡과 한도 예약이 생겼다가 실패
+  안내로 끝났다. 화면 문맥은 화면 이름 문자열이었고 저장만 됐으며 재시도에서 버려졌다. `/api/ai/search` · `/api/ai/documents` 는 문서 읽기 경로 가운데
+  유일하게 `DOCUMENT_READ` 를 보지 않았다.
+- **결정**:
+  - 채팅 경로 전부가 `AI_USE` 를 본다(`require_chat_enabled` 가 그 권한에 기댄다). 전송 · 다시 시도 · 다시 만들기는 **한도를 예약하기 전에** 가용성을
+    판정해, 쓸 수 없으면 409 `ai_unavailable`(`details.reason`, 문장은 그 까닭) — 잡도 한도 예약도 없다. 판정은
+    `app/ai/assistant/availability.py::assistant_status` 하나이고 `/api/ai/status` 의 `assistant{available, reason, notice, mode, can_configure}` 가 같은
+    값이다(까닭 다섯: `no_permission` · `feature_off` · `off` · `unconfigured` · `blocked`, 일시 장애는 막지 않는다). 「찾지 못함」은 이 상태가 아니다 — 도구가
+    0건을 돌려준 정상 답이다.
+  - 화면 문맥은 `{kind: ticket|project|document, ref, label}` 이다(옛 문자열은 받고 버린다). 사용자 메시지 구조에 남아 다시 시도 · 다시 만들기도 같은 대상으로
+    묻고, 워커가 **대화 주인의 권한으로 같은 도구 함수로 다시 읽은** 것만 데이터 칸에 싣는다. 못 읽으면 아무것도 싣지 않는다.
+  - `/api/ai/search` · `/api/ai/documents` 는 `AI_USE` 와 `DOCUMENT_READ` **둘 다**를 요구한다. 작업 공간의 질문(`/api/ai/ask`)과 그 밑의 `answer()` 는
+    걷었다 — 같은 일을 하던 두 번째 길이다. `/api/me` 에 `capabilities{ai_use}` 를 더해 화면이 메뉴 · 서랍 단추를 숨길 수 있다(통제는 서버 경로마다 다시 본다).
+- **잰 것**: `tests/security/test_chat_requires_ai_use.py`(권한을 빼면 채팅 경로 열한 곳이 403, 넣은 뒤 권한을 잃으면 안내 답 · 제공자 호출 없음),
+  `test_chat_assistant_turn.py::test_when_ai_is_off_the_send_is_refused_before_quota_and_queue` · `test_the_screen_target_is_reread_with_the_owners_permission`,
+  `test_ai_router.py`(옛 경로 404, 상태의 도우미 칸, 검색 · 초안의 문서 읽기 권한).
+

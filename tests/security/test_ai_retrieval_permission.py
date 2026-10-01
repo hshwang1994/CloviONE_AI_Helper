@@ -18,6 +18,8 @@
 그 성질의 값은 **반영 지연이 0** 이라는 것이다. 아래
 `test_a_permission_change_lands_on_the_very_next_query` 가 그것을 본다 — 재색인도,
 이벤트 처리도, 300초 대기도 없다.
+
+qa-contract-change: 옛 `answer()` 를 걷었다(D-535). 근거 검색 → 생성의 같은 문을 문서 초안(`draft_document`)이 그대로 지나므로 이 파일의 단언(범위 밖 문장이 모델 입력에 없다, 본문은 칸 안, 구분자 흉내 걷기, 난스)을 그 소비자로 잰다. 도우미 도구 쪽은 `test_assistant_tool_scope.py` 가 본다.
 """
 
 from __future__ import annotations
@@ -140,7 +142,7 @@ def _index(db, gateway):
 def _context_of(db, user, gateway, generator, *, query=QUERY):
     """실제로 모델에게 넘어간 사용자 메시지. 안 불렸으면 빈 문자열이다."""
     generator.calls.clear()
-    answer_mod.answer(db, user, raw_query=query, gateway=gateway, runtime=offline_runtime(generator))
+    answer_mod.draft_document(db, user, instruction=query, gateway=gateway, runtime=offline_runtime(generator))
     return generator.calls[0][1] if generator.calls else ""
 
 
@@ -321,7 +323,7 @@ def test_document_text_arrives_as_data_not_as_instruction(db, people, gateway, g
     _document(db, space, "주입 시도", injection)
     _index(db, gateway)
 
-    answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway, runtime=offline_runtime(generator))
+    answer_mod.draft_document(db, people["a1"], instruction=QUERY, gateway=gateway, runtime=offline_runtime(generator))
     system, user = generator.calls[0]
 
     # 본문은 구분자 **안**에 있다.
@@ -343,7 +345,7 @@ def test_a_faked_delimiter_in_a_document_is_stripped_and_reported(db, people, ga
     _document(db, space, "구분자 흉내", faked)
     _index(db, gateway)
 
-    result = answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway, runtime=offline_runtime(generator))
+    result = answer_mod.draft_document(db, people["a1"], instruction=QUERY, gateway=gateway, runtime=offline_runtime(generator))
     assert result.delimiter_conflict is True
     assert result.as_dict()["delimiter_conflict"] is True
     _system, user = generator.calls[0]
@@ -355,6 +357,6 @@ def test_the_nonce_is_different_every_time(db, people, gateway, generator):
     _document(db, space, "계약", SECRET_SENTENCE)
     _index(db, gateway)
 
-    answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway, runtime=offline_runtime(generator))
-    answer_mod.answer(db, people["a1"], raw_query=QUERY, gateway=gateway, runtime=offline_runtime(generator))
+    answer_mod.draft_document(db, people["a1"], instruction=QUERY, gateway=gateway, runtime=offline_runtime(generator))
+    answer_mod.draft_document(db, people["a1"], instruction=QUERY, gateway=gateway, runtime=offline_runtime(generator))
     assert generator.calls[0][1] != generator.calls[1][1]

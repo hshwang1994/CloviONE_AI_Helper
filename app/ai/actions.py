@@ -15,8 +15,17 @@
   json_output       JSON 을 돌려받는 액션. **자르지 않는다** - 자른 JSON 은 쓸 수 없으니 넘으면 실패다
   max_output_tokens Provider 에 넘기는 출력 한도(요금제 연결처럼 넘길 수 없는 경로는 무시된다)
   supports_approval 정책이 승인을 요구할 수 있는 쓰기(3.9)
-  prompt_slot       지시문을 고르는 사용처(`app/ai/prompts/catalog.py`, D-518). 채팅과 작업 공간의 질문은 같은
-                    「질문 답변」 지시문을 쓴다
+  prompt_slot       지시문을 고르는 사용처(`app/ai/prompts/catalog.py`, D-518)
+  tools             제공자에 도구를 건네는 액션(`AiRuntime.converse`, D-535). AI 도우미 하나뿐이다 — 다른 단발 기능은
+                    도구 없는 `generate()` 를 그대로 쓴다
+  retired           더는 부르지 않는 액션. 지난 사용 기록의 이름과 그날의 한도 셈이 이어지도록 표에 남긴다. 정책의 대상으로
+                    고를 수 없다
+
+## AI 도우미 (D-535)
+
+채팅과 작업 공간의 「물어보기」는 예전에 `chat.answer` · `workspace.ask` 두 액션이었고, 근거를 못 찾으면 모델을 부르지
+않았다. 이제 둘 다 `assistant.chat` 한 액션이다 — 권한 범위의 읽기 도구를 쓰는 대화이고, 한 차례가 사용 기록 한 행 ·
+한도 한 칸이다(D-537). 옛 두 이름은 은퇴했다.
 """
 
 from __future__ import annotations
@@ -26,6 +35,7 @@ from dataclasses import dataclass
 KIND_READ = "read"
 KIND_WRITE = "write"
 
+ASSISTANT_CHAT = "assistant.chat"
 CHAT_ANSWER = "chat.answer"
 WORKSPACE_ASK = "workspace.ask"
 WORKSPACE_DRAFT = "workspace.draft"
@@ -46,13 +56,16 @@ class AiAction:
     json_output: bool = False
     supports_approval: bool = False
     prompt_slot: str = ""
+    tools: bool = False
+    retired: bool = False
 
 
 ACTIONS: dict[str, AiAction] = {
     a.key: a
     for a in (
-        AiAction(CHAT_ANSWER, "채팅 답변", KIND_READ, True, 4000, 1500, prompt_slot="answer"),
-        AiAction(WORKSPACE_ASK, "작업 공간 질문", KIND_READ, True, 4000, 1500, prompt_slot="answer"),
+        AiAction(ASSISTANT_CHAT, "AI 도우미", KIND_READ, True, 6000, 2000, prompt_slot="assistant", tools=True),
+        AiAction(CHAT_ANSWER, "채팅 답변(이전 방식)", KIND_READ, True, 4000, 1500, prompt_slot="answer", retired=True),
+        AiAction(WORKSPACE_ASK, "작업 공간 질문(이전 방식)", KIND_READ, True, 4000, 1500, prompt_slot="answer", retired=True),
         AiAction(WORKSPACE_DRAFT, "작업 공간 문서 초안", KIND_WRITE, True, 12000, 4000, supports_approval=True,
                  prompt_slot="draft"),
         AiAction(WEEKLY_SUMMARY, "프로젝트 주간 요약", KIND_WRITE, True, 2000, 800, prompt_slot="weekly_summary"),

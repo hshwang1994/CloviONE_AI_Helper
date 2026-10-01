@@ -22,17 +22,17 @@ def _h(csrf):
 def test_the_list_and_the_stats_count_the_calls_a_policy_touched(app, client, login_as):
     csrf = login_as("system_admin")
     created = client.post("/api/admin/policies", json={
-        "name": "질문 가리기", "kind": "data_protection", "applies_to": ["chat.answer", "workspace.ask"],
+        "name": "질문 가리기", "kind": "data_protection", "applies_to": ["workspace.draft", "report.weekly_summary"],
         "content": {},
     }, headers=_h(csrf)).json()["item"]
     assert (created["kind_label"], created["applies_to_labels"], created["in_use"]) == (
-        "개인정보 가리기", ["채팅 답변", "작업 공간 질문"], False)
+        "개인정보 가리기", ["작업 공간 문서 초안", "프로젝트 주간 요약"], False)
     client.post(f"/api/admin/policies/{created['id']}/transition", json={"status": "published"}, headers=_h(csrf))
     client.post("/api/admin/policies", json={"name": "짧은 답", "kind": "content", "applies_to": "*",
                                              "content": {"max_output_chars": 500}}, headers=_h(csrf))
 
     runtime = install_runtime(app, ScriptedAdapter(["답"]))
-    for action in ("chat.answer", "workspace.ask", "home.narrative"):
+    for action in ("workspace.draft", "report.weekly_summary", "home.narrative"):
         runtime.generate(None, action_key=action, data="010-1234-5678")
 
     listed = {i["name"]: i for i in client.get("/api/admin/policies").json()["items"]}

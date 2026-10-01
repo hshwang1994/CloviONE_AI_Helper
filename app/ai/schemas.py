@@ -18,11 +18,6 @@ from app.search.query import MAX_QUERY_CHARS
 _QUERY_MAX = MAX_QUERY_CHARS * 4
 
 
-class AskRequest(BaseModel):
-    question: str = Field(min_length=1, max_length=_QUERY_MAX)
-    top_k: int | None = Field(default=None, ge=1, le=MAX_TOP_K)
-
-
 class DraftRequest(BaseModel):
     """문서 초안. 어디에 만들지는 **프로젝트로** 말하고, 그것도 선택이다.
 

@@ -9,12 +9,16 @@
 라우터는 범위 판정을 **하지 않는다.** 그것을 여기서 다시 적으면 판정이 두 벌이 되고,
 갈라지는 방향 하나는 유출이다(D-202 · D-256).
 
-## 검색과 질의를 나눈 이유
+## 검색과 질문을 나눈 이유
 
-`/search` 는 모델을 안 부르고 `/ask` 는 부른다. 한 엔드포인트로 합치면 「생성이 막혀
-있어도 검색과 인용은 계속 동작한다」를 화면이 증명할 수 없다 — 그것이 S10 의 Exit
-조건 하나다. 그리고 검색은 쿼터를 안 쓴다: 거기서 도는 임베딩은 서버 CPU 이지 구독
-호출이 아니다(D-200).
+`/search` 는 모델을 안 부른다 — 생성이 막혀 있어도 검색과 인용은 계속 동작한다(S10 Exit). 그리고 검색은 쿼터를
+안 쓴다: 거기서 도는 임베딩은 서버 CPU 이지 구독 호출이 아니다(D-200). 질문에 답하는 일은 AI 도우미 한 차례다
+(채팅 경로, D-535) — 예전의 `/ask` 는 채팅과 같은 일을 따로 하던 두 번째 길이라 걷었다.
+
+## 문서를 여는 경로는 문서 읽기 권한도 본다 (D-538)
+
+`/search` 와 `/documents` 는 문서 본문을 근거로 쓴다. 다른 문서 읽기 경로가 모두 `DOCUMENT_READ` 를 보는데 이 둘만
+`AI_USE` 로 열려 있었다 — 두 권한을 **모두** 요구한다.
 
 ## 초안은 문서를 **만들고 나서** 돌려준다
 
@@ -28,12 +32,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from app.ai.actions import WORKSPACE_ASK, WORKSPACE_DRAFT
+from app.ai.actions import WORKSPACE_DRAFT
 from app.ai.gateway import contract, registry
 from app.ai.index import service as index_service
 from app.ai.retrieval import answer as answer_mod
 from app.ai.retrieval import service as retrieval_service
-from app.ai.schemas import AskRequest, DraftRequest
+from app.ai.schemas import DraftRequest
 from app.authz import permissions as perms
 from app.core.audit import record_audit_from_request
 from app.core.deps import get_db, require_csrf, require_permission
@@ -89,6 +93,11 @@ def ai_status(
     # 검색은 Gateway 가, 생성은 런타임이 안다(D-515). 화면이 받는 모양은 예전 그대로 세 칸이다.
     caps = contract.with_generation(_gateway(request).capabilities(), _runtime(request).capability(db))
     body: dict = {"capabilities": caps.as_dict()}
+    # AI 도우미를 지금 쓸 수 있는가(D-538) - 채팅 라우터의 409 와 같은 판정이다. 화면은 이것으로 입력을 막고 까닭을 보인다.
+    from app.ai.assistant.availability import assistant_status
+
+    body["assistant"] = assistant_status(db, runtime=_runtime(request), user=user,
+                                         settings_cache=getattr(request.app.state, "settings_cache", None))
     try:
         health = index_service.index_health(db)
     except Exception:  # noqa: BLE001 - 표가 아직 없는 설치도 있다
@@ -104,7 +113,7 @@ def ai_status(
     return body
 
 
-@router.get("/search")
+@router.get("/search", dependencies=[Depends(require_permission(perms.DOCUMENT_READ))])
 def ai_search(
     request: Request,
     q: str = Query("", max_length=MAX_QUERY_CHARS * 4, description="찾을 말"),
@@ -121,34 +130,7 @@ def ai_search(
     return result.as_dict()
 
 
-@router.post("/ask", dependencies=[Depends(require_csrf)])
-def ai_ask(
-    payload: AskRequest,
-    request: Request,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_permission(perms.AI_USE)),
-) -> dict:
-    """질문 → 근거 + 답변. 근거는 언제나 나가고 답변은 될 때만 나간다.
-
-    한도는 **모델을 부르기 전에** 본다. 부른 뒤에 막으면 이미 호출을 쓴 뒤라 한도의 뜻이 없다. 세는 것은 런타임의
-    호출 기록이다 - 성공한 호출만 한 칸이 된다(모델이 죽은 날 사용자가 답을 못 받고 한도만 잃으면 안 된다).
-    """
-    now = request.app.state.clock.now()
-    with ai_quotas.consume(
-        db, user=user, action_key=WORKSPACE_ASK, now=now, session_factory=request.app.state.session_factory,
-    ):
-        result = answer_mod.answer(
-            db, user,
-            raw_query=payload.question,
-            gateway=_gateway(request),
-            runtime=_runtime(request),
-            action_key=WORKSPACE_ASK,
-            top_k=payload.top_k or retrieval_service.TOP_K,
-        )
-    return result.as_dict()
-
-
-@router.post("/documents", dependencies=[Depends(require_csrf)])
+@router.post("/documents", dependencies=[Depends(require_csrf), Depends(require_permission(perms.DOCUMENT_READ))])
 def ai_draft_document(
     payload: DraftRequest,
     request: Request,

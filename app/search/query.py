@@ -176,6 +176,19 @@ def clause_for(query: str, mode: str):
     return trgm_clause(query) if mode == MODE_TRGM else like_clause(query)
 
 
+def keyword_branches(words) -> list:
+    """낱말마다 부분일치 가지 하나(접은 값, D-536). 접어서 2자 미만인 낱말은 버린다 - 전 행에 가깝게 걸린다.
+
+    AI 도우미의 검색 도구가 `match="any"` 로 부를 때만 쓴다. 통합 검색 화면은 낱말별 AND 그대로다.
+    """
+    out = []
+    for word in words:
+        folded = fold(word)
+        if len(folded) >= 2:
+            out.append(_contains(like_pattern(folded)))
+    return out
+
+
 def rank_expression(query: str):
     """관련도. 큰 값이 먼저다.
 

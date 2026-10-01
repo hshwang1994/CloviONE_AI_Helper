@@ -18,6 +18,14 @@ AI 가 하는 일(액션, `app/ai/actions.py`)마다 모델에게 주는 지시�
 파서가 기대는 모양이라(퀴즈의 JSON 배열, 답변의 인용 번호) 발행본 하나로 바뀌면 그 기능이 조용히 깨진다. 안전 틀은
 `app/llm/prompt.py` 에 있고 어떤 사용처도 바꿀 수 없다.
 
+## AI 도우미는 대화다 (D-535)
+
+`assistant` 사용처는 단발 호출이 아니라 도구를 쓰는 대화다. 사용자의 말은 지시이고(대화의 주인이다), 도구 결과와 화면
+대상은 난스로 막은 데이터 칸이다. 그래서 지시문은 사용자 쪽이 아니라 **시스템 쪽**에 실리고(`frame.assistant_system`),
+안전 틀은 「도구를 쓰지 않는다」 대신 「사내 사실은 도구로 확인한 것만, 도구는 읽기만」이다. 예전의 `answer`(질문 답변)
+사용처는 은퇴했다 - 근거가 없으면 모델을 부르지 않던 그 흐름이 도우미 한 차례로 바뀌었다. 지난 기록과 보관한 지시문이
+그 이름을 가리키므로 표에는 남기고 고를 수 없게 한다(`retired`).
+
 ## 지어내지 않는다는 규칙은 사용처마다 다르다
 
 요약, 답변, 초안, 홈 문장은 **받은 데이터만** 근거로 쓴다. 퀴즈는 주제만 받고 문제를 모델의 지식으로 만든다 -
@@ -31,6 +39,7 @@ from dataclasses import dataclass
 
 from app.llm import prompt as frame
 
+ASSISTANT = "assistant"
 ANSWER = "answer"
 DRAFT = "draft"
 WEEKLY_SUMMARY = "weekly_summary"
@@ -49,6 +58,7 @@ class PromptSlot:
     instruction: str
     grounding: str = frame.GROUNDED_RULE
     editable: bool = True
+    retired: bool = False
 
 
 def _lines(*parts: str) -> str:
@@ -59,7 +69,18 @@ SLOTS: dict[str, PromptSlot] = {
     slot.key: slot
     for slot in (
         PromptSlot(
-            ANSWER, "질문 답변", "채팅과 작업 공간에서 사내 문서를 근거로 질문에 답할 때 씁니다.",
+            ASSISTANT, "AI 도우미", "AI 도우미가 질문에 답하고, 필요하면 권한 안의 사내 자료를 찾아 볼 때 씁니다.",
+            role="당신은 ClovirAssist 의 업무 도우미입니다.",
+            format_line="한국어로 간결하게 답합니다. 필요하면 짧은 목록을 쓰고, 찾은 자료는 제목으로 밝힙니다.",
+            instruction=_lines(
+                "사용자의 질문에 답해 주세요.",
+                "사내 정보가 필요하면 도구로 확인한 뒤에 답하고, 찾지 못했으면 무엇을 찾았는데 없었는지 알려 주세요.",
+                "답은 다섯 문단 이내로 씁니다.",
+            ),
+            grounding=frame.ASSISTANT_GROUNDING,
+        ),
+        PromptSlot(
+            ANSWER, "질문 답변", "이전 방식의 채팅 답변입니다. AI 도우미로 바뀌어 더는 쓰지 않습니다.",
             role="당신은 사내 문서를 근거로 질문에 답하는 도우미입니다.",
             format_line="근거로 쓴 발췌의 번호를 문장 끝에 [1] 처럼 붙입니다.",
             instruction=_lines(
@@ -67,6 +88,8 @@ SLOTS: dict[str, PromptSlot] = {
                 "발췌에 없는 사실은 만들지 말고, 근거가 없으면 없다고 적어 주세요.",
                 "한국어로 다섯 문장 이내로 답해 주세요.",
             ),
+            editable=False,
+            retired=True,
         ),
         PromptSlot(
             DRAFT, "문서 초안", "작업 공간에서 사내 문서를 근거로 문서 초안을 쓸 때 씁니다.",
@@ -129,3 +152,8 @@ def get_slot(key: str) -> PromptSlot:
 
 def editable_keys() -> tuple[str, ...]:
     return tuple(key for key, slot in SLOTS.items() if slot.editable)
+
+
+def live_slots() -> tuple[PromptSlot, ...]:
+    """화면에 보이는 사용처. 은퇴한 사용처는 지난 기록의 이름으로만 남는다."""
+    return tuple(slot for slot in SLOTS.values() if not slot.retired)

@@ -8,9 +8,16 @@
     install_runtime(app, adapter)                    # 설정을 켜고 키 파일을 두고 런타임을 갈아 끼운다
     ...
     adapter.calls[0]["user"]                          # 제공자가 받은 것(조립이 끝난 프롬프트)
+
+AI 도우미 한 차례(`converse`, D-535)는 `ScriptedToolAdapter` 가 라운드를 대본으로 준다:
+
+    adapter = ScriptedToolAdapter([tool_call("search_documents", {"query": "연차"}), "연차는 15일입니다."])
+    adapter.converse_calls[1]["turns"]               # 둘째 라운드가 받은 차례(도구 결과 칸 포함)
 """
 
 from __future__ import annotations
+
+import json
 
 from app.ai.providers import base
 
@@ -42,6 +49,64 @@ class ScriptedAdapter:
 
     def list_models(self, *, timeout):
         return base.ModelList(ok=True, models=tuple({"id": m, "label": m} for m in self.models))
+
+
+def tool_call(name: str, arguments: dict | None = None, *, call_id: str | None = None, raw: str | None = None):
+    """대본 한 줄 - 모델이 도구 하나를 부른다. ``raw`` 를 주면 읽지 못한 인자(JSON 이 아님)로 보낸다."""
+    return {"name": name, "arguments": arguments if arguments is not None else {}, "call_id": call_id, "raw": raw}
+
+
+def unsupported_tools():
+    """도구를 받지 않는 요금제 · 모델(ChatGPT 요금제의 400 `subscription_sharing_unsupported_capability`)."""
+    return base.converse_failure(base.ERROR_REQUEST, "unsupported_capability", http_status=400)
+
+
+class ScriptedToolAdapter(ScriptedAdapter):
+    """AI 도우미의 대화 대본. 라운드마다 다음 줄을 준다 - 끝나면 마지막 줄을 되풀이한다.
+
+    한 줄은 답 글(`str`), 도구 호출 하나(`tool_call(...)`), 호출 여럿(그 목록), `ConverseResult`, 예외, 또는 그 라운드의
+    요청을 받아 위 중 하나를 돌려주는 함수다. 단발 생성(`generate`)은 `replies` 로 따로 준다.
+    """
+
+    def __init__(self, turns=None, *, replies=None, models=None) -> None:
+        super().__init__(replies, models=models)
+        self.turns = list(turns if turns is not None else ["답입니다."])
+        self.converse_calls: list[dict] = []
+
+    def converse(self, *, system, turns, tools, tool_choice, model, max_output_tokens, timeout):
+        request = {"system": system, "turns": tuple(turns), "tools": tuple(tools), "tool_choice": tool_choice,
+                   "model": model, "max_output_tokens": max_output_tokens, "timeout": timeout}
+        self.converse_calls.append(request)
+        step = self.turns[min(len(self.converse_calls) - 1, len(self.turns) - 1)]
+        if callable(step) and not isinstance(step, (str, dict, list, tuple)):
+            step = step(request)
+        return self._result(step)
+
+    def _result(self, step):
+        if isinstance(step, base.ConverseResult):
+            return step
+        if isinstance(step, Exception):
+            raise step
+        if isinstance(step, str):
+            return base.finish(step, (), (), stop_reason=base.STOP_END, input_tokens=10, output_tokens=5)
+        steps = [step] if isinstance(step, dict) else list(step)
+        round_no = len(self.converse_calls)
+        calls = []
+        for index, item in enumerate(steps):
+            raw = item.get("raw")
+            arguments = None if raw is not None else item.get("arguments")
+            calls.append(base.ToolCall(
+                id=item.get("call_id") or f"call_{round_no}_{index}", name=item["name"], arguments=arguments,
+                raw_arguments=raw if raw is not None else json.dumps(item.get("arguments") or {}, ensure_ascii=False),
+            ))
+        return base.finish(None, tuple(calls), (), stop_reason=base.STOP_TOOL_USE, input_tokens=10, output_tokens=5)
+
+    # 시험이 읽기 편하게
+    def tool_results(self, round_index: int) -> list:
+        """그 라운드가 받은 마지막 도구 결과 차례의 결과들(`ToolResult`)."""
+        turns = self.converse_calls[round_index]["turns"]
+        last = turns[-1]
+        return list(getattr(last, "results", ()))
 
 
 def timeout_failure():
@@ -144,7 +209,7 @@ def offline_runtime(adapter, *, enabled=True, model=DEFAULT_MODEL, lock_factory=
     )
 
 
-def spend(db, user_id, count=1, *, when, action="chat.answer", status="ok"):
+def spend(db, user_id, count=1, *, when, action="assistant.chat", status="ok"):
     """한도의 원장(AI 호출 기록, D-517)에 이 사람의 호출을 `count` 번 적는다 - 시험이 「이미 쓴 상태」를 만든다."""
     import uuid
 
