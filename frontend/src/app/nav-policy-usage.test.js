@@ -4,6 +4,9 @@ import { NAV, SCREEN_ROLES } from "./navConfig.js";
 
 /* 정책 사용 통계에 닿는 길이 있는가.
  *
+ * qa-contract-change: 프롬프트 · 정책 사용 탭을 걷어(D-543) 그 둘의 역할 표 대신 사용 통계 · 호출 기록 탭의 역할 표를 재고, 걷은 탭의
+ * 역할 표가 남지 않는다는 단언을 하나 더했다. 사이드바에서 사용 통계에 닿는다는 원래 성질은 그대로다.
+ *
  * ## 이 파일이 무엇을 대체했는가
  *
  * 원래 결함(IA-01)은 "화면과 역할 게이트는 있는데 **사이드바 항목만 없어서** 형제 화면의
@@ -24,9 +27,14 @@ describe("사이드바에서 사용 통계에 닿는다", () => {
   });
 
   it("두 통계 화면의 역할 게이트가 그대로 살아 있고, 그릇도 같은 집합이다", () => {
-    expect(SCREEN_ROLES["policy-usage"]).toBeTruthy();
-    expect(SCREEN_ROLES["prompt-usage"]).toEqual(SCREEN_ROLES["policy-usage"]);
+    expect(SCREEN_ROLES["ai-usage-stats"]).toBeTruthy();
+    expect(SCREEN_ROLES["ai-usage-records"]).toEqual(SCREEN_ROLES["ai-usage-stats"]);
     // 그릇의 역할이 안쪽 탭보다 넓으면 못 보는 사람이 빈 화면을 보게 된다.
-    expect(SCREEN_ROLES["ai-usage"]).toEqual(SCREEN_ROLES["policy-usage"]);
+    expect(SCREEN_ROLES["ai-usage"]).toEqual(SCREEN_ROLES["ai-usage-stats"]);
+  });
+
+  it("걷은 프롬프트 · 정책 사용 탭의 역할 표가 남지 않는다(D-543)", () => {
+    expect(SCREEN_ROLES["prompt-usage"]).toBeUndefined();
+    expect(SCREEN_ROLES["policy-usage"]).toBeUndefined();
   });
 });

@@ -66,3 +66,15 @@ def test_a_global_admin_sees_everyone_and_the_system(client, login_as, world):
 def test_a_regular_user_cannot_read_usage(client, login_as, world, path):
     login_as("user", email="u-mate@goodmit.co.kr")
     assert client.get(path).status_code == 403
+
+
+def test_a_search_term_cannot_reach_people_outside_the_scope(client, login_as, world):
+    """검색어(D-543)는 범위 안 사람 중에서만 사람을 고른다 - 다른 부서 사람의 이름이나 이메일을 넣어도 그 사람의 기록이 나오지 않는다."""
+    login_as("admin", email="u-boss@goodmit.co.kr")
+    for term in ("남", "u-other@goodmit.co.kr"):
+        records = client.get("/api/admin/ai/usage/records", params={"q": term}).json()
+        assert records["total"] == 0, term
+        stats = client.get("/api/admin/ai/usage/stats", params={"q": term}).json()
+        assert stats["totals"]["calls"] == 0, term
+    mine = client.get("/api/admin/ai/usage/records", params={"q": "동료"}).json()
+    assert mine["total"] == 2

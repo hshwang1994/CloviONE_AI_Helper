@@ -72,13 +72,16 @@ NOTIFICATION_TYPES: dict[str, tuple[str, str]] = {
     "ticket_resolved": ("요청한 티켓 결과", "내가 요청한 티켓이 완료되거나 취소되었을 때"),
     # D-515. AI 제공자 연결이 막히거나(키 거부, 재로그인 필요), 일시 장애가 이어지거나, 복구되었을 때 관리자에게 한 번.
     "ai_provider_state": ("AI 연결 상태", "AI 제공자 연결이 막히거나 복구되었을 때"),
-    # D-519. 업그레이드(0041)가 옛 AI 정책을 새 형식의 초안으로 옮겼을 때 시스템 관리자에게 한 번. 발행해야 걸린다.
-    "ai_policy_migrated": ("옮긴 AI 정책 검토", "업그레이드가 옛 AI 정책을 새 형식의 초안으로 옮겼을 때"),
 }
+
+# 은퇴한 유형(D-544). 한 번뿐인 업그레이드 안내(`ai_policy_migrated`, 0041)는 켜고 끌 유형이 아니다 - 그 일은 정책 화면의 메시지
+# 상자가 대신한다(「아직 적용되지 않은 초안 N건」). 저장된 설정에 이 키가 있으면 읽고 버리고, 화면이 보내도 거절하지 않고
+# 버린다(옛 화면이 422 로 막히지 않게). 이미 쌓인 알림 행은 기록으로 남고 배지에 센다 - 끌 칸이 없으니 읽으면 사라진다.
+PREFS_RETIRED_TYPES = frozenset({"ai_policy_migrated"})
 
 # 관리자만 받는 유형. 일반 사용자의 설정 화면에는 보이지 않는다 - 받을 일이 없는 알림을 끄고 켜는 칸은 혼란만 준다.
 # 알림 쪽의 같은 판정(`app/notifications/service.py::audience_for`)도 이 목록을 읽는다.
-ADMIN_ONLY_TYPES = frozenset({"backup_failed", "ai_provider_state", "ai_policy_migrated"})
+ADMIN_ONLY_TYPES = frozenset({"backup_failed", "ai_provider_state"})
 
 # ── 메일로도 받을 수 있는 유형 (계획 3.4, D-514) ─────────────────────────────
 #
@@ -143,6 +146,8 @@ def validate_muted(keys) -> tuple[list[str], list[str]]:
     rejected: list[str] = []
     for raw in keys or []:
         key = str(raw).strip()
+        if key in PREFS_RETIRED_TYPES:
+            continue
         if not _TYPE_KEY_RE.match(key) or key not in NOTIFICATION_TYPES:
             rejected.append(key)
         elif key not in valid:

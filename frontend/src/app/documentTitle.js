@@ -75,8 +75,6 @@ const EXTRA_LABELS = {
   "/restore-drills": "복구 리허설",
   "/scheduler-calendar": "실행 달력",
   "/approval-delegations": "승인 위임",
-  "/prompt-usage": "프롬프트 사용 통계",
-  "/policy-usage": "정책 사용 통계",
 };
 
 /** 경로 → 화면 이름(제품명 없이). 아는 화면이 아니면 "".

@@ -90,9 +90,9 @@ def _payload(question: str, retrieval: retrieval_service.RetrievalResult) -> str
 
 
 def _generate(db: Session, runtime, *, action_key: str, question: str, retrieval, actor,
-              job_id: str | None = None) -> Answer:
+              job_id: str | None = None, extra_policy_ids=()) -> Answer:
     result = runtime.generate(db, action_key=action_key, data=_payload(question, retrieval), actor=actor,
-                              job_id=job_id)
+                              job_id=job_id, extra_policy_ids=extra_policy_ids)
     return Answer(
         retrieval=retrieval,
         status=result.status,
@@ -111,6 +111,7 @@ def draft_document(
     gateway: contract.Gateway,
     runtime,
     top_k: int = retrieval_service.TOP_K,
+    extra_policy_ids=(),
 ) -> Answer:
     """문서 초안. 답변과 **같은 문**을 지나고 사용처(지시문)만 다르다.
 
@@ -123,4 +124,4 @@ def draft_document(
     if retrieval.empty:
         return Answer(retrieval=retrieval, status=contract.STATUS_EMPTY)
     return _generate(db, runtime, action_key=actions.WORKSPACE_DRAFT, question=retrieval.question or retrieval.query,
-                     retrieval=retrieval, actor=user)
+                     retrieval=retrieval, actor=user, extra_policy_ids=extra_policy_ids)

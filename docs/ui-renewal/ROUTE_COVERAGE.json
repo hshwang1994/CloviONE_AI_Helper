@@ -819,10 +819,10 @@
    "route": "/ai-usage?tab=ai-usage-stats",
    "console": "admin",
    "host_surface": "admin_ai-usage",
-   "component": "frontend/src/screens/DataScreen.jsx",
-   "render_engine": "DataScreen",
-   "registry_key": "ai-usage-stats",
-   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "component": "frontend/src/screens/ai/AiUsageStats.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
    "alias_of": null,
    "archetype": "report_board",
    "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /ai-usage)",
@@ -939,7 +939,7 @@
    "derivation_notes": "D-517 이 더한 AI 호출 기록 화면이다. 레지스트리 키 `ai-usage-stats`(authoring.js)를 DataScreen 이 그린다.",
    "harness_id": "admin_ai-usage",
    "requirements_why": "사용 한도의 원장과 같은 기록을 보이는 화면이다. 숫자가 한도 목록의 「현재 사용」과 같은 원천인지(R-93)와 기록이 없는 설치의 빈 화면 안내(R-18)가 결정적이다.",
-   "status_note": "A4(D-517)가 만든 화면이다. 아직 누구도 감사하지 않았다 - 증거, 캡처, Flow 가 없고 Acceptance 회차가 이 행을 본다."
+   "status_note": "2026-10-02 P11(D-543): 사용 통계는 레지스트리 목록이 아니라 전용 화면(`screens/ai/AiUsageStats.jsx`)이다. 조건 · 기간 · 보기 기준 → 지표 한 줄 → 나눔 표. 새 화면의 감사는 아직 하지 않았다(Acceptance 회차의 일)."
   },
   {
    "id": "admin_ai-usage__ai-usage-records",
@@ -1077,8 +1077,8 @@
    "host_surface": "admin_ai-usage",
    "component": "frontend/src/screens/DataScreen.jsx",
    "render_engine": "DataScreen",
-   "registry_key": "policy-usage",
-   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "registry_key": null,
+   "registry_key_source": null,
    "alias_of": null,
    "archetype": "report_board",
    "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /ai-usage)",
@@ -1266,7 +1266,7 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/s22-final/results.json"
    },
-   "status": "IN_PROGRESS",
+   "status": "RETIRED",
    "wave": "W12",
    "findings": [
     {
@@ -1429,7 +1429,7 @@
      "sample_combo": "390x844/light"
     }
    },
-   "status_note": "S22 전량 실행에서 아직 실패하는 검사가 있다: brand_presence, dead_blank_region. 승격 검사는 아니라 Release 를 막지 않지만, 열린 Finding 을 든 화면을 「완료」라고 적지 않는다."
+   "status_note": "2026-10-02 P11(D-543): 프롬프트 · 정책 사용 탭은 걷었다. 같은 수를 프롬프트 · 정책 목록 화면이 보인다. 새 화면의 감사는 아직 하지 않았다(Acceptance 회차의 일)."
   },
   {
    "id": "admin_ai-usage__prompt-usage",
@@ -1439,8 +1439,8 @@
    "host_surface": "admin_ai-usage",
    "component": "frontend/src/screens/DataScreen.jsx",
    "render_engine": "DataScreen",
-   "registry_key": "prompt-usage",
-   "registry_key_source": "AdminRoutes.jsx::TAB_GROUPS",
+   "registry_key": null,
+   "registry_key_source": null,
    "alias_of": null,
    "archetype": "report_board",
    "source": "frontend/src/app/AdminRoutes.jsx (TAB_GROUPS /ai-usage)",
@@ -1628,7 +1628,7 @@
     "all_combos": 18,
     "results_json": "dist/ui-qa/s22-final/results.json"
    },
-   "status": "IN_PROGRESS",
+   "status": "RETIRED",
    "wave": "W12",
    "findings": [
     {
@@ -1813,7 +1813,7 @@
      "sample_combo": "390x844/light"
     }
    },
-   "status_note": "S22 전량 실행에서 아직 실패하는 검사가 있다: brand_presence, dead_blank_region. 승격 검사는 아니라 Release 를 막지 않지만, 열린 Finding 을 든 화면을 「완료」라고 적지 않는다."
+   "status_note": "2026-10-02 P11(D-543): 프롬프트 · 정책 사용 탭은 걷었다. 같은 수를 프롬프트 · 정책 목록 화면이 보인다. 새 화면의 감사는 아직 하지 않았다(Acceptance 회차의 일)."
   },
   {
    "id": "admin_announcements",
@@ -11307,17 +11307,17 @@
   },
   {
    "id": "admin_policy-usage",
-   "kind": "route",
+   "kind": "state_variant",
    "route": "/policy-usage",
    "console": "admin",
    "host_surface": null,
-   "component": "frontend/src/screens/DataScreen.jsx",
-   "render_engine": "DataScreen",
-   "registry_key": "policy-usage",
-   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
-   "alias_of": null,
+   "component": "frontend/src/app/AdminRoutes.jsx",
+   "render_engine": "redirect",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": "admin_policies",
    "archetype": "report_board",
-   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/policy-usage\">)",
    "role": {
     "min": "",
     "allowed": []
@@ -11664,7 +11664,7 @@
      "sample_combo": "390x844/light"
     }
    },
-   "status_note": "S22 전량 실행에서 아직 실패하는 검사가 있다: brand_presence, dead_blank_region. 승격 검사는 아니라 Release 를 막지 않지만, 열린 Finding 을 든 화면을 「완료」라고 적지 않는다."
+   "status_note": "2026-10-02 P11(D-543): 이 주소는 정책 목록 화면으로 넘긴다. 사용 수는 그 목록의 열이 보인다."
   },
   {
    "id": "admin_ai-usage-stats",
@@ -11672,10 +11672,10 @@
    "route": "/ai-usage-stats",
    "console": "admin",
    "host_surface": null,
-   "component": "frontend/src/screens/DataScreen.jsx",
-   "render_engine": "DataScreen",
-   "registry_key": "ai-usage-stats",
-   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
+   "component": "frontend/src/screens/ai/AiUsageStats.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
    "alias_of": null,
    "archetype": "report_board",
    "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
@@ -11791,7 +11791,7 @@
    "derivation_notes": "D-517 이 더한 AI 호출 기록 화면이다. 레지스트리 키 `ai-usage-stats`(authoring.js)를 DataScreen 이 그린다.",
    "harness_id": "admin_ai-usage-stats",
    "requirements_why": "사용 한도의 원장과 같은 기록을 보이는 화면이다. 숫자가 한도 목록의 「현재 사용」과 같은 원천인지(R-93)와 기록이 없는 설치의 빈 화면 안내(R-18)가 결정적이다.",
-   "status_note": "A4(D-517)가 만든 화면이다. 아직 누구도 감사하지 않았다 - 증거, 캡처, Flow 가 없고 Acceptance 회차가 이 행을 본다."
+   "status_note": "2026-10-02 P11(D-543): 사용 통계는 레지스트리 목록이 아니라 전용 화면(`screens/ai/AiUsageStats.jsx`)이다. 조건 · 기간 · 보기 기준 → 지표 한 줄 → 나눔 표. 새 화면의 감사는 아직 하지 않았다(Acceptance 회차의 일)."
   },
   {
    "id": "admin_ai-usage-records",
@@ -11922,17 +11922,17 @@
   },
   {
    "id": "admin_prompt-usage",
-   "kind": "route",
+   "kind": "state_variant",
    "route": "/prompt-usage",
    "console": "admin",
    "host_surface": null,
-   "component": "frontend/src/screens/DataScreen.jsx",
-   "render_engine": "DataScreen",
-   "registry_key": "prompt-usage",
-   "registry_key_source": "scripts/ui_qa/routes.py (REGISTRY 파생 - W0 의 Vitest parity 로 검증 필요)",
-   "alias_of": null,
+   "component": "frontend/src/app/AdminRoutes.jsx",
+   "render_engine": "redirect",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": "admin_prompts",
    "archetype": "report_board",
-   "source": "scripts/ui_qa/routes.py::ALL_ROUTES",
+   "source": "frontend/src/app/AdminRoutes.jsx (<Route path=\"/prompt-usage\">)",
    "role": {
     "min": "",
     "allowed": []
@@ -12301,7 +12301,7 @@
      "sample_combo": "390x844/light"
     }
    },
-   "status_note": "S22 전량 실행에서 아직 실패하는 검사가 있다: brand_presence, dead_blank_region. 승격 검사는 아니라 Release 를 막지 않지만, 열린 Finding 을 든 화면을 「완료」라고 적지 않는다."
+   "status_note": "2026-10-02 P11(D-543): 이 주소는 프롬프트 목록 화면으로 넘긴다. 사용 수는 그 목록의 열이 보인다."
   },
   {
    "id": "admin_prompts",

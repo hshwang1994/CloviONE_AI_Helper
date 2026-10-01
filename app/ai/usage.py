@@ -174,8 +174,8 @@ def day_bounds(start: date, end: date) -> tuple[datetime, datetime]:
 
 
 def _filters(record_model, *, start: datetime, end: datetime, visible, action=None, user_id=None, provider=None,
-             model=None, status=None, department_id=None) -> list:
-    clauses = [record_model.created_at >= start, record_model.created_at < end]
+             model=None, status=None, department_id=None, extra=()) -> list:
+    clauses = [record_model.created_at >= start, record_model.created_at < end, *extra]
     if visible is not None:
         # 부서 범위 관리자는 자기 범위 사람의 기록만 본다. 시스템 기록(연결 확인)은 전역 관리자만 본다.
         clauses.append(record_model.user_id.in_(visible or {"-"}))
@@ -222,12 +222,16 @@ def stats(db: Session, *, start: datetime, end: datetime, group_by: str, visible
     """묶음별 호출 수, 성공률, 토큰, 평균 지연. 성공률은 막힌 호출을 빼고 계산한다(제공자까지 간 호출 중 성공)."""
     from app.ai.models import USAGE_ERROR, USAGE_OK, AiUsageRecord as R
 
+    from app.ai.models import USAGE_BLOCKED_POLICY, USAGE_BLOCKED_QUOTA
+
     key = _group_column(R, group_by).label("key")
     ok = func.sum(case((R.status == USAGE_OK, 1), else_=0)).label("ok")
     errors = func.sum(case((R.status == USAGE_ERROR, 1), else_=0)).label("errors")
+    quota = func.sum(case((R.status == USAGE_BLOCKED_QUOTA, 1), else_=0)).label("blocked_quota")
+    policy = func.sum(case((R.status == USAGE_BLOCKED_POLICY, 1), else_=0)).label("blocked_policy")
     rows = db.execute(
         select(
-            key, func.count().label("calls"), ok, errors,
+            key, func.count().label("calls"), ok, errors, quota, policy,
             func.coalesce(func.sum(R.input_tokens), 0).label("input_tokens"),
             func.coalesce(func.sum(R.output_tokens), 0).label("output_tokens"),
             func.avg(R.latency_ms).label("avg_latency_ms"),
@@ -251,6 +255,9 @@ def stats(db: Session, *, start: datetime, end: datetime, group_by: str, visible
             "ok": ok_count,
             "errors": error_count,
             "blocked": int(row.calls) - ok_count - error_count,
+            # 「막힘」 하나로 뭉치지 않는다(D-543) - 한도 초과와 정책 차단은 뜻이 다르다.
+            "blocked_quota": int(row.blocked_quota or 0),
+            "blocked_policy": int(row.blocked_policy or 0),
             "success_rate": percent(ok_count, ok_count + error_count),
             "input_tokens": int(row.input_tokens or 0),
             "output_tokens": int(row.output_tokens or 0),
@@ -258,6 +265,64 @@ def stats(db: Session, *, start: datetime, end: datetime, group_by: str, visible
             "last_at": row.last_at.isoformat() if row.last_at else None,
         })
     return out
+
+
+def totals(db: Session, *, start: datetime, end: datetime, visible=None, **filters) -> dict:
+    """지표 한 줄 — 같은 조건 · 기간의 합계 한 벌(D-543). 묶음 표의 합을 화면이 다시 더하지 않는다(평균 응답은 더할 수 없다)."""
+    from app.ai.models import USAGE_BLOCKED_POLICY, USAGE_BLOCKED_QUOTA, USAGE_ERROR, USAGE_OK, AiUsageRecord as R
+
+    row = db.execute(
+        select(
+            func.count().label("calls"),
+            func.sum(case((R.status == USAGE_OK, 1), else_=0)).label("ok"),
+            func.sum(case((R.status == USAGE_ERROR, 1), else_=0)).label("errors"),
+            func.sum(case((R.status == USAGE_BLOCKED_QUOTA, 1), else_=0)).label("blocked_quota"),
+            func.sum(case((R.status == USAGE_BLOCKED_POLICY, 1), else_=0)).label("blocked_policy"),
+            func.coalesce(func.sum(R.input_tokens), 0).label("input_tokens"),
+            func.coalesce(func.sum(R.output_tokens), 0).label("output_tokens"),
+            func.avg(R.latency_ms).label("avg_latency_ms"),
+            func.max(R.created_at).label("last_at"),
+        ).where(*_filters(R, start=start, end=end, visible=visible, **filters))
+    ).one()
+    ok_count, error_count = int(row.ok or 0), int(row.errors or 0)
+    return {
+        "calls": int(row.calls or 0), "ok": ok_count, "errors": error_count,
+        "blocked_quota": int(row.blocked_quota or 0), "blocked_policy": int(row.blocked_policy or 0),
+        "success_rate": percent(ok_count, ok_count + error_count),
+        "input_tokens": int(row.input_tokens or 0), "output_tokens": int(row.output_tokens or 0),
+        "avg_latency_ms": int(round(float(row.avg_latency_ms))) if row.avg_latency_ms is not None else None,
+        "last_at": row.last_at.isoformat() if row.last_at else None,
+    }
+
+
+def search_clause(db: Session, query: str, *, visible=None):
+    """검색어 하나 → 조건 하나: 보이는 범위 안 사람의 이름 · 이메일, 또는 기능 이름이 맞는 기록(D-543).
+
+    예전 화면은 받은 한 쪽의 행 JSON 을 브라우저에서 훑었다 - 다음 쪽의 기록은 찾지 못했고, 다른 사람의 이메일 글자까지 맞췄다.
+    사람 후보는 범위 안에서만 고른다(부서 범위 관리자가 범위 밖 사람의 기록에 검색으로 닿지 않는다).
+    """
+    from sqlalchemy import false, or_
+
+    from app.ai.actions import ACTIONS
+    from app.ai.models import AiUsageRecord as R
+    from app.users.models import User
+
+    folded = " ".join(str(query or "").split()).lower()[:100]
+    if not folded:
+        return None
+    pattern = "%" + folded.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    people = select(User.id).where(or_(func.lower(User.display_name).like(pattern, escape="\\"),
+                                       func.lower(User.email).like(pattern, escape="\\")))
+    if visible is not None:
+        people = people.where(User.id.in_(visible or {"-"}))
+    user_ids = [row[0] for row in db.execute(people.limit(500)).all()]
+    action_keys = [key for key, action in ACTIONS.items() if folded in action.label.lower() or folded in key]
+    parts = []
+    if user_ids:
+        parts.append(R.user_id.in_(user_ids))
+    if action_keys:
+        parts.append(R.action_key.in_(action_keys))
+    return or_(*parts) if parts else false()
 
 
 def _labels(db: Session, group_by: str, keys: list) -> dict:
@@ -302,6 +367,34 @@ def _list_sort():
 LIST_SORT = _list_sort()
 
 
+def _tool_names(raw) -> list[str]:
+    import json
+
+    try:
+        value = json.loads(raw) if raw else []
+    except (TypeError, ValueError):
+        return []
+    return [str(v) for v in value if isinstance(v, str)] if isinstance(value, list) else []
+
+
+def _tools_label(names: list[str]) -> str | None:
+    """도구 이름 목록 → 「사내 문서 검색, 내 업무(2회)」. 같은 도구를 여러 번 불렀으면 횟수를 붙인다. 모르는 이름은 그대로 둔다."""
+    if not names:
+        return None
+    from app.ai.assistant.catalog import REGISTRY
+
+    by_name = {tool.name: tool for tool in REGISTRY}
+    counts: dict[str, int] = {}
+    for name in names:
+        counts[name] = counts.get(name, 0) + 1
+    parts = []
+    for name, count in counts.items():
+        tool = by_name.get(name)
+        label = tool.label if tool is not None else name
+        parts.append(f"{label}({count}회)" if count > 1 else label)
+    return ", ".join(parts)
+
+
 def records(db: Session, *, start: datetime, end: datetime, visible=None, limit: int = 50, offset: int = 0,
             sort=None, **filters) -> tuple[list[dict], int]:
     """호출 기록 한 쪽과 전체 수. 본문은 없다 - 누가, 언제, 무엇으로, 어떻게 끝났는지만."""
@@ -339,6 +432,13 @@ def records(db: Session, *, start: datetime, end: datetime, visible=None, limit:
             "prompt_slot": row.prompt_slot,
             "prompt_version": row.prompt_version,
             "truncated": bool(row.truncated_input or row.truncated_output),
+            # AI 도우미 한 차례의 모양(D-537) - 라운드 · 도구 호출 수 · 쓴 도구(이름만) · 모드.
+            "rounds": row.rounds,
+            "tool_calls": row.tool_calls,
+            "tool_names": _tool_names(row.tool_names_json),
+            # 화면은 도구의 이름(코드)이 아니라 사람의 낱말을 보인다 - 「사내 문서 검색, 내 업무(2회)」.
+            "tools_label": _tools_label(_tool_names(row.tool_names_json)),
+            "mode": row.mode,
         })
     return items, total
 
@@ -401,13 +501,20 @@ def slot_usage(db: Session, *, since: datetime) -> dict[str, dict]:
 
 
 def policy_usage(db: Session, *, since: datetime) -> dict[str, dict]:
-    """정책 id → 그 기간에 그 정책이 걸린 호출 수와 마지막 시각. 기록은 걸린 정책의 id 목록을 JSON 글로 들고 있다."""
+    """정책 id → 그 기간에 그 정책이 **실제로 걸린** 요청 수와 마지막 시각(D-542).
+
+    성공한 요청(`ok`)과 정책이 막은 요청(`blocked_policy`)만 센다. 실패한 호출은 정책이 결과에 닿지 않았고, 한도에 막힌
+    요청은 모델에 가지 않았다. 기록은 걸린 정책의 id 목록을 JSON 글로 들고 있다.
+    """
     from sqlalchemy import text
+
+    from app.ai.models import USAGE_BLOCKED_POLICY, USAGE_OK
 
     rows = db.execute(text(
         "SELECT p.value AS policy_id, count(*) AS calls, max(r.created_at) AS last_at "
         "FROM ai_usage_records r CROSS JOIN LATERAL json_array_elements_text(r.policy_ids_json::json) AS p(value) "
-        "WHERE r.created_at >= :since AND r.policy_ids_json IS NOT NULL GROUP BY p.value"
-    ), {"since": since}).all()
+        "WHERE r.created_at >= :since AND r.policy_ids_json IS NOT NULL AND r.status IN (:ok, :blocked) "
+        "GROUP BY p.value"
+    ), {"since": since, "ok": USAGE_OK, "blocked": USAGE_BLOCKED_POLICY}).all()
     return {row.policy_id: {"calls": int(row.calls), "errors": 0,
                             "last_at": row.last_at.isoformat() if row.last_at else None} for row in rows}

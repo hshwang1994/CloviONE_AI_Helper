@@ -59,7 +59,10 @@ class PolicySet:
     notes: tuple[str, ...] = field(default_factory=tuple)
 
     def ids(self) -> list[str]:
-        return [p.id for p in (self.approval, self.data_protection, self.content) if p is not None]
+        """호출 기록에 남길 정책 - 이 호출에 **실제로 걸린** 것(D-542). 승인 정책은 빠진다: 승인은 호출이 아니라 결과를
+        저장하는 길에 걸리고, 이 사람에게 승인이 필요할 때만 부른 쪽이 `extra_policy_ids` 로 더한다. 예전에는 초안을 만들
+        때마다 승인 정책 id 가 실려 「최근 30일 적용」이 부풀었다."""
+        return [p.id for p in (self.data_protection, self.content) if p is not None]
 
     def mask(self, text: str) -> str:
         """개인정보 가리기(입력과 출력에 똑같이 쓴다)."""

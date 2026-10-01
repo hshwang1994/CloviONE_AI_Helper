@@ -10,6 +10,8 @@
  *   4. 서버가 전역 범위 관리자로 한정한 쓰기는 선언에도 그렇게 적혀 있다.
  *
  * 반례를 함께 둔다 — 고쳐야 할 것만 사라지고 멀쩡한 것은 그대로여야 한다.
+ *
+ * qa-contract-change: 프롬프트 화면이 기능마다 한 줄이 되며(D-541) 「만들기」 · 「발행」 · 「새 버전」 · 「보관」 · 「복제해서 수정」이 없어지고 그 자리에 「수정」(그 기능의 초안) · 「초안 발행」 · 「초안 버리기」 · 「기본 제공으로 되돌리기」가 섰다. 같은 성질 — 전사 지시문을 바꾸는 쓰기는 전역 범위만 — 을 새 동작 이름으로 계속 잰다. 정책 화면의 선언은 그대로다.
  */
 import { describe, it, expect } from "vitest";
 
@@ -169,17 +171,23 @@ describe("전역 자원의 쓰기 선언이 서버 게이트와 같다 (xa-07)",
   });
 
   it("프롬프트·정책 — 만들기·고치기·상태 전이·새 버전", () => {
-    for (const key of ["prompts", "policies"]) {
-      const cfg = AUTHORING_SCREENS[key];
-      expect(cfg.create.requiresGlobalScope).toBe(true);
-      expect(cfg.edit.requiresGlobalScope).toBe(true);
-      // 생명주기는 초안 → 발행 → 보관이다(D-518) - 「테스트로」 · 「검토로」 · 「초안으로 되돌리기」는 없다.
-      for (const label of ["발행", "새 버전", "보관"]) {
-        expect(actionByLabel(cfg, label).requiresGlobalScope).toBe(true);
-      }
+    const policies = AUTHORING_SCREENS.policies;
+    expect(policies.create.requiresGlobalScope).toBe(true);
+    expect(policies.edit.requiresGlobalScope).toBe(true);
+    // 생명주기는 초안 → 발행 → 보관이다(D-518) - 「테스트로」 · 「검토로」 · 「초안으로 되돌리기」는 없다.
+    for (const label of ["발행", "새 버전", "보관"]) {
+      expect(actionByLabel(policies, label).requiresGlobalScope).toBe(true);
     }
-    // 기본 제공 지시문을 초안으로 옮기는 것도 전사 지시문을 바꾸는 첫걸음이라 같은 문을 지난다.
-    expect(actionByLabel(AUTHORING_SCREENS.prompts, "복제해서 수정").requiresGlobalScope).toBe(true);
+    // 프롬프트는 기능마다 한 줄이라 만들기가 없다(D-541). 「수정」은 그 기능의 초안을 고치고, 발행 · 버리기 · 기본 제공으로
+    // 되돌리기는 모두 전사 지시문을 바꾸는 쓰기라 같은 문을 지난다.
+    const prompts = AUTHORING_SCREENS.prompts;
+    expect(prompts.create).toBeUndefined();
+    expect(prompts.edit.requiresGlobalScope).toBe(true);
+    for (const label of ["초안 발행", "초안 버리기", "기본 제공으로 되돌리기"]) {
+      expect(actionByLabel(prompts, label).requiresGlobalScope).toBe(true);
+    }
+    // 반례 — 버전 기록은 읽기라 범위 선언이 없다.
+    expect(actionByLabel(prompts, "버전 기록").requiresGlobalScope).toBeUndefined();
   });
 
   it("AI 상한은 **행마다** 다르다 — 전역 행만 가리고 사용자 행은 그대로 둔다", () => {

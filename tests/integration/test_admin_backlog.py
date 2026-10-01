@@ -893,18 +893,20 @@ def test_disabled_schedule_never_runs(db):
 
 
 def test_prompt_usage_stats_count_calls_per_slot_not_schedule_refs(client, login_as):
+    """qa-contract-change: 프롬프트 사용 통계 경로를 걷고 기능 목록이 같은 수를 보인다(D-541). 은퇴한 「질문 답변」 대신 문서 초안
+    기능으로 잰다 — 발행하지 않은 초안은 지금 지시문을 바꾸지 않고, 수는 호출 기록에서 오며 스케줄 참조를 세지 않는다."""
     csrf = login_as("system_admin")
     created = client.post(
         "/api/admin/prompts",
-        json={"name": "답변 초안", "content": "hello", "purpose": "테스트", "slot": "answer"},
+        json={"name": "답변 초안", "content": "hello", "purpose": "테스트", "slot": "draft"},
         headers=_h(csrf),
     )
     assert created.status_code == 201, created.text
-    stats = client.get("/api/admin/prompts/usage/stats").json()["items"]
-    row = [i for i in stats if i["slot"] == "answer"][0]
+    rows = client.get("/api/admin/prompts/features").json()["items"]
+    row = [i for i in rows if i["slot"] == "draft"][0]
     # 발행하지 않은 초안은 지금 쓰는 지시문을 바꾸지 않는다.
-    assert row["current_source"] == "builtin" and row["current_id"] == "builtin:answer"
-    assert (row["calls"], row["errors"], row["last_used_at"]) == (0, 0, None)
+    assert row["current"]["source"] == "builtin" and row["draft"] is not None
+    assert (row["calls_30d"], row["errors_30d"], row["last_used_at"]) == (0, 0, None)
     assert "schedule_refs" not in row and "unused" not in row
 
 

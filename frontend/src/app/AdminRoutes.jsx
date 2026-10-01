@@ -47,6 +47,7 @@ const Search = React.lazy(() => import("../screens/Search.jsx"));
 const SchedulerCalendar = React.lazy(() => import("../screens/SchedulerCalendar.jsx"));
 const Integrity = React.lazy(() => import("../screens/Integrity.jsx").then((m) => ({ default: m.Integrity })));
 const AiConnection = React.lazy(() => import("../screens/ai/AiConnection.jsx"));
+const AiUsageStats = React.lazy(() => import("../screens/ai/AiUsageStats.jsx"));
 
 // 라우트 청크가 통째로 아직 없다 — `UserRoutes.jsx::Lazy` 와 같은 이유로 화면 모양을 그린다.
 const ROUTES_FALLBACK = <Skeleton kind="page" lines={4} />;
@@ -141,11 +142,16 @@ export const TAB_GROUPS = [
   },
   {
     path: "/ai-usage", area: "AI", title: "AI 사용 통계",
+    /* 실제 사용량 분석(D-543) — 「사용 통계」는 조건 · 기간 · 보기 기준 → 지표 한 줄 → 나눔 표의 전용 화면이고, 「호출 기록」은
+       한 줄에 한 요청이다. 프롬프트 · 정책 사용 탭은 걷었다 - 같은 수를 그 목록 화면이 보인다(`/prompt-usage` · `/policy-usage`
+       는 그 화면으로 넘긴다). */
     tabs: [
-      { key: "ai-usage-stats", label: "사용 통계" },
+      {
+        key: "ai-usage-stats", label: "사용 통계",
+        help: "기간 안의 AI 요청을 기능, 사용자, 부서, 모델로 나눠 봅니다. 성공률은 제공자까지 간 요청 가운데 성공한 비율이고, 정책 차단과 한도 초과는 따로 셉니다.",
+        render: () => <AiUsageStats />,
+      },
       { key: "ai-usage-records", label: "호출 기록" },
-      { key: "prompt-usage", label: "프롬프트" },
-      { key: "policy-usage", label: "정책" },
     ],
   },
   {
@@ -240,6 +246,9 @@ function AdminRoutes() {
             못한다. 지금은 아래 catch-all이 「이 주소는 없습니다」를 정직하게 말한다. */}
         <Route path="/system" element={<Navigate to="/settings?tab=os" replace />} />
         <Route path="/llm-console" element={<Navigate to="/ai-connection" replace />} />
+        {/* 프롬프트 · 정책 사용 탭은 걷었다(D-543) - 같은 수를 그 목록 화면이 보인다. */}
+        <Route path="/prompt-usage" element={<Navigate to="/prompts" replace />} />
+        <Route path="/policy-usage" element={<Navigate to="/policies" replace />} />
         {/* AI 연결(D-539) — 설정의 AI 탭이 화면 하나가 됐다. `/settings?tab=ai` 는 SettingsShell 이 여기로 넘긴다. */}
         <Route
           path="/ai-connection"

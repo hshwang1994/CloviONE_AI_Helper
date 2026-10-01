@@ -24,7 +24,8 @@ Sources (re-derive from these if the app's routing changes):
       ``frontend/src/screens/registry/`` and each rendered by ``AdminRoutes`` at
       ``"/" + key``:
         integrations.js  integrations
-        authoring.js     prompts policies prompt-usage policy-usage
+        authoring.js     prompts policies ai-usage-records (P11 은 prompt-usage · policy-usage ·
+                         ai-usage-stats 를 걷었다 - 옛 사용 주소는 목록으로 넘기고 사용 통계는 전용 화면이다)
         automation.js    schedules jobs
         org.js           organizations departments job-titles org-tree
         governance.js    approvals approval-delegations audit audit-anomalies rbac impersonation
@@ -358,14 +359,10 @@ ADMIN_ROUTES: tuple[Route, ...] = (
        ("operator", "admin", "system_admin", "auditor")),
     _a("admin_scheduler-calendar", "/scheduler-calendar", "실행 달력", "operator",
        ("operator", "admin", "system_admin", "auditor")),
-    _a("admin_prompt-usage", "/prompt-usage", "프롬프트 사용 통계", "operator",
-       ("operator", "admin", "system_admin", "auditor")),
     # AI 호출 기록을 읽는 두 탭의 옛 주소 모양(D-517). 탭 그릇의 다른 탭처럼 제자리에서 그린다.
     _a("admin_ai-usage-stats", "/ai-usage-stats", "AI 사용 통계(사용 통계 주소)", "operator",
        ("operator", "admin", "system_admin", "auditor")),
     _a("admin_ai-usage-records", "/ai-usage-records", "AI 사용 통계(호출 기록 주소)", "operator",
-       ("operator", "admin", "system_admin", "auditor")),
-    _a("admin_policy-usage", "/policy-usage", "정책 사용 통계", "operator",
        ("operator", "admin", "system_admin", "auditor")),
     # 초기 설정만 여전히 자기 화면이다(SetupWizard.jsx). 나머지 셋과 유지보수는
     # `/settings` 탭이 됐고 옛 주소는 `<Navigate>` 다 — 아래 ALIAS_ROUTES 로 옮겼다.
@@ -395,10 +392,6 @@ ADMIN_ROUTES: tuple[Route, ...] = (
     _a("admin_ai-usage", "/ai-usage", "AI 사용 통계 — 사용 통계", "operator",
        ("operator", "admin", "system_admin", "auditor")),
     _a("admin_ai-usage-records-tab", "/ai-usage?tab=ai-usage-records", "AI 사용 통계 — 호출 기록",
-       "operator", ("operator", "admin", "system_admin", "auditor")),
-    _a("admin_ai-usage-prompt", "/ai-usage?tab=prompt-usage", "AI 사용 통계 — 프롬프트",
-       "operator", ("operator", "admin", "system_admin", "auditor")),
-    _a("admin_ai-usage-policy", "/ai-usage?tab=policy-usage", "AI 사용 통계 — 정책",
        "operator", ("operator", "admin", "system_admin", "auditor")),
     # 탭 그릇의 두 번째 탭을 **대표 주소 + 탭 상태**로도 찍는다. 옛 주소(`/restore-drills`
     # 등)는 이미 위에 있지만 그건 다른 주소다 — 둘 다 살아 있어야 한다는 것이
@@ -430,6 +423,11 @@ ALIAS_ROUTES: tuple[Route, ...] = (
            "system_admin", ("system_admin",)),
     _alias("admin_llm-console", "/llm-console", "/ai-connection",
            "AI 관리(옛 주소)", "system_admin", ("system_admin",)),
+    # 프롬프트 · 정책 사용 통계 탭은 걷었다(D-543). 같은 수를 그 목록 화면의 열이 보이므로 옛 주소는 목록으로 넘긴다.
+    _alias("admin_prompt-usage", "/prompt-usage", "/prompts", "프롬프트 사용 통계(옛 주소)", "operator",
+           ("operator", "admin", "system_admin", "auditor")),
+    _alias("admin_policy-usage", "/policy-usage", "/policies", "정책 사용 통계(옛 주소)", "operator",
+           ("operator", "admin", "system_admin", "auditor")),
     _alias("admin_maintenance", "/maintenance", "/settings?tab=policy",
            "유지보수(옛 주소)", "operator",
            ("operator", "admin", "system_admin", "auditor")),
@@ -457,8 +455,6 @@ PUBLIC_ROUTES: tuple[Route, ...] = (
 SURFACE_ID_OVERRIDES: dict[str, str] = {
     "admin_ai-usage": "admin_ai-usage__ai-usage-stats",
     "admin_ai-usage-records-tab": "admin_ai-usage__ai-usage-records",
-    "admin_ai-usage-prompt": "admin_ai-usage__prompt-usage",
-    "admin_ai-usage-policy": "admin_ai-usage__policy-usage",
     "admin_approvals": "admin_approvals__approvals",
     "admin_approvals-delegations-tab": "admin_approvals__approval-delegations",
     "admin_audit": "admin_audit__audit",

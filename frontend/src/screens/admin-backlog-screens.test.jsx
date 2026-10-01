@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
+/* qa-contract-change: 프롬프트 · 정책 사용 탭을 걷어(D-543) 레지스트리 계약의 그 두 줄을 프롬프트(기능 목록) · 정책 목록 경로로 바꾸고, 「프롬프트 사용 통계」 화면 시험을 「프롬프트 기능 목록」 화면 시험으로 옮겼다 — 지금 쓰는 지시문과 호출 기록에서 센 수를 보인다는 성질은 그대로다. */
 /* qa-contract-change: 감사 로그 머리의 「이상 징후 보기」 단추를 걷었다(D-501) — 두 화면은 한 그릇(`/audit`)의 형제 탭이라 바로 옆 탭이 같은 곳으로
    간다. 「그 단추가 있다」 · 「머리 이동이 이상 징후를 가리킨다」 두 단언은 「그릇 안에서 두 탭이 짝이다 · 머리에 그 단추가 없다」로 옮겼다. */
 /* 관리자 백로그 잔여 화면(PLAN Phase 6) — registry.js 설정으로만 만든 여덟 화면.
@@ -57,6 +58,7 @@ beforeEach(() => {
 
 describe("새 관리자 화면 — 레지스트리 계약", () => {
   it("여덟 화면이 전부 등록돼 있고 엔드포인트가 백엔드 경로와 맞는다", () => {
+    // 프롬프트 · 정책 사용 탭은 걷었다(D-543) - 같은 수를 프롬프트(기능 목록) · 정책 목록이 보인다.
     const expected = {
       impersonation: "/api/admin/impersonation/sessions",
       "approval-delegations": "/api/admin/approval-delegations",
@@ -65,8 +67,8 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
       "feature-flags": "/api/admin/feature-flags",
       "audit-anomalies": "/api/admin/audit/anomalies",
       "restore-drills": "/api/admin/backups/rehearsals",
-      "prompt-usage": "/api/admin/prompts/usage/stats",
-      "policy-usage": "/api/admin/policies/usage/stats",
+      prompts: "/api/admin/prompts/features",
+      policies: "/api/admin/policies",
     };
     for (const [key, endpoint] of Object.entries(expected)) {
       expect(REGISTRY[key], `${key} 화면이 없다`).toBeTruthy();
@@ -272,22 +274,23 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
     expect(sent.body.reason).toBe("문의 재현");
   });
 
-  it("프롬프트 사용 통계: 사용처마다 지금 쓰는 지시문과 호출 수를 보인다", async () => {
-    // 예전에는 스케줄 참조를 세서 언제나 「쓰이지 않음」이었다. 이제 호출 기록에서 사용처별로 센다(D-518).
+  it("프롬프트: 기능마다 지금 쓰는 지시문과 최근 30일 요청 수를 보인다", async () => {
+    // 예전에는 스케줄 참조를 세서 언제나 「쓰이지 않음」이었다. 이제 호출 기록에서 기능별로 센다(D-518 · D-541).
     apiMock.mockImplementation(() => Promise.resolve({
       items: [
-        { slot: "answer", label: "질문 답변", description: "질문에 답합니다.", editable: true, current_source: "admin",
-          current_id: "p-1", current_name: "답변 지시", current_version: 2, calls: 12, errors: 3, failure_rate: 25,
-          last_used_at: "2026-07-01T00:00:00" },
-        { slot: "draft", label: "문서 초안", description: "초안을 씁니다.", editable: true, current_source: "builtin",
-          current_id: "builtin:draft", current_name: null, current_version: null, calls: 0, errors: 0,
-          failure_rate: null, last_used_at: null },
+        { id: "assistant", slot: "assistant", label: "AI 도우미", description: "질문에 답합니다.",
+          current: { source: "admin", label: "관리자 작성 v2" }, draft: null, feature_state: "on", feature_state_label: "켜짐",
+          calls_30d: 12, errors_30d: 3, failure_rate: 25, last_used_at: "2026-07-01T00:00:00" },
+        { id: "draft", slot: "draft", label: "문서 초안", description: "초안을 씁니다.",
+          current: { source: "builtin", label: "기본 제공" }, draft: null, feature_state: "off", feature_state_label: "꺼짐",
+          calls_30d: 0, errors_30d: 0, failure_rate: null, last_used_at: null },
       ],
-      kind: "prompts",
+      days: 30,
     }));
-    renderScreen("prompt-usage");
-    expect(await screen.findByText("답변 지시 v2")).toBeInTheDocument();
+    renderScreen("prompts");
+    expect(await screen.findByText("관리자 작성 v2")).toBeInTheDocument();
     expect(screen.getByText("기본 제공")).toBeInTheDocument();
+    expect(screen.getByText("25%")).toBeInTheDocument();
   });
 });
 

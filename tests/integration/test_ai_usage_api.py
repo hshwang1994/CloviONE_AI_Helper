@@ -121,8 +121,8 @@ def test_records_are_paged_sorted_and_carry_no_text(client, login_as, db, make_u
     assert set(first["items"][0]) == {
         "id", "created_at", "user_id", "user_name", "user_email", "department_name", "action_key", "action_label",
         "provider", "model", "status", "status_label", "error_code", "input_tokens", "output_tokens", "latency_ms",
-        "prompt_slot", "prompt_version", "truncated",
-    }, "호출 기록 응답의 칸이 바뀌었다 - 본문이 새어 나가지 않는지 먼저 본다"
+        "prompt_slot", "prompt_version", "truncated", "rounds", "tool_calls", "tool_names", "tools_label", "mode",
+    }, "호출 기록 응답의 칸이 바뀌었다 - 본문이 새어 나가지 않는지 먼저 본다(도구는 이름만 싣는다)"
     assert (first["items"][0]["user_name"], first["items"][0]["user_email"]) == ("기록 사람",
                                                                                   "records-person@goodmit.co.kr")
 

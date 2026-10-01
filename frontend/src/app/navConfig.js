@@ -81,10 +81,8 @@ export const SCREEN_ROLES = {
   "scheduler-calendar": ["operator", "admin", "system_admin", "auditor"],
   "ai-usage-stats": ["operator", "admin", "system_admin", "auditor"],
   "ai-usage-records": ["operator", "admin", "system_admin", "auditor"],
-  "prompt-usage": ["operator", "admin", "system_admin", "auditor"],
-  "policy-usage": ["operator", "admin", "system_admin", "auditor"],
-  // 탭 그릇의 대표 경로 — 안에 든 두 탭(policy-usage·prompt-usage)과 같은 집합이어야
-  // 한다(AdminRoutes.jsx 의 sameRoles 가 조립 시점에 확인한다).
+  // 탭 그릇의 대표 경로 — 안에 든 두 탭(사용 통계 · 호출 기록)과 같은 집합이어야 한다(AdminRoutes.jsx 의 sameRoles 가
+  // 조립 시점에 확인한다). 프롬프트 · 정책 사용 탭은 걷었다 - 같은 수를 그 목록 화면이 보인다(D-543).
   "ai-usage": ["operator", "admin", "system_admin", "auditor"],
 };
 

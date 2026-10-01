@@ -9,6 +9,7 @@
 5. 사용 통계는 사용처마다 한 줄이고 호출 기록에서 센다.
 6. 은퇴한 사용처(「질문 답변」)는 고를 수도 복제할 수도 없고 목록에 나오지 않는다(D-535 · D-541).
 
+qa-contract-change: 사용처마다의 호출 수 · 실패율을 옛 사용 통계 경로 대신 기능 목록(`/api/admin/prompts/features`)에서 잰다(D-541) — 수와 30일 경계는 그대로다.
 qa-contract-change: 「질문 답변」 사용처가 은퇴해(AI 도우미가 도구를 쓰는 대화로 바뀌었다, D-535) 그 사용처로 발행 · 복제 · 호출하던 시험을 바꿀 수 있는 다른 사용처(문서 초안)로 옮겼다. 은퇴한 사용처가 거절되는지는 새 시험으로 못박는다.
 """
 
@@ -186,11 +187,13 @@ def test_usage_is_counted_per_use_from_the_call_records(client, login_as, db, fa
                              prompt_id=prompt_id, prompt_version=1 if prompt_id else None))
     db.commit()
 
-    rows = {r["slot"]: r for r in client.get("/api/admin/prompts/usage/stats").json()["items"]}
+    # 사용처마다의 수는 기능 목록이 보인다(D-541, 옛 `/usage/stats` 를 대신한다).
+    rows = {r["slot"]: r for r in client.get("/api/admin/prompts/features").json()["items"]}
     drafted = rows["draft"]
-    assert (drafted["calls"], drafted["errors"], drafted["failure_rate"]) == (3, 1, 33), "30일 밖의 호출을 셌다"
-    assert (drafted["current_source"], drafted["current_id"], drafted["current_version"]) == ("admin", item["id"], 1)
-    assert rows["quiz"]["calls"] == 0 and rows["quiz"]["current_id"] == "builtin:quiz"
+    assert (drafted["calls_30d"], drafted["errors_30d"], drafted["failure_rate"]) == (3, 1, 33), "30일 밖의 호출을 셌다"
+    current = drafted["current"]
+    assert (current["source"], current["id"], current["version"]) == ("admin", item["id"], 1)
+    assert rows["quiz"]["calls_30d"] == 0 and rows["quiz"]["current"]["source"] == "builtin"
 
     listed = {i["id"]: i for i in client.get("/api/admin/prompts").json()["items"]}
     assert listed[item["id"]]["calls_30d"] == 2

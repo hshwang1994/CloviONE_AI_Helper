@@ -1,3 +1,4 @@
+/* qa-contract-change: 프롬프트 화면이 기능 단위가 되어(D-541) 확인을 받는 동작이 「보관」에서 「초안 버리기 · 기본 제공으로 되돌리기」로 바뀌었고, 프롬프트 사용 통계 탭의 열 수 단언은 기능 목록의 열 수로 옮겼다. 위험 동작이 확인을 받는다는 성질은 그대로다. */
 /* qa-contract-change: 조직·부서·조직도가 registry 를 떠나 조직 콘솔(screens/org/)의 선택 반응형 상세 판으로 재구성됐다 — 조직 비활성화 confirm·부서 primary·조직 clientFilter·org-tree 필터 메타 단언을 org-console-actions.test.jsx 로 이관하거나 표와 함께 걷었다. */
 /* qa-contract-change: S11 이 n8n·러너 서브시스템을 걷어내면서 이 파일이 고정하던 화면 셋이 사라졌다 — 문서 발행 승인 액션(document.publish), 문서 생성 화면의 clientFilter 경고, 프롬프트의 러너 ID 필드. 단언이 줄어든 만큼이 정확히 그 셋이고, 남은 단언은 한 글자도 안 약해졌다(기대값·형태 그대로). «documents 만 예외» 였던 단언은 «예외가 하나도 없다» 로 **더 세졌다**. */
 /* 관리 콘솔 28화면 전수조사(9-1) — 확인·필터·문구가 실제 동작과 맞는가.
@@ -147,7 +148,9 @@ describe("위험 액션 확인", () => {
   it("이미 확인을 받고 있던 액션은 그대로 남아 있다(있던 것을 되돌리지 않는다)", () => {
     const confirmOf = (key, label) =>
       (REGISTRY[key].actions || []).find((a) => a.label === label && a.confirm);
-    expect(confirmOf("prompts", "보관")).toBeTruthy();
+    // 프롬프트는 기능 단위가 됐다(D-541) - 지시문을 쓰지 않게 되는 두 동작(초안 버리기 · 기본 제공으로 되돌리기)이 확인을 받는다.
+    expect(confirmOf("prompts", "초안 버리기")).toBeTruthy();
+    expect(confirmOf("prompts", "기본 제공으로 되돌리기")).toBeTruthy();
     expect(confirmOf("policies", "보관")).toBeTruthy();
     expect(confirmOf("feature-flags", "비활성화")).toBeTruthy();
   });
@@ -232,11 +235,12 @@ describe("‘비우면’ 문구와 실제 동작", () => {
 
 /* ── 5. prompt-usage 열 ─────────────────────────────────────────────────── */
 
-describe("프롬프트 사용 통계 열", () => {
+describe("프롬프트 기능 목록 열", () => {
   it("좁은 화면에서는 잘리는 게 아니라 카드로 쌓인다", () => {
     // 900px 아래에서는 DataTable 이 표 대신 카드 목록을 그린다(kit.jsx) — 그래서 여기서
-    // 열을 접으면 이미 잘 보이던 값을 없애는 셈이 된다. S11 이 템플릿·문서 생성 열 둘을
-    // 걷어내 일곱에서 다섯이 됐다.
-    expect(REGISTRY["prompt-usage"].columns).toHaveLength(5);
+    // 열을 접으면 이미 잘 보이던 값을 없애는 셈이 된다. 프롬프트 사용 통계 탭이 기능 목록이 되며(D-541)
+    // 기능 상태 · 초안 열이 더해져 일곱이다.
+    expect(REGISTRY["prompt-usage"]).toBeUndefined();
+    expect(REGISTRY.prompts.columns).toHaveLength(7);
   });
 });

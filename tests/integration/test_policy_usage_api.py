@@ -1,9 +1,13 @@
-"""정책 목록과 사용 통계가 실제로 걸린 호출을 센다 (계획 3.9 · 3.11, D-519).
+"""정책 목록이 실제로 걸린 호출을 센다 (계획 A5, D-519 · D-542).
+
+qa-contract-change: 「AI 사용 통계 > 정책」 경로(`/api/admin/policies/usage/stats`)를 걷었다 — 같은 수를 정책 목록의 「최근 30일 적용」
+(`applied_30d` · `last_applied_at`)이 보인다(D-542). 그 수는 이제 성공한 요청과 정책이 막은 요청만 센다(실패한 호출은 세지 않는다).
+옛 형식 정책은 목록 기본에서 숨긴다.
 
 못박는 성질:
-1. 정책 목록은 종류, 적용 대상의 이름, 지금 걸리는가(`in_use`), 최근 30일에 걸린 호출 수를 준다. 종류로 거를 수 있다.
-2. 「AI 사용 통계 > 정책」은 이름마다 한 줄이고, 걸린 호출 수는 AI 호출 기록에서 센다. 예전에는 스케줄이 이름을
-   참조하는가를 셌고 언제나 「쓰이지 않음」이었다.
+1. 정책 목록은 종류, 적용 대상의 이름, 지금 걸리는가(`in_use`), 최근 30일에 실제로 걸린 요청 수와 마지막 시각을 준다. 종류로
+   거를 수 있다. 실패한 호출은 세지 않는다.
+2. 옛 형식(`legacy`) 원본은 기본 목록에 없고 `include_legacy=true` 로만 보인다.
 """
 
 from __future__ import annotations
@@ -41,7 +45,15 @@ def test_the_list_and_the_stats_count_the_calls_a_policy_touched(app, client, lo
     only_content = client.get("/api/admin/policies", params={"kind": "content"}).json()["items"]
     assert [i["name"] for i in only_content] == ["짧은 답"]
 
-    stats = {i["name"]: i for i in client.get("/api/admin/policies/usage/stats").json()["items"]}
-    assert (stats["질문 가리기"]["applied"], stats["질문 가리기"]["published_version"]) == (2, 1)
-    assert stats["질문 가리기"]["last_applied_at"] is not None
-    assert (stats["짧은 답"]["applied"], stats["짧은 답"]["published_version"]) == (0, None)
+    assert listed["질문 가리기"]["applied_30d"] == 2 and listed["질문 가리기"]["last_applied_at"] is not None
+    assert (listed["짧은 답"]["applied_30d"], listed["짧은 답"]["last_applied_at"]) == (0, None)
+    assert listed["질문 가리기"]["status_label"] == "적용 중" and listed["짧은 답"]["status_label"] == "초안"
+
+    # 실패한 호출은 정책이 결과에 닿지 않았다 - 「최근 30일 적용」에 세지 않는다.
+    from app.ai.providers import base
+
+    failing = install_runtime(app, ScriptedAdapter([base.failure(base.ERROR_TRANSIENT, "timeout")]))
+    failing.generate(None, action_key="workspace.draft", data="010-1234-5678")
+    again = {i["name"]: i for i in client.get("/api/admin/policies").json()["items"]}
+    assert again["질문 가리기"]["applied_30d"] == 2, "실패한 호출을 적용으로 셌다"
+    assert client.get("/api/admin/policies/usage/stats").status_code in (404, 422), "걷은 통계 경로가 살아 있다"

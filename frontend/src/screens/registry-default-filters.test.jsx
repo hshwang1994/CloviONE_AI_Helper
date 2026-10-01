@@ -1,3 +1,4 @@
+/* qa-contract-change: AI 사용 통계가 전용 화면이 되고(D-543) 정책 목록의 기본 조건 「발행됨」을 걷어(D-542) 기본 필터 집합이 승인 하나가 됐다. 프롬프트는 기능 목록이라 조건이 없다(D-541) — 그 자리는 정책의 상태 조건에 기본값이 없음을 잰다. */
 /* qa-contract-change: 감사 이상 징후가 이 목록에서 빠졌다 — 그 화면의 기간 필터는 이제 화면 기본값(`value: "24"`)을 안 심고 빈 값을 서버 기본값의 이름(「최근 24시간」)으로 부른다. 「기간 전체」가 실제로는 24시간이던 것을 배포 환경에서 확인해 고친 결과다. 단언은 줄지 않았다: 이 화면이 목록에서 빠졌다는 사실을 아래 시험이 이유와 함께 따로 잰다.
  * 프롬프트도 빠졌다(D-518): 목록 첫머리가 사용처마다 기본 제공 지시문이라 「발행됨」 기본값이 그 행들을 가렸다. 아래 시험이 그 사실을 따로 잰다. */
 import { describe, it, expect } from "vitest";
@@ -32,17 +33,18 @@ describe("REGISTRY — 기본값이 있는 필터를 가진 화면 (PA-RC-0038 a
     // PA-RC-0038 조사 시점(2026-08-17)에 확인한 전체 집합 — grep으로 재확인:
     // `key: "[a-z_]+", type: "[a-z]+", label: "[^"]*", value: "[^"]*"` in registry/*.js
     expect(found).toEqual([
-      // AI 사용 통계의 묶음 기준은 조건이 아니라 표의 축이라 언제나 값이 있다(D-517).
-      "ai-usage-stats.group_by=action",
+      // AI 사용 통계는 전용 화면이 됐고(보기 기준은 그 화면의 세그먼티드, D-543), 정책은 기본 조건이 없다(D-542) —
+      // 예전 기본값 「발행됨」은 업그레이드가 옮긴 검토 초안까지 숨겼다.
       "approvals.status=pending",
-      "policies.status=published",
     ]);
   });
 
-  it("프롬프트는 화면 기본값을 안 심는다 — 기본 제공 행이 조건 없이 보여야 한다", () => {
-    const f = REGISTRY.prompts.filters.find((x) => x.key === "status");
+  it("프롬프트는 기능마다 한 줄이라 조건이 없고, 정책의 상태 조건에는 기본값이 없다", () => {
+    // 프롬프트 기능 목록은 기능 다섯 줄이다(D-541) — 거를 것이 없다. 정책은 상태 어휘가 초안 · 적용 중 · 보관이다.
+    expect(REGISTRY.prompts.filters).toBeUndefined();
+    const f = REGISTRY.policies.filters.find((x) => x.key === "status");
     expect(f.value).toBeUndefined();
-    expect(f.options.map((o) => o.value)).toEqual(["draft", "published", "archived"]);
+    expect(f.options.map((o) => [o.value, o.label])).toEqual([["draft", "초안"], ["published", "적용 중"], ["archived", "보관"]]);
   });
 
   it("감사 이상 징후는 화면 기본값을 안 심는다 — 빈 값이 곧 서버 기본값이다", () => {

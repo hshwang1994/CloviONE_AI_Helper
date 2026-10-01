@@ -1,4 +1,6 @@
-/* qa-contract-change: 조직 관리가 작업 공간이 되며(O1 · D-533, D-510 을 뒤집는다) 「부서 추가」 · 「하위 부서 추가」는 페이지 머리에서 오른쪽 판 머리로, 「수정」은 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겼다 — 단추를 찾는 자리만 옮겼고 요청 본문 · 후보 · 문구 단언은 그대로다. 삭제는 영향 확인 창(`/impact`)이라 표본에 그 답을 싣는다.
+/* qa-contract-change: 프롬프트 화면이 「버전 행 목록」에서 「기능마다 한 줄 + 서랍」이 되며(D-541) 「보관」 동작과 「이 버전으로 롤백」 낱말이 사라졌다 — 같은 두 경로(DataScreen 의 기본 성공 문구, SubListDrawer 의 자체 토스트)를 「초안 발행」과 「이 버전으로 되돌리기」로 계속 못박는다.
+ *
+ * qa-contract-change: 조직 관리가 작업 공간이 되며(O1 · D-533, D-510 을 뒤집는다) 「부서 추가」 · 「하위 부서 추가」는 페이지 머리에서 오른쪽 판 머리로, 「수정」은 판 머리 단추에서 「더 보기」 메뉴 항목으로 옮겼다 — 단추를 찾는 자리만 옮겼고 요청 본문 · 후보 · 문구 단언은 그대로다. 삭제는 영향 확인 창(`/impact`)이라 표본에 그 답을 싣는다.
  *
  * qa-contract-change: 조직 관리 개선(계획 3.6 · D-510)으로 고른 대상의 「하위 부서 추가」와 「더 보기」가 상세 판 머리에서 페이지 머리로 옮겨 갔다 — 같은 세 문장(추가 · 저장 · 삭제)을 새 자리에서 계속 못박는다.
  *
@@ -20,7 +22,7 @@ import "@testing-library/jest-dom/vitest";
  * successMessages.test.js는 사전 함수 자체(순수 함수)만 보므로, 여기서는 **실제 화면을
  * 렌더링해 진짜 클릭 → 진짜 토스트**로 그 세 액션이 이제 전부 문장형인지 확인한다.
  *
- * /prompts의 '보관'도 같은 기본 경로를 타던 액션이라 함께 확인한다(요구된 대표 소비처).
+ * /prompts의 '초안 발행'도 같은 기본 경로를 타는 액션이라 함께 확인한다(요구된 대표 소비처).
  *
  * /users의 대량 활성화는 DataScreen이 아니라 UsersBulk.jsx의 완전히 별개인 자체 처리
  * 경로다(result()형 opt-out과 같은 취지지만 실제로는 그 필드조차 아니다) — 이 사전
@@ -192,73 +194,74 @@ describe("부서 — 추가·수정·삭제가 전부 문장형이다 (조직 �
   });
 });
 
-describe("/prompts — '보관'도 기본 경로를 타던 액션이다", () => {
-  const PROMPT = {
-    id: "p1", name: "주간 보고", purpose: "주간 보고서 생성", runner_id: null,
-    version: 1, status: "published", created_by_name: "관리자",
-    created_at: "2026-08-01T00:00:00", published_at: "2026-08-01T00:00:00",
-    content: "지시문 내용",
+describe("/prompts — 초안 발행도 기본 경로를 타는 액션이다", () => {
+  const ROW = {
+    id: "draft", slot: "draft", label: "문서 초안", description: "작업 공간에서 문서 초안을 쓸 때 씁니다.",
+    feature_state: "on", feature_state_label: "켜짐", feature_note: null,
+    current: { source: "admin", label: "관리자 작성 v1", instruction: "발췌만 근거로 씁니다." },
+    draft: { id: "p-2", version: 2, label: "v2 초안", content: "고친 지시문입니다." },
+    content: "고친 지시문입니다.",
+    frame: { role: "역할 문장입니다.", format_line: "형식 문장입니다.", grounding: "근거 문장입니다." },
+    calls_30d: 3, errors_30d: 0, failure_rate: 0, last_used_at: null,
+  };
+  const VERSION = {
+    id: "p-1", name: "문서 초안 지시문", slot: "draft", version: 1, status: "archived",
+    created_by_name: "관리자", created_at: "2026-09-01T00:00:00", content: "옛 지시문입니다.",
   };
 
-  it("보관 — '보관 완료'가 아니라 '보관했습니다.'", async () => {
+  function route(extra) {
     apiMock.mockImplementation((path, opts) => {
       const method = (opts && opts.method) || "GET";
-      if (path.startsWith("/api/admin/prompts") && method === "GET") {
-        return Promise.resolve({ items: [PROMPT], total: 1 });
-      }
-      if (path === "/api/admin/prompts/p1/transition" && method === "POST") {
-        return Promise.resolve({ ...PROMPT, status: "archived" });
-      }
+      const hit = extra(path, method);
+      if (hit) return hit;
+      if (path.startsWith("/api/me/views")) return Promise.resolve({ items: [] });
+      if (path.startsWith("/api/admin/prompts?slot=")) return Promise.resolve({ items: [VERSION], total: 1 });
+      if (path === "/api/admin/prompts/features" && method === "GET") return Promise.resolve({ items: [ROW], total: 1 });
+      if (path.startsWith("/api/admin/prompts/features/") && method === "GET") return Promise.resolve({ item: ROW });
       return Promise.resolve({ items: [] });
     });
+  }
+
+  it("초안 발행 — '초안 발행 완료'가 아니라 문장이다", async () => {
+    route((path, method) => (path === "/api/admin/prompts/features/draft/publish" && method === "POST"
+      ? Promise.resolve({ item: { ...ROW, draft: null } }) : null));
     const user = userEvent.setup();
     renderWith(<DataScreen config={REGISTRY.prompts} />);
-    const row = await screen.findByText("주간 보고");
+    const row = await screen.findByText("문서 초안");
     await user.click(row.closest("tr"));
     const drawer = await screen.findByRole("dialog");
-    await clickAction(user, drawer, "보관");
+    await clickAction(user, drawer, "초안 발행");
 
-    const confirmDialog = await screen.findByRole("dialog", { name: /보관할까요|확인/ });
-    await user.click(within(confirmDialog).getByRole("button", { name: /확인|보관|계속/ }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /초안 발행|발행할까요|확인/ });
+    await user.click(within(confirmDialog).getByRole("button", { name: /확인|발행|계속/ }));
 
-    expect(await screen.findByText("보관했습니다.")).toBeInTheDocument();
-    expect(screen.queryByText("보관 완료")).not.toBeInTheDocument();
+    expect(await screen.findByText("초안을 발행했습니다. 다음 AI 호출부터 이 지시문을 씁니다.")).toBeInTheDocument();
+    expect(screen.queryByText("초안 발행 완료")).not.toBeInTheDocument();
   });
 
   // successMessages.test.js는 successMessageFor() 자체(순수 함수)만 본다 — DataScreen.jsx와
   // SubListDrawer.jsx가 **둘 다 실제로 그 함수를 불러 쓰는지**(배선 자체)는 각 파일의 실제
-  // 호출부를 렌더링해서 봐야 한다. '버전 기록' 하위 드로어의 '이 버전으로 롤백'은
+  // 호출부를 렌더링해서 봐야 한다. '버전 기록' 하위 드로어의 '이 버전으로 되돌리기'는
   // SubListDrawer.jsx의 act()가 직접 만드는 토스트라 DataScreen.jsx의 finishAction()을 거치지
   // 않는다 — 이 하나가 그 경로를 유일하게 증명한다.
-  it("'버전 기록' 하위 드로어의 '이 버전으로 롤백'(SubListDrawer.jsx 자체 경로)도 문장형이다", async () => {
-    apiMock.mockImplementation((path, opts) => {
-      const method = (opts && opts.method) || "GET";
-      if (path.startsWith("/api/admin/prompts?name=")) {
-        return Promise.resolve({ items: [PROMPT], total: 1 });
-      }
-      if (path.startsWith("/api/admin/prompts") && method === "GET") {
-        return Promise.resolve({ items: [PROMPT], total: 1 });
-      }
-      if (path === "/api/admin/prompts/rollback" && method === "POST") {
-        return Promise.resolve({ ok: true });
-      }
-      return Promise.resolve({ items: [] });
-    });
+  it("'버전 기록' 하위 드로어의 '이 버전으로 되돌리기'(SubListDrawer.jsx 자체 경로)도 문장형이다", async () => {
+    route((path, method) => (path === "/api/admin/prompts/rollback" && method === "POST"
+      ? Promise.resolve({ ok: true }) : null));
     const user = userEvent.setup();
     renderWith(<DataScreen config={REGISTRY.prompts} />);
-    const row = await screen.findByText("주간 보고");
+    const row = await screen.findByText("문서 초안");
     await user.click(row.closest("tr"));
     const drawer = await screen.findByRole("dialog");
-    await user.click(within(drawer).getByRole("button", { name: "버전 기록" }));
+    await clickAction(user, drawer, "버전 기록");
 
-    const subDrawer = await screen.findByRole("dialog", { name: "프롬프트 버전 기록" });
-    await user.click(within(subDrawer).getByRole("button", { name: "이 버전으로 롤백" }));
+    const subDrawer = await screen.findByRole("dialog", { name: "지시문 버전 기록" });
+    await clickAction(user, subDrawer, "이 버전으로 되돌리기");
 
-    const confirmDialog = await screen.findByRole("dialog", { name: /롤백할까요|확인/ });
-    await user.click(within(confirmDialog).getByRole("button", { name: /확인|롤백|계속/ }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /되돌릴까요|되돌리기|확인/ });
+    await user.click(within(confirmDialog).getByRole("button", { name: /확인|되돌리기|계속/ }));
 
-    expect(await screen.findByText("이 버전으로 롤백했습니다.")).toBeInTheDocument();
-    expect(screen.queryByText("이 버전으로 롤백 완료")).not.toBeInTheDocument();
+    expect(await screen.findByText("그 버전을 새 발행본으로 되돌렸습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("이 버전으로 되돌리기 완료")).not.toBeInTheDocument();
   });
 });
 

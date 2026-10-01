@@ -6,6 +6,10 @@
 3. 가리기: 휴대전화, 유선, 대표 번호, 주민등록번호, 이메일을 고정 토큰으로 바꾼다. 날짜나 금액 같은 숫자는 건드리지 않는다.
 4. 제품 밖 링크는 앞머리를 떼어 누를 수 없게 하고, 제품 호스트로 가는 링크는 그대로 둔다.
 5. 응답 제한의 글자 수는 액션의 코드 상한보다 커지지 않는다.
+
+qa-contract-change: 「질문 답변」 · 「작업 공간 묻기」 액션이 AI 도우미로 은퇴해(D-535 · D-542) 정책 대상으로 고를 수 없게 됐다.
+대상 목록 정규화는 이제 은퇴하지 않은 액션(AI 도우미 · 문서 초안)으로 재고, 은퇴한 액션은 거절되는 쪽으로 단언한다
+(대상 옮기기 자체는 `tests/integration/test_policy_targets_retired.py` 가 잰다).
 """
 
 from __future__ import annotations
@@ -35,9 +39,12 @@ def test_rules_fill_defaults_and_refuse_unknown_fields():
 def test_targets_are_actions_or_everything():
     assert normalize_applies_to("content", "*") == ["*"]
     assert normalize_applies_to("content", ["workspace.ask", "*"]) == ["*"]
-    assert normalize_applies_to("content", ["workspace.ask", "chat.answer"]) == ["chat.answer", "workspace.ask"]
+    assert normalize_applies_to("content", ["workspace.draft", "assistant.chat"]) == ["assistant.chat", "workspace.draft"]
     assert normalize_applies_to("approval", "workspace.draft") == ["workspace.draft"]
-    for kind, bad in (("approval", "chat.answer"), ("content", "system.connection_test"), ("content", "nope")):
+    for kind, bad in (
+        ("approval", "assistant.chat"), ("content", "system.connection_test"), ("content", "nope"),
+        ("content", "chat.answer"), ("data_protection", "workspace.ask"),
+    ):
         with pytest.raises(ValidationAppError):
             normalize_applies_to(kind, bad)
     with pytest.raises(ValidationAppError):

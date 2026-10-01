@@ -273,6 +273,11 @@ def _policy_view(row: Policy, names: dict | None = None, usage: dict | None = No
         # 발행한 정책은 다음 AI 요청부터 걸린다(D-519). 옛 형식은 발행될 수 없다.
         "in_use": row.status == STATUS_PUBLISHED and row.kind != KIND_LEGACY,
         **_usage_fields(usage),
+        # 「최근 30일 적용」 - 이 정책이 실제로 걸린 성공 요청과 이 정책이 막은 요청만 센다(D-542). 실패한 호출 · 승인 정책이
+        # 걸리지 않은 초안 호출 · 거절된 요청은 세지 않는다(`app/ai/usage.py::policy_usage`).
+        "applied_30d": int((usage or {}).get("calls", 0)),
+        "last_applied_at": (usage or {}).get("last_at"),
+        "status_label": {"draft": "초안", "published": "적용 중", "archived": "보관"}.get(row.status, row.status),
         "status": row.status,
         **_creator_fields(row.created_by, names or {}),
         "created_at": row.created_at.isoformat(),
@@ -358,6 +363,182 @@ def copy_builtin_prompt(
     return {"item": _prompt_view(row, _resolve_creator_names(db, {row.created_by}))}
 
 
+# ── AI 기능마다 한 줄 (계획 A4, D-541) ─────────────────────────────────────────
+#
+# 프롬프트 화면의 정본은 이 갈래다: 기능(사용처)마다 한 줄, 행을 열면 지금 지시문 · 고정 틀 · 초안 · 버전 기록. 쓰기는 모두
+# 기능 단위이고 전역 범위 관리자만 한다(버전 경로와 같은 문). 판단은 `app/prompts/features.py` 에 있다.
+
+
+class FeatureContentRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=20000)
+    purpose: str | None = Field(default=None, max_length=1000)
+
+
+def _feature_context(request: Request, db: Session) -> dict:
+    from app.ai.runtime import runtime_for_app
+
+    cache = getattr(request.app.state, "settings_cache", None)
+    try:
+        runtime_info = runtime_for_app(request.app).status(db)
+    except Exception:  # noqa: BLE001 - 연결 상태를 못 읽으면 기능 상태를 「AI 미연결」로 보인다
+        runtime_info = {"generation_enabled": True, "blocking": True}
+    return {"values": cache.current() if cache is not None else {}, "runtime_info": runtime_info}
+
+
+def _feature_item(request: Request, db: Session, slot_key: str) -> dict:
+    from app.ai import usage as usage_mod
+    from app.prompts import features
+
+    slot = prompt_catalog.SLOTS[slot_key]
+    draft = features.draft_row(db, slot_key)
+    names = _resolve_creator_names(db, {draft.created_by} if draft is not None else set())
+    usage = usage_mod.slot_usage(db, since=_usage_since(request)).get(slot_key)
+    return features.item(slot, published=features.published_row(db, slot_key), draft=draft, usage=usage,
+                         names=names, **_feature_context(request, db))
+
+
+def _feature_slot(db: Session, key: str) -> str:
+    from app.prompts import features
+
+    slot_key = features.resolve_key(db, key)
+    if slot_key is None:
+        raise NotFoundError("이 기능의 지시문을 찾을 수 없습니다.")
+    return slot_key
+
+
+def _ensure_draft(request: Request, db: Session, slot_key: str, *, content: str | None = None,
+                  purpose: str | None = None) -> tuple[Prompt, bool]:
+    """그 기능의 초안. 없으면 지금 지시문(또는 받은 글)으로 만든다. (초안, 새로 만들었는가)."""
+    from app.prompts import features
+
+    draft = features.draft_row(db, slot_key)
+    if draft is not None:
+        return draft, False
+    slot = prompt_catalog.SLOTS[slot_key]
+    published = features.published_row(db, slot_key)
+    name = features.version_name(slot, published)
+    try:
+        with db.begin_nested():
+            draft = Prompt(
+                name=name, purpose=purpose if purpose is not None else (published.purpose if published else slot.description),
+                version=next_version(db, Prompt, name),
+                content=content if content is not None else (published.content if published else slot.instruction),
+                slot=slot_key, status=STATUS_DRAFT, created_by=request.state.user.id,
+            )
+            db.add(draft)
+            db.flush()
+    except (IntegrityError, OperationalError) as exc:
+        if not is_insert_race(exc):
+            raise
+        raise ConflictError("같은 기능의 초안을 거의 동시에 만들었습니다. 목록을 다시 불러오세요.") from exc
+    record_audit_from_request(
+        request, db, action="prompts.create", object_type="prompts", object_id=draft.id,
+        after={"name": draft.name, "version": draft.version, "slot": slot_key, "from": "feature"},
+    )
+    return draft, True
+
+
+@prompt_slots_router.get("/features", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+def prompt_features(request: Request, db: Session = Depends(get_db)):
+    """기능마다 한 줄 - 지금 쓰는 지시문, 기능 상태, 초안, 최근 30일 요청 · 실패율 · 마지막 사용."""
+    from app.prompts import features
+
+    items = features.build_items(db, since=_usage_since(request), names_of=lambda ids: _resolve_creator_names(db, ids),
+                                 **_feature_context(request, db))
+    return {"items": items, "total": len(items), "days": USAGE_WINDOW_DAYS}
+
+
+@prompt_slots_router.get("/features/{key}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+def prompt_feature(key: str, request: Request, db: Session = Depends(get_db)):
+    """기능 하나. 기능 키 · `builtin:<기능>` · 그 기능의 버전 id 를 다 받는다(옛 딥링크 `/prompts?id=` 가 여기로 온다)."""
+    return {"item": _feature_item(request, db, _feature_slot(db, key))}
+
+
+@prompt_slots_router.patch("/features/{key}", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def prompt_feature_edit(key: str, payload: FeatureContentRequest, request: Request, db: Session = Depends(get_db),
+                        principal: Principal = Depends(get_principal)):
+    """지시문 고치기 - 초안이 없으면 만들고, 있으면 그 초안을 고친다. 발행 전에는 호출에 쓰이지 않는다."""
+    require_global_management(principal, _GLOBAL_SUBJECT["prompts"])
+    slot_key = _feature_slot(db, key)
+    draft, created = _ensure_draft(request, db, slot_key, content=payload.content, purpose=payload.purpose)
+    if not created:
+        changes = {"content": payload.content}
+        if payload.purpose is not None:
+            changes["purpose"] = payload.purpose
+        update_draft(db, draft, **changes)
+        record_audit_from_request(
+            request, db, action="prompts.update_content", object_type="prompts", object_id=draft.id,
+            after={"name": draft.name, "version": draft.version, "slot": slot_key},
+        )
+    return {"item": _feature_item(request, db, slot_key)}
+
+
+@prompt_slots_router.post("/features/{key}/draft", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def prompt_feature_draft(key: str, request: Request, db: Session = Depends(get_db),
+                         principal: Principal = Depends(get_principal)):
+    """초안을 연다 - 있으면 그것, 없으면 지금 지시문을 복사해 만든다(같은 요청을 다시 보내도 초안은 하나다)."""
+    require_global_management(principal, _GLOBAL_SUBJECT["prompts"])
+    slot_key = _feature_slot(db, key)
+    _ensure_draft(request, db, slot_key)
+    return {"item": _feature_item(request, db, slot_key)}
+
+
+def _feature_transition(request: Request, db: Session, row: Prompt, status: str) -> None:
+    before = row.status
+    transition(db, row, status, now=request.app.state.clock.now())
+    record_audit_from_request(
+        request, db, action="prompts.transition", object_type="prompts", object_id=row.id,
+        before={"status": before}, after={"status": row.status, "name": row.name, "version": row.version},
+    )
+
+
+@prompt_slots_router.post("/features/{key}/publish", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def prompt_feature_publish(key: str, request: Request, db: Session = Depends(get_db),
+                           principal: Principal = Depends(get_principal)):
+    """초안 발행 - 다음 AI 호출부터 이 기능은 이 지시문을 쓴다. 지금 발행본은 보관된다."""
+    from app.prompts import features
+
+    require_global_management(principal, _GLOBAL_SUBJECT["prompts"])
+    slot_key = _feature_slot(db, key)
+    draft = features.draft_row(db, slot_key)
+    if draft is None:
+        raise ConflictError("발행할 초안이 없습니다. 먼저 지시문을 고치세요.")
+    _feature_transition(request, db, draft, STATUS_PUBLISHED)
+    return {"item": _feature_item(request, db, slot_key)}
+
+
+@prompt_slots_router.post("/features/{key}/discard", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def prompt_feature_discard(key: str, request: Request, db: Session = Depends(get_db),
+                           principal: Principal = Depends(get_principal)):
+    """초안 버리기 - 보관한다(버전 기록에 남는다). 지금 쓰는 지시문은 그대로다."""
+    from app.prompts import features
+    from app.prompts.models import STATUS_ARCHIVED
+
+    require_global_management(principal, _GLOBAL_SUBJECT["prompts"])
+    slot_key = _feature_slot(db, key)
+    draft = features.draft_row(db, slot_key)
+    if draft is None:
+        raise ConflictError("버릴 초안이 없습니다.")
+    _feature_transition(request, db, draft, STATUS_ARCHIVED)
+    return {"item": _feature_item(request, db, slot_key)}
+
+
+@prompt_slots_router.post("/features/{key}/reset", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def prompt_feature_reset(key: str, request: Request, db: Session = Depends(get_db),
+                         principal: Principal = Depends(get_principal)):
+    """기본 제공으로 되돌리기 - 발행본을 보관한다. 다음 AI 호출부터 기본 제공 지시문을 쓴다."""
+    from app.prompts import features
+    from app.prompts.models import STATUS_ARCHIVED
+
+    require_global_management(principal, _GLOBAL_SUBJECT["prompts"])
+    slot_key = _feature_slot(db, key)
+    published = features.published_row(db, slot_key)
+    if published is None:
+        raise ConflictError("이미 기본 제공 지시문을 쓰고 있습니다.")
+    _feature_transition(request, db, published, STATUS_ARCHIVED)
+    return {"item": _feature_item(request, db, slot_key)}
+
+
 def _build_router(kind: str, model, view, create_schema, content_update_schema):
     router = APIRouter(
         prefix=f"/api/admin/{kind}",
@@ -378,8 +559,10 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         # 프롬프트만 쓴다(D-518): 사용처와 출처(기본 제공 · 관리자 작성). 정책 목록은 두 값을 보지 않는다.
         slot: str | None = Query(default=None, max_length=32),
         source: str | None = Query(default=None, max_length=16),
-        # 정책만 쓴다(D-519): 종류.
+        # 정책만 쓴다(D-519): 종류. 옛 형식(`legacy`)은 기본으로 숨긴다(D-542) - 업그레이드가 옮기고 남긴 원본이라
+        # 걸리지도 발행되지도 않는다. 지난 일을 볼 때만 `include_legacy=true` 로 연다.
         kind_filter: str | None = Query(default=None, alias="kind", max_length=24),
+        include_legacy: bool = Query(default=False),
         page: int = Query(default=1, ge=1),
         # Default kept at the old hardcoded .limit(500) so existing callers
         # (registry.js does not yet set paginated:true / pass page params —
@@ -402,6 +585,10 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             stmt = stmt.where(Prompt.slot == slot)
         if model is Policy and kind_filter:
             stmt = stmt.where(Policy.kind == kind_filter)
+        if model is Policy and not include_legacy and kind_filter != "legacy":
+            from app.ai.policy.schemas import KIND_LEGACY
+
+            stmt = stmt.where(Policy.kind != KIND_LEGACY)
         if not want_rows:
             stmt = stmt.where(False)
         total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
@@ -519,6 +706,26 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         )
         return {"item": _view_single(db, row)}
 
+    if model is Policy:
+        # 정책 화면의 한 줄 요약(D-542). `/{row_id}` 보다 먼저 건다 - 뒤에 오면 `row_id="summary"` 로 잡힌다.
+        @router.get("/summary", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
+        def policy_summary(db: Session = Depends(get_db)):
+            """적용 중인 규칙 수 · 그 규칙이 걸린 AI 기능 수 · 종류별 적용 수 · 아직 적용되지 않은 옮긴 초안 수."""
+            from app.ai.policy.schemas import KIND_LABELS, KIND_LEGACY, applicable_actions
+
+            rows = db.execute(select(Policy).where(Policy.kind != KIND_LEGACY)).scalars().all()
+            published = [r for r in rows if r.status == STATUS_PUBLISHED]
+            features: set[str] = set()
+            for row in published:
+                targets = _policy_targets(row)
+                features |= set(applicable_actions(row.kind)) if "*" in targets else set(targets)
+            by_kind = {kind: sum(1 for r in published if r.kind == kind) for kind in KIND_LABELS if kind != KIND_LEGACY}
+            migrated = sum(1 for r in rows if r.status == STATUS_DRAFT and r.migrated_from_id)
+            sentence = (f"적용 중인 규칙 {len(published)}개가 AI 기능 {len(features)}개에 걸려 있습니다." if published
+                        else "지금 적용 중인 규칙이 없습니다. AI 요청에 아무 규칙도 걸리지 않습니다.")
+            return {"published": len(published), "features": len(features), "by_kind": by_kind,
+                    "migrated_drafts": migrated, "sentence": sentence}
+
     @router.get("/{row_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
     def get_one(row_id: str, request: Request, db: Session = Depends(get_db)):
         if model is Prompt and row_id.startswith(BUILTIN_PREFIX):
@@ -595,75 +802,6 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             object_id=copy.id, after={"name": copy.name, "version": copy.version},
         )
         return {"item": _view_single(db, copy)}
-
-    @router.get("/usage/stats", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
-    def usage_stats(request: Request, db: Session = Depends(get_db)):
-        """사용 통계.
-
-        프롬프트는 **사용처마다 한 줄**이다(D-518): 지금 쓰는 지시문(기본 제공이거나 발행본), 최근 30일의 호출 수,
-        실패율, 마지막 사용. 수는 AI 호출 기록(`ai_usage_records`)에서 센다 - 예전에는 스케줄이 이름을 참조하는가를
-        셌는데 스케줄은 프롬프트를 가리킬 수 없게 된 지 오래라 언제나 「쓰이지 않음」이었다.
-
-        정책은 이름마다 한 줄이다(D-519): 지금 걸리는 버전, 종류, 적용 대상, 그 정책이 걸린 호출 수와 마지막 적용.
-        """
-        if model is Prompt:
-            from app.ai import usage as usage_mod
-
-            by_slot = usage_mod.slot_usage(db, since=_usage_since(request))
-            published = _published_slots(db)
-            items = []
-            for entry in prompt_catalog.live_slots():
-                current = published.get(entry.key) if entry.editable else None
-                counts = by_slot.get(entry.key, {})
-                calls, errors = int(counts.get("calls", 0)), int(counts.get("errors", 0))
-                items.append({
-                    "slot": entry.key,
-                    "label": entry.label,
-                    "description": entry.description,
-                    "editable": entry.editable,
-                    "current_source": prompt_slots.SOURCE_ADMIN if current else prompt_slots.SOURCE_BUILTIN,
-                    "current_id": current.id if current else BUILTIN_PREFIX + entry.key,
-                    "current_name": current.name if current else None,
-                    "current_version": current.version if current else None,
-                    "calls": calls,
-                    "errors": errors,
-                    "failure_rate": usage_mod.percent(errors, calls),
-                    "last_used_at": counts.get("last_at"),
-                })
-            return {"items": items, "kind": kind, "days": USAGE_WINDOW_DAYS}
-
-        # 정책(D-519): 이름마다 한 줄 - 지금 걸리는 버전, 종류, 적용 대상, 최근 30일에 걸린 호출 수와 마지막 적용.
-        # 수는 AI 호출 기록의 `policy_ids_json` 에서 센다(그 호출에 그 정책이 걸렸다).
-        from app.ai import usage as usage_mod
-        from app.ai.policy.schemas import KIND_LABELS
-
-        applied = usage_mod.policy_usage(db, since=_usage_since(request))
-        rows = db.execute(select(model).order_by(model.name, model.version)).scalars().all()
-        by_name: dict[str, list] = {}
-        for row in rows:
-            by_name.setdefault(row.name, []).append(row)
-
-        items = []
-        for name, versions in by_name.items():
-            published = [v for v in versions if v.status == STATUS_PUBLISHED]
-            shown = published[-1] if published else versions[-1]
-            counts = [applied[v.id] for v in versions if v.id in applied]
-            last = max((c["last_at"] for c in counts if c.get("last_at")), default=None)
-            targets = _policy_targets(shown)
-            items.append({
-                "name": name,
-                "id": shown.id,
-                "kind": shown.kind,
-                "kind_label": KIND_LABELS.get(shown.kind, shown.kind),
-                "applies_to_labels": _target_labels(targets),
-                "versions": len(versions),
-                "published_version": published[-1].version if published else None,
-                "latest_status": versions[-1].status,
-                "applied": sum(int(c.get("calls", 0)) for c in counts),
-                "last_applied_at": last,
-            })
-        items.sort(key=lambda i: (i["published_version"] is None, -i["applied"], i["name"]))
-        return {"items": items, "kind": kind, "days": USAGE_WINDOW_DAYS}
 
     @router.get("/diff/view", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
     def diff(

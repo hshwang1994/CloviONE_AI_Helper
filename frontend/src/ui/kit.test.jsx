@@ -423,6 +423,35 @@ describe("DataTable", () => {
       expect(Number(th.getAttribute("colspan"))).toBe(gcols.length);
     });
 
+    it("갈래가 정해진 묶음(groupSlots)은 행이 없어도 제자리에 머리와 한 줄로 선다 (D-542)", () => {
+      const { container } = ui(
+        <DataTable
+          columns={gcols} rows={grows} rowKey={(r) => r.id} groupOf={(r) => r.proj}
+          groupSlots={[
+            { key: "앞", label: "앞", emptyText: "이 갈래에 항목이 없습니다." },
+            { key: "클로비", label: "클로비" },
+            { key: "가운데", label: "가운데", emptyText: "가운데 갈래가 비었습니다." },
+            { key: "게이트", label: "게이트" },
+          ]}
+        />,
+      );
+      const heads = [...container.querySelectorAll("[data-group-row]")].map((h) => h.getAttribute("data-group-row"));
+      expect(heads).toEqual(["앞", "클로비", "가운데", "게이트"]);
+      const empties = container.querySelectorAll("[data-group-empty]");
+      expect(empties).toHaveLength(2);
+      expect(empties[0]).toHaveTextContent("이 갈래에 항목이 없습니다.");
+      expect(empties[1]).toHaveTextContent("가운데 갈래가 비었습니다.");
+      // 빈 갈래의 건수는 0건이다 — 「없다」를 칩도 말한다.
+      expect(within(container.querySelector("[data-group-row='앞']")).getByText("0건")).toBeInTheDocument();
+      // 행이 있는 묶음과 행은 그대로다.
+      expect(container.querySelectorAll("tbody tr:not([data-group-row]):not([data-group-empty])")).toHaveLength(3);
+    });
+
+    it("반례 — groupSlots 가 없으면 빈 갈래 줄을 만들지 않는다", () => {
+      const { container } = ui(<DataTable columns={gcols} rows={grows} rowKey={(r) => r.id} groupOf={(r) => r.proj} />);
+      expect(container.querySelectorAll("[data-group-empty]")).toHaveLength(0);
+    });
+
     it("groupOf 를 안 주면 묶음 머리행이 하나도 없다", () => {
       const { container } = ui(<DataTable columns={gcols} rows={grows} rowKey={(r) => r.id} />);
       expect(container.querySelectorAll("[data-group-row]")).toHaveLength(0);

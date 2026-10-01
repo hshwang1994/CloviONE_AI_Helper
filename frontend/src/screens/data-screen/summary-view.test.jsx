@@ -81,3 +81,20 @@ describe("status — 측정값은 카드 아래 한 줄이다", () => {
     expect(container.querySelector("[data-summary-total]")).toHaveTextContent("10");
   });
 });
+
+describe("sentence — 지금 상태 한 문장(정책, D-542)", () => {
+  it("서버가 쓴 문장 하나를 판 없이 낸다 — 숫자 칸을 늘어놓지 않는다", () => {
+    const { container } = draw(
+      { kind: "sentence", sentence: (d) => d.sentence },
+      { sentence: "적용 중인 규칙 2개가 AI 기능 4개에 걸려 있습니다.", published: 2, features: 4 },
+    );
+    expect(screen.getByTestId("summary-sentence")).toHaveTextContent("적용 중인 규칙 2개가 AI 기능 4개에 걸려 있습니다.");
+    expect(container.querySelector(".k-metabar")).toBeNull();
+    expect(screen.queryByRole("group", { name: "요약" })).toBeNull();
+  });
+
+  it("반례 — 문장이 비면 아무것도 그리지 않는다(빈 줄을 남기지 않는다)", () => {
+    const { container } = draw({ kind: "sentence", sentence: () => "" }, {});
+    expect(container.querySelector("[data-testid='summary-sentence']")).toBeNull();
+  });
+});

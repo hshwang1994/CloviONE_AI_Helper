@@ -16378,3 +16378,60 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
 - **잰 것**: `tests/security/test_chatgpt_oauth.py`(12 — 포트 범위와 분포, state 다섯 번, 교환 계약과 비밀 없음, 코드 두 번 쓰기 없음, 시도의 주인,
   루프백 주소만, 만료, 도우미 문 없음, 로그아웃), `tests/unit/test_login_flow.py`, `tests/regression/test_no_connect_helper.py`,
   `tests/regression/test_migration_0045_chatgpt_paste.py`(열린 시도만 닫기 · 칸 걷기 · 왕복), 프런트 `screens/ai/chatgpt-login.test.jsx`(7).
+
+### D-541. 프롬프트 화면은 AI 기능마다 따르는 지시문을 관리하고, 기능마다 한 줄이며 상태 어휘는 초안 · 적용 중 · 보관이다 (UI/UX · AI · 메일 회차 P11 · D-518 을 바꾼다)
+
+- **원인**: 목록이 행(버전)과 가상 기본 제공 행 단위였는데 관리자는 기능 단위로 생각한다. 「사용 중」은 발행 여부만 말해 30일 호출 0 인 「사용 중」이
+  생겼다(꺼진 기능은 요청이 없다). DB 행은 모두 「관리자 작성」으로 보였고, 기본 행은 첫 쪽 · 조건 없음에서만 보였으며, 「사용 중」 조건이 그 행을
+  숨겼다. 같은 수를 목록과 「프롬프트 사용 통계」 탭이 따로 셌다.
+- **결정**: `GET /api/admin/prompts/features` — 고칠 수 있는 기능 다섯(AI 도우미 · 문서 초안 · 주간 요약 · 홈 문장 요약 · 게임 퀴즈)이 한 줄씩이고
+  지금 쓰는 지시문(기본 제공 · 관리자 작성 vN), 기능 상태(켜짐 · 꺼짐 · AI 미연결 — AI 사용 · 연결 · 기능 스위치로 판정, 0 회의 까닭), 초안, 최근 30일
+  요청 · 실패율(정수 %) · 마지막 사용을 준다. 행을 열면 서랍이 지금 지시문 · 초안 · 고정 틀(역할 · 출력 형식 · 안전 규칙)을 보인다. 쓰기는 기능 단위다:
+  `PATCH /features/{기능}`(초안이 없으면 지금 지시문을 복사해 만들고 고친다 — 초안은 하나), `POST …/draft`(멱등) · `…/publish` · `…/discard`(초안 보관) ·
+  `…/reset`(발행본 보관 → 기본 제공). 새 초안의 이름은 발행본의 이름을 잇는다(버전 기록과 되돌리기가 한 줄기). 서랍 주소는 기능 키 · `builtin:<기능>` ·
+  그 기능의 버전 id 를 다 받는다(옛 딥링크). 쓰기는 전역 범위 관리자만이다. `GET /api/admin/prompts/usage/stats` 와 「프롬프트」 사용 탭을 걷었다. 화면에는 따로 올린 주 동작(primary)이 없다 — 기능은 제품이 정해 「추가」가 없고 서랍의 주 동작이 고정 「수정」이다(`check_button_hierarchy.py` 예외에 등재). 기능 다섯 줄이 한 화면에 다 서므로 검색 칸을 세우지 않는다(`searchable: false` — DataScreen 이 그 명시적 거절을 읽는다).
+- **잰 것**: `tests/integration/test_prompt_features_api.py`(5), `test_prompt_slots_api.py` · `test_admin_backlog.py`(기능 목록의 수), 프런트
+  `prompts-registry.test.js` · `prompts-features.test.jsx`.
+
+### D-542. 정책 화면은 AI 동작에 거는 제한과 보호 규칙이고, 「최근 30일 적용」은 실제로 걸린 성공 요청과 정책이 막은 요청만 센다 (UI/UX · AI · 메일 회차 P11 · D-519 를 다듬는다)
+
+- **원인**: 「30일 적용」이 호출 기록의 정책 id 를 문자열로 셌다 — 실패한 호출을 포함했고, 승인 정책 id 가 초안을 만들 때마다 실렸으며, 거절된 요청은
+  모델에 안 가 영영 0 이었다. `blocked_policy` 상태는 정의만 있고 쓰이지 않았다. 목록 기본 조건 「발행됨」이 업그레이드가 옮긴 검토 초안까지 숨겼고,
+  옛 형식 원본(`legacy`)이 목록을 어지럽혔으며, 상태 어휘가 프롬프트와 달랐다.
+- **결정**: 정책 목록은 종류별 구획(같은 표 안의 머리행: 승인 필요 · 개인정보 가리기 · 응답 제한, 종류가 하는 일 한 문장)이고 기본 조건이 없다. 옛 형식은
+  API 기본에서 숨긴다(`include_legacy=true` · 종류 조건으로만). 상태 어휘는 초안 · 적용 중 · 보관. 규칙이 없는 종류도 구획 머리와 한 줄
+  「이 종류의 규칙이 없습니다.」로 선다(표의 `groupSlots` — 조건을 걸었을 때는 세우지 않는다, 그때 빈 구획은 「없다」가 아니라 「안 맞는다」다). 머리의
+  요약(`GET /api/admin/policies/summary`)은 숫자 칸이 아니라 서버가 쓴 한 문장(「적용 중인 규칙 N개가 AI 기능 M개에 걸려 있습니다.」, 요약 그릇
+  `kind: "sentence"`)이다 — 종류별 수는 구획 머리가 이미 센다. 옮긴 초안이 남았으면 「아직 적용되지 않았습니다」 안내를 세운다(한 번뿐인
+  `ai_policy_migrated` 알림을 대신한다). 「최근 30일 적용」(`applied_30d` · `last_applied_at`)은 `ok` · `blocked_policy` 기록만 센다. 호출 기록의 정책 id 에서 승인 정책을 빼고
+  (`PolicySet.ids()`), 문서 초안 경로가 이 사람에게 승인이 필요할 때만 `extra_policy_ids` 로 더한다. 응답 제한 정책의 글자 상한이 JSON 답을 막으면
+  `blocked_policy` · `policy_output_cap` 이다(모델 실패와 가른다). 은퇴한 기능(`chat.answer` · `workspace.ask`)은 정책 대상으로 고를 수 없다.
+  `GET /api/admin/policies/usage/stats` 와 「정책」 사용 탭을 걷었다.
+- **잰 것**: `tests/integration/test_policy_targets_retired.py`(4), `test_policy_usage_api.py`(실패는 세지 않음), `tests/security/test_ai_policy_enforcement.py`
+  (`policy_output_cap` → `blocked_policy`), 프런트 `registry-policy-purpose.test.jsx` · `registry-default-filters.test.jsx` · `ui/kit.test.jsx`(빈 갈래 묶음) ·
+  `data-screen/summary-view.test.jsx`(한 문장 요약).
+- **덧붙임(P11 캡처)**: 목록 전체가 빈 화면(`EmptyState layout="page"`)의 최소 높이를 `min(30rem, 60vh)` 에서 `min(30rem, 50vh)` 로 낮췄다 — 1366×768 에서
+  필터 줄이 두 줄로 접힌 호출 기록은 빈 화면인데도 문서가 창보다 53px 길어 스크롤이 생겼다. 1080 이상의 창에서는 그대로 30rem 이다.
+
+### D-543. AI 사용 통계는 실제 사용량 분석이고, 조건 · 기간 · 보기 기준 → 지표 한 줄 → 나눔 표 순서이며 기간과 보기 기준은 조건이 아니다 (UI/UX · AI · 메일 회차 P11 · D-517 · D-521 을 다듬는다)
+
+- **원인**: 분석 화면을 범용 목록으로 그렸다 — 「묶음」이 조건으로 세어졌고, 날짜 칸이 비어 있는데 서버가 조용히 30일을 썼으며, 검색이 받은 쪽의 행 JSON 을
+  브라우저에서 훑었고, 「막힘」은 빼기로 만든 값(한도 초과와 정책 차단이 섞였다)이었으며, 요약 지표가 없었다.
+- **결정**: 「사용 통계」 탭은 전용 화면(`screens/ai/AiUsageStats.jsx`)이다: 검색 · 결과 · 기능 조건 → 기간 세그먼티드(오늘 · 7일 · 30일 · 이번 달 · 직접 선택)와
+  서버가 쓴 기간 문장(`range_label`) → 지표 한 줄(AI 요청 · 성공률 · 실패 · 정책 차단 · 입력 토큰 · 출력 토큰 · 평균 응답, 카드가 아니다) → 나눔 표(보기 기준
+  기능 · 사용자 · 부서 · 모델, 열에 정책 차단 · 한도 초과가 따로 있다). 행은 같은 기간 · 조건의 호출 기록으로 간다. API: `/stats` · `/records` 가
+  `period`(KST, 서버 시계) · `from`/`to`(직접 선택 — 날짜만 오면 직접 선택) · `q`(보이는 범위 안 사람의 이름 · 이메일, 기능 이름 — 범위 밖 사람은 검색어로도
+  닿지 않는다)를 받고, `/stats` 가 합계 한 벌(`totals`, 정책 차단 · 한도 초과 분리, 평균 응답)을 준다. 호출 기록 행은 라운드 · 도구 호출 수 · 도구 이름과 그
+  사람의 낱말(「사내 문서 검색, 내 업무(2회)」) · 모드를 싣는다. 탭은 사용 통계 · 호출 기록 둘이고 `/prompt-usage` · `/policy-usage` 는 목록 화면으로 넘긴다.
+- **잰 것**: `tests/integration/test_ai_usage_periods.py`(4), `tests/security/test_ai_usage_scope.py`(검색어 범위), 프런트 `screens/ai/ai-usage-stats.test.jsx` ·
+  `ai-usage-registry.test.js` · `admin-tab-groups.test.jsx`.
+
+### D-544. 옛 · 죽은 AI 데이터는 0046 이 분류해 정리한다 (UI/UX · AI · 메일 회차 P11)
+
+- **결정**: 사용처가 없는 초안은 보관하고 까닭을 적는다. 죽은 시드(보관 · 사용처 없음 · 만든 사람 없음 · 옛 시드 내용 · 호출 기록 참조 없음)만 지운다 —
+  관리자가 쓴 연결 없는 보관본과 참조되는 시드는 남긴다. `usage_events` 의 `ai.call`(0039 가 옮긴 뒤의 잔재)을 지우고 `EVENT_AI_CALL` 이름을 걷었다(AI
+  호출의 원장은 `ai_usage_records` 하나). `conversations.backend_conversation_id`(옛 실행기) 열을 지웠다. 한 번뿐인 알림 유형 `ai_policy_migrated` 를 알림
+  설정 유형 목록에서 뺐다(`PREFS_RETIRED_TYPES` — 저장된 값은 읽고 버리고, 보내도 거절하지 않는다. 이미 쌓인 알림 행은 기록이고 배지에 센다). 정책의
+  옛 형식 원본은 지우지 않고 API 가 숨긴다(D-542). 되돌리기는 열을 되살리고, 지운 행은 업그레이드 스냅숏(D-524)이 복구 길이다.
+- **랩 실측(P0, `INVENTORY/13_UX_AI_MAIL_BASELINE.md`)**: 지울 죽은 시드 0행 · `ai.call` 40행 · 옛 실행기 대화 id 를 가진 대화 63건 · 옮긴 정책 초안 3건 · 옛 형식 원본 2건.
+- **잰 것**: `tests/regression/test_migration_0046_ai_legacy_cleanup.py`(분류마다 · 왕복 · 재실행 무해), `tests/unit/test_usage_events.py`.

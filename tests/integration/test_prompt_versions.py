@@ -11,6 +11,9 @@
 403 을 내고 있었으므로, 여기만 열려 있던 것은 설계가 아니라 누락이다. 판정은 404 가 아니라
 403 이다 — 그 행의 존재는 목록에서 이미 보이고(읽기는 열려 있다), 문제는 존재가 아니라
 권한이다(`app/core/scope.py::require_global_management`).
+
+qa-contract-change: 프롬프트 사용 통계 경로(`/api/admin/prompts/usage/stats`)를 걷고 기능 목록(`/api/admin/prompts/features`)이 같은 수를
+보인다(D-541). 범위 관리자도 읽을 수 있다는 단언은 새 경로로 옮겼다.
 """
 
 import pytest
@@ -207,8 +210,10 @@ def test_a_scoped_admin_can_still_read_everything(client, dept_admin, published_
     assert client.get("/api/admin/prompts").status_code == 200
     assert client.get("/api/admin/policies").status_code == 200
     assert client.get(f"/api/admin/prompts/{published_prompt['id']}").status_code == 200
-    assert client.get("/api/admin/prompts/usage/stats").status_code == 200
-    assert client.get("/api/admin/policies/usage/stats").status_code == 200
+    # 프롬프트 사용 통계 경로는 기능 목록으로 옮겼다(D-541) - 같은 수를 기능마다 한 줄이 보인다.
+    assert client.get("/api/admin/prompts/features").status_code == 200
+    # 정책 사용 통계 경로도 걷었다(D-542) - 같은 수를 정책 목록이 보인다.
+    assert client.get("/api/admin/policies", params={"include_legacy": "true"}).status_code == 200
 
 
 def test_an_operator_is_still_refused_by_role(client, login_as, draft_prompt):

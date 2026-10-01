@@ -74,6 +74,8 @@ SETTING_KEYS = (
 )
 VERIFY_TIMEOUT_SECONDS = 30
 VERIFY_DATA = "연결 확인"
+#: 응답 제한 정책의 글자 상한이 JSON 답을 막았다(사용 기록 `blocked_policy`, D-542).
+POLICY_OUTPUT_CAP = "policy_output_cap"
 #: 연결 확인의 도구 시험(D-539). 아무 일도 하지 않는 도구 하나를 강제로 고르게 한다 — 도구 호출이 오는지만 잰다.
 PROBE_SYSTEM = "연결 확인입니다. 주어진 도구를 한 번 부르세요."
 PROBE_USER = "ping 도구를 한 번 부르세요."
@@ -702,7 +704,7 @@ class AiRuntime(_AssistantMixin):
 
     def generate(self, db: Session | None, *, action_key: str, data: str, actor=None,
                  verify: bool = False, job_id: str | None = None,
-                 request_id: str | None = None) -> contract.GenerateResult:
+                 request_id: str | None = None, extra_policy_ids=()) -> contract.GenerateResult:
         """액션의 지시문 + **신뢰하지 않는 내용**(`data`) → 문장. 예외를 올리지 않는다.
 
         지시문은 부른 쪽이 넘기지 않는다 - 액션의 사용처에서 런타임이 고른다(발행본이 있으면 발행본, D-518).
@@ -710,6 +712,8 @@ class AiRuntime(_AssistantMixin):
         ``verify`` 는 관리자의 연결 확인이다. 생성이 꺼져 있거나 막힌 상태여도 보낸다 - 막힌 것을 고치는 중인 사람이
         확인 단추를 누르는 것이다. ``db`` 가 없으면(세션 없이 부르는 자리) 제 짧은 세션으로 설정을 읽는다.
         ``actor`` 는 요청한 사람(`User`)이다. 없으면 시스템의 호출로 기록한다(연결 확인, 주기 작업).
+        ``extra_policy_ids`` 는 부른 쪽이 이 호출에 **실제로 건** 정책이다(D-542) - 문서 초안의 쓰기 승인 정책은 그 사람에게 승인이
+        필요할 때만 넘긴다. 런타임이 고른 정책(개인정보 가리기 · 응답 제한)과 함께 사용 기록에 남는다.
         """
         if db is None and self._session_factory is not None:
             with self._session_factory() as session:
@@ -719,26 +723,37 @@ class AiRuntime(_AssistantMixin):
             config = self.config(db)
             result = self._generate(db, config, action_key=action_key, data=data, verify=verify)
         self._record_usage(config, result, action_key=action_key, actor=None if verify else actor, job_id=job_id,
-                           request_id=request_id)
+                           request_id=request_id, extra_policy_ids=extra_policy_ids)
         return result
 
     def _record_usage(self, config: RuntimeConfig, result: contract.GenerateResult, *, action_key: str, actor,
-                      job_id: str | None, request_id: str | None) -> None:
-        """호출 한 번을 사용 기록에 남긴다. 아무것도 시도하지 않은 호출(꺼짐, 미설정)은 남기지 않는다."""
+                      job_id: str | None, request_id: str | None, extra_policy_ids=()) -> None:
+        """호출 한 번을 사용 기록에 남긴다. 아무것도 시도하지 않은 호출(꺼짐, 미설정)은 남기지 않는다.
+
+        정책이 막은 호출(응답 제한 정책의 글자 상한을 넘은 JSON)은 `blocked_policy` 다(D-542) - 모델 실패(`error`)와 섞으면
+        「최근 30일 적용」 · 「정책 차단」이 언제나 0 이다.
+        """
         if not self._track_state or result.status in (contract.STATUS_DISABLED, contract.STATUS_UNCONFIGURED):
             return
         from app.ai import usage
-        from app.ai.models import USAGE_ERROR, USAGE_OK
+        from app.ai.models import USAGE_BLOCKED_POLICY, USAGE_ERROR, USAGE_OK
 
+        if result.ok:
+            status = USAGE_OK
+        elif result.error_code == POLICY_OUTPUT_CAP:
+            status = USAGE_BLOCKED_POLICY
+        else:
+            status = USAGE_ERROR
+        policy_ids = list(result.policy_ids) + [p for p in (extra_policy_ids or ()) if p not in result.policy_ids]
         usage.record(
             self._session_factory, actor=usage.Actor.of(actor), action_key=action_key,
-            status=USAGE_OK if result.ok else USAGE_ERROR, now=self._now(), provider=config.provider,
+            status=status, now=self._now(), provider=config.provider,
             auth_method=config.auth_method, model=config.model,
             error_code=None if result.ok else (result.error_code or result.status),
             input_tokens=result.input_tokens, output_tokens=result.output_tokens, latency_ms=result.latency_ms,
             truncated_input=result.input_truncated, truncated_output=result.output_truncated,
             prompt_slot=result.prompt_slot, prompt_version=result.prompt_version, prompt_source=result.prompt_source,
-            prompt_id=result.prompt_id, policy_ids=list(result.policy_ids), request_id=request_id, job_id=job_id,
+            prompt_id=result.prompt_id, policy_ids=policy_ids, request_id=request_id, job_id=job_id,
         )
 
     def _generate(self, db: Session, config: RuntimeConfig, *, action_key: str, data: str,
@@ -828,8 +843,11 @@ class AiRuntime(_AssistantMixin):
         cap = policies.output_cap(action.max_output_chars)
         if len(text) > cap:
             if action.json_output:
-                # 자른 JSON 은 쓸 수 없다. 조용히 자르면 부른 쪽의 파서가 원인 모를 실패를 낸다.
-                return contract.GenerateResult(status=contract.STATUS_FAILED, error_code="output_too_long",
+                # 자른 JSON 은 쓸 수 없다. 조용히 자르면 부른 쪽의 파서가 원인 모를 실패를 낸다. 상한이 응답 제한 정책에서
+                # 왔으면 정책이 막은 것이다(사용 기록 `blocked_policy`, D-542) - 모델의 실패와 가른다.
+                from_policy = cap < action.max_output_chars
+                return contract.GenerateResult(status=contract.STATUS_FAILED,
+                                               error_code=POLICY_OUTPUT_CAP if from_policy else "output_too_long",
                                                truncated=True, output_truncated=True, **common)
             text, truncated = text[:cap], True
             return contract.GenerateResult(status=contract.STATUS_OK, text=text, truncated=truncated,

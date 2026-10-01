@@ -38,10 +38,7 @@ class Conversation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         String(36), ForeignKey("users.id"), nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="새 대화")
-    # 옛 러너 쪽 대화 id. S11 이 그 경로를 걷어내 더는 안 쓴다 — 컬럼은 S14 가 Notion·
-    # SQLite 잔재와 함께 정리한다. 새로 쓰지 않는다.
-    # (spec §13.2) without exposing backend identifiers to the browser.
-    backend_conversation_id: Mapped[str | None] = mapped_column(String(128))
+    # 옛 러너 쪽 대화 id 칸은 0046 이 지웠다(D-544) - S11 이 그 경로를 걷어낸 뒤로 읽는 곳이 없었다.
     archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
 

@@ -1,6 +1,8 @@
 import React from "react";
+import Typography from "@mui/material/Typography";
 import { Badge, MetaBar } from "../../ui/kit.jsx";
 import { StatusKpiStrip, StatusSummaryCard } from "../../ui/StatusKpi.jsx";
+import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 
 /* 목록 화면 요약 — **데이터의 뜻이 그릇을 정한다** (계획 표 7 · 핸드오프 README §7 · RULES §10).
  *
@@ -14,6 +16,8 @@ import { StatusKpiStrip, StatusSummaryCard } from "../../ui/StatusKpi.jsx";
  *             `measure` 구성에 들지 않는 측정값 — 카드 아래 정의 목록 한 줄(`notes`)
  *   strip   서로 다른 측정값 — KPI 타일 줄(기본). 둘 이하이면 속성 줄이다(아래)
  *   meta    속성 — 속성 줄(`MetaBar`). `kind` 가 있는 값은 값 옆 배지가 톤을 말한다.
+ *   sentence 지금 상태 한 문장 — 서버가 쓴 문장(`sentence(data)`)을 판 없이 한 줄로 낸다. 같은 수를 아래 표의 구획
+ *           머리가 이미 세는 화면(정책의 종류별 구획, D-542)에서 숫자 칸을 또 늘어놓지 않으려고 쓴다.
  *
  * 그릇은 값이 있어야 선다(D-501). 측정값이 하나 둘뿐이면 그것만으로 판을 세우지 않는다 — 작업 큐의
  * 「평균 처리 시간」은 상태 카드 옆 반폭 판에 이름만 들고 섰고, AI 사용 상한의 두 판은 「0」 하나씩을
@@ -37,6 +41,15 @@ export function SummaryView({ summary, data, ctx, sx }) {
   const cards = ((summary.cards && summary.cards(data, ctx)) || []).filter(Boolean)
     .map((c, i) => ({ ...c, key: c.key || c.label || String(i) }));
 
+  if (kind === "sentence") {
+    const text = summary.sentence ? summary.sentence(data, ctx) : "";
+    if (!text) return null;
+    return (
+      <Typography data-testid="summary-sentence" sx={{ fontSize: FONT_SIZE.body, color: "text.secondary", ...KO_WORD_BREAK, ...(sx || {}) }}>
+        {text}
+      </Typography>
+    );
+  }
   if (kind === "status") {
     const parts = cards.filter((c) => (c.role || "part") === "part");
     const risks = cards.filter((c) => c.role === "risk");

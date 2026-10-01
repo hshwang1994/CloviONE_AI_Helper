@@ -10,9 +10,13 @@ import { REGISTRY } from "./registry.js";
  *  2. 네 AI 화면(프롬프트, 정책, 사용 한도, 사용 통계)에는 저장된 뷰가 없다 - 행이 수십 줄이고 조건이 한두 개라 이름
  *     붙여 저장할 탐색이 없다. 호출 기록 탭만은 180일치 서버 페이지 목록에 조건이 넷이라 저장된 뷰 기준(D-506)을 따른다.
  *  3. 없어진 개념(테스트 · 검토 단계, 스케줄 참조, 「쓰이지 않음」)을 말하지 않는다.
+ *
+ * qa-contract-change: 프롬프트 · 정책 사용 탭을 걷고 「사용 통계」를 전용 화면(`screens/ai/AiUsageStats.jsx`)으로 옮겼다(D-543) — 그
+ * 화면의 빈 상태 문구 단언은 그 화면의 시험(`screens/ai/ai-usage-stats.test.jsx`)이 잰다. 레지스트리에 남은 AI 화면(프롬프트 · 정책 ·
+ * 사용 한도 · 호출 기록)의 문구 성질은 그대로 잰다. 프롬프트 도움말은 「AI 기능마다 따르는 지시문」이다(D-541).
  */
 
-const AI_SCREENS = ["prompts", "policies", "ai-quotas", "ai-usage-stats", "ai-usage-records", "prompt-usage", "policy-usage"];
+const AI_SCREENS = ["prompts", "policies", "ai-quotas", "ai-usage-records"];
 // 저장된 뷰가 없는 화면. 호출 기록은 빠진다 - 서버 페이지 목록이라 기준이 정한다.
 const NO_SAVED_VIEWS = AI_SCREENS.filter((key) => key !== "ai-usage-records");
 
@@ -21,10 +25,11 @@ describe("AI 화면 문구", () => {
     expect(REGISTRY.prompts.help).toContain("다음 AI 호출부터");
     expect(REGISTRY.policies.help).toContain("다음 AI 요청부터");
     expect(REGISTRY["ai-quotas"].emptyTitle).toBe("한도가 없으면 제한 없이 사용합니다");
-    expect(REGISTRY["ai-usage-stats"].emptyTitle).toBe("아직 AI 호출 기록이 없습니다");
-    expect(REGISTRY["ai-usage-stats"].emptyHelp).toContain("AI 연결을 먼저 설정하세요");
+    expect(REGISTRY.prompts.help).toContain("AI 기능마다 따르는 지시문");
+    expect(REGISTRY["ai-usage-records"].emptyTitle).toBe("아직 AI 호출 기록이 없습니다");
+    expect(REGISTRY["ai-usage-records"].emptyHelp).toContain("AI 연결을 먼저 설정하세요");
     // AI 설정 탭은 「AI 연결」 화면이 됐다(D-539).
-    expect(REGISTRY["ai-usage-stats"].emptyRelatedLink.href).toBe("#/ai-connection");
+    expect(REGISTRY["ai-usage-records"].emptyRelatedLink.href).toBe("#/ai-connection");
   });
 
   it("AI 화면에는 저장된 뷰가 없고, 호출 기록만 저장된 뷰 기준을 따른다", () => {

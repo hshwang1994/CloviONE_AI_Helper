@@ -1794,7 +1794,9 @@ export function EmptyState(props) {
               textAlign: "center", gap: card ? 2 : 2.5, px: 3,
               // `page` 는 남은 화면을 실제로 차지한다. `card` 는 부모가 준 높이를 채운다 —
               // 자기 높이를 만들면 판의 높이 계약을 빈 상태가 덮어쓴다.
-              ...(card ? { height: "100%", py: 4 } : { py: 6, minHeight: "min(30rem, 60vh)" }),
+              // 높이는 창의 절반까지다(P11 캡처) — 60vh 였을 때 1366×768 에서 필터 줄이 두 줄로 접힌 목록(AI 호출 기록)은
+              // 빈 화면인데도 문서가 창보다 53px 길어 스크롤이 생겼다. 1080 이상에서는 그대로 30rem 이다.
+              ...(card ? { height: "100%", py: 4 } : { py: 6, minHeight: "min(30rem, 50vh)" }),
             }
           : null),
         ...(artSrc ? mascotGroundSx(theme) : null),
@@ -2808,7 +2810,7 @@ export function RowActions({ actions, ariaLabel = "행 작업 더 보기", max =
    body="table"`) 안에서만 쓴다 — 문서 흐름 페이지의 표는 창이 굴린다. */
 const FILL_FRAME = { flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" };
 
-export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, empty, emptyState, emptyAction, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total, rowHeight, placement = "plain", list, selection, note, fill: fillAsked = false }) {
+export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, groupOf, groupCollapsible, groupSlots, empty, emptyState, emptyAction, ellipsis, stickyHeader, loading, sort, onSort, resultScope, filters, filterValueOf, onFilter, filterOptions, entityOptions, virtualize, total, rowHeight, placement = "plain", list, selection, note, fill: fillAsked = false }) {
   /* `fill` 은 「채움 작업 공간이면 판 몸을 채워 직접 굴린다」다(D-531). 흐름(좁거나 낮은 창)의 판은 문서와 함께 흐르므로 표도
      흐른다 — 높이 제한 없는 표 상자를 스크롤 창으로 두면 굴러가지 않고, 그 안의 감시점이 늘 보여 끝까지 받는다. */
   const workspaceMode = React.useContext(WorkspaceModeContext);
@@ -3048,6 +3050,29 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
     if (!g || g.key === prevKey) return null;
     return { ...g, count: g.count != null ? g.count : groupPlan.counts.get(g.key) };
   };
+  /* 비어 있어도 서는 묶음(`groupSlots`, 선택) — 묶음의 갈래가 정해진 표(정책의 종류 셋, D-542)는 행이 없는 갈래도
+     머리와 한 줄(「이 종류의 규칙이 없습니다.」)로 세운다. 그래야 「승인 필요 규칙이 없다」가 「그런 종류가 없다」와
+     갈린다. 순서는 `groupSlots` 의 순서이고, 행이 있는 묶음 사이 제자리에 끼운다. 표와 카드가 같은 계산을 본다. */
+  const slotPlan = groupPlan && Array.isArray(groupSlots) && groupSlots.length
+    ? (() => {
+      const slots = groupSlots
+        .map((s, order) => { const g = normalizeGroup(s); return g ? { ...g, order, emptyText: s.emptyText } : null; })
+        .filter(Boolean);
+      return {
+        empties: slots.filter((s) => !groupPlan.counts.has(s.key)),
+        orderOf: new Map(slots.map((s) => [s.key, s.order])),
+      };
+    })()
+    : null;
+  /** `untilKey` 묶음 앞에 와야 하는 빈 묶음들(아직 안 그린 것). `untilKey` 가 없으면 남은 전부. */
+  const emptySlotsBefore = (untilKey, drawn) => {
+    if (!slotPlan) return [];
+    const limit = untilKey == null ? Infinity : (slotPlan.orderOf.has(untilKey) ? slotPlan.orderOf.get(untilKey) : Infinity);
+    const due = slotPlan.empties.filter((s) => !drawn.has(s.key) && s.order < limit);
+    due.forEach((s) => drawn.add(s.key));
+    return due;
+  };
+  const EMPTY_SLOT_TEXT = "이 묶음에 항목이 없습니다.";
 
   /* 좁은 화면에서는 표를 카드 목록으로 바꾼다. 가로 스크롤되는 표는 손가락으로 훑기 어렵고,
    * 열 이름이 화면 밖으로 나가면 어떤 값인지 알 수 없다. 카드에서는 라벨을 값 옆에 붙인다. */
@@ -3058,6 +3083,20 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
        열이 스스로 `cardHeader` 로 «이건 목록 전체의 조작기다» 라고 말하게 한다. */
     const cardHeads = cardHeaderControls(cols);
     let seenGroup = null;
+    const drawnSlots = new Set();
+    const emptySlotCards = (due) => due.map((s) => (
+      <Box key={`clv-group-empty:${s.key}`} data-group-empty={s.key}>
+        <Typography component="h3" sx={{ fontSize: FONT_SIZE.body }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+            <Box component="span" sx={{ fontWeight: FONT_WEIGHT.bold, ...KO_WORD_BREAK }}>{s.label}</Box>
+            <GroupHeaderMeta group={{ ...s, count: 0 }} />
+          </Box>
+        </Typography>
+        <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", mt: 0.5, ...KO_WORD_BREAK }}>
+          {s.emptyText || EMPTY_SLOT_TEXT}
+        </Typography>
+      </Box>
+    ));
     return (
       <FlatBadgeSurface>
       <Stack gap={1.5}>
@@ -3101,7 +3140,8 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
               )}
             </Typography>
           ) : null;
-          if (g && !isGroupOpen(g.key)) return heading;
+          const before = opening ? emptySlotCards(emptySlotsBefore(opening.key, drawnSlots)) : null;
+          if (g && !isGroupOpen(g.key)) return before && before.length ? <React.Fragment key={`clv-gwrap:${i}`}>{before}{heading}</React.Fragment> : heading;
           const card = (
             <Paper
               key={keyOf(row, i)}
@@ -3142,8 +3182,9 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
             </Paper>
           );
           if (!heading) return card;
-          return <React.Fragment key={`clv-grouped:${opening.key}`}>{heading}{card}</React.Fragment>;
+          return <React.Fragment key={`clv-grouped:${opening.key}`}>{before}{heading}{card}</React.Fragment>;
         })}
+        {emptySlotCards(emptySlotsBefore(null, drawnSlots))}
       </Stack>
       {/* 카드 뷰에도 목록의 끝은 있다 — 받은 건수 · 「더 보기」 · 선택 묶음. 판이 없는 카드 목록이라 따라오지 않는다. */}
       {sentinel}
@@ -3246,9 +3287,21 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
     if (!groupPlan) return safeRows.map((row, i) => renderDataRow(row, i));
     const out = [];
     let seen = null;
+    const drawn = new Set();
+    const pushEmptySlots = (due) => due.forEach((s) => {
+      out.push(<GroupHeaderRow key={`clv-group:${s.key}`} group={{ ...s, count: 0 }} colSpan={wideCols.length} collapsible={false} open />);
+      out.push(
+        <TableRow key={`clv-group-empty:${s.key}`} data-group-empty={s.key}>
+          <TableCell colSpan={wideCols.length} sx={{ color: "text.secondary", fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>
+            {s.emptyText || EMPTY_SLOT_TEXT}
+          </TableCell>
+        </TableRow>,
+      );
+    });
     safeRows.forEach((row, i) => {
       const opening = groupOpeningAt(i, seen);
       if (opening) {
+        pushEmptySlots(emptySlotsBefore(opening.key, drawn));
         seen = opening.key;
         out.push(
           <GroupHeaderRow
@@ -3264,6 +3317,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
       const g = groupPlan.items[i];
       if (!g || isGroupOpen(g.key)) out.push(renderDataRow(row, i));
     });
+    pushEmptySlots(emptySlotsBefore(null, drawn));
     return out;
   }
 

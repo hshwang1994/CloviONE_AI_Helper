@@ -165,6 +165,8 @@ def ai_draft_document(
             gateway=_gateway(request),
             runtime=_runtime(request),
             top_k=payload.top_k or retrieval_service.TOP_K,
+            # 쓰기 승인 정책은 이 사람에게 승인이 필요할 때만 이 호출에 걸린 것으로 센다(D-542).
+            extra_policy_ids=(approval_policy.id,) if approval_policy is not None else (),
         )
         if not result.ok:
             # 초안을 못 만들었으면 **문서를 만들지 않는다.** 빈 문서를 남기면 목록에

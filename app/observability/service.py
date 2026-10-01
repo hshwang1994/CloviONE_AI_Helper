@@ -43,14 +43,11 @@ logger = logging.getLogger("app.observability")
 EVENT_LOGIN = "auth.login"
 EVENT_TICKET_CREATE = "ticket.create"
 EVENT_DOCUMENT_GENERATE = "document.generate"
-# app/quotas/service.py가 쓴다 — "여기서만 만든다"는 위 규칙대로 정본은 여기 하나다.
-EVENT_AI_CALL = "ai.call"
+# AI 호출 사건(`ai.call`)은 없다 - AI 호출의 원장은 `ai_usage_records` 하나다(D-517). 0039 가 옛 사건을 옮겼고 0046 이 남은
+# 행을 지웠다(D-544). 이름을 남겨 두면 누군가 좋은 뜻으로 다시 쌓기 시작해 두 원장이 갈라진다.
 
-# UB-25: 예전엔 이 집합이 어디서도 안 쓰여 "오타 누적 방지"라는 존재 이유가 이름뿐이었다
-# (실제로 EVENT_AI_CALL이 quotas/service.py에 따로 정의돼 있었고 여기 목록엔 없었다 — 이
-# 집합이 정말 강제됐다면 그 드리프트가 그 자리에서 바로 드러났을 것이다). record_usage()
-# 안에서 검사한다.
-KNOWN_EVENTS = frozenset({EVENT_LOGIN, EVENT_TICKET_CREATE, EVENT_DOCUMENT_GENERATE, EVENT_AI_CALL})
+# UB-25: 예전엔 이 집합이 어디서도 안 쓰여 "오타 누적 방지"라는 존재 이유가 이름뿐이었다. record_usage() 안에서 검사한다.
+KNOWN_EVENTS = frozenset({EVENT_LOGIN, EVENT_TICKET_CREATE, EVENT_DOCUMENT_GENERATE})
 
 
 def record_usage(

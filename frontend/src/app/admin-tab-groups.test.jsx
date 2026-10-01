@@ -1,11 +1,12 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
+/* qa-contract-change: AI 사용 통계 그릇의 짝을 「프롬프트 사용 탭」에서 「호출 기록 탭」으로 옮겼다 — 프롬프트 · 정책 사용 탭을 걷었다(D-543, 옛 주소는 그 목록 화면으로 넘긴다). 옛 주소가 살아 있다 · 탭 순서가 들어온 길과 무관하다 · 그릇과 탭의 역할이 같다는 성질은 그대로 잰다. */
 /* 관리자 IA 재구성 — 짝을 이루던 화면이 한 화면의 탭이 됐다 (지시 30 · 41 · 51).
  *
  * 여기서 지키는 것은 "합쳤다"가 아니라 **합치면서 잃지 않았다**이다.
@@ -60,7 +61,7 @@ const MERGED = [
   ["/restore-drills", "/backup", "복구 리허설"],
   ["/approval-delegations", "/approvals", "승인 위임"],
   ["/audit-anomalies", "/audit", "이상 징후"],
-  ["/prompt-usage", "/ai-usage", "프롬프트"],
+  ["/ai-usage-records", "/ai-usage", "호출 기록"],
   ["/scheduler-calendar", "/schedules", "달력"],
 ];
 
@@ -86,7 +87,8 @@ describe("옛 주소가 죽지 않는다", () => {
 describe("탭 순서는 들어온 주소와 무관하다 (D-501)", () => {
   const tabOrder = async (path, anyLabel) => {
     await screen.findByRole("tab", { name: anyLabel }, { timeout: 5000 });
-    return screen.getAllByRole("tab").map((t) => t.textContent);
+    // 그릇의 탭 줄만 센다 — 탭 안 화면의 세그먼티드(보기 기준 · 기간)도 탭 역할이라 페이지 전체를 세면 켜진 탭에 따라 수가 달라진다.
+    return within(screen.getAllByRole("tablist")[0]).getAllByRole("tab").map((t) => t.textContent);
   };
 
   it.each(MERGED)("%s 와 %s 가 같은 순서로 탭을 세운다", async (oldPath, hostPath, tabLabel) => {
@@ -145,7 +147,7 @@ describe("권한이 그릇과 안쪽 탭에서 같다", () => {
     ["/backup", ["backup", "restore-drills"]],
     ["/approvals", ["approvals", "approval-delegations"]],
     ["/audit", ["audit", "audit-anomalies"]],
-    ["/ai-usage", ["policy-usage", "prompt-usage"]],
+    ["/ai-usage", ["ai-usage", "ai-usage-stats", "ai-usage-records"]],
     ["/schedules", ["schedules", "scheduler-calendar"]],
   ])("%s 그릇의 역할 집합이 안쪽 탭들과 정확히 같다", (hostPath, keys) => {
     const sets = keys.map((k) => JSON.stringify([...(SCREEN_ROLES[k] || [])].sort()));

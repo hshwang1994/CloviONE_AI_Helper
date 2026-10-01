@@ -1043,7 +1043,15 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
     });
   }, [serverSort, canSort, sort.key, sort.dir, filteredRows, columns]);
 
-  const filtered = sortedRows;
+  /* 묶음(선택) — `config.groupRows(row) → {key, label, note}` 를 준 화면은 표 안에 묶음 머리행이 선다(정책의 종류별 구획, D-542).
+     행은 `config.groupOrder` 순서로 모으고 묶음 안에서는 지금 정렬을 그대로 둔다(안정 정렬). 묶음이 없는 화면은 그대로다. */
+  const filtered = config.groupRows
+    ? (() => {
+      const order = config.groupOrder || [];
+      const rank = (r) => { const g = config.groupRows(r); const i = order.indexOf(g && g.key); return i < 0 ? order.length : i; };
+      return sortedRows.map((r, i) => [r, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map((x) => x[0]);
+    })()
+    : sortedRows;
   /* 예전에 여기 있던 것: 「total 이 줄어 현재 쪽이 사라지면 쪽 번호를 되돌린다」. 쪽 번호가
      없어지면서 그 되돌리기가 필요한 상태 자체가 사라졌다 — 마지막 행이 지워지면 목록이
      그만큼 짧아질 뿐이고, 사용자는 여전히 자기가 보던 자리에 있다. */
@@ -1079,7 +1087,9 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
   };
   // 페이지네이션되지만 서버 검색이 없는 화면(감사·작업·문서 등)은 클라이언트 부분검색이 오해를 낳으므로 검색창을 숨긴다.
   // `inSplitView` 면 **바깥의 navigator 가 이미 같은 엔티티를 찾는다**(위 prop 주석).
-  const showSearch = !inSplitView && (config.searchable || !config.paginated);
+  // `searchable: false` 는 명시적인 거절이다 — 목록 전체가 한 화면에 서는 작은 고정 목록(프롬프트의 기능 다섯 줄, D-541)에서
+  // 검색 칸은 찾을 것이 없는 소음이다.
+  const showSearch = !inSplitView && config.searchable !== false && (config.searchable || !config.paginated);
   const showToolbar = showSearch || (config.filters || []).length > 0;
 
   /* ── 탐색 줄이 쓰는 파생값 넷 (W5) ──────────────────────────────────────────
@@ -1614,7 +1624,11 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
                붙다가 60을 넘는 순간 가상화가 켜지면서 `<tbody>` 가 통째로 다시 마운트된다 —
                굴리던 자리가 튄다. 전체 건수는 묶음이 붙어도 안 변한다.
                `stickyHeader` 와의 상호배타는 없어졌다 — 둘 다 윈도를 스크롤 창으로 본다. */
-            virtualize={(total ?? filtered.length) > 60 ? {} : undefined}
+            virtualize={!config.groupRows && (total ?? filtered.length) > 60 ? {} : undefined}
+            groupOf={config.groupRows ? (r) => config.groupRows(r) : undefined}
+            /* 갈래가 정해진 묶음은 행이 없어도 선다(정책의 종류 셋, D-542) — 조건을 걸었을 때는 세우지 않는다. 그때 빈 갈래는
+               「그 종류가 없다」가 아니라 「조건에 안 맞는다」라서, 머리마다 「없습니다」를 늘어놓으면 거짓말이 된다. */
+            groupSlots={config.groupRows && config.groupSlots && !hasFilter && !q ? config.groupSlots : undefined}
           />
         </>
       )}

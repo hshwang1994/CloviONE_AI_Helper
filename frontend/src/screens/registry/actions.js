@@ -148,3 +148,29 @@ export const nameVersionsAction = (base, title) => ({
 // health_url을 잘못 설정했거나 비워 뒀을 때, 토스트만 보고는 실제 대체(base_url)가 일어났는지
 // 알 수 없었다(app/integrations/service.py run_health_check가 이미 checked_url을 돌려주는데도 버려졌었다).
 export const healthResult = (res) => ({ ok: res.status === "up", msg: (res.status === "up" ? "정상" + (res.latency_ms != null ? ` (${res.latency_ms}ms)` : "") : "중단: " + (res.detail || "확인 실패")) + (res.checked_url ? " (" + res.checked_url + ")" : "") });
+
+/* 기능(사용처) 하나의 버전 기록(D-541) — 프롬프트 화면은 기능마다 한 줄이라 서랍이 그 기능의 버전을 모아 본다. 기본 제공은
+   버전이 아니라 빠진다(`source=admin`). 어휘는 초안 · 적용 중 · 보관이다. 롤백은 그 버전 내용을 새 발행본으로 복원한다. */
+const SLOT_VERSION_STATUS = { draft: "초안", published: "적용 중", archived: "보관" };
+export const slotVersionsAction = () => ({
+  label: "버전 기록",
+  subList: {
+    title: "지시문 버전 기록",
+    paginated: true,
+    endpoint: (r, p) => "/api/admin/prompts?slot=" + encodeURIComponent(r.slot) + "&source=admin&page=" + ((p && p.page) || 1),
+    columns: [
+      { key: "version", label: "버전", type: "code", render: (r) => "v" + r.version },
+      { key: "status", label: "상태", type: "enum", render: (r) => SLOT_VERSION_STATUS[r.status] || r.status },
+      { key: "created_by", label: "작성자", type: "name", render: (r) => r.created_by_name || r.created_by_email || "-" },
+      dateCol("created_at", "만든 날"),
+    ],
+    emptyTitle: "관리자가 쓴 버전이 없습니다",
+    rowActions: [
+      { label: "이 버전으로 되돌리기", variant: "danger", roles: WRITE_ROLES,
+        path: () => "/api/admin/prompts/rollback",
+        body: (sub) => ({ name: sub.name, version: sub.version }),
+        confirm: (sub) => "v" + sub.version + " 내용을 새 발행본으로 되돌릴까요? 다음 AI 호출부터 그 지시문을 씁니다." },
+      { label: "내용 보기", localInfo: (sub) => (sub.content ? String(sub.content) : "(내용 없음)") },
+    ],
+  },
+});

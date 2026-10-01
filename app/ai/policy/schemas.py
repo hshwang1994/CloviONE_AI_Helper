@@ -107,10 +107,14 @@ def normalize_rules(kind: str, content) -> dict:
 
 
 def applicable_actions(kind: str) -> tuple[str, ...]:
-    """이 종류가 붙을 수 있는 액션. 연결 확인은 관리 동작이라 어느 정책도 붙지 않는다. 승인은 결과가 저장되는 액션뿐이다."""
+    """이 종류가 붙을 수 있는 액션. 연결 확인은 관리 동작이라 어느 정책도 붙지 않는다. 승인은 결과가 저장되는 액션뿐이다.
+
+    은퇴한 액션(이전 방식의 질문 답변 · 작업 공간 묻기)은 고를 수 없다(D-542) - 더는 부르는 곳이 없어 거기 건 정책은 아무
+    일도 하지 않는다. 0044 가 옛 정책의 대상을 AI 도우미로 옮겼다.
+    """
     from app.ai.actions import ACTIONS, CONNECTION_TEST
 
-    keys = [k for k in ACTIONS if k != CONNECTION_TEST]
+    keys = [k for k in ACTIONS if k != CONNECTION_TEST and not ACTIONS[k].retired]
     if kind == KIND_APPROVAL:
         keys = [k for k in keys if ACTIONS[k].supports_approval]
     return tuple(keys)

@@ -1,5 +1,8 @@
 """사용 이벤트 (0026) — 기록 자체와, **뜨거운 경로에 걸리지 않았다**는 보증.
 
+qa-contract-change: AI 호출 사건(`ai.call`)이 알려진 사건 목록에서 빠졌다(D-544) — AI 호출의 원장은 `ai_usage_records` 하나이고
+0046 이 남은 사건 행을 지웠다. 「EVENT_AI_CALL 이 목록에 있다」 단언을 「AI 호출 사건은 없고 기록하려 하면 거절된다」로 바꿨다.
+
 계획서가 명시적으로 못박은 제약이 있다: `usage_events` 는 **저빈도 지점에만** 건다.
 채팅 전송·폴링 경로에 걸면
   * 채팅 전송은 이미 INSERT + `event_seq` UPDATE 로 SAVEPOINT 재시도를 도는 가장 뜨거운
@@ -16,7 +19,6 @@ import pytest
 
 from app.observability.models import UsageEvent
 from app.observability.service import (
-    EVENT_AI_CALL,
     EVENT_LOGIN,
     EVENT_TICKET_CREATE,
     KNOWN_EVENTS,
@@ -129,10 +131,12 @@ def test_event_names_come_from_one_place():
     )
 
 
-def test_ai_call_event_is_known():
-    """UB-25: EVENT_AI_CALL이 예전엔 app/quotas/service.py에 따로 정의돼 있어 이
-    KNOWN_EVENTS 집합엔 없었다 — "여기서만 만든다"는 규칙이 실제로는 안 지켜지고 있었다."""
-    assert EVENT_AI_CALL in KNOWN_EVENTS
+def test_there_is_no_ai_call_event_anymore():
+    """D-544: AI 호출의 원장은 `ai_usage_records` 하나다. 옛 사건 이름이 다시 알려진 목록에 들어가면 두 원장이 갈라진다."""
+    import app.observability.service as service
+
+    assert "ai.call" not in KNOWN_EVENTS
+    assert not hasattr(service, "EVENT_AI_CALL")
 
 
 def test_quotas_no_longer_count_the_old_event():
