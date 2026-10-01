@@ -43,8 +43,8 @@
 | 전량 회귀가 잡은 감사 대상 선택지 누락(`setup`) · 번들 · 회차 마감 문서 | 이 커밋 | D-524 |
 
 - 남은 일(사람이 할 것): BACKLOG P-116 - 실제 Anthropic · OpenAI 키로 연결 확인과 채팅 한 번, 실제 ChatGPT 계정으로 연결
-  도우미 → 승인 → 연결됨과 토큰 만료 시각, 공개 저장소에 Release 를 올린 뒤 GitHub 에서 받아 설치. 랩의 운영 설치(`f0232c51`)에
-  이 회차를 배포하는 것은 따로 정할 일이다(0031 ~ 0041 마이그레이션이 실데이터에 돈다). 다음 Acceptance 회차는 P-115 부터다.
+  도우미 → 승인 → 연결됨과 토큰 만료 시각, 공개 저장소에 Release 를 올린 뒤 GitHub 에서 받아 설치. 랩 운영 설치에는 `7bf15f4d` 를
+  배포했다(아래 CHECKPOINT). 랩의 AI 를 쓰려면 AI 설정 화면에서 키와 모델을 넣고 연결 확인을 누른다. 다음 Acceptance 회차는 P-115 부터다.
   ChatGPT 요금제 연결은 그 계정 한 명의 사용량이라, 여러 사람이 쓰는 설치는 조직 API 키를 권한다(INSTALLATION §12. 화면에는 아직 그 문장이 없다).
   계획의 A3(AI 설정 화면)는 A1(Anthropic)과 A2(OpenAI, ChatGPT 계정 연결)가 나눠 맡아 끝났다(D-515 · D-516).
 - 전량 회귀(`verify.py --full`, 마지막 커밋 `a4bcad38`): 정적 전량 통과(번들 신선도 포함), 백엔드 unit · regression · security · integration 4묶음 전부 통과, vitest 465파일 중 464파일(3,936/3,937건) 통과. 남은 1건은 I1 이 더한 감사 대상 `setup` 이 감사 로그 대상 필터 선택지에 없던 것이라 다음 커밋이 고쳤고, 그 파일과 같은 선택지를 쓰는 22파일(189건)을 다시 돌려 통과했다.
@@ -62,8 +62,13 @@
 - session: 사용자가 여덟 가지를 auto 모드로 끝까지 지시했고(구현 → 표적 검증 → 문서 → 커밋), 검증이 끝난 뒤 **배포까지** 지시했다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`f0232c51`** (2026-09-21 22:20 — 조직 정합성 · 초기 설정을 한 방향으로 쌓고 판 폭을 읽는 열로 묶은 수정 포함) — `0030_search_fold` 마이그레이션과 nginx `realip.conf`(값이 비어 있어 동작은 그대로)가 함께 올라갔다.
-  스냅샷 `/var/backups/clovirassist/20260921-222022`(그 전 `…-214523` · `…-212247`), 설치 로그 `/var/log/clovirassist/install-20260921-222021.log`.
+- deployed: **`7bf15f4d`** (2026-10-01 09:57 KST, 사용자 지시로 관리자 화면 개선 회차 전체를 올렸다) — 마이그레이션
+  `0030_search_fold → 0041_ai_policies`, Stage 0 ~ 18 전부 OK, VERIFY_OK, 밖에서 본 `verify_deploy.sh` DEPLOY_VERIFY_OK(정적 자산
+  54/54 새 번들). 옛 `llm_*` 는 `ai_provider=anthropic` · API 키 방식으로 옮겨졌지만 키와 모델이 없어 AI 는 「미설정」이다(배포 전에도
+  키 파일이 없어 답을 못 만들었다). 옛 시드 프롬프트 3건과 정책 2건은 보관되고 정책 초안 3건과 관리자 알림(`ai_policy_migrated`)이
+  생겼다. 티켓 요청자는 1,310건 중 236건이 채워졌다. 허용 목록에는 OpenAI 두 호스트만 더해졌다. 임베딩은 배포 전후 모두 꺼짐이다.
+  스냅샷 `/var/backups/clovirassist/20261001-095658`, 설치 로그 `/var/log/clovirassist/install-20261001-095658.log`.
+  되돌리려면 `sudo clovirassist rollback`(타임스탬프 스냅샷만 고른다, D-524). 그 전 배포는 `f0232c51`(2026-09-21).
 - verification: 아래 「이번 회차가 잰 것」.
 - capture: 전량 정본은 **`s22-final`** 그대로다(D-306). 이번 회차의 부분 캡처는 `p8-admin` · `p8-admin2` · `p8-user` · `p8-recheck` ·
   `p8-org2` · `p8-mystats` 이고 Acceptance 정본을 옮기지 않는다. 뼈대 기준 라벨은 **`p8-geo`** 다 — 작업 보드는 D-497 이 상단을
