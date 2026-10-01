@@ -7,14 +7,16 @@
 (app/health/service.py), 큐잉(app/mail/service.py), 발송(app/jobs/handlers/mail_send.py)
 이 전부 이 파일의 ``configuration_problems`` 하나를 부른다.
 
-## 비밀번호는 여기 없다
+## 비밀번호는 여기 없고, 칸 이름은 고정이다 (D-545)
 
-DB 설정에는 ``password_ref``(이름)만 둔다. 실제 값은 ``SECRETS_DIR/<ref>`` 파일이다
-(불변 §3). 이름을 비워 두면 관리 화면이 비밀번호를 저장하는 슬롯(``smtp.password``,
-`app/core/secret_slots.py`)을 쓴다(계획 3.3) — 설치 뒤 서버에 파일을 손으로 둘 필요가 없다. 예전 설치가
-적어 둔 이름은 그대로 이긴다. 그래서 이 모듈은 **secret 제공자를 받을 때만** 비밀번호 문제를 말할 수 있고,
-받지 못하면(예: 잡 큐잉처럼 app.state 가 없는 자리) 그 항목은 검사하지 않는다 - 그 경우
-문제는 발송 시점에 ``mail_deliveries.last_error`` 로 드러난다.
+DB 설정에는 비밀번호도, 비밀번호 파일의 **이름**도 두지 않는다. 로그인 비밀번호는 언제나 고정 칸
+``smtp.password``(`app/core/secret_slots.py`) 하나에서 읽는다. 예전에는 설정의 ``password_ref`` 가 아무
+비밀 이름이나 받았다 - 그러면 메일 설정을 바꿀 수 있는 사람이 그 이름을 AI 키나 ChatGPT 토큰 묶음으로 바꾸고
+메일 서버 주소를 자기 서버로 돌린 뒤 「연결 확인」을 눌러, 워커가 진짜 비밀로 그 서버에 로그인하게 만들 수
+있었다. 이름을 사용자 데이터에서 빼야 그 길이 닫힌다(옛 값은 0042 가 걷고, 설치기가 옛 파일을 고정 칸으로
+옮긴다). 이 모듈은 **secret 제공자를 받을 때만** 비밀번호 문제를 말할 수 있고, 받지 못하면(예: 잡 큐잉처럼
+app.state 가 없는 자리) 그 항목은 검사하지 않는다 - 그 경우 문제는 발송 시점에 ``mail_deliveries.last_error``
+로 드러난다.
 
 ## '문제 목록' 이 불리언보다 중요한 이유
 
@@ -48,7 +50,6 @@ DEFAULT_SMTP: dict[str, Any] = {
     "from_address": "",
     "from_name": "",
     "username": "",
-    "password_ref": "",
     "timeout_seconds": 20,
     # 서버 인증서를 확인한다(계획 3.3). 예전에는 `starttls()` · `SMTP_SSL` 에 문맥을 안 줘서 인증서와 호스트
     # 이름을 전혀 보지 않았다. 사설 CA 를 쓰는 내부 릴레이는 `ca_pem` 에 그 CA 를 붙여 넣는다.
@@ -56,8 +57,8 @@ DEFAULT_SMTP: dict[str, Any] = {
     "ca_pem": "",
 }
 
-# 관리 화면이 비밀번호를 저장하는 슬롯의 이름. 이름은 슬롯 표 한 곳에만 적는다.
-DEFAULT_PASSWORD_REF = SLOT_SMTP_PASSWORD
+# 로그인 비밀번호를 읽는 유일한 칸(D-545). 이름은 슬롯 표 한 곳에만 적는다.
+PASSWORD_SLOT = SLOT_SMTP_PASSWORD
 CA_PEM_MAX_CHARS = 20480
 
 
@@ -72,18 +73,12 @@ class MailConfig:
     from_address: str
     from_name: str
     username: str
-    password_ref: str
     timeout_seconds: int
     tls_verify: bool = True
     ca_pem: str = ""
 
-    @property
-    def effective_password_ref(self) -> str:
-        """로그인에 쓸 비밀의 이름. 적어 둔 이름이 없으면 관리 화면이 쓰는 슬롯이다."""
-        return self.password_ref or DEFAULT_PASSWORD_REF
-
     def public_view(self) -> dict:
-        """화면에 그대로 내보내도 되는 모양. 비밀번호는 **이름조차** 값이 아니다."""
+        """화면에 그대로 내보내도 되는 모양. 비밀번호도, 비밀번호 칸의 이름도 싣지 않는다."""
         return {
             "enabled": self.enabled,
             "host": self.host,
@@ -92,7 +87,6 @@ class MailConfig:
             "from_address": self.from_address,
             "from_name": self.from_name,
             "username": self.username,
-            "password_ref": self.password_ref,
             "timeout_seconds": self.timeout_seconds,
             "tls_verify": self.tls_verify,
             # 인증서 원문은 비밀이 아니지만 길다(최대 20KB). 상태 화면은 붙어 있는지만 알면 된다.
@@ -120,7 +114,6 @@ def smtp_config(raw: Any) -> MailConfig:
         from_address=str(values["from_address"] or "").strip(),
         from_name=str(values["from_name"] or "").strip(),
         username=str(values["username"] or "").strip(),
-        password_ref=str(values["password_ref"] or "").strip(),
         timeout_seconds=(
             int(values["timeout_seconds"])
             if str(values["timeout_seconds"]).strip().isdigit()
@@ -175,8 +168,8 @@ def configuration_problems(config: MailConfig, secret_provider=None) -> list[str
     이름이 아니다. 고쳐야 할 자리는 같은 화면의 설정 폼이고, 그 폼은 이미 한국어 라벨을
     쓴다 - 그러니 문장이 필드 이름을 가르칠 필요가 없다.
 
-    빠진 secret 파일의 **이름**은 지우지 않는다. 다만 문장이 아니라
-    ``public_view()["password_ref"]`` 로 내려가 화면의 `기술 정보`에서 읽힌다.
+    비밀번호 칸은 하나로 고정이라(D-545) 「어느 파일이냐」를 화면에 알릴 필요가 없다. 비밀번호가 없으면
+    같은 화면의 비밀번호 칸에 넣으면 된다.
     """
     problems: list[str] = []
     if not config.enabled:
@@ -194,7 +187,7 @@ def configuration_problems(config: MailConfig, secret_provider=None) -> list[str
     if config.username and secret_provider is not None:
         from app.core.secret_refs import STATUS_CONFIGURED
 
-        if secret_provider.status(config.effective_password_ref) != STATUS_CONFIGURED:
+        if secret_provider.status(PASSWORD_SLOT) != STATUS_CONFIGURED:
             problems.append("로그인 계정의 비밀번호가 저장되지 않았습니다. 메일 설정에서 비밀번호를 저장하세요.")
     return problems
 
@@ -213,6 +206,6 @@ def mail_status(config: MailConfig, secret_provider=None) -> dict:
         "password_secret": (
             None
             if not config.username or secret_provider is None
-            else secret_provider.status(config.effective_password_ref)
+            else secret_provider.status(PASSWORD_SLOT)
         ),
     }

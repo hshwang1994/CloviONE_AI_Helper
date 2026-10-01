@@ -16,9 +16,10 @@
 
 | 묶음 | 커밋 | 결정 |
 |---|---|---|
-| P0 랩 읽기 전용 기준선(`INVENTORY/13_UX_AI_MAIL_BASELINE.md`, `EVIDENCE/mail/2026-10-01-lab-preflight.md`) · `ux-before` 캡처 68장 | 이 커밋 | - |
+| P0 랩 읽기 전용 기준선(`INVENTORY/13_UX_AI_MAIL_BASELINE.md`, `EVIDENCE/mail/2026-10-01-lab-preflight.md`) · `ux-before` 캡처 68장 | `11537fef` | - |
+| P1 메일 보안 핵심(`smtp` 시스템 관리자 전용 · 비밀 칸 고정 · 0042 · 설치기 옛 비밀 복사 · 발송 기록 받는 사람 범위 · 0043 · 모든 종류 받는 사람 재검사 · 열람 권한 fail-closed) | 이 커밋 | D-545 · D-547 |
 
-- 다음: P1 메일 보안 핵심(`smtp` 시스템 관리자 전용 · 비밀 칸 고정 · 발송 기록 범위 · 받는 사람 재검사 · 0042 · 0043).
+- 다음: P2 설정 캐시 판 번호(F6, D-532).
 
 ## 끝남 — 공통 스위치 개편 (2026-10-01)
 

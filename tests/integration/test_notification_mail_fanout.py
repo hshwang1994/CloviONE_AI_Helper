@@ -306,6 +306,51 @@ def test_a_retrying_mail_is_rechecked_before_every_attempt(client, app, settings
     assert len(server.sent) == 1
 
 
+
+# ── 열람 권한은 판정이 터져도 보내지 않는다 (D-547) ─────────────────────────────
+
+def test_a_watcher_who_lost_access_to_the_ticket_is_not_mailed(client, app, settings, fake_clock, world):
+    """큐에 들어간 뒤 그 티켓을 볼 수 없게 되면(소속이 빠졌다) 티켓 제목이 담긴 메일을 보내지 않는다."""
+    configure_smtp(app)
+    _opt_in(app, world["wendy"])
+    csrf = _login(client, "mail-amy@goodmit.co.kr")
+    _status(client, csrf, "진행")
+    from app.users.models import User
+
+    with app.state.session_factory() as db:
+        db.get(User, world["wendy"]).membership_kind = "unassigned"
+        db.commit()
+    server = FakeServer()
+    drain_worker(app, settings, fake_clock, server)
+    (mail,) = _mails(app, "mail-wendy@goodmit.co.kr")
+    assert (mail.status, mail.skip_reason) == (MAIL_CANCELLED, "no_access")
+    assert server.sent == []
+
+
+def test_a_crashing_relevance_rule_cannot_open_the_access_check(client, app, settings, fake_clock, world, monkeypatch):
+    """의미 판정이 터지면 보내는 쪽으로 넘어가지만(fail-open), 열람 권한은 따로 다시 본다(fail-closed)."""
+    from app.mail import relevance
+    from app.users.models import User
+
+    configure_smtp(app)
+    _opt_in(app, world["wendy"])
+    csrf = _login(client, "mail-amy@goodmit.co.kr")
+    _status(client, csrf, "진행")
+
+    def boom(*_a, **_kw):
+        raise RuntimeError("의미 판정 오류")
+
+    monkeypatch.setitem(relevance.NOTIFICATION_RULES, "ticket_status_changed", boom)
+    with app.state.session_factory() as db:
+        db.get(User, world["wendy"]).membership_kind = "unassigned"
+        db.commit()
+    server = FakeServer()
+    drain_worker(app, settings, fake_clock, server)
+    (mail,) = _mails(app, "mail-wendy@goodmit.co.kr")
+    assert (mail.status, mail.skip_reason) == (MAIL_CANCELLED, "no_access")
+    assert server.sent == []
+
+
 # ── 의미를 잃은 사건 ─────────────────────────────────────────────────────────
 
 def test_an_assignment_mail_is_dropped_when_the_person_was_unassigned(client, app, db, settings, fake_clock, world):

@@ -70,7 +70,7 @@ def _invite(app, email, *, user_id="u-x", created=None):
 
     with app.state.session_factory() as db:
         row = queue_mail(db, kind="invite", to_email=email, subject="초대", params={"user_id": user_id},
-                         now=app.state.clock.now())
+                         recipient_user_id=None, now=app.state.clock.now())
         if created is not None:
             row.created_at = created
         db.commit()
@@ -164,13 +164,16 @@ def test_recovery_requeues_only_what_still_means_something(client, app, db, sett
     assert '"requeued": 1' in audit.after_json and '"superseded": 1' in audit.after_json
 
 
-def test_an_approval_already_decided_is_not_mailed(app, settings, fake_clock):
+def test_an_approval_already_decided_is_not_mailed(app, settings, fake_clock, make_user):
     from app.mail.service import queue_mail
 
     configure_smtp(app)
+    # 받는 사람은 아직 결재할 수 있는 관리자다(받는 사람 재검사를 지난다) - 이 시험은 그 다음의 의미 판정을 본다.
+    boss = make_user("boss@goodmit.co.kr", role="admin")
     with app.state.session_factory() as db:
         row = queue_mail(db, kind="approval_requested", to_email="boss@goodmit.co.kr", subject="승인 요청",
-                         params={"approval_id": "gone-approval"}, now=app.state.clock.now())
+                         recipient_user_id=boss.id, params={"approval_id": "gone-approval"},
+                         now=app.state.clock.now())
         db.commit()
         delivery_id = row.id
     server = FakeServer()

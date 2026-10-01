@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.mail import relevance
+from app.mail import recipients, relevance
 from app.notifications import mail as notification_mail
 from app.profiles.prefs import DEFAULT_MAIL_NOTIFICATION_TYPES, MAILABLE_TYPES, NOTIFICATION_TYPES
 
@@ -29,8 +29,20 @@ def _reason_values(module, prefix: str = "REASON_") -> set[str]:
     return {v for k, v in vars(module).items() if k.startswith(prefix) and isinstance(v, str)}
 
 
+def test_every_mail_kind_has_a_recipient_rule():
+    """받는 사람 재검사(D-547)는 **모든** 종류에 있다 - 빠진 종류는 보내기 직전에 `check_failed` 로 멈춘다."""
+    from app.mail.renderers import MAIL_KINDS
+
+    assert set(recipients.RECIPIENT_RULES) == set(MAIL_KINDS)
+
+
+def test_every_mailable_type_has_an_access_rule():
+    """알림 메일의 열람 권한 재검사(D-547)는 메일로 보낼 수 있는 유형 전부에 있다."""
+    assert set(recipients.ACCESS_RULES) == set(MAILABLE_TYPES)
+
+
 def test_every_reason_has_a_sentence():
-    reasons = _reason_values(relevance) | _reason_values(notification_mail)
+    reasons = _reason_values(relevance) | _reason_values(notification_mail) | _reason_values(recipients)
     missing = sorted(reasons - set(relevance.REASON_LABELS))
     assert missing == [], f"문장이 없는 까닭: {missing}"
 

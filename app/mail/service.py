@@ -118,6 +118,7 @@ def queue_mail(
     kind: str,
     to_email: str,
     subject: str,
+    recipient_user_id: str | None,
     params: dict | None = None,
     now: datetime,
     config: MailConfig | None = None,
@@ -125,6 +126,10 @@ def queue_mail(
     idempotency_key: str | None = None,
 ) -> MailDelivery:
     """메일 한 통을 큐에 넣는다. 보낼 수 없으면 그 사실을 행에 적고 잡은 만들지 않는다.
+
+    ``recipient_user_id`` 는 **기본값이 없다**(D-547). 받는 사람 계정이 발송 기록의 범위 축이고 보내기 직전 재검사의
+    대상이라, 부르는 쪽이 매번 정해야 한다 - 기본값을 두면 새 호출부가 빈 값을 넘겨 그 메일이 범위 밖으로 샌다.
+    계정이 아닌 주소로 보내는 메일만 ``None`` 을 넘긴다(그 행은 전역 관리자만 본다).
 
     ``params`` 에는 **비밀이 아닌 재료만** 넣는다(사용자 id, 실패 사유 문장 등).
     본문은 워커가 발송 직전에 만든다 - 토큰과 임시 비밀번호가 DB 에 앉지 않게.
@@ -145,6 +150,7 @@ def queue_mail(
     row = MailDelivery(
         kind=kind,
         to_email=(to_email or "").strip(),
+        recipient_user_id=recipient_user_id or None,
         subject=subject[:300],
         status=MAIL_UNCONFIGURED if problems else MAIL_QUEUED,
         attempt_count=0,
@@ -178,9 +184,9 @@ def queue_mail(
     return row
 
 
-def _queue_to_emails(
+def _queue_to_recipients(
     db: Session,
-    emails,
+    recipients,
     *,
     kind: str,
     subject: str,
@@ -189,6 +195,7 @@ def _queue_to_emails(
     config: MailConfig | None,
     secret_provider,
 ) -> list[MailDelivery]:
+    """(사용자 id, 주소) 짝마다 한 통. 받는 사람 id 가 행에 남아야 범위로 거르고 보내기 직전에 다시 볼 수 있다."""
     resolved = config if config is not None else config_from_db(db)
     return [
         queue_mail(
@@ -196,12 +203,13 @@ def _queue_to_emails(
             kind=kind,
             to_email=email,
             subject=subject,
+            recipient_user_id=user_id,
             params=params,
             now=now,
             config=resolved,
             secret_provider=secret_provider,
         )
-        for email in emails
+        for user_id, email in recipients
         if email
     ]
 
@@ -219,19 +227,15 @@ def queue_mail_to_admins(
     """활성 관리자 전원에게. `notifications.notify_admins` 와 같은 대상 규칙을 쓴다."""
     from app.users.models import ROLE_ADMIN, ROLE_SYSTEM_ADMIN, User
 
-    emails = (
-        db.execute(
-            select(User.email).where(
-                User.role.in_([ROLE_ADMIN, ROLE_SYSTEM_ADMIN]),
-                User.active.is_(True),
-                User.archived_at.is_(None),
-            )
+    recipients = db.execute(
+        select(User.id, User.email).where(
+            User.role.in_([ROLE_ADMIN, ROLE_SYSTEM_ADMIN]),
+            User.active.is_(True),
+            User.archived_at.is_(None),
         )
-        .scalars()
-        .all()
-    )
-    return _queue_to_emails(
-        db, emails, kind=kind, subject=subject, params=params, now=now,
+    ).all()
+    return _queue_to_recipients(
+        db, recipients, kind=kind, subject=subject, params=params, now=now,
         config=config, secret_provider=secret_provider,
     )
 
@@ -258,17 +262,13 @@ def queue_mail_to_users(
     ids = [uid for uid in (user_ids or []) if uid]
     if not ids:
         return []
-    emails = (
-        db.execute(
-            select(User.email).where(
-                User.id.in_(ids), User.active.is_(True), User.archived_at.is_(None)
-            )
+    recipients = db.execute(
+        select(User.id, User.email).where(
+            User.id.in_(ids), User.active.is_(True), User.archived_at.is_(None)
         )
-        .scalars()
-        .all()
-    )
-    return _queue_to_emails(
-        db, emails, kind=kind, subject=subject, params=params, now=now,
+    ).all()
+    return _queue_to_recipients(
+        db, recipients, kind=kind, subject=subject, params=params, now=now,
         config=config, secret_provider=secret_provider,
     )
 
@@ -515,11 +515,34 @@ def delivery_view(row: MailDelivery) -> dict:
     }
 
 
-def delivery_detail(db: Session, delivery_id: str) -> dict:
-    """한 통의 상세 - 행과 그 잡의 상태, 다음 시도 시각. 시험 메일의 결과를 기다리는 화면이 이것을 읽는다."""
+def scope_clause(visible: frozenset[str] | None):
+    """발송 기록의 범위(D-547). ``visible`` 은 `visible_user_ids(principal.management)` 다 - ``None`` 이면 전역.
+
+    범위 안 사람이 받는 메일만 보인다. 받는 사람이 계정이 아닌 행(비어 있음)은 전역 관리 범위만 본다 - 그 메일이
+    누구의 것인지 모르면 범위 안이라고 말할 근거가 없다(fail-closed).
+    """
+    from sqlalchemy import false
+
+    if visible is None:
+        return None
+    if not visible:
+        return false()
+    return MailDelivery.recipient_user_id.in_(sorted(visible))
+
+
+def delivery_detail(db: Session, delivery_id: str, *, visible: frozenset[str] | None) -> dict:
+    """한 통의 상세 - 행과 그 잡의 상태, 다음 시도 시각. 시험 메일의 결과를 기다리는 화면이 이것을 읽는다.
+
+    범위 밖이면 없는 메일과 같은 404 다(존재를 흘리지 않는다). params 는 싣지 않는다 - 알림 본문 · 사람 이름 같은
+    재료가 들어 있고 화면은 그것을 쓰지 않는다(D-547).
+    """
     from app.jobs.models import Job
 
-    row = _require(db.get(MailDelivery, delivery_id))
+    stmt = select(MailDelivery).where(MailDelivery.id == delivery_id)
+    clause = scope_clause(visible)
+    if clause is not None:
+        stmt = stmt.where(clause)
+    row = _require(db.execute(stmt).scalar_one_or_none())
     job = db.get(Job, row.job_id) if row.job_id else None
     view = delivery_view(row)
     view["job"] = None if job is None else {
@@ -529,10 +552,6 @@ def delivery_detail(db: Session, delivery_id: str) -> dict:
         "max_attempts": job.max_attempts,
         "next_attempt_at": job.available_at.isoformat() if job.status == "queued" and job.available_at else None,
     }
-    try:
-        view["params"] = json.loads(row.params_json or "{}")
-    except ValueError:
-        view["params"] = {}
     return view
 
 
@@ -553,22 +572,18 @@ def queue_counts(db: Session) -> dict:
     }
 
 
-def recent_failures(db: Session, *, limit: int = 10) -> list[MailDelivery]:
+def recent_failures(db: Session, *, visible: frozenset[str] | None, limit: int = 10) -> list[MailDelivery]:
     """실패, '보낼 수 없었음', 다시 보내는 중을 함께 본다 - 사용자에게는 셋 다 '안 온 메일' 이다.
 
     다시 보내는 중인 메일은 끝난 실패가 아니지만 한 번 이상 실패했고 그 까닭이 `last_error` 에 있다.
     메일 서버가 몇 시간째 거절하는 동안 이 목록이 비어 있으면 운영자는 문제가 없다고 읽는다.
+    목록과 같은 범위로 거른다(D-547) - 받는 주소와 제목이 실린다.
     """
-    return list(
-        db.execute(
-            select(MailDelivery)
-            .where(MailDelivery.status.in_([MAIL_FAILED, MAIL_UNCONFIGURED, MAIL_RETRYING]))
-            .order_by(MailDelivery.created_at.desc())
-            .limit(limit)
-        )
-        .scalars()
-        .all()
-    )
+    stmt = select(MailDelivery).where(MailDelivery.status.in_([MAIL_FAILED, MAIL_UNCONFIGURED, MAIL_RETRYING]))
+    clause = scope_clause(visible)
+    if clause is not None:
+        stmt = stmt.where(clause)
+    return list(db.execute(stmt.order_by(MailDelivery.created_at.desc()).limit(limit)).scalars().all())
 
 
 # ── 발송 기록 목록 (계획 3.3) ─────────────────────────────────────────────────
@@ -594,10 +609,14 @@ LIST_SORT = _list_sort()
 
 
 def list_deliveries(
-    db: Session, *, status: str | None = None, kind: str | None = None, q: str | None = None,
-    since: str | None = None, until: str | None = None, sort=None, offset: int = 0, limit: int = 50,
+    db: Session, *, visible: frozenset[str] | None, status: str | None = None, kind: str | None = None,
+    q: str | None = None, since: str | None = None, until: str | None = None, sort=None, offset: int = 0,
+    limit: int = 50,
 ) -> tuple[list[MailDelivery], int]:
-    """발송 기록 한 쪽. 모르는 상태 · 종류는 422 다 - 빈 목록으로 삼키면 「그런 메일이 없다」로 읽힌다."""
+    """발송 기록 한 쪽. 모르는 상태 · 종류는 422 다 - 빈 목록으로 삼키면 「그런 메일이 없다」로 읽힌다.
+
+    범위(`visible`)는 검색 · 건수보다 **먼저** 건다(D-547) - 검색어로 범위 밖 메일이 있는지를 셀 수 없게.
+    """
     from app.core.dates import parse_kst_boundary
     from app.core.errors import ValidationAppError
     from app.core.search_text import contains_folded
@@ -606,6 +625,9 @@ def list_deliveries(
     from app.mail.renderers import MAIL_KINDS
 
     stmt = select(MailDelivery)
+    scoped = scope_clause(visible)
+    if scoped is not None:
+        stmt = stmt.where(scoped)
     if status:
         if status not in ALL_MAIL_STATUSES:
             raise ValidationAppError(f"알 수 없는 발송 상태입니다: {status}")

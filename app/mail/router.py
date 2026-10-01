@@ -15,6 +15,12 @@
 때까지 읽는다(예전에는 `queued` 응답을 실패로 읽어 성공한 시험 메일도 「보내지 못했습니다」였다).
 다시 보내기와 취소, 설정 전에 쌓인 메일 보내기는 시험 발송과 같은 판정(전역 관리 범위)을 지난다 - 설치 한
 벌의 SMTP 계정으로 나가는 동작이다.
+
+## 읽기는 받는 사람의 범위로 거른다 (D-547)
+
+발송 기록은 받는 주소 · 티켓 제목 · 알림 본문을 싣는다. 예전에는 목록과 상세가 역할만 봐서 부서 범위 관리자 ·
+운영자 · 감사자가 다른 부서 사람의 메일을 읽었다. 이제 전역 관리 범위가 아니면 받는 사람(`recipient_user_id`)이
+관리 범위 안인 메일만 보이고, 받는 사람이 계정이 아닌 메일은 전역 관리 범위만 본다. 범위 밖 상세는 404 다.
 """
 
 from __future__ import annotations
@@ -33,7 +39,7 @@ from app.core.deps import (
 )
 from app.core.errors import ForbiddenError, NotFoundError
 from app.core.pagination import PageParams
-from app.core.scope import Principal, require_global_management
+from app.core.scope import Principal, require_global_management, visible_user_ids
 from app.core.sort import SortParams
 from app.mail.config import config_from_cache, config_from_db, mail_status
 from app.mail.renderers import KIND_TEST
@@ -78,13 +84,14 @@ def current_health(request: Request, db: Session) -> dict:
 
 
 @router.get("/status", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
-def status(request: Request, db: Session = Depends(get_db)):
+def status(request: Request, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     return {
         "mail": current_mail_status(request),
         # 「값이 있다」와 「동작한다」를 가른 상태(미설정 · 확인 전 · 정상 · 발송 실패)와 마지막 확인 시각.
         "health": current_health(request, db),
         "counts": queue_counts(db),
-        "recent_failures": [delivery_view(r) for r in recent_failures(db)],
+        # 받는 주소와 제목이 실리므로 목록과 같은 범위로 거른다(D-547). 상태별 수는 사람 정보가 없어 설치 전체다.
+        "recent_failures": [delivery_view(r) for r in recent_failures(db, visible=visible_user_ids(db, principal.management))],
         # 설정 전에 쌓여 설정 뒤 다시 보낼 수 있는 메일(초대 등, 최근 7일). 화면이 그 단추 옆에 건수를 말한다.
         "pending_unconfigured_count": pending_unconfigured_count(db, now=request.app.state.clock.now()),
         # 알림을 메일로도 보내기(계획 3.4) - 관리자가 허용한 유형과 고를 수 있는 유형 전부, 오래된 메일의 기준.
@@ -102,19 +109,20 @@ def deliveries(
     page: PageParams = Depends(),
     sort: SortParams = Depends(),
     db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
 ):
-    """발송 기록 — 상태 · 종류 · 받는 사람과 제목 검색 · 기간(KST 달력일) · 정렬 · 페이지."""
+    """발송 기록 — 상태 · 종류 · 받는 사람과 제목 검색 · 기간(KST 달력일) · 정렬 · 페이지. 범위 안 사람의 메일만(D-547)."""
     rows, total = list_deliveries(
-        db, status=status, kind=kind, q=q, since=since, until=until, sort=sort,
+        db, visible=visible_user_ids(db, principal.management), status=status, kind=kind, q=q, since=since, until=until, sort=sort,
         offset=page.offset, limit=page.page_size,
     )
     return {"items": [delivery_view(r) for r in rows], "total": total, "page": page.page, "page_size": page.page_size}
 
 
 @router.get("/deliveries/{delivery_id}", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
-def delivery(delivery_id: str, db: Session = Depends(get_db)):
-    """한 통의 상세. 메일 기록은 조직 범위가 없는 설치 전체의 발송함이라 콘솔 읽기 역할이 본다."""
-    return {"delivery": delivery_detail(db, delivery_id)}
+def delivery(delivery_id: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """한 통의 상세. 받는 사람이 관리 범위 밖이면 없는 메일과 같은 404 다(D-547)."""
+    return {"delivery": delivery_detail(db, delivery_id, visible=visible_user_ids(db, principal.management))}
 
 
 def _require_mail_operator(request: Request, db: Session, principal: Principal, what: str, verb: str) -> None:
@@ -212,6 +220,7 @@ def send_test(
         db,
         kind=KIND_TEST,
         to_email=me.email,
+        recipient_user_id=me.id,
         subject="[ClovirAssist] 메일 발송 시험",
         params={},
         now=now,

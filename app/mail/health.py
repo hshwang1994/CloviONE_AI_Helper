@@ -39,7 +39,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.mail.config import MailConfig, configuration_problems
+from app.mail.config import PASSWORD_SLOT, MailConfig, configuration_problems
 from app.mail.models import (
     FAILURE_AUTH,
     FAILURE_CONNECT,
@@ -85,7 +85,7 @@ RECOVERY_WINDOW_DAYS = 7
 def fingerprint(config: MailConfig) -> str:
     """상태 기록이 어느 설정의 것인가. 이 값이 바뀌면 옛 기록은 지금 설정을 말하지 않는다."""
     material = json.dumps([
-        config.host, config.port, config.security, config.username, config.effective_password_ref,
+        config.host, config.port, config.security, config.username, PASSWORD_SLOT,
         config.from_address, config.tls_verify, hashlib.sha256(config.ca_pem.encode("utf-8")).hexdigest(),
     ], ensure_ascii=False)
     return hashlib.sha256(material.encode("utf-8")).hexdigest()

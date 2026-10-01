@@ -247,9 +247,10 @@ def test_diagnostic_bundle_does_not_mask_non_secret_setting_by_name(client, logi
     assert pw_policy["value"] == {"min_length": 12, "min_classes": 3}
     assert pw_policy["type"] == "object"
 
-    # The actual secret sub-field inside smtp must still be masked.
+    # smtp no longer carries a secret *name* at all (D-545): the password always lives in the
+    # fixed `smtp.password` slot, so the diagnostics value has nothing secret-shaped to mask.
     smtp_value = settings["smtp"]["value"]
-    assert smtp_value["password_ref"] == "***"
+    assert "password_ref" not in smtp_value
 
 
 def test_auditor_can_read_dashboard(client, login_as):

@@ -1092,8 +1092,39 @@ stage_8_config() {
 # ═════════════════════════════════════════════════════════════════════════════
 # Stage 9 — DB Migration
 # ═════════════════════════════════════════════════════════════════════════════
+
+# 옛 메일 설정이 가리키던 비밀번호 파일 이름으로 옮겨도 되는가(D-545). `smtp` 로 시작하는 이름만 받는다 — 0042 전의
+# `password_ref` 는 아무 비밀 이름이나 받았으므로, 누군가 미리 AI 키나 저장소 자격 이름을 심어 두었으면 이 복사가 그
+# 비밀을 메일 비밀번호 칸으로 옮겨 막은 길을 다시 연다. 고정 칸 자기 자신과 경로 문자는 받지 않는다.
+legacy_smtp_secret_name_ok() {
+  [[ "${1:-}" =~ ^smtp[A-Za-z0-9._-]{0,123}$ ]] || return 1
+  [ "$1" != "smtp.password" ] || return 1
+  case "$1" in *..*) return 1 ;; esac
+  return 0
+}
+
+# 0042 가 `password_ref` 를 걷기 **전에** 그 이름의 파일을 고정 칸 `smtp.password` 로 복사한다. 값을 읽거나 로그에
+# 남기지 않는다. 고정 칸에 이미 파일이 있으면 관리자가 화면에서 넣은 값이므로 건드리지 않는다. 새 설치(표 없음)는
+# 조회가 실패해 아무 일도 하지 않는다.
+copy_legacy_smtp_secret() {
+  local legacy
+  legacy="$(runuser -u postgres -- psql -d "$PG_DB" -tAc \
+    "select coalesce(value_json::jsonb->>'password_ref','') from app_settings where key='smtp'" 2>/dev/null | tr -d '[:space:]')" || return 0
+  [ -n "$legacy" ] || return 0
+  if ! legacy_smtp_secret_name_ok "$legacy"; then
+    log "옛 메일 설정의 비밀번호 파일 이름은 옮기지 않습니다(smtp 로 시작하는 이름만 옮깁니다). 메일 화면에서 비밀번호를 다시 넣으십시오"
+    return 0
+  fi
+  if [ -f "$SECRETS_DIR/$legacy" ] && [ ! -f "$SECRETS_DIR/smtp.password" ]; then
+    install -o root -g "$SVC_USER" -m 0640 "$SECRETS_DIR/$legacy" "$SECRETS_DIR/smtp.password"
+    log "옛 메일 설정이 가리키던 비밀번호 파일을 smtp.password 로 옮겼습니다(값은 로그에 남기지 않습니다)"
+  fi
+  return 0
+}
+
 stage_9_migration() {
   local before after head
+  copy_legacy_smtp_secret
   before="$(alembic_current_db)"; head="$(alembic_head_code)"
   log "alembic: current=${before:-<없음>} target=${head:-<모름>}"
   say "  alembic revision: ${before:-<없음>} → ${head:-<모름>}"

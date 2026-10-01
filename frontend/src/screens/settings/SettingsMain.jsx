@@ -10,6 +10,7 @@ import { FilterToggle } from "../../ui/FilterBar.jsx";
 import { HeaderActions } from "../../ui/HeaderSlot.jsx";
 import {
   SETTING_LABELS, settingLabel, WRITE_ROLES, MAINTENANCE_KEYS, DEDICATED_SCREEN_KEYS, MAIL_SCREEN_KEYS, SETUP_SCREEN_KEYS,
+  SYSTEM_ADMIN_ONLY_SETTING_KEYS,
   summarizeSetting, displayValue,
 } from "./settingsRegistry.js";
 import { SettingEditor } from "./SettingEditor.jsx";
@@ -204,7 +205,12 @@ export function Settings({ embedded = false } = {}) {
             {/* 목록 판 — 다른 목록 화면과 같은 판이다(판이 곧 표 상자 · 발은 판 안, 조합 계약 C-3). */}
             <DataTable placement="surface" columns={columns} rows={rows} rowKey={(r) => r.key} onRow={setSel} />
           </>}
-      <SettingEditor setting={sel} canWrite={canWrite} onClose={() => setSel(null)}
+      {/* 서버가 시스템 관리자만 쓰게 막는 키(registry.py::SYSTEM_ADMIN_ONLY_KEYS)는 다른 역할에게 열람 전용으로 연다 —
+          편집기를 열어 두면 저장에서 403 을 받는 막다른 길이다(D-545, 메일 서버 설정). */}
+      <SettingEditor setting={sel}
+        canWrite={canWrite && !(sel && SYSTEM_ADMIN_ONLY_SETTING_KEYS.includes(sel.key) && auth.data?.role !== "system_admin")}
+        lockedReason={sel && SYSTEM_ADMIN_ONLY_SETTING_KEYS.includes(sel.key) ? "열람 전용입니다. 이 설정은 시스템 관리자만 바꿀 수 있습니다." : undefined}
+        onClose={() => setSel(null)}
         onSaved={(res) => {
           qc.invalidateQueries({ queryKey: ["settings"] });
           // 버전 기록 쿼리도 함께 무효화한다 — SettingVersions.doRollback과 동일한 이유: 기본

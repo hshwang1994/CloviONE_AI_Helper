@@ -33,7 +33,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import Base, JsonText, TimestampMixin, UUIDPrimaryKeyMixin
@@ -86,6 +86,7 @@ class MailDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         Index("ix_mail_deliveries_created_at", "created_at"),
         Index("ix_mail_deliveries_status_created", "status", "created_at"),
+        Index("ix_mail_deliveries_recipient_created", "recipient_user_id", "created_at"),
         UniqueConstraint("idempotency_key", name="uq_mail_deliveries_idempotency_key"),
     )
 
@@ -105,3 +106,13 @@ class MailDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     failure_kind: Mapped[str | None] = mapped_column(String(32))
     # 보내지 않은 까닭(`cancelled` · `superseded`). 예: `newer_status_event`, `cancelled_by_operator`.
     skip_reason: Mapped[str | None] = mapped_column(String(64))
+    # 받는 사람 계정(D-547). 발송 기록을 범위로 거르는 축이고(부서 범위 관리자 · 운영자 · 감사자는 범위 안 사람의
+    # 메일만 본다), 보내기 직전의 받는 사람 재검사가 누구를 볼지 정한다(`app/mail/recipients.py`). 계정이 아닌 주소로
+    # 간 메일(시험 메일의 다른 주소)은 비어 있고 전역 관리자만 본다. 계정이 지워지면 비워진다.
+    recipient_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="SET NULL"),
+    )
+    # 실패한 단계(dns · connect · tls · greeting · auth · sender · recipient · data)와 다음 서버의 마지막 응답 문장.
+    # 상세 화면이 「어디서 막혔나」를 말한다(D-546). 응답 원문은 기술 정보 안에서만 보인다.
+    failure_stage: Mapped[str | None] = mapped_column(String(16))
+    relay_response: Mapped[str | None] = mapped_column(String(300))

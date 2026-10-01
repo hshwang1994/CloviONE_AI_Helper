@@ -161,22 +161,18 @@ EXEMPT: dict[str, str] = {
     # 관리자에게 전사 항목이 보이는 것을 좁힐지는 BACKLOG 의 정합성 읽기 범위 항목이 다룬다.
     "app/integrity/router.py::integrity_check_items":
         "`{key}` 는 자원 id 가 아니라 고정된 검사 이름이다. 읽기는 요약과 같은 콘솔 읽기 판정이다.",
-    # ── 메일 발송 기록 (계획 3.3) ─────────────────────────────────────────────────
+    # ── 메일 발송 기록 (계획 3.3, D-547) ─────────────────────────────────────────
     #
-    # 🔴 **이 표는 범위 축이 없다.** `mail_deliveries` 에 `org_id` 가 없다 — 설치 한 벌의 SMTP 계정이
-    # 내보낸 발송함이지 조직마다 하나가 아니다(백업과 같은 모양). 검사에 걸린 까닭은 시험 발송
-    # (`send_test`)이 `require_global_management(principal, …)` 를 부르면서 모듈에 범위 신호가 생겼기
-    # 때문이다. 쓰기는 같은 판정(`_require_mail_operator`)이, 읽기는 콘솔 읽기 역할이 지킨다.
-    # **이 면제가 언제 무효가 되는가**: `mail_deliveries` 가 `org_id` 를 갖는 날.
-    "app/mail/router.py::delivery":
-        "메일 발송 기록은 조직 범위가 없다(`mail_deliveries` 에 `org_id` 없음) — 좁힐 범위가 없다. "
-        "콘솔 읽기 역할이 지킨다.",
+    # 발송 기록은 받는 사람(`recipient_user_id`) 축으로 범위를 갖는다 — 목록 · 상세 · 최근 실패는
+    # `visible_user_ids(principal.management)` 로 거른다(그래서 상세 경로의 면제를 걷었다). 다시 보내기와
+    # 취소는 **전역 관리 범위만** 통과한다(`_require_mail_operator` → `require_global_management`) - 설치 한
+    # 벌의 SMTP 계정으로 나가는 동작이라 범위를 좁힐 대상이 아니다.
     "app/mail/router.py::resend":
-        "메일 발송 기록은 조직 범위가 없다(`mail_deliveries` 에 `org_id` 없음) — 좁힐 범위가 없다. "
-        "`require_global_management` 가 지킨다.",
+        "전역 관리 범위만 통과한다(`require_global_management`) — 좁힐 범위가 없다. 설치 한 벌의 SMTP 계정으로 "
+        "나가는 동작이다.",
     "app/mail/router.py::cancel":
-        "메일 발송 기록은 조직 범위가 없다(`mail_deliveries` 에 `org_id` 없음) — 좁힐 범위가 없다. "
-        "`require_global_management` 가 지킨다.",
+        "전역 관리 범위만 통과한다(`require_global_management`) — 좁힐 범위가 없다. 설치 한 벌의 SMTP 계정으로 "
+        "나가는 동작이다.",
     "app/mail/router.py::verify_result":
         "연결 확인 잡은 설치 한 벌의 SMTP 설정을 확인한 결과다(`mail_verify` 만 받고 다른 잡 종류는 404) — "
         "좁힐 범위가 없다. 결과에 든 것은 건강 상태 문장뿐이고 콘솔 읽기 역할이 지킨다.",

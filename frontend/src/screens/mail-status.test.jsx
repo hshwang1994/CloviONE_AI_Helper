@@ -368,13 +368,13 @@ describe("메일 발송 화면", () => {
       mail: {
         ...NOT_CONFIGURED.mail,
         password_secret: "missing",
-        server: { ...NOT_CONFIGURED.mail.server, username: "mailer", password_ref: "smtp_password" },
+        server: { ...NOT_CONFIGURED.mail.server, username: "mailer" },
       },
     });
     renderScreen();
     const meta = await screen.findByLabelText("메일 서버 설정");
     expect(within(meta).getByText("등록 안 됨")).toBeInTheDocument();
-    expect(within(meta).queryByText(/smtp_password/)).toBeNull();
+    expect(within(meta).queryByText(/smtp.password|smtp_password/)).toBeNull();
   });
 });
 

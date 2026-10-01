@@ -399,8 +399,8 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
        계열 키를 모양이 맞아도 거절한다 - DB 설정은 관리 API 와 진단 번들에 실리므로 값이
        들어오는 순간 평문이 응답을 타고 나간다(불변 §3). 비밀번호 칸은 비밀 저장 API
        (`/api/admin/secrets/smtp.password`)로 따로 저장되고 되읽히지 않는다(`SecretField`, 계획 2.3).
-       예전에는 서버에 파일을 손으로 두고 그 이름을 적어야 했다. 옛 설치가 적어 둔 이름(`password_ref`)은
-       그대로 이기므로, 여기서 비밀번호를 저장하면 그 이름을 비워 저장한 비밀번호를 쓰게 한다. */
+       비밀번호를 읽는 칸은 그 하나로 고정이다(D-545) - 설정이 다른 비밀의 이름을 가리켜 그 비밀로 남의 서버에
+       로그인하게 만드는 길을 막는다. 그래서 이 편집기에는 칸 이름을 고르는 자리가 없다. */
     const secId = fieldId("security");
     return (
       <Box sx={{ display: "grid", gap: 2.5 }}>
@@ -485,11 +485,8 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
             <SecretField
               slot="smtp.password"
               label="로그인 비밀번호"
-              help={safe.password_ref && safe.password_ref !== "smtp.password"
-                ? "지금은 서버에 둔 비밀번호 파일을 씁니다. 여기서 저장하면 그 파일 대신 저장한 비밀번호를 쓰고, 설정을 저장하면 적용됩니다."
-                : "저장한 비밀번호는 다시 보여 주지 않습니다. 로그인 계정이 있을 때만 씁니다."}
+              help="저장한 비밀번호는 다시 보여 주지 않습니다. 로그인 계정이 있을 때만 씁니다."
               disabled={!canWrite}
-              onChanged={() => { if (safe.password_ref) patch({ password_ref: "" }); }}
             />
           </Box>
         </Box>

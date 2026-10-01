@@ -147,8 +147,8 @@ def fan_out_mail(db: Session, row, *, now: datetime, context: dict | None = None
         "route": destination_for(row.related_object_type, row.related_object_id, row.audience),
     }
     return queue_mail(
-        db, kind=KIND_NOTIFICATION, to_email=user.email, subject=row.title, params=params, now=now,
-        idempotency_key=f"notification:{row.id}",
+        db, kind=KIND_NOTIFICATION, to_email=user.email, recipient_user_id=user.id, subject=row.title,
+        params=params, now=now, idempotency_key=f"notification:{row.id}",
     )
 
 

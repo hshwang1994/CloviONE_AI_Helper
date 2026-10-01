@@ -170,6 +170,7 @@ def request_password_reset(
                 db,
                 kind=KIND_PASSWORD_RESET,
                 to_email=user.email,
+                recipient_user_id=user.id,
                 subject="[ClovirAssist] 비밀번호 재설정 안내",
                 params={"user_id": user.id},
                 now=now,

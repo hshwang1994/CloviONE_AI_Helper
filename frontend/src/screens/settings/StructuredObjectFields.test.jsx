@@ -6,7 +6,9 @@ import "@testing-library/jest-dom/vitest";
 
 /* qa-contract-change: 메일 비밀번호가 서버 파일 이름(`password_ref`) 칸에서 비밀 저장 칸(`SecretField`, 계획 2.3 · D-511)으로
  * 바뀌었다. 「비밀번호를 받는 칸이 없다」 단언을 「비밀번호 칸의 값은 설정 JSON 이 아니라 비밀 저장 API 로만 간다」로 옮기고,
- * 서버 인증서 확인과 사설 CA 칸의 단언을 더했다. */
+ * 서버 인증서 확인과 사설 CA 칸의 단언을 더했다.
+ * qa-contract-change: 비밀번호를 읽는 칸이 하나로 고정됐다(D-545). 「저장하면 옛 파일 이름을 비운다」 단언을
+ * 「설정 JSON 에 칸 이름을 적지 않는다」로 옮긴다. */
 const apiMock = vi.fn();
 vi.mock("../../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
 
@@ -92,7 +94,7 @@ describe("StructuredObjectFields — smtp (지시 32 · 36)", () => {
   const SMTP = JSON.stringify({
     enabled: true, host: "smtp.internal", port: 587, security: "starttls",
     from_address: "portal@goodmit.co.kr", from_name: "ClovirAssist",
-    username: "mailer", password_ref: "smtp_password", timeout_seconds: 20,
+    username: "mailer", timeout_seconds: 20,
   });
 
   it("필드마다 이름이 붙은 입력으로 렌더되고 저장된 값을 보여준다", () => {
@@ -124,8 +126,8 @@ describe("StructuredObjectFields — smtp (지시 32 · 36)", () => {
     fireEvent.click(screen.getByRole("button", { name: "로그인 비밀번호 저장" }));
     await waitFor(() => expect(apiMock.mock.calls.some(([p, o]) =>
       p === "/api/admin/secrets/smtp.password" && o && o.method === "PUT")).toBe(true));
-    // 옛 설치가 적어 둔 파일 이름은 저장한 비밀번호를 쓰도록 비운다(설정을 저장하면 적용된다).
-    await waitFor(() => expect(onChange.mock.calls.some(([v]) => JSON.parse(v).password_ref === "")).toBe(true));
+    // 비밀번호를 읽는 칸은 하나로 고정이다(D-545) - 저장해도 설정 JSON 에 칸 이름을 적지 않는다.
+    expect(onChange.mock.calls.some(([v]) => "password_ref" in JSON.parse(v))).toBe(false);
   });
 
   it("서버 인증서 확인은 기본으로 켜져 있고, 끄면 경고가 선다", () => {

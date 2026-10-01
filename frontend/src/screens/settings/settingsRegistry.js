@@ -100,6 +100,10 @@ export const DEDICATED_SCREEN_KEYS = [
 export const MAIL_SCREEN_KEYS = ["mail_notification_types", "mail_notification_max_age_days"];
 // 초기 설정 화면이 고치는 값(계획 3.5, D-520). 메일과 AI 를 쓰는지 고르는 자리는 그 화면의 항목 옆이다.
 export const SETUP_SCREEN_KEYS = ["setup_optional_choices"];
+// 이 표에 남아 있으면서 서버가 시스템 관리자만 쓰게 막는 키(registry.py::SYSTEM_ADMIN_ONLY_KEYS 중 이 표에 보이는 것).
+// 다른 역할에게는 편집기를 열람 전용으로 연다. 메일 서버 설정은 그 비밀번호로 남의 서버에 로그인하게 만들 수 있어
+// 시스템 관리자 전용이다(D-545).
+export const SYSTEM_ADMIN_ONLY_SETTING_KEYS = ["smtp"];
 // 이 object 설정들은 정해진 스키마가 있어 타입에 맞는 입력(숫자·분/시간·칩 목록)으로 편집할 수 있다.
 // 비개발자 관리자가 raw JSON을 손으로 추측하지 않게 하려는 목적(registry.py 주석과 동일 취지) —
 // 그 외 미지의 object 키는 여전히 JSON 텍스트로만 편집한다(스키마가 없으므로).

@@ -188,9 +188,11 @@ def test_an_empty_password_name_means_the_saved_slot(tmp_path):
     assert any("비밀번호" in p for p in configuration_problems(config, provider))
     (tmp_path / "smtp.password").write_text("x", encoding="utf-8")
     assert configuration_problems(config, provider) == []
-    # 옛 설치가 적어 둔 이름은 그대로 이긴다.
+    # 옛 설치가 적어 둔 이름은 더 이상 이기지 않는다(D-545) - 비밀번호는 언제나 고정 칸에서 읽는다.
+    (tmp_path / "smtp.password").unlink()
+    (tmp_path / "legacy_file").write_text("x", encoding="utf-8")
     legacy = smtp_config({**CONFIG, "password_ref": "legacy_file"})
-    assert legacy.effective_password_ref == "legacy_file"
+    assert any("비밀번호" in p for p in configuration_problems(legacy, provider)), "옛 이름이 가리키는 파일로 로그인한다"
 
 
 @pytest.mark.parametrize("patch, ok", [
@@ -200,6 +202,23 @@ def test_an_empty_password_name_means_the_saved_slot(tmp_path):
     ({"ca_pem": TEST_CA, "security": "none"}, False),
     ({"tls_verify": "no"}, False),
     ({"tls_verify": False}, True),
+    # D-545: 비밀번호 칸의 이름은 고를 수 없다. 빈 값(옛 모양)만 받는다.
+    ({"password_ref": ""}, True),
+    ({"password_ref": "ai.openai.api_key"}, False),
+    ({"password_ref": "smtp.password"}, False),
+    ({"relay_secret": "x"}, False),
+    # 칸의 모양: 서버 주소는 이름이나 IP 만, 보내는 사람은 주소 모양, 이름 · 계정에는 줄바꿈이 없다.
+    ({"host": "smtp.example.com"}, True),
+    ({"host": "10.0.0.5"}, True),
+    ({"host": "smtp://evil.example"}, False),
+    ({"host": "smtp.example.com /x"}, False),
+    ({"host": "user@evil.example"}, False),
+    ({"from_address": "noreply@example.com"}, True),
+    ({"from_address": "not-an-address"}, False),
+    ({"from_address": "a@b.com\r\nBcc: x@y.com"}, False),
+    ({"from_name": "알림\r\nBcc: x@y.com"}, False),
+    ({"from_name": "가" * 101}, False),
+    ({"username": "mailer\n"}, False),
 ])
 def test_the_smtp_setting_validates_the_new_fields(patch, ok):
     from app.settings.registry import _smtp

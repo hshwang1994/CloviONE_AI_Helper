@@ -7,9 +7,10 @@
 안에서 보내게 되며 (3) 비밀번호를 secret 파일이 아닌 곳에서 읽는 경로가 생긴다.
 `tests/integration/test_mail_delivery.py` 가 이 경계를 못박는다.
 
-## 비밀번호는 파일에서, 값은 SecretValue 로
+## 비밀번호는 고정 칸에서, 값은 SecretValue 로
 
-DB 에는 이름(``password_ref``)만 있고 값은 ``SECRETS_DIR/<ref>`` 파일이다(불변 §3).
+DB 에는 비밀번호도 그 이름도 없다. 값은 언제나 고정 칸 ``SECRETS_DIR/smtp.password`` 파일이다(불변 §3, D-545) -
+설정이 다른 비밀의 이름을 가리켜 그 비밀로 남의 서버에 로그인하게 만드는 길을 막는다(`app/mail/config.py`).
 ``SecretValue`` 는 repr/str 이 ``***`` 라 로그나 예외 메시지에 실수로 섞여도 새지 않는다.
 그래서 ``.reveal()`` 은 ``login()`` 인자로 넘기는 그 한 줄에서만 부른다.
 
@@ -40,7 +41,7 @@ import ssl
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, make_msgid
 
-from app.mail.config import SECURITY_SSL, SECURITY_STARTTLS, MailConfig
+from app.mail.config import PASSWORD_SLOT, SECURITY_SSL, SECURITY_STARTTLS, MailConfig
 from app.mail.models import (
     FAILURE_AUTH,
     FAILURE_CONNECT,
@@ -167,7 +168,7 @@ class SmtpTransport:
                 server.ehlo()
             if config.username:
                 stages.append("auth")
-                secret = secret_provider.require(config.effective_password_ref)
+                secret = secret_provider.require(PASSWORD_SLOT)
                 # reveal() 은 여기 한 줄에서만. 위로도 아래로도 새지 않는다.
                 server.login(config.username, secret.reveal())
         except BaseException:

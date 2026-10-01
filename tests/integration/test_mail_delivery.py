@@ -65,28 +65,27 @@ def test_diagnostics_bundle_carries_the_same_fact(client, login_as):
 
 def test_status_never_leaks_the_smtp_password(client, app, login_as, settings):
     secret = "SMTP-PLAINTEXT-MUST-NOT-LEAK-4471"
-    (settings.secrets_dir / "smtp_password").write_text(secret, encoding="utf-8")
+    (settings.secrets_dir / "smtp.password").write_text(secret, encoding="utf-8")
     csrf = login_as("system_admin")
-    configure_smtp(app, username="mailer", password_ref="smtp_password")
+    configure_smtp(app, username="mailer")
     response = client.get("/api/admin/mail/status", headers={"X-CSRF-Token": csrf})
     assert secret not in response.text
 
 
-def test_a_missing_secret_file_is_named_as_the_problem(client, app, login_as):
-    """빠진 파일 이름은 계속 화면에 있다. 다만 **문장이 아니라 기술 정보**에 있다.
+def test_a_missing_password_is_named_as_the_problem_without_a_slot_name(client, app, login_as):
+    """비밀번호가 없으면 문제 문장이 그 사실을 말한다. 비밀번호 칸은 하나로 고정이라(D-545) 응답에 칸 이름이 없다.
 
-    지시 36 이후 문제 문장은 사람이 읽는 한 줄이고(`메일 서버 비밀번호가 서버에 등록되지
-    않았습니다`), 어느 파일이냐는 `server.password_ref` 로 내려간다. 이름 자체가 사라지면
-    운영자가 무엇을 만들어야 하는지 알 수 없으므로 사라지지 않았음을 함께 못박는다.
+    예전에는 어느 파일이냐를 `server.password_ref` 로 내려 보냈다. 그 이름을 사람이 고를 수 있어서 다른 비밀로
+    로그인하게 만드는 길이 있었고, 이제는 고를 것이 없으니 보여 줄 것도 없다.
     """
     csrf = login_as("admin")
-    configure_smtp(app, username="mailer", password_ref="smtp_password")
+    configure_smtp(app, username="mailer")
     body = client.get(
         "/api/admin/mail/status", headers={"X-CSRF-Token": csrf}
     ).json()["mail"]
     assert body["configured"] is False
     assert any("비밀번호" in p for p in body["problems"])
-    assert body["server"]["password_ref"] == "smtp_password"
+    assert "password_ref" not in body["server"]
     assert body["password_secret"] != "configured"
 
 
@@ -279,35 +278,42 @@ def test_an_idempotency_key_makes_one_mail(app):
 
     configure_smtp(app)
     with app.state.session_factory() as db:
-        first = queue_mail(db, kind="invite", to_email="a@goodmit.co.kr", subject="초대",
+        first = queue_mail(db, kind="invite", to_email="a@goodmit.co.kr", subject="초대", recipient_user_id=None,
                            params={}, now=app.state.clock.now(), idempotency_key="notification:1")
-        again = queue_mail(db, kind="invite", to_email="a@goodmit.co.kr", subject="초대",
+        again = queue_mail(db, kind="invite", to_email="a@goodmit.co.kr", subject="초대", recipient_user_id=None,
                            params={}, now=app.state.clock.now(), idempotency_key="notification:1")
         db.commit()
         assert first.id == again.id
         assert db.query(MailDelivery).count() == 1
 
 
-def test_a_render_failure_is_recorded_not_left_queued_forever(app, settings, fake_clock):
-    """계정이 큐잉과 워커 처리 사이에 사라지면 render_body 가 발송 전에 실패한다.
+def test_a_render_failure_is_recorded_not_left_queued_forever(app, settings, fake_clock, make_user, monkeypatch):
+    """본문을 만들다 실패하면(렌더러가 PermanentJobError) 그 실패가 아웃박스에 남는다.
 
     handle_mail_send 가 그 실패를 try/except 밖에서 일으키면 잡은 영구 실패로 끊기지만
     아웃박스 행은 MAIL_QUEUED 에 멈춰 영원히 '대기 중'으로 보인다 - mail_send.py 파일
-    docstring 이 명시적으로 막으려는 상태다.
+    docstring 이 명시적으로 막으려는 상태다. 받는 사람 재검사(D-547)를 지나는 실제 계정으로 렌더 단계에 닿게 한다.
     """
-    from app.mail.models import MAIL_FAILED, MAIL_QUEUED, MailDelivery
+    from app.jobs.exceptions import PermanentJobError
+    from app.mail.models import FAILURE_RENDER, MAIL_FAILED, MAIL_QUEUED, MailDelivery
     from app.mail.renderers import KIND_PASSWORD_RESET
     from app.mail.service import queue_mail
 
     configure_smtp(app)
+    user = make_user("render@goodmit.co.kr")
+
+    def broken_render(db, delivery, ctx):
+        raise PermanentJobError("메일 파라미터가 비어 있습니다")
+
+    monkeypatch.setattr("app.jobs.handlers.mail_send.render_body", broken_render)
     with app.state.session_factory() as db:
         queue_mail(
             db,
             kind=KIND_PASSWORD_RESET,
-            to_email="ghost@goodmit.co.kr",
+            to_email="render@goodmit.co.kr",
+            recipient_user_id=user.id,
             subject="[ClovirAssist] 비밀번호 재설정 안내",
-            # 실제 계정이 없는 user_id - 큐잉 뒤 계정이 삭제/보관된 경우를 흉내낸다.
-            params={"user_id": "does-not-exist"},
+            params={"user_id": user.id},
             now=app.state.clock.now(),
         )
         db.commit()
@@ -320,7 +326,30 @@ def test_a_render_failure_is_recorded_not_left_queued_forever(app, settings, fak
             "렌더 실패가 아웃박스에 안 남고 MAIL_QUEUED 에 영원히 멈춰 있다"
         )
         assert delivery.status == MAIL_FAILED
+        assert delivery.failure_kind == FAILURE_RENDER
         assert delivery.last_error, "왜 실패했는지 아무 데도 안 남았다"
+
+
+def test_a_reset_mail_to_a_vanished_account_is_cancelled_before_rendering(app, settings, fake_clock):
+    """큐잉 뒤 계정이 사라지면 보내기 직전의 받는 사람 재검사(D-547)가 렌더 전에 멈춘다 - 토큰도 만들지 않는다."""
+    from app.mail.models import MAIL_CANCELLED, MailDelivery
+    from app.mail.renderers import KIND_PASSWORD_RESET
+    from app.mail.service import queue_mail
+
+    configure_smtp(app)
+    server = FakeSmtp()
+    with app.state.session_factory() as db:
+        queue_mail(
+            db, kind=KIND_PASSWORD_RESET, to_email="ghost@goodmit.co.kr", recipient_user_id=None,
+            subject="[ClovirAssist] 비밀번호 재설정 안내", params={"user_id": "does-not-exist"},
+            now=app.state.clock.now(),
+        )
+        db.commit()
+    drain_worker(app, settings, fake_clock, server)
+    with app.state.session_factory() as db:
+        delivery = db.query(MailDelivery).one()
+        assert (delivery.status, delivery.skip_reason) == (MAIL_CANCELLED, "account_gone")
+    assert server.sent == []
 
 
 def test_failures_surface_on_the_admin_status_screen(

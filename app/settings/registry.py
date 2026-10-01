@@ -8,6 +8,7 @@ Secrets are never stored plaintext (spec §25.4) — none of these are secret.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -150,26 +151,37 @@ def _backup_schedule(value: Any) -> None:
 
 
 def _smtp(value: Any) -> None:
-    """메일 발송 서버 설정(9-9 P4).
+    """메일 발송 서버 설정(9-9 P4, D-545).
 
-    **비밀번호를 여기 저장하지 못하게 막는 것이 이 검증기의 핵심이다.** DB 설정은
-    관리 API 로 읽히고 진단 번들에도 실린다 - 값이 들어오는 순간 평문 비밀번호가
-    응답을 타고 나간다(불변 §3). 그래서 `password` 같은 키는 모양이 맞아도 거절한다.
-    실제 값은 `SECRETS_DIR/<password_ref>` 파일에만 둔다.
+    **비밀번호와 비밀번호의 이름을 여기 두지 못하게 막는 것이 이 검증기의 핵심이다.** DB 설정은
+    관리 API 로 읽히고 진단 번들에도 실린다 - 값이 들어오는 순간 평문 비밀번호가 응답을 타고
+    나간다(불변 §3). 그래서 `password` 같은 키는 모양이 맞아도 거절한다. 비밀번호는 고정 칸
+    `smtp.password` 하나에만 산다.
+
+    비밀번호 칸의 **이름**(`password_ref`)도 받지 않는다(빈 값만 옛 모양으로 받는다 - 읽는 쪽은 무시한다).
+    이름을 사람이 고를 수 있으면 메일 설정을 바꾸는 사람이 그 이름을 AI 키 같은 다른 비밀로 바꾸고 서버
+    주소를 자기 서버로 돌려, 「연결 확인」 한 번에 워커가 진짜 비밀로 그 서버에 로그인하게 만들 수 있었다.
+    모르는 항목도 받지 않는다 - 받아 두면 다음 사람이 그 항목이 쓰인다고 읽는다.
 
     포트, 보안 방식을 **저장 시점에** 검증하는 이유는 backup_schedule 과 같다: 워커로
     미루면 잘못된 값이 조용히 저장되고, 그 뒤로 메일이 영영 안 나간다.
     """
-    from app.mail.config import ALL_SECURITY_MODES
+    from app.mail.config import ALL_SECURITY_MODES, DEFAULT_SMTP
 
     if not isinstance(value, dict):
         raise ValidationAppError("객체여야 합니다.")
     for banned in ("password", "passwd", "secret", "password_value"):
         if banned in value:
             raise ValidationAppError(
-                "비밀번호는 설정에 저장하지 않습니다. 서버에 미리 둔 파일의 "
-                "이름만 적으세요."
+                "비밀번호는 설정에 저장하지 않습니다. 메일 설정의 비밀번호 칸에 저장하세요."
             )
+    if str(value.get("password_ref") or "").strip():
+        raise ValidationAppError(
+            "비밀번호를 읽을 곳은 바꿀 수 없습니다. 비밀번호는 메일 설정의 비밀번호 칸에 저장하세요."
+        )
+    unknown = sorted(k for k in value if k not in DEFAULT_SMTP and k != "password_ref")
+    if unknown:
+        raise ValidationAppError("메일 설정에 없는 항목입니다: " + ", ".join(unknown))
     if not isinstance(value.get("enabled"), bool):
         raise ValidationAppError("메일 발송은 사용 또는 사용 안 함이어야 합니다.")
     port = value.get("port", 587)
@@ -181,9 +193,11 @@ def _smtp(value: Any) -> None:
     timeout = value.get("timeout_seconds", 20)
     if not isinstance(timeout, int) or isinstance(timeout, bool) or not (1 <= timeout <= 300):
         raise ValidationAppError("응답 대기 시간은 1~300초 사이의 정수여야 합니다.")
-    for key in ("host", "from_address", "from_name", "username", "password_ref", "ca_pem"):
+    for key, label in (("host", "메일 서버 주소"), ("from_address", "보내는 사람 주소"), ("from_name", "보내는 사람 이름"),
+                       ("username", "로그인 계정"), ("password_ref", "비밀번호 칸"), ("ca_pem", "CA 인증서")):
         if key in value and not isinstance(value[key], str):
-            raise ValidationAppError(f"{key}는 문자열이어야 합니다.")
+            raise ValidationAppError(f"{label} 칸에는 글자만 넣을 수 있습니다.")
+    _smtp_text_fields(value)
     if "tls_verify" in value and not isinstance(value["tls_verify"], bool):
         raise ValidationAppError("서버 인증서 확인은 켬 또는 끔이어야 합니다.")
     _smtp_ca(value, security)
@@ -193,6 +207,29 @@ def _smtp(value: Any) -> None:
             raise ValidationAppError("메일 발송을 켜려면 메일 서버 주소가 필요합니다.")
         if not str(value.get("from_address", "")).strip():
             raise ValidationAppError("메일 발송을 켜려면 보내는 사람 주소가 필요합니다.")
+
+
+_SMTP_HOST_FORBIDDEN = re.compile(r"[\s/@?#\\]")
+_EMAIL_SHAPE = re.compile(r"^[^@\s<>,;\"]+@[^@\s<>,;\"]+\.[^@\s<>,;\"]+$")
+
+
+def _smtp_text_fields(value: dict) -> None:
+    """칸 하나하나의 모양. 보내는 사람 이름과 주소는 메일 머리에 그대로 들어가서 줄바꿈 하나가 머리 주입이 된다."""
+    host = str(value.get("host") or "").strip()
+    if host:
+        if "://" in host or _SMTP_HOST_FORBIDDEN.search(host):
+            raise ValidationAppError("메일 서버 주소에는 smtp.example.com 처럼 이름이나 IP 만 적습니다.")
+        if len(host) > 253:
+            raise ValidationAppError("메일 서버 주소가 너무 깁니다.")
+    sender = str(value.get("from_address") or "").strip()
+    if sender and (len(sender) > 320 or not _EMAIL_SHAPE.match(sender)):
+        raise ValidationAppError("보내는 사람 주소는 name@example.com 모양이어야 합니다.")
+    for key, label, limit in (("from_name", "보내는 사람 이름", 100), ("username", "로그인 계정", 320)):
+        text = str(value.get(key) or "")
+        if "\r" in text or "\n" in text:
+            raise ValidationAppError(f"{label}에는 줄바꿈을 넣을 수 없습니다.")
+        if len(text) > limit:
+            raise ValidationAppError(f"{label}이 너무 깁니다.")
 
 
 def _smtp_ca(value: dict, security: str) -> None:
@@ -392,16 +429,16 @@ REGISTRY: dict[str, SettingSpec] = {
         # 메일 발송(9-9 P4). 소비자가 넷 붙어 있다: 비밀번호 재설정, 초대, 백업 실패,
         # 승인 요청. '되는 척하는 스위치'가 아니라는 뜻이다. 기본은 꺼짐이고, 꺼져 있으면
         # 화면과 진단이 "설정 없음"을 분명히 말한다(app/mail/config.py).
-        # 비밀번호는 여기 없다 - password_ref 는 서버 secret 파일의 **이름**일 뿐이다.
+        # 비밀번호는 여기 없다 - 고정 칸 smtp.password 에만 있다(D-545).
         SettingSpec("smtp", "object",
                     {"enabled": False, "host": "", "port": 587, "security": "starttls",
                      "from_address": "", "from_name": "", "username": "",
-                     "password_ref": "", "timeout_seconds": 20},
+                     "timeout_seconds": 20},
                     False,
                     # 지시 36: 비밀번호를 저장하지 않는다는 사실은 관리자가 알아야 하지만,
                     # 그 저장 방식의 내부 필드 이름까지 알 필요는 없다.
-                    "메일 발송에 쓸 서버 정보. 비밀번호 자체는 저장하지 않고 서버에 따로 둔 "
-                    "값을 가리키기만 합니다",
+                    "메일 발송에 쓸 서버 정보. 비밀번호는 여기 저장하지 않고 메일 설정의 비밀번호 칸에 "
+                    "따로 저장합니다",
                     _smtp),
         # 알림을 메일로도 보내기(계획 3.4, D-514). 사용자는 이 목록 안에서 받을 유형을 고른다. 관리자가 목록에서
         # 빼면 그 유형은 켜 둔 사람에게도 나가지 않는다. 소비자는 `app/notifications/mail.py` 다.
@@ -472,6 +509,10 @@ SYSTEM_ADMIN_ONLY_KEYS: frozenset[str] = frozenset(
         "assistant_narrative_enabled",
         # 초기 설정 화면 자체가 시스템 관리자 전용이다(app/setup/router.py).
         "setup_optional_choices",
+        # 메일 서버 설정(D-545). 서버 주소를 바꾸고 「연결 확인」을 누르면 워커가 저장된 SMTP 비밀번호로 그 서버에
+        # 로그인한다. 비밀번호 칸은 시스템 관리자 전용인데 서버 주소를 전역 관리자가 바꿀 수 있으면, 그 비밀번호를
+        # 자기 서버로 빼낼 수 있다. 비밀번호 칸의 이름을 고정한 것(`_smtp`)과 둘이 함께 있어야 두 길이 다 닫힌다.
+        "smtp",
     }
 )
 

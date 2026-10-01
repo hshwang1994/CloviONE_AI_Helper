@@ -48,8 +48,9 @@ from app.mail.models import (
     MailDelivery,
 )
 from app.mail import health
+from app.mail.recipients import access_block, recipient_block
 from app.mail.relevance import still_relevant
-from app.mail.renderers import KIND_NOTIFICATION, render_body
+from app.mail.renderers import render_body
 from app.mail.service import record_failure, record_sent, record_skipped, retry_delay_for, summarize_failure
 
 logger = logging.getLogger("app.handlers.mail_send")
@@ -86,22 +87,27 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
         return
 
     now = ctx.clock.now()
-    if delivery.kind == KIND_NOTIFICATION:
-        # 알림 메일은 받는 사람 쪽 사정을 먼저 다시 본다(계획 3.4) - 큐에 들어간 뒤 메일 알림을 끄거나 계정이
-        # 보관됐으면 보내지 않는다. 보내도 되면 받는 주소가 지금 계정의 이메일로 고쳐진다.
-        from app.notifications.mail import recheck_recipient
-
-        blocked = recheck_recipient(db, delivery)
-        if blocked:
-            record_skipped(db, delivery, status=MAIL_CANCELLED, reason=blocked, now=now)
-            logger.info("mail %s 는 받는 사람 사정으로 보내지 않는다 (%s)", delivery.id, blocked)
-            return
-    # 보내기 직전에 아직 의미가 있는가(계획 3.3 · 3.4). 장애가 길었으면 그 사이 초대받은 사람이 로그인했거나 승인이
-    # 끝났을 수 있다 - 그런 메일은 보내지 않고 까닭과 함께 끝낸다. 재시도할 때마다 다시 본다.
+    # 1) 받는 사람이 아직 이 종류의 메일을 받아도 되는가(D-547) - 모든 종류다. 큐에 들어간 뒤 강등 · 보관되거나 결재
+    #    권한을 잃었으면 보내지 않는다. 판정이 터지면 보내지 않는다(fail-closed, `app/mail/recipients.py`). 재시도 ·
+    #    복구 재큐 · 수동 재발송도 전부 이 자리를 지난다.
+    blocked = recipient_block(db, delivery, now)
+    if blocked:
+        record_skipped(db, delivery, status=MAIL_CANCELLED, reason=blocked, now=now)
+        logger.info("mail %s 는 받는 사람 사정으로 보내지 않는다 (%s)", delivery.id, blocked)
+        return
+    # 2) 보내기 직전에 아직 의미가 있는가(계획 3.3 · 3.4). 장애가 길었으면 그 사이 초대받은 사람이 로그인했거나 승인이
+    #    끝났을 수 있다 - 그런 메일은 보내지 않고 까닭과 함께 끝낸다. 재시도할 때마다 다시 본다. 이 판정은 터지면 보낸다.
     relevant, reason = still_relevant(db, delivery, now)
     if not relevant:
         record_skipped(db, delivery, status=MAIL_SUPERSEDED, reason=reason or "", now=now)
         logger.info("mail %s 는 의미가 없어져 보내지 않는다 (%s)", delivery.id, reason)
+        return
+    # 3) 알림 메일이면 받는 사람이 그 내용(티켓 · 문서 · 채팅방 · 승인)을 지금도 볼 수 있는가(D-547). 의미 판정과 달리
+    #    판정이 터지면 보내지 않는다 - 볼 수 없는 사람에게 티켓 제목이 가는 것은 되돌릴 수 없다.
+    blocked = access_block(db, delivery, now)
+    if blocked:
+        record_skipped(db, delivery, status=MAIL_CANCELLED, reason=blocked, now=now)
+        logger.info("mail %s 는 받는 사람의 열람 권한 때문에 보내지 않는다 (%s)", delivery.id, blocked)
         return
     config = config_from_db(db)
     secret_provider = (ctx.extras or {}).get("secret_provider")

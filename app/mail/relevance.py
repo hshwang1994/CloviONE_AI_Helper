@@ -14,8 +14,8 @@
 전부 들어 있어야 한다(`test_every_mailable_type_has_a_relevance_rule`). 장애 동안 한 티켓이 계획, 진행 중, 검증,
 완료로 바뀌었다면 마지막 상태의 메일 하나만 나간다 - 앞의 셋은 더 새로운 사건이 있거나 상태가 그 뒤 바뀌었다.
 
-받는 사람 쪽 사정(메일 알림을 껐다, 계정이 보관됐다)은 다른 질문이다. 그 판정은 `app/notifications/mail.py` 에
-있고 그 메일은 `cancelled` 로 끝난다.
+받는 사람 쪽 사정(메일 알림을 껐다, 계정이 보관됐다, 결재 권한을 잃었다)과 열람 권한은 다른 질문이다. 그 판정은
+`app/mail/recipients.py` 에 있고, 터지면 보내지 않으며(이 모듈과 반대), 그 메일은 `cancelled` 로 끝난다(D-547).
 
 ## 판정하지 않는 종류
 
@@ -42,6 +42,7 @@ from app.mail.renderers import (
     KIND_PASSWORD_RESET,
     KIND_TEST,
 )
+from app.mail.recipients import RECIPIENT_CHECK_LABELS
 from app.notifications.mail import RECIPIENT_REASON_LABELS
 
 # 이 나이를 넘은 이벤트는 보내지 않는다(모든 판정 종류 공통). 사람이 직접 다시 보내면 그 시각부터 센다. 관리자가
@@ -87,8 +88,10 @@ REASON_LABELS: dict[str, str] = {
     REASON_SOURCE_DELETED: "원래 글이 지워져 보내지 않았습니다.",
     REASON_NO_ACCESS: "받는 사람이 더 이상 볼 수 없는 내용이라 보내지 않았습니다.",
     "cancelled_by_operator": "관리자가 취소했습니다.",
-    # 받는 사람 쪽 사정(`cancelled`) - 판정은 `app/notifications/mail.py` 에 있고 문장만 여기서 함께 보인다.
+    # 받는 사람 쪽 사정(`cancelled`) - 판정은 `app/notifications/mail.py` 와 `app/mail/recipients.py` 에 있고 문장만
+    # 여기서 함께 보인다.
     **RECIPIENT_REASON_LABELS,
+    **RECIPIENT_CHECK_LABELS,
 }
 
 # 판정하지 않고 늘 보내는 종류(모듈 머리말).
@@ -200,12 +203,6 @@ def _newer_status_event(db: Session, delivery: MailDelivery, params: dict) -> bo
     ).first() is not None
 
 
-def _user(db: Session, params: dict):
-    from app.users.models import User
-
-    return db.get(User, params.get("user_id")) if params.get("user_id") else None
-
-
 def _rule_ticket_status_changed(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
     row = _ticket(db, params)
     if _ticket_gone(db, row):
@@ -246,9 +243,9 @@ def _rule_ticket_assigned(db: Session, delivery: MailDelivery, params: dict, now
 
 
 def _rule_ticket_comment(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
-    from app.core.errors import NotFoundError
+    """댓글이 아직 있고 티켓이 아직 있는가. 받는 사람이 그 티켓을 볼 수 있는지는 의미가 아니라 권한의 질문이라
+    `app/mail/recipients.py::ACCESS_RULES` 가 따로 본다(판정이 터지면 보내지 않는 쪽, D-547)."""
     from app.tickets.models import TicketComment
-    from app.tickets.service import ensure_ticket_visible
 
     comment_id = params.get("comment_id")
     if comment_id:
@@ -257,17 +254,12 @@ def _rule_ticket_comment(db: Session, delivery: MailDelivery, params: dict, now:
             return REASON_SOURCE_DELETED
     if _ticket_gone(db, _ticket(db, params)):
         return REASON_TICKET_GONE
-    try:
-        ensure_ticket_visible(db, params.get("related_id"), _user(db, params))
-    except NotFoundError:
-        return REASON_NO_ACCESS
     return None
 
 
 def _rule_document_comment(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
-    from app.core.errors import NotFoundError
+    """댓글과 문서가 아직 있는가. 열람 권한은 `app/mail/recipients.py::ACCESS_RULES` 가 본다."""
     from app.knowledge.models import Document, DocumentComment
-    from app.knowledge.service import get_scoped_document_or_404
 
     comment_id = params.get("comment_id")
     if comment_id:
@@ -277,19 +269,12 @@ def _rule_document_comment(db: Session, delivery: MailDelivery, params: dict, no
     document = db.get(Document, params.get("related_id")) if params.get("related_id") else None
     if document is None or document.archived:
         return REASON_SOURCE_DELETED
-    user = _user(db, params)
-    if user is None:
-        return REASON_NO_ACCESS
-    try:
-        get_scoped_document_or_404(db, user, document.id)
-    except NotFoundError:
-        return REASON_NO_ACCESS
     return None
 
 
 def _rule_chat_mentioned(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
+    """메시지와 채팅방이 아직 있는가. 방 구성원인지는 `app/mail/recipients.py::ACCESS_RULES` 가 본다."""
     from app.team_chat.models import ChatMessage, ChatRoom
-    from app.team_chat.repository import get_member
 
     message_id = params.get("message_id")
     if message_id:
@@ -299,8 +284,6 @@ def _rule_chat_mentioned(db: Session, delivery: MailDelivery, params: dict, now:
     room = db.get(ChatRoom, params.get("related_id")) if params.get("related_id") else None
     if room is None or room.deleted_at is not None:
         return REASON_SOURCE_DELETED
-    if not room.is_global and get_member(db, room.id, params.get("user_id")) is None:
-        return REASON_NO_ACCESS
     return None
 
 

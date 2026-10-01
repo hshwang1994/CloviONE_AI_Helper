@@ -222,3 +222,25 @@ def test_every_option_the_parser_takes_is_in_the_help():
     missing = sorted(opt for opt in parsed if opt not in usage)
     assert not missing, f"도움말에 없는 옵션이다: {missing}"
     assert {"--release", "--release-base", "--download-model"} <= parsed
+
+
+@needs_bash
+@pytest.mark.parametrize(("name", "ok"), [
+    ("smtp_password", True), ("smtp-legacy.pw", True), ("smtp", True),
+    ("smtp.password", False),            # 고정 칸 자기 자신
+    ("ai.openai.api_key", False),        # 다른 비밀 - 옮기면 막은 길이 다시 열린다(D-545)
+    ("ai.openai.chatgpt", False), ("storage_password", False),
+    ("smtp/../x", False), ("smtp..x", False), ("", False), ("smtp pw", False),
+])
+def test_only_smtp_named_legacy_secrets_are_copied_to_the_fixed_slot(name, ok):
+    result = _run(_function("legacy_smtp_secret_name_ok") + 'legacy_smtp_secret_name_ok "$1"', name)
+    assert (result.returncode == 0) is ok, name
+
+
+def test_the_legacy_smtp_secret_is_copied_before_the_migration_removes_its_name():
+    stage = _function("stage_9_migration")
+    assert stage.index("copy_legacy_smtp_secret") < stage.index("upgrade head"), "0042 가 이름을 걷은 뒤에 복사한다"
+    copier = _function("copy_legacy_smtp_secret")
+    assert "legacy_smtp_secret_name_ok" in copier
+    assert '[ ! -f "$SECRETS_DIR/smtp.password" ]' in copier, "관리자가 넣은 고정 칸 값을 덮는다"
+    assert not re.search(r"\b(cat|say|echo)\b[^\n]*SECRETS_DIR", copier), "비밀 값을 읽거나 찍는다"

@@ -15,7 +15,7 @@ export function isObjectSetting(setting) {
   return setting.type === "object" || setting.type === "json" || (setting.value !== null && typeof setting.value === "object");
 }
 
-export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
+export function SettingEditor({ setting, canWrite, lockedReason, onClose, onSaved }) {
   const [val, setVal] = useState("");
   const [err, setErr] = useState("");
   const [checked, setChecked] = useState("");
@@ -189,7 +189,7 @@ export function SettingEditor({ setting, canWrite, onClose, onSaved }) {
       <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{setting.key} ({setting.is_default ? "기본값" : "수정됨"})</Typography>
       <Typography variant="body2" id="setting-desc" sx={{ mt: 0.5, mb: 2.5 }}>{setting.description}</Typography>
       {/* 읽기 전용 역할에겐 이 서랍이 '잠긴 편집 폼'이 아니라 '상세 보기'임을 분명히 한다(입력은 비활성). */}
-      {!canWrite ? <Typography id="setting-locked-reason" variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>열람 전용입니다. 값은 수정할 수 없습니다. 수정은 관리자, 시스템 관리자만 할 수 있습니다.</Typography> : null}
+      {!canWrite ? <Typography id="setting-locked-reason" variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>{lockedReason || "열람 전용입니다. 값은 수정할 수 없습니다. 수정은 관리자, 시스템 관리자만 할 수 있습니다."}</Typography> : null}
       {/* bool select, document_automation_enabled(SETTING_LABELS에 라벨 추가됨, MAINTENANCE_KEYS로
           걸러지지 않음)가 이 표에 노출되는 실제 bool 설정이라 이 분기는 지금 실사용된다. 입력은
           FormField와 동일하게 aria-invalid, aria-describedby로 오류/도움말과 프로그래매틱하게 연결한다.

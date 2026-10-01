@@ -40,7 +40,7 @@ def _hdr(csrf):
 def _queue(app, kind="invite", email="someone@goodmit.co.kr", **extra):
     with app.state.session_factory() as db:
         row = queue_mail(db, kind=kind, to_email=email, subject=f"{kind} 메일", params=extra.pop("params", {}),
-                         now=app.state.clock.now(), **extra)
+                         recipient_user_id=extra.pop("recipient_user_id", None), now=app.state.clock.now(), **extra)
         db.commit()
         return row.id
 

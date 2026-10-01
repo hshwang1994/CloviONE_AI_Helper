@@ -57,7 +57,6 @@ def configure_smtp(app, **overrides):
         "from_address": "noreply@example.com",
         "from_name": "ClovirAssist",
         "username": "",
-        "password_ref": "",
         "timeout_seconds": 10,
     }
     value.update(overrides)

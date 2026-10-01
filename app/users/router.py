@@ -486,6 +486,7 @@ def _queue_invite_mail(request: Request, db: Session, user, now) -> dict:
             db,
             kind=KIND_INVITE,
             to_email=user.email,
+            recipient_user_id=user.id,
             subject="[ClovirAssist] 업무 포털 계정이 만들어졌습니다",
             params={"user_id": user.id},
             now=now,
