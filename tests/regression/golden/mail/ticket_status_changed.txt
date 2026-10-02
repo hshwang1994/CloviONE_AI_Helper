@@ -2,8 +2,9 @@ ClovirAssist
 
 티켓 상태가 바뀌었습니다.
 
-김하나 님, ABC-12 상태 변경: 진행 중
+김하나 님과 관련된 티켓의 상태가 바뀌었습니다.
 
+알림: ABC-12 상태 변경: 진행 중
 티켓 제목: 사내 메일 서버 인증서 갱신
 
 ClovirAssist에서 보기: https://clovirassist.gooddi.lab/#/tickets/ABC-12

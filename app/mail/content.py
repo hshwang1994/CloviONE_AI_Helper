@@ -255,6 +255,18 @@ NOTIFICATION_HEADINGS = {
     "approval_decided": "승인 결과가 나왔습니다.",
     "ai_provider_state": "AI 연결 상태가 바뀌었습니다.",
 }
+# 받는 사람에게 하는 첫 문장(완전한 문장). 알림 제목(「ABC-12 담당자로 지정: 이두리」)은 사실 상자의 「알림」 줄이다 — 예전에는 이름 뒤에
+# 그 제목을 그대로 붙여 「김하나 님, ABC-12 담당자로 지정: 이두리」처럼 기록 문장으로 읽혔다(로컬 메일 E2E 의 렌더 확인).
+NOTIFICATION_LEADS = {
+    "ticket_assigned": "{name} 님이 티켓 담당자로 지정됐습니다.",
+    "ticket_status_changed": "{name} 님과 관련된 티켓의 상태가 바뀌었습니다.",
+    "ticket_resolved": "{name} 님이 요청한 티켓에 결과가 나왔습니다.",
+    "ticket_comment": "{name} 님과 관련된 티켓에 새 댓글이 달렸습니다.",
+    "document_comment": "{name} 님과 관련된 문서에 새 댓글이 달렸습니다.",
+    "chat_mentioned": "{name} 님을 채팅에서 불렀습니다.",
+    "approval_decided": "{name} 님이 올린 승인 요청에 결과가 나왔습니다.",
+    "ai_provider_state": "{name} 님, AI 연결 상태가 바뀌었습니다.",
+}
 # 알림 본문 한 줄의 이름 — 티켓 알림의 본문은 티켓 제목이다.
 NOTIFICATION_FACT_LABELS = {
     "ticket_assigned": "티켓 제목", "ticket_status_changed": "티켓 제목", "ticket_resolved": "결과",
@@ -272,8 +284,11 @@ def notification_content(
     if type_ == "ticket_assigned" and first_assignment:
         # 담당자가 아무도 없던 티켓이다 - 제목이 그 사실을 말한다(같은 말을 본문에 한 번 더 쓰지 않는다).
         heading = "새 티켓이 배정됐습니다."
-    lead = [f"{name} 님, {_one_line(title, 200) or '새 알림이 있습니다.'}"]
+    lead = [NOTIFICATION_LEADS.get(type_, "{name} 님에게 새 알림이 있습니다.").format(name=name)]
     facts: list[tuple[str, str]] = []
+    headline = _one_line(title, 200)
+    if headline:
+        facts.append(("알림", headline))
     text = _one_line(body, 300)
     if type_ in NOTIFICATION_BODY_WITHHELD:
         lead.append(f"내용은 {product}에서 확인하세요.")

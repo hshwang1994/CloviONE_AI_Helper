@@ -2,8 +2,9 @@ ClovirAssist
 
 요청한 티켓이 끝났습니다.
 
-김하나 님, ABC-12 완료: 사내 메일 서버 인증서 갱신
+김하나 님이 요청한 티켓에 결과가 나왔습니다.
 
+알림: ABC-12 완료: 사내 메일 서버 인증서 갱신
 결과: 요청한 작업이 끝났습니다.
 
 ClovirAssist에서 보기: https://clovirassist.gooddi.lab/#/tickets/ABC-12
