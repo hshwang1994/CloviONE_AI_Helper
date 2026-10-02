@@ -114,6 +114,15 @@ class FileSecretReferenceProvider:
             raise SecretMissingError()
         return value
 
+    def path(self, name: str) -> Path:
+        """비밀 파일의 자리 — 파일을 이름으로만 받는 라이브러리(`ssl.SSLContext.load_cert_chain`)가 쓴다. 값은 읽지 않는다.
+        없으면 `require` 와 같은 예외다(이름을 응답에 싣지 않는다)."""
+        path = self._path_for(name)
+        if not path.is_file():
+            logger.warning("secret reference missing: %s", name)
+            raise SecretMissingError()
+        return path
+
     def version(self, name: str) -> str:
         """비밀 파일의 표지 — `{수정 시각 ns}:{크기}`. 값은 싣지 않는다. 없으면 `absent` 다.
 

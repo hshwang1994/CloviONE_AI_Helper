@@ -6,6 +6,9 @@
   * 비밀번호는 같은 저장에 실려 고정 칸에 쓰이고, 응답 · 감사 어디에도 값이 없다.
   * 저장하면 보낼 수 있는 설정일 때만 연결 확인을 저절로 시작한다.
   * 범용 설정 API 는 `smtp` 의 저장 · 미리 검증 · 되돌리기를 시스템 관리자라도 거절한다(메일 화면에서 바꾼다).
+
+qa-contract-change: 보내는 방법 「ClovirAssist 로컬 릴레이」(D-551)가 들어와 `relay` 는 이제 아는 칸이다. 모르는 칸의 반례는 로컬
+릴레이 안의 모르는 칸(`takeover` - 기존 메일 구성을 인수하라는 인자는 없다)과 모르는 전달 방식으로 옮겨 잰다.
 """
 
 from __future__ import annotations
@@ -61,7 +64,8 @@ def test_a_department_admin_cannot_write_either(client, db, login_as, make_user)
 
 def test_unknown_fields_and_a_secret_name_are_refused(client, login_as):
     h = {"X-CSRF-Token": login_as("system_admin")}
-    for extra in ({"password_ref": "ai.openai.api_key"}, {"relay": {}}, {"smtp_password": "x"}):
+    for extra in ({"password_ref": "ai.openai.api_key"}, {"relay": {"takeover": True}},
+                  {"relay": {"delivery": "open_relay"}}, {"smtp_password": "x"}):
         r = client.put("/api/admin/mail/settings", json={**GOOD, **extra}, headers=h)
         assert r.status_code == 422, (extra, r.text)
     r = client.put("/api/admin/mail/settings", json={**GOOD, "host": "smtp://bad host"}, headers=h)

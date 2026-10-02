@@ -72,6 +72,25 @@ REMOTE_GENERIC: dict[str, str] = {
     REMOTE_BOUNCED: "수신측이 거부함",
     REMOTE_EXPIRED: "전달 시간이 지남",
 }
+#: 발송 기록의 「바깥 전달」 칸 — `(바깥 결과, 전달 방식)` → 낱말. 방식을 모르면 `(결과, "")` 줄을 쓴다.
+REMOTE_LABELS: dict[tuple[str, str], str] = {
+    (REMOTE_QUEUED, ""): "전달 대기",
+    (REMOTE_DEFERRED, ""): REMOTE_GENERIC[REMOTE_DEFERRED],
+    (REMOTE_BOUNCED, ""): REMOTE_GENERIC[REMOTE_BOUNCED],
+    (REMOTE_EXPIRED, ""): REMOTE_GENERIC[REMOTE_EXPIRED],
+    (REMOTE_UNKNOWN, ""): "결과를 알 수 없음",
+    (REMOTE_DELIVERED, ""): "수신측 메일 서버로 전달함",
+    **REMOTE_WORDS,
+}
+#: 바깥 전달이 막힌 단계(`app/mail/relay_log.py`)의 짧은 이름.
+REMOTE_STAGE_LABELS: dict[str, str] = {
+    "dns": "DNS 조회",
+    "connect": "바깥 25번 연결",
+    "tls": "보안 연결",
+    "rejected": "수신측 거부",
+    "temporary": "일시 거절",
+    "expired": "전달 시간 지남",
+}
 
 #: 상태 배지의 성격(화면 색). 접수는 아직 끝이 아니라 정보색이다.
 STATUS_KINDS: dict[str, str] = {

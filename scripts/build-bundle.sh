@@ -138,6 +138,29 @@ echo "== build offline wheelhouse (manylinux cp312) =="
     echo "WARN: AI wheel 을 못 받았다 — 이 번들로는 --offline --with-ai 설치가 안 된다"; }
 "$PY" -m pip download --only-binary=:all: -d "$STAGE/wheels" pip setuptools wheel || true
 
+echo "== mail relay .deb (Ubuntu 24.04 amd64, D-551) =="
+# 로컬 릴레이 구성 요소(postfix · opendkim · libsasl2-modules)와 그 의존 .deb. 설치기는 `--offline` 이면 이 디렉터리를 임시
+# 로컬 apt 원본으로 걸고 같은 명령으로 깐다(deploy/install.sh::install_mail_relay). 컨테이너의 기본 이미지에 이미 있는 꾸러미는
+# 받지 않는다 - 대상 서버(Ubuntu 24.04)에도 있다. Docker 가 없으면 경고하고 건너뛴다(그 번들의 오프라인 설치는 메일 구성 요소만
+# 건너뛴다).
+mkdir -p "$STAGE/debs"
+if command -v docker >/dev/null 2>&1; then
+  DEBS_ABS="$(cd "$STAGE/debs" && pwd -W 2>/dev/null || pwd)"
+  MSYS_NO_PATHCONV=1 docker run --rm --platform linux/amd64 -v "$DEBS_ABS:/out" ubuntu:24.04 sh -c '
+    set -e
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq >/dev/null
+    apt-get install -y -qq --no-install-recommends dpkg-dev >/dev/null
+    mkdir -p /tmp/arch/partial
+    apt-get install -y -qq --download-only --no-install-recommends -o Dir::Cache::archives=/tmp/arch \
+      postfix opendkim libsasl2-modules >/dev/null
+    cp /tmp/arch/*.deb /out/
+    cd /out && dpkg-scanpackages --multiversion . /dev/null 2>/dev/null | gzip -9 > Packages.gz
+  ' || echo "WARN: 메일 구성 요소 .deb 를 받지 못했다 — 이 번들의 오프라인 설치는 로컬 릴레이 구성 요소를 건너뛴다"
+else
+  echo "WARN: docker 가 없어 메일 구성 요소 .deb 를 받지 못했다 — 이 번들의 오프라인 설치는 로컬 릴레이 구성 요소를 건너뛴다"
+fi
+
 echo "== manifest =="
 # `! -name MANIFEST.sha256` 가 없으면 안 된다. 리다이렉트가 find 보다 먼저 파일을 만들기 때문에
 # find 가 그 빈 파일을 목록에 넣고 그때의 해시(=빈 파일)를 적는데, 다 쓰고 나면 내용이 달라져
@@ -156,3 +179,4 @@ tar czf "$OUT/clovirassist-bundle.tar.gz" -C "$OUT" stage
 echo "BUNDLE_OK $OUT/clovirassist-bundle.tar.gz"
 ls -la "$STAGE/wheels" | head -5
 echo "wheels: $(ls "$STAGE/wheels" | wc -l)"
+echo "mail debs: $(ls "$STAGE/debs" 2>/dev/null | grep -c '\.deb$' || true)"

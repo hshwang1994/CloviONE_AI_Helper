@@ -42,3 +42,7 @@ openpyxl==3.1.5
 # 폐쇄망 wheelhouse 에 그대로 들어간다.
 PyJWT==2.15.1
 cryptography==50.0.1
+
+# 로컬 릴레이 준비 점검의 DNS 조회(MX · TXT · A · PTR, D-551). 순수 파이썬(BSD)이라 폐쇄망 wheelhouse 에 그대로 들어간다.
+# `dns.*` 를 부르는 파일은 `app/mail/dns.py` 하나다(가둠 시험) - 해석기와 시간 제한을 고칠 자리가 한 곳이다.
+dnspython==2.8.0

@@ -1,0 +1,9 @@
+Oct 02 01:31:11 relay postfix/smtp[3457]: 5659AF6954: to=<person@example.test>, relay=127.0.0.1[127.0.0.1]:2626, delay=0.11, delays=0.09/0.02/0/0, dsn=2.0.0, status=sent (250 2.0.0 sink queued)
+Oct 02 01:31:11 relay postfix/qmgr[3434]: 5659AF6954: removed
+Oct 02 01:31:11 relay postfix/smtp[3457]: 6D980F6955: to=<nobody@no-such-host.invalid>, relay=none, delay=0.12, delays=0.09/0/0.03/0, dsn=5.4.4, status=bounced (Host or domain name not found. Name service error for name=no-such-host.invalid type=A: Host not found)
+Oct 02 01:31:11 relay postfix/qmgr[3434]: 6D980F6955: removed
+Oct 02 01:31:11 relay postfix/smtp[3457]: 8CBC6F6959: to=<noreply@example.test>, relay=127.0.0.1[127.0.0.1]:2626, delay=0.01, delays=0.01/0/0/0, dsn=2.0.0, status=sent (250 2.0.0 sink queued)
+Oct 02 01:31:11 relay postfix/qmgr[3434]: 8CBC6F6959: removed
+Oct 02 01:31:11 relay postfix/clovirassist/smtpd[3453]: NOQUEUE: reject: RCPT from localhost[127.0.0.1]: 554 5.7.1 <someone@outside.example>: Recipient address rejected: Access denied; from=<noreply@example.test> to=<someone@outside.example> proto=ESMTP helo=<client.test>
+Oct 02 01:31:11 relay postfix/smtp[3457]: 84A7BF6954: to=<later@deferred.test>, relay=none, delay=0.09, delays=0.09/0/0/0, dsn=4.4.1, status=deferred (connect to 127.0.0.1[127.0.0.1]:2699: Connection refused)
+Oct 02 01:31:20 relay postfix/clovirassist/smtpd[3453]: NOQUEUE: reject: RCPT from localhost[127.0.0.1]: 554 5.7.1 <someone@outside.example>: Recipient address rejected: Access denied; from=<noreply@example.test> to=<someone@outside.example> proto=ESMTP helo=<client.test>

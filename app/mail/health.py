@@ -93,15 +93,28 @@ REQUEUE_ON_RECOVERY_KINDS = frozenset({
 })
 
 
-def secret_marker(secret_provider) -> str:
+def secret_marker(secret_provider, slot: str = PASSWORD_SLOT) -> str:
     """비밀번호 파일의 표지(값이 아니다). 제공자가 없는 자리는 `none` - 지문이 웹과 워커에서 같아야 하므로 부르는 쪽 모두가
     제공자를 넘긴다(진단 번들 포함)."""
     if secret_provider is None or not hasattr(secret_provider, "version"):
         return "none"
     try:
-        return str(secret_provider.version(PASSWORD_SLOT))
+        return str(secret_provider.version(slot))
     except Exception:  # noqa: BLE001 - 표지를 못 읽으면 모른다고 적는다
         return "unknown"
+
+
+def _secret_markers(config: MailConfig, secret_provider) -> str:
+    """지문에 넣을 비밀의 표지. 외부 SMTP 는 로그인 비밀번호, 로컬 릴레이는 앱 열쇠(와 상위 SMTP 비밀번호)다."""
+    if getattr(config, "local_relay", False):
+        from app.core.secret_slots import SLOT_SMTP_RELAY_CLIENT, SLOT_SMTP_RELAY_PASSWORD
+
+        relay = config.relay
+        marks = [secret_marker(secret_provider, SLOT_SMTP_RELAY_CLIENT)]
+        if relay.delivery == "smarthost" and relay.smarthost.username:
+            marks.append(secret_marker(secret_provider, SLOT_SMTP_RELAY_PASSWORD))
+        return "|".join(marks)
+    return secret_marker(secret_provider) if config.username else "no-login"
 
 
 def fingerprint(config: MailConfig, secret_provider=None) -> str:
@@ -110,7 +123,7 @@ def fingerprint(config: MailConfig, secret_provider=None) -> str:
         config.host, config.port, config.security, config.username, PASSWORD_SLOT,
         config.from_address, config.tls_verify, hashlib.sha256(config.ca_pem.encode("utf-8")).hexdigest(),
         getattr(config, "mode", "external"), getattr(config, "relay_fingerprint", ""),
-        secret_marker(secret_provider) if config.username else "no-login",
+        _secret_markers(config, secret_provider),
     ], ensure_ascii=False)
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 

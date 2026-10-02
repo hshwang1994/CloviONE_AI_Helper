@@ -40,6 +40,13 @@ ALLOWED_BINARIES = frozenset({
     "/usr/bin/hostname",
     "/usr/bin/uptime",
     "/usr/bin/df",
+    # ClovirAssist 로컬 릴레이(D-551, `app/sysops/actions_mailrelay.py`). 경로는 Ubuntu 24.04 꾸러미와 랩 점검으로 확인했다.
+    # 꾸러미 설치(`apt-get`)는 여기 없다 - 설치기가 한다.
+    "/usr/bin/dpkg-query",
+    "/usr/sbin/postfix",
+    "/usr/sbin/postconf",
+    "/usr/sbin/postqueue",
+    "/usr/bin/journalctl",
 })
 
 
@@ -73,6 +80,8 @@ class Runner(Protocol):
     def exists(self, path: str) -> bool: ...
 
     def copy(self, src: str, dst: str) -> bool: ...
+
+    def chown(self, path: str, user: str, group: str, *, mode: int | None = None) -> None: ...
 
 
 class RealRunner:
@@ -134,3 +143,12 @@ class RealRunner:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
         return True
+
+    def chown(self, path: str, user: str, group: str, *, mode: int | None = None) -> None:
+        """소유자를 이름으로 바꾼다(DKIM 키는 opendkim 만 읽는다). 이름이 없으면 예외 - 엔진이 실패로 바꾸고 되돌린다."""
+        import grp  # noqa: PLC0415 - Linux 에서만 있다
+        import pwd  # noqa: PLC0415
+
+        os.chown(path, pwd.getpwnam(user).pw_uid, grp.getgrnam(group).gr_gid)
+        if mode is not None:
+            os.chmod(path, mode)

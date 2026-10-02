@@ -33,7 +33,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import Base, JsonText, TimestampMixin, UUIDPrimaryKeyMixin
@@ -87,6 +87,10 @@ class MailDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_mail_deliveries_created_at", "created_at"),
         Index("ix_mail_deliveries_status_created", "status", "created_at"),
         Index("ix_mail_deliveries_recipient_created", "recipient_user_id", "created_at"),
+        Index(
+            "ix_mail_deliveries_remote_pending", "remote_status", "sent_at",
+            postgresql_where=text("remote_status IN ('queued', 'deferred')"),
+        ),
         UniqueConstraint("idempotency_key", name="uq_mail_deliveries_idempotency_key"),
     )
 
@@ -116,3 +120,11 @@ class MailDelivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # 상세 화면이 「어디서 막혔나」를 말한다(D-546). 응답 원문은 기술 정보 안에서만 보인다.
     failure_stage: Mapped[str | None] = mapped_column(String(16))
     relay_response: Mapped[str | None] = mapped_column(String(300))
+    # 로컬 릴레이로 넘긴 메일의 바깥 전달 결과(D-551 · 0048). 외부 SMTP 로 보낸 행은 비어 있다 - 그 메일은 「메일 서버가 접수함」이
+    # 제품이 아는 마지막 단계다(D-555). 추적은 `app/mail/relay_tracking.py` 가 1분마다 한다.
+    relay_queue_id: Mapped[str | None] = mapped_column(String(32))
+    relay_delivery: Mapped[str | None] = mapped_column(String(16))
+    remote_status: Mapped[str | None] = mapped_column(String(16))
+    remote_stage: Mapped[str | None] = mapped_column(String(16))
+    remote_detail: Mapped[str | None] = mapped_column(Text)
+    remote_checked_at: Mapped[datetime | None] = mapped_column(DateTime)

@@ -36,7 +36,8 @@ OBJECT_TYPE = "system_setting"
 
 # 비밀 값 액션은 이 범용 경로로 부를 수 없다. 전용 라우터(`app/admin/secrets_router.py`)가
 # 감사 모양과 슬롯 검사를 따로 갖고 있다 - 여기로 열어 두면 그 검사를 우회하는 두 번째 문이 된다.
-PRIVATE_ACTION_PREFIXES = ("secret.",)
+# 로컬 릴레이 동작(`mailrelay.*`, D-551)도 같다: 인자는 메일 API 가 저장된 설정에서 만든다(`app/mail/router.py`).
+PRIVATE_ACTION_PREFIXES = ("secret.", "mailrelay.")
 
 
 def _public_actions() -> list[dict]:

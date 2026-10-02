@@ -121,6 +121,10 @@ PURGE=0
 # 「켠다」는 뜻이므로 함께 켜진다.
 WITH_AI=0
 AI_MODEL_DIR="${AI_MODEL_DIR:-}"
+# 로컬 릴레이 구성 요소(Postfix · OpenDKIM, D-551)를 빼고 설치한다 - 특수 설치 예외다. 기본은 설치하고 꺼 둔다.
+WITHOUT_MAIL_RELAY=0
+# 오프라인 설치에서 메일 구성 요소 .deb 가 든 디렉터리(Packages.gz). 비우면 wheelhouse 옆의 debs/ 를 쓴다.
+MAIL_DEBS="${MAIL_DEBS:-}"
 # 임베딩 모델을 설치 중에 받는다(계획 3.16). 주소, revision, 파일마다의 sha256 은 제품 카탈로그(app/ai/catalog.py)에
 # 고정돼 있고, 받은 파일은 그 값과 맞아야만 쓴다. 폐쇄망은 지금처럼 --ai-model-dir 로 넣는다.
 DOWNLOAD_MODEL=0
@@ -329,6 +333,7 @@ ClovirAssist 설치 진입점
   preflight   Stage 0 만 실행한다. 아무것도 바꾸지 않는다
   storage     Stage 11 만 실행한다. 저장소를 추가한 뒤 마운트 유닛을 다시 깐다(S8)
   ai          Stage 12 만 실행한다. 모델을 나중에 넣고 AI 를 켤 때 쓴다(S9)
+  mail-relay  로컬 릴레이 구성 요소(Postfix · OpenDKIM)를 나중에 깐다. 깐 뒤에도 꺼져 있다(D-551)
 
 설치 뒤에는 같은 일을 sudo clovirassist <서브커맨드> 로 합니다. clovirassist user, migrate, storage-cli,
 ai-cli, first-admin-code 는 제품 안의 도구입니다(clovirassist --help).
@@ -350,6 +355,8 @@ ai-cli, first-admin-code 는 제품 안의 도구입니다(clovirassist --help).
   --with-ai             AI Component 를 함께 설치한다(임베딩 런타임 + 모델 로드 검증)
   --ai-model-dir <dir>  임베딩 모델 파일이 있는 디렉터리. 주면 --with-ai 가 함께 켜진다
   --download-model      임베딩 모델을 설치 중에 받는다. 제품이 고정한 체크섬과 맞아야 쓴다. --with-ai 가 함께 켜진다
+  --without-mail-relay  로컬 릴레이 구성 요소(Postfix · OpenDKIM)를 깔지 않는다. 기본은 깔고 꺼 둔다
+  --mail-debs <dir>     오프라인 설치에서 메일 구성 요소 .deb 가 든 디렉터리. 기본은 wheelhouse 옆의 debs/
   --inject-failure <n>  Stage n 에서 일부러 멈춘다(리허설 전용)
   --purge               uninstall 에서 데이터·백업까지 지운다
   --yes                 되돌리기 어려운 동작을 묻지 않고 진행한다
@@ -360,7 +367,7 @@ SUBCOMMAND="${1:-}"
 [ -n "$SUBCOMMAND" ] || { usage; exit 64; }
 shift || true
 case "$SUBCOMMAND" in
-  install|upgrade|rollback|uninstall|verify|version|preflight|storage|ai) ;;
+  install|upgrade|rollback|uninstall|verify|version|preflight|storage|ai|mail-relay) ;;
   # clovirassist user|migrate|storage-cli|ai-cli|first-admin-code 가 이 길로 온다(deploy/clovirassist-cli.sh).
   # 설치 환경을 읽어 서비스 계정으로 도는 방법(run_as_app)이 이 파일 한 곳에만 있게 하려는 것이다.
   app-cli)
@@ -397,6 +404,8 @@ while [ $# -gt 0 ]; do
     --ai-model-dir) AI_MODEL_DIR="${2:-}"; WITH_AI=1; shift 2 ;;
     # 모델을 받는 것도 「AI 를 켠다」는 뜻이다. 위와 같은 이유로 함께 켠다.
     --download-model) DOWNLOAD_MODEL=1; WITH_AI=1; shift ;;
+    --without-mail-relay) WITHOUT_MAIL_RELAY=1; shift ;;
+    --mail-debs) MAIL_DEBS="${2:-}"; shift 2 ;;
     --inject-failure) INJECT_FAILURE="${2:-}"; shift 2 ;;
     --purge) PURGE=1; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
@@ -629,21 +638,138 @@ BASE_PKGS=(ca-certificates rsync openssl curl git
            "postgresql-$PG_MAJOR" "postgresql-$PG_MAJOR-pgvector" postgresql-contrib
            nginx python3.12-venv nfs-common cifs-utils)
 
+
+# ── ClovirAssist 로컬 릴레이 구성 요소 (D-551) ────────────────────────────────
+#
+# Postfix · OpenDKIM 은 **기본 설치 구성 요소**다. 설치 한 번이면 준비돼 있지만 사용자가 메일 화면에서 켜기 전에는 아무 메일
+# 서비스도 돌지 않는다 — 설치 직후 두 서비스는 disabled · inactive 이고 25 · 2525 · 8891 을 아무도 듣지 않는다(어기면 이 Stage 가
+# 실패한다). 켜고 끄기와 설정은 특권 헬퍼(`app/sysops/actions_mailrelay.py`)가 한다.
+#
+# 기존 메일 서버와 충돌하지 않는다:
+#   · 다른 메일 발송 프로그램(`mail-transport-agent` 를 제공하는 exim4 · sendmail · opensmtpd …)이 있으면 깔지 않는다 —
+#     apt 가 기존 MTA 를 지우는 일을 막는다.
+#   · postfix 가 이미 있고 main.cf 에 제품 표지가 없으면 **기존 구성**이다. 지우지도, 덮지도, 끄지도 않는다.
+#   · --without-mail-relay 는 꾸러미 설치까지 빼는 특수 설치 예외다.
+# 오프라인 설치는 번들의 `debs/`(Packages.gz)를 임시 로컬 apt 원본으로 걸고 같은 명령으로 깐 뒤 원본을 지운다. 번들에 `debs/` 가
+# 없으면(옛 번들) 경고하고 메일 구성 요소만 건너뛴다.
+MAIL_RELAY_PKGS=(postfix opendkim libsasl2-modules)
+MAIL_RELAY_MARKER='# managed-by: clovirassist'
+MAIL_RELAY_NOTE=""
+
+mail_relay_other_mta() {
+  dpkg-query -W --showformat='${db:Status-Abbrev}|${Package}|${Provides}\n' 2>/dev/null \
+    | awk -F'|' '$1 ~ /^ii/ && $2 != "postfix" && $3 ~ /mail-transport-agent/ {print $2}' | tr '\n' ' ' | sed 's/ $//'
+}
+
+mail_relay_managed() {
+  [ -f /etc/postfix/main.cf ] && head -n1 /etc/postfix/main.cf | grep -qxF "$MAIL_RELAY_MARKER"
+}
+
+mail_relay_listeners() {
+  ss -ltnH 2>/dev/null | awk '{print $4}' | grep -E ':(25|2525|8891)$' | tr '\n' ' ' | sed 's/ $//'
+}
+
+# 기본 꺼짐을 확인한다. 어기면 설치를 실패로 멈춘다(켜지 않은 메일 서비스가 돌고 있으면 안 된다).
+mail_relay_assert_off() {
+  local u state
+  for u in postfix.service opendkim.service; do
+    state="$(systemctl is-enabled "$u" 2>/dev/null || true)"
+    case "$state" in enabled|enabled-runtime|static) fail "$u 가 켜져 있습니다($state)" "systemctl disable --now $u" 21 || return $? ;; esac
+  done
+  for u in postfix.service postfix@-.service opendkim.service; do
+    if systemctl is-active --quiet "$u" 2>/dev/null; then
+      fail "$u 가 돌고 있습니다" "systemctl disable --now $u" 21 || return $?
+    fi
+  done
+  local heard; heard="$(mail_relay_listeners)"
+  if [ -n "$heard" ]; then
+    fail "메일 포트를 듣는 소켓이 있습니다: $heard" "ss -ltnp 로 어느 프로그램인지 확인하십시오" 21 || return $?
+  fi
+  return 0
+}
+
+install_mail_relay() {
+  MAIL_RELAY_NOTE=""
+  if [ "$WITHOUT_MAIL_RELAY" = 1 ]; then MAIL_RELAY_NOTE="메일 구성 요소를 빼고 설치했습니다(--without-mail-relay)"; return 0; fi
+  local other; other="$(mail_relay_other_mta)"
+  if [ -n "$other" ]; then
+    MAIL_RELAY_NOTE="다른 메일 발송 프로그램($other)이 있어 메일 구성 요소를 깔지 않았습니다"
+    return 0
+  fi
+  local need=() pkg
+  for pkg in "${MAIL_RELAY_PKGS[@]}"; do dpkg -s "$pkg" >/dev/null 2>&1 || need+=("$pkg"); done
+  if [ "${#need[@]}" -gt 0 ]; then
+    if [ -f /etc/postfix/main.cf ] && ! mail_relay_managed; then
+      MAIL_RELAY_NOTE="기존 메일 발송 구성이 있어 메일 구성 요소를 건드리지 않았습니다"
+      return 0
+    fi
+    local src_list="" debs=""
+    if [ "$OFFLINE" = 1 ]; then
+      debs="${MAIL_DEBS:-}"
+      [ -z "$debs" ] && [ -n "$WHEELHOUSE" ] && debs="$(dirname "$WHEELHOUSE")/debs"
+      if [ -z "$debs" ] || [ ! -f "$debs/Packages.gz" ]; then
+        log "주의: 오프라인 번들에 메일 구성 요소(.deb)가 없어 로컬 릴레이 구성 요소를 건너뜁니다(옛 번들)"
+        MAIL_RELAY_NOTE="번들에 메일 구성 요소가 없어 건너뛰었습니다"
+        return 0
+      fi
+      src_list="/etc/apt/sources.list.d/$SLUG-mail-local.list"
+      printf 'deb [trusted=yes] file:%s ./\n' "$(cd "$debs" && pwd)" >"$src_list"
+      apt-get update -qq -o Dir::Etc::sourcelist="$src_list" -o Dir::Etc::sourceparts=- \
+        -o APT::Get::List-Cleanup=0 >>"$LOG" 2>&1 || true
+    fi
+    echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections
+    # 설치하는 동안 서비스가 잠깐도 뜨지 않게 한다. 이미 있는 policy-rc.d 는 건드리지 않고 mask 로 같은 효과를 낸 뒤 되돌린다.
+    local guard=file rc=0
+    if [ -e /usr/sbin/policy-rc.d ]; then
+      guard=mask
+      systemctl mask postfix.service opendkim.service >>"$LOG" 2>&1 || true
+    else
+      printf '#!/bin/sh\nexit 101\n' >/usr/sbin/policy-rc.d
+      chmod 0755 /usr/sbin/policy-rc.d
+    fi
+    log "apt install(메일 구성 요소, 기본 꺼짐): ${need[*]}"
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${need[@]}" >>"$LOG" 2>&1 || rc=$?
+    if [ "$guard" = file ]; then rm -f /usr/sbin/policy-rc.d; else systemctl unmask postfix.service opendkim.service >>"$LOG" 2>&1 || true; fi
+    if [ -n "$src_list" ]; then rm -f "$src_list"; apt-get update -qq >>"$LOG" 2>&1 || true; fi
+    [ "$rc" -eq 0 ] || { fail "메일 구성 요소 설치 실패: ${need[*]}" "apt-get install ${need[*]} 로 원인을 보십시오" 21 || return $?; }
+  fi
+  if mail_relay_managed; then
+    # 관리자가 메일 화면에서 켠 릴레이(업그레이드). 켜고 끄기는 관리자의 선택이라 그대로 둔다.
+    MAIL_RELAY_NOTE="로컬 릴레이 설정을 그대로 두었습니다"
+    return 0
+  fi
+  if [ -f /etc/postfix/main.cf ]; then
+    MAIL_RELAY_NOTE="기존 메일 발송 구성이 있어 메일 구성 요소를 건드리지 않았습니다"
+    return 0
+  fi
+  systemctl disable --now postfix.service >>"$LOG" 2>&1 || true
+  systemctl stop postfix@-.service >>"$LOG" 2>&1 || true
+  systemctl disable --now opendkim.service >>"$LOG" 2>&1 || true
+  mail_relay_assert_off || return $?
+  MAIL_RELAY_NOTE="메일 구성 요소 준비됨(꺼짐)"
+  return 0
+}
+
 stage_1_apt() {
   local need=() pkg
   for pkg in "${BASE_PKGS[@]}"; do
     dpkg -s "$pkg" >/dev/null 2>&1 || need+=("$pkg")
   done
-  if [ "${#need[@]}" -eq 0 ]; then _reason="필요한 패키지 ${#BASE_PKGS[@]}개가 이미 있습니다"; return 0; fi
-  if [ "$OFFLINE" = 1 ]; then
-    fail "오프라인인데 없는 패키지가 있습니다: ${need[*]}" "설치 전에 이 패키지들을 미리 넣으십시오" 21 || return $?
+  if [ "${#need[@]}" -eq 0 ]; then
+    _reason="필요한 패키지 ${#BASE_PKGS[@]}개가 이미 있습니다"
+  else
+    if [ "$OFFLINE" = 1 ]; then
+      fail "오프라인인데 없는 패키지가 있습니다: ${need[*]}" "설치 전에 이 패키지들을 미리 넣으십시오" 21 || return $?
+    fi
+    log "apt install: ${need[*]}"
+    apt-get update -qq >>"$LOG" 2>&1 || true
+    if ! apt-get install -y --no-install-recommends "${need[@]}" >>"$LOG" 2>&1; then
+      fail "apt 설치 실패: ${need[*]}" "apt-get install ${need[*]} 를 직접 실행해 원인을 보십시오" 21 || return $?
+    fi
+    _reason="설치함: ${need[*]}"
   fi
-  log "apt install: ${need[*]}"
-  apt-get update -qq >>"$LOG" 2>&1 || true
-  if ! apt-get install -y --no-install-recommends "${need[@]}" >>"$LOG" 2>&1; then
-    fail "apt 설치 실패: ${need[*]}" "apt-get install ${need[*]} 를 직접 실행해 원인을 보십시오" 21 || return $?
-  fi
-  _reason="설치함: ${need[*]}"
+  install_mail_relay || return $?
+  [ -n "$MAIL_RELAY_NOTE" ] && _reason="$_reason · $MAIL_RELAY_NOTE"
   return 0
 }
 
@@ -1650,6 +1776,13 @@ do_verify() {
   for u in postgresql nginx "${ALL_UNITS[@]}"; do vchk "$u enabled" "systemctl is-enabled --quiet $u"; done
 
   vchk "앱이 127.0.0.1:$APP_PORT 를 듣는다" "ss -lntH 2>/dev/null | grep -q '127.0.0.1:$APP_PORT'"
+  # 로컬 릴레이(D-551) — 켰으면 받는 문이 127.0.0.1:2525 하나이고 25번은 닫혀 있다. 꺼져 있으면 메일 포트를 아무도 듣지 않는다.
+  # 기존 메일 구성이 있는 서버는 우리 것이 아니라 보지 않는다.
+  if mail_relay_managed && systemctl is-active --quiet postfix@-.service 2>/dev/null; then
+    vchk "로컬 릴레이 받는 문은 127.0.0.1:2525 하나다" "mail_relay_ports_running"
+  elif dpkg -s postfix >/dev/null 2>&1 && { [ ! -f /etc/postfix/main.cf ] || mail_relay_managed; }; then
+    vchk "메일 구성 요소가 꺼져 있고 메일 포트를 듣지 않는다" "[ -z \"\$(mail_relay_listeners)\" ]"
+  fi
   vchk "nginx 가 :443 을 듣는다" "ss -lntH 2>/dev/null | grep -qE ':443'"
 
   # ⚠️ `curl -k` 로 치면 **아무것도 증명되지 않는다** — 이름이 어긋나도, 남의 인증서여도
@@ -1788,6 +1921,13 @@ take_snapshot() {
     [ -f "/etc/systemd/system/$u" ] && cp "/etc/systemd/system/$u" "$dir/" || true
   done
   [ -f "/etc/nginx/sites-available/$NGINX_SITE" ] && cp "/etc/nginx/sites-available/$NGINX_SITE" "$dir/nginx-vhost.conf" || true
+  # 로컬 릴레이(D-551) — 제품이 관리하는 Postfix 설정 · 인증서 · DKIM 키. 기존 메일 구성은 우리 것이 아니라 담지 않는다.
+  if mail_relay_managed; then
+    local mail_parts=(postfix/main.cf postfix/master.cf postfix/clovirassist)
+    [ -d /etc/opendkim ] && mail_parts+=(opendkim)
+    [ -f /etc/opendkim.conf ] && mail_parts+=(opendkim.conf)
+    tar czf "$dir/mail-relay.tar.gz" -C /etc "${mail_parts[@]}" 2>/dev/null || true
+  fi
 
   # DB 덤프.
   #
@@ -2062,6 +2202,12 @@ run_all_stages() {
   run_stage 18 VERIFY      stage_18_verify
 }
 
+mail_relay_ports_running() {
+  local heard; heard="$(mail_relay_listeners)"
+  case " $heard " in *" 127.0.0.1:2525 "*) ;; *) return 1 ;; esac
+  ! printf '%s\n' $heard | grep -qE ':25$' && ! printf '%s\n' $heard | grep -vE '^127\.0\.0\.1:' | grep -q .
+}
+
 case "$SUBCOMMAND" in
   preflight)
     open_log
@@ -2118,6 +2264,10 @@ case "$SUBCOMMAND" in
   # 모델 파일을 나중에 넣고 AI 를 켜는 경로(S9). 저장소와 같은 이유로 전체 재설치를
   # 시키지 않는다. 유닛을 다시 시작하는 것까지가 이 명령의 일이다 — 안 하면 색인
   # 레인이 옛 설정을 든 채로 계속 돌고, 화면은 「켰다」고 말한다.
+  # 로컬 릴레이 구성 요소를 나중에 까는 경로(D-551). 같은 가드(다른 MTA · 기존 구성 · 기본 꺼짐)를 지난다. 켜기는 메일 화면이 한다.
+  mail-relay) open_log
+             run_stage 1 APT stage_1_apt
+             say "MAIL_RELAY_OK ${MAIL_RELAY_NOTE:-} log=$LOG" ;;
   ai)        open_log
              ai_env_apply
              run_stage 12 AI stage_12_ai

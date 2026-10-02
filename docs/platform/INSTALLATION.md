@@ -87,9 +87,11 @@ sudo /var/tmp/stage/app-src/deploy/install.sh install --source bundle --offline 
      --dns-name <host> --bind-ip <IP>
 ```
 
-번들은 `MANIFEST.sha256` + wheelhouse 를 포함하고, installer 가 Stage 0 에서 **전개 전에 모든 파일을 그 목록으로
+번들은 `MANIFEST.sha256` + wheelhouse + 메일 구성 요소 `.deb`(`debs/`, Ubuntu 24.04 amd64, D-551)를 포함하고, installer 가 Stage 0 에서 **전개 전에 모든 파일을 그 목록으로
 확인한다**(D-522. 예전 문서는 그렇게 적었지만 설치가 목록을 읽지 않았다). wheelhouse 는 번들 안의 `wheels/` 가 기본이다.
-**wheelhouse 는 x86_64 용이다.** arm64 서버에서 번들로 설치하려 하면 Stage 0 이 멈춘다.
+**wheelhouse 는 x86_64 용이다.** arm64 서버에서 번들로 설치하려 하면 Stage 0 이 멈춘다. 메일 구성 요소는 번들 안의 `debs/` 를
+임시 로컬 apt 원본으로 걸고 깐 뒤 그 원본을 지운다(`--mail-debs <dir>` 로 다른 자리를 준다). `debs/` 가 없는 옛 번들은 경고하고
+메일 구성 요소만 건너뛴다.
 
 설치본에는 `installed_manifest.json`(source kind · git remote · ref · commit · Release 태그 · VERSION ·
 alembic head · PG/extension 버전 · DNS 이름 · 바인드 주소 · 앞단 프록시 목록 · 설치 시각 · Stage 결과)을 남긴다.
@@ -106,11 +108,18 @@ sudo clovirassist <명령> [options]
 
 | 명령 | 하는 일 |
 |---|---|
-| `install` · `upgrade` · `rollback` · `uninstall` · `verify` · `version` · `preflight` · `storage` · `ai` | 설치본의 `deploy/install.sh` 의 같은 서브커맨드다 |
+| `install` · `upgrade` · `rollback` · `uninstall` · `verify` · `version` · `preflight` · `storage` · `ai` · `mail-relay` | 설치본의 `deploy/install.sh` 의 같은 서브커맨드다. `mail-relay` 는 로컬 릴레이 구성 요소를 나중에 깐다 |
 | `first-admin-code` | 사용자가 아직 없을 때 첫 관리자 설정 코드를 새로 만든다(§11) |
 | `user` · `migrate` · `storage-cli` · `ai-cli` | 제품 도구다. 서비스 계정과 설치 환경으로 돈다(`install.sh app-cli`) |
 
 `sudo /opt/clovirassist/deploy/install.sh <subcommand>` 도 그대로 된다 — `clovirassist` 는 그 앞면이다.
+
+**ClovirAssist 로컬 릴레이 구성 요소는 기본 설치 · 기본 꺼짐이다**(D-551). Stage 1 이 `postfix` · `opendkim` ·
+`libsasl2-modules` 를 함께 깔지만, 설치하는 동안 서비스가 뜨지 않게 막고(`policy-rc.d`) 끝나면 두 서비스를 끄고 25 · 2525 · 8891 을
+아무도 듣지 않는지 확인한다(어기면 Stage 1 이 실패다). 실제로 쓸지는 관리자가 메일 화면에서 고른다. 다른 메일 발송 프로그램(exim4 ·
+sendmail …)이 있거나 제품 표지가 없는 Postfix 설정이 이미 있으면 **아무것도 깔거나 바꾸지 않는다** — 그 서버는 「외부 SMTP 사용」에서
+그 메일 서버를 지정한다. 꾸러미 설치까지 빼려면 `--without-mail-relay` 를 준다(특수 설치 예외). 빼고 깐 서버에 나중에 깔려면
+`sudo clovirassist mail-relay` 다.
 
 **AI 는 기본이 꺼짐이다**(D-259). 켜려면 설치 때 `--with-ai` 와 함께 `--download-model`(설치가 모델을 받는다) 이나
 `--ai-model-dir <모델 디렉터리>`(폐쇄망) 를 주거나, 나중에 `sudo clovirassist ai --download-model` 을 돌린다.
@@ -129,7 +138,7 @@ sha256 은 제품 카탈로그(`app/ai/catalog.py`)가 고정한다. 받은 파�
 | # | Stage | 내용 | 실패 시 |
 |---|---|---|---|
 | 0 | **Preflight** | **Ubuntu 24.04 만**(다른 버전은 멈춘다, D-522) · 아키텍처 · 디스크/RAM · 포트 충돌 · DNS 해석 · 시간동기 · 필수 인자 · 기존 설치 감지 · 네트워크(또는 오프라인 모드) · **Release 받기와 체크섬 확인**, 번들의 `MANIFEST.sha256` 확인 | **아무것도 바꾸기 전에** 중단 |
-| 1 | apt dependency | `postgresql-16` `postgresql-16-pgvector` `postgresql-contrib` `nginx` `python3.12-venv` `rsync` `openssl` `nfs-common` `cifs-utils` (+ Storage 사용 시) | 패키지명·원인 표시 |
+| 1 | apt dependency | `postgresql-16` `postgresql-16-pgvector` `postgresql-contrib` `nginx` `python3.12-venv` `rsync` `openssl` `nfs-common` `cifs-utils` (+ Storage 사용 시) · 메일 구성 요소 `postfix` `opendkim` `libsasl2-modules`(설치 뒤 꺼짐, 다른 MTA · 기존 구성이 있으면 건너뜀, D-551) | 패키지명·원인 표시. 메일 구성 요소가 켜져 있거나 메일 포트를 듣는 것이 있으면 멈춘다 |
 | 2 | 계정·디렉터리 | `clovirassist` 시스템 계정 · `/opt` `/etc` `/var/lib` `/var/backups` 권한 | |
 | 3 | Source 배치 | git clone/checkout, 확인한 Release 트리, bundle 전개 (`rsync --delete`) | |
 | 4 | Python Runtime | venv + wheelhouse 우선 `pip install`. **폐쇄망은 wheelhouse 에 `Pillow` 가 있어야 한다** — 프로필 사진을 서버가 디코드해서 다시 그린다(D-350). 없으면 아바타 업로드만 거절되고 나머지 제품은 그대로 돈다 | |
@@ -399,13 +408,17 @@ Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다�
 
 - **비밀 값은 설치 명령에 넣지 않는다.** 메일 비밀번호와 AI 키는 웹 화면에서 넣고, 특권 도우미가
   `/etc/clovirassist/secrets/` 에 쓴다(값을 돌려주는 API 는 없다, D-503).
-- **메일**: 시스템 관리자가 설정 > 설정에서 SMTP 서버와 비밀번호를 넣고, 운영 > 메일 발송에서 「연결 확인」을 누른다. 확인이
-  성공해야 메일 상태가 정상이 된다. 메일 서버 설정은 시스템 관리자만 바꿀 수 있고, 비밀번호는 언제나 고정 칸 하나에서 읽는다
-  (D-545). 예전 설치가 비밀번호 파일 이름을 따로 적어 두었으면 업그레이드가 `smtp` 로 시작하는 이름의 파일만 그 칸으로 옮긴다 —
+- **메일**: 시스템 관리자가 운영 > 메일의 설정 탭에서 보내는 방법을 고른다(D-548 · D-551). 「외부 SMTP 사용」은 회사 SMTP
+  서버나 외부 메일 서비스의 주소와 비밀번호를 넣는다. 「ClovirAssist 로컬 릴레이」는 이 서버에 함께 깔린 발송 전용 구성 요소로
+  보내고, 그 안에서 「상위 SMTP 이용」(다른 SMTP 서버를 거친다)이나 「인터넷으로 직접 전달(고급)」(받는 쪽 메일 서버로 바로 보낸다,
+  공개 서버 이름 · PTR · SPF · DKIM · DMARC 가 필요하다)을 고른 뒤 「로컬 릴레이 활성화」를 누른다. 로컬 릴레이의 받는 문은 이 서버 안의
+  127.0.0.1:2525 하나이고 앱만 가진 클라이언트 인증서가 있어야 중계한다 — 바깥에서 붙을 수 없고, 다른 로컬 프로세스와 `sendmail`
+  명령으로는 보낼 수 없다. 저장하면 연결 확인이 저절로 돌고, 확인이 성공해야 메일 상태가 정상이 된다. 메일 서버 설정은 시스템
+  관리자만 바꿀 수 있고, 비밀번호는 언제나 고정 칸 하나에서 읽는다(D-545). 예전 설치가 비밀번호 파일 이름을 따로 적어 두었으면 업그레이드가 `smtp` 로 시작하는 이름의 파일만 그 칸으로 옮긴다 —
   그 밖의 이름을 쓰던 설치는 업그레이드 뒤 메일 비밀번호를 다시 넣는다.
-- **AI**: 설정 > 설정의 AI 탭에서 제공자와 인증 방식을 고른다. Anthropic 은 API 키로만, OpenAI 는 API 키나 ChatGPT 계정
-  (Sign in with ChatGPT)으로 연결한다. ChatGPT 계정 연결은 관리자 PC 에서 도는 연결 도우미가 브라우저의 콜백을 받아 서버에
-  넘긴다(D-516). 사용자가 여럿인 설치는 조직 API 키를 권한다 — ChatGPT 요금제의 사용량은 연결한 계정 한 명의 것이다.
+- **AI**: AI > AI 연결 화면에서 제공자와 인증 방식을 고른다(D-539). Anthropic 은 API 키로만, OpenAI 는 API 키나 ChatGPT 계정
+  (Sign in with ChatGPT)으로 연결한다. ChatGPT 계정 연결은 새 창에서 승인한 뒤 멈춘 주소를 화면에 붙여 넣는 방식이다(D-540,
+  설치할 프로그램이 없다). 사용자가 여럿인 설치는 조직 API 키를 권한다 — ChatGPT 요금제의 사용량은 연결한 계정 한 명의 것이다.
 - **바깥 프록시**: AI 제공자 호출이 사내 프록시를 거쳐야 하면 설정 > 설정의 OS와 서비스 동작 탭에서 프록시 주소와 예외
   목록을 넣고 서비스를 다시 시작한다. 그 값은 웹, 배치 워커, 대화형 워커, 스케줄러 유닛의 드롭인이 되고 앱의 바깥 호출
   문(`OutboundClient`)이 명시적으로 읽는다(D-516). 허용 목록은 그대로 목적지에 걸린다. 인증이 필요한 프록시는 아직 지원하지

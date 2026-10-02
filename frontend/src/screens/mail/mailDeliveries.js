@@ -48,6 +48,16 @@ const FAILURE_KIND_LABEL = {
   render: "내용을 만들지 못함", config: "설정 없음", unknown: "알 수 없음",
 };
 
+/* 로컬 릴레이로 넘긴 메일의 바깥 전달(D-551) — 서버가 고른 낱말(`relay.remote_label`)이다. 외부 SMTP 로 보낸 메일은 그 칸이 없다
+   (「메일 서버가 접수함」이 제품이 아는 마지막 단계다, D-555). */
+const REMOTE_KIND = { delivered: "ok", deferred: "warn", bounced: "danger", expired: "danger", queued: "info", unknown: "neutral" };
+const REMOTE_VALUES = ["전달 대기", "전달 재시도 중", "수신측이 거부함", "전달 시간이 지남", "결과를 알 수 없음",
+  "수신측 메일 서버로 전달함", "상위 SMTP 서버가 접수함"];
+
+function remoteOf(r) {
+  return r.relay && r.relay.remote_label ? r.relay.remote_label : null;
+}
+
 /** 행에 고유한 까닭 한 줄 — 실패면 서버가 고른 요약, 보내지 않았으면 그 까닭. */
 function reasonOf(r) {
   return r.skip_reason_label || r.error_summary || "-";
@@ -82,6 +92,13 @@ export const MAIL_DELIVERIES = {
         kind: r.status_kind || STATUS_KIND[r.status] || "neutral",
       }),
     },
+    {
+      key: "remote", label: "바깥 전달", type: "status", tier: "secondary", values: REMOTE_VALUES,
+      value: (r) => remoteOf(r) || "-",
+      render: (r) => (remoteOf(r)
+        ? React.createElement(Badge, { value: remoteOf(r), kind: REMOTE_KIND[r.relay.remote_status] || "neutral" })
+        : "-"),
+    },
     /* 실패한 횟수다(보낸 한 번은 세지 않는다) — 「시도」라고 부르면 보낸 메일도 0 이라 틀린 말이 된다. */
     /* 받는 사람 · 종류 · 상태 · 시각(과 제목)이 필수다. 실패 횟수 · 원인은 보조라 좁으면 숨고, 행을 열면 상세가 보인다(D-529). */
     { key: "attempt_count", label: "실패", type: "count", sortable: true, tier: "secondary", render: (r) => String(r.failures ?? r.attempt_count ?? 0) },
@@ -92,6 +109,13 @@ export const MAIL_DELIVERIES = {
     { key: "kind_detail", label: "종류", render: (r) => r.kind_label || MAIL_KIND_LABEL[r.kind] || r.kind },
     { key: "status_detail", label: "상태", render: (r) => r.status_label || MAIL_STATUS_LABEL[r.status] || r.status },
     { key: "reason_detail", label: "원인", render: reasonOf },
+    {
+      key: "remote_detail", label: "바깥 전달",
+      render: (r) => (r.relay
+        ? [remoteOf(r) || "-", r.relay.remote_sentence, r.relay.remote_checked_at ? "최근 확인 " + fmtDateTimeCompact(r.relay.remote_checked_at) : null]
+          .filter(Boolean).join(" ")
+        : "외부 SMTP 로 보냈습니다. 메일 서버가 접수한 뒤의 일은 추적하지 않습니다."),
+    },
     { key: "failure_kind", label: "실패 종류", render: (r) => FAILURE_KIND_LABEL[r.failure_kind] || (r.failure_kind || "-") },
     { key: "failure_stage", label: "실패 단계", render: (r) => r.failure_stage_label || "-" },
     /* 이번 회차의 시도 수와 상한은 잡이 말하고, 누적 실패는 행이 말한다 - 재발송해도 「10 / 8」이 되지 않는다. */
@@ -108,9 +132,13 @@ export const MAIL_DELIVERIES = {
     /* 다음 서버의 응답 한 줄(접수면 「250 … queued as …」, 거절이면 그 코드)과 예외 원문은 기술 정보다. */
     {
       key: "last_error_full", label: "기술 정보",
-      render: (r) => (r.last_error || r.relay_response
-        ? React.createElement("pre", { className: "c-detail-json" }, [r.relay_response ? "서버 응답: " + r.relay_response : null, r.last_error]
-          .filter(Boolean).join("\n"))
+      render: (r) => (r.last_error || r.relay_response || (r.relay && r.relay.remote_detail)
+        ? React.createElement("pre", { className: "c-detail-json" }, [
+          r.relay_response ? "서버 응답: " + r.relay_response : null,
+          r.relay && r.relay.queue_id ? "릴레이 큐 id: " + r.relay.queue_id : null,
+          r.relay && r.relay.remote_detail ? "받는 쪽 응답: " + r.relay.remote_detail : null,
+          r.last_error,
+        ].filter(Boolean).join("\n"))
         : "-"),
     },
     field("id", "발송 ID"),
@@ -120,6 +148,10 @@ export const MAIL_DELIVERIES = {
       path: (r) => "/api/admin/mail/deliveries/" + r.id + "/resend", confirm: "이 메일을 다시 보낼까요? 보내기 직전에 아직 의미가 있는지 한 번 더 확인합니다." },
     { label: "취소", variant: "danger", roles: WRITE_ROLES, when: (r) => !!r.cancellable,
       path: (r) => "/api/admin/mail/deliveries/" + r.id + "/cancel", confirm: "보내기를 기다리는 이 메일을 취소할까요?" },
+    /* 큐에 남은 메일을 지금 다시 보내게 한다(로컬 릴레이, 메일 설정 권한). 이 메일만이 아니라 큐 전체다 - 확인 문장이 그것을 말한다. */
+    { label: "지금 다시 보내기", roles: ["system_admin"], when: (r) => !!(r.relay && r.relay.flushable),
+      path: () => "/api/admin/mail/relay/flush",
+      confirm: "로컬 릴레이의 큐에 남은 메일을 지금 다시 보낼까요? 이 메일만이 아니라 큐에 남은 메일을 모두 다시 시도합니다." },
     { label: "감사 로그에서 보기", roles: ["admin", "system_admin"], navigate: (r) => "#/audit?object_type=mail_delivery&object_id=" + r.id },
   ],
 };

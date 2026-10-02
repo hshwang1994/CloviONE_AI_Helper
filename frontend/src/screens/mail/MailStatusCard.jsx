@@ -21,6 +21,41 @@ const STAGE_STATE = {
   not_reached: { label: "확인 안 됨", tone: "neutral" },
 };
 
+const COMPONENT_TONE = { ready: "neutral", running: "ok", stopped: "danger", not_installed: "warn", foreign: "warn", unavailable: "neutral" };
+const OUTER_TONE = { delivered: "ok", deferred: "warn", bounced: "danger", expired: "danger" };
+
+/* 로컬 릴레이 방식일 때만 서는 두 줄(D-551) — 구성 요소가 동작하는가, 그리고 최근 바깥 전달이 어떻게 됐는가. 「접수」와 「전달」을 섞지
+   않는다(D-555): 앱 → 릴레이는 위의 단계 줄이 말하고, 받는 쪽까지는 이 줄이 말한다. */
+function RelayLines({ relay }) {
+  const component = relay.component || {};
+  const outer = relay.outer;
+  const cell = { m: 0, minWidth: 0, display: "flex", alignItems: "baseline", gap: 1, flexWrap: "wrap" };
+  return (
+    <Box component="dl" aria-label="로컬 릴레이" data-testid="relay-lines"
+      sx={{ m: 0, display: "grid", gridTemplateColumns: "7rem minmax(0,1fr)", columnGap: 1.5, rowGap: 0.75 }}>
+      <Typography component="dt" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>로컬 릴레이</Typography>
+      <Box component="dd" sx={cell}>
+        <DotLabel label={component.label || "확인할 수 없음"} tone={COMPONENT_TONE[component.state] || "neutral"} />
+        {component.state !== "running" && component.message ? (
+          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{component.message}</Typography>
+        ) : null}
+      </Box>
+      <Typography component="dt" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>바깥 전달</Typography>
+      <Box component="dd" sx={cell} data-testid="relay-outer">
+        {outer ? (
+          <>
+            <DotLabel label={outer.label} tone={OUTER_TONE[outer.status] || "neutral"} />
+            {outer.sentence ? <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{outer.sentence}</Typography> : null}
+            {outer.at ? <Typography variant="body2" color="text.secondary">{`최근 ${fmtDateTime(outer.at)}`}</Typography> : null}
+          </>
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>아직 바깥 전달 결과가 없습니다.</Typography>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
 function StageList({ stages }) {
   const shown = (stages || []).filter((s) => s.state !== "skipped");
   if (!shown.length) return null;
@@ -45,7 +80,7 @@ function StageList({ stages }) {
   );
 }
 
-export function MailStatusCard({ health, summary, checking = false, timedOut = false }) {
+export function MailStatusCard({ health, summary, relay = null, checking = false, timedOut = false }) {
   const h = health || {};
   const tone = STATE_TONE[h.kind] || "neutral";
   const failed = (h.stages || []).find((s) => s.state === "failed");
@@ -85,6 +120,7 @@ export function MailStatusCard({ health, summary, checking = false, timedOut = f
         <Callout tone="info" compact>확인이 시간 안에 끝나지 않았습니다. 잠시 뒤 다시 확인하세요.</Callout>
       ) : null}
       {checking ? null : <StageList stages={h.stages} />}
+      {relay ? <RelayLines relay={relay} /> : null}
       <TechDetail>
         <Box sx={{ display: "grid", gap: 0.5 }}>
           <TechLine name="상태 코드" value={h.state} />
@@ -92,7 +128,7 @@ export function MailStatusCard({ health, summary, checking = false, timedOut = f
           <TechLine name="실패 단계" value={h.stage} />
           <TechLine name="연속 실패" value={h.consecutive_failures ? `${h.consecutive_failures}회` : null} />
           <TechLine name="최근 성공" value={h.last_success_at ? fmtDateTime(h.last_success_at) : null} />
-          <TechLine name="메일 서버" value={summary && summary.host ? `${summary.host}:${summary.port}` : null} />
+          <TechLine name="메일 서버" value={relay ? "127.0.0.1:2525(로컬 릴레이)" : (summary && summary.host ? `${summary.host}:${summary.port}` : null)} />
         </Box>
       </TechDetail>
     </Card>

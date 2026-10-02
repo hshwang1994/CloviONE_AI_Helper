@@ -201,12 +201,79 @@ def _smtp(value: Any) -> None:
     if "tls_verify" in value and not isinstance(value["tls_verify"], bool):
         raise ValidationAppError("서버 인증서 확인은 켬 또는 끔이어야 합니다.")
     _smtp_ca(value, security)
+    from app.mail.config import ALL_MODES, MODE_LOCAL_RELAY
+
+    mode = value.get("mode", "external")
+    if mode not in ALL_MODES:
+        raise ValidationAppError("보내는 방법은 외부 SMTP 사용 또는 ClovirAssist 로컬 릴레이여야 합니다.")
+    if "relay" in value:
+        _smtp_relay(value["relay"], enabled=bool(value.get("enabled")) and mode == MODE_LOCAL_RELAY)
     # 켜 놓고 주소가 비어 있으면 큐에 쌓기만 하고 아무것도 못 보낸다 - 저장 시점에 막는다.
     if value.get("enabled"):
-        if not str(value.get("host", "")).strip():
+        if mode != MODE_LOCAL_RELAY and not str(value.get("host", "")).strip():
             raise ValidationAppError("메일 발송을 켜려면 메일 서버 주소가 필요합니다.")
         if not str(value.get("from_address", "")).strip():
             raise ValidationAppError("메일 발송을 켜려면 보내는 사람 주소가 필요합니다.")
+
+
+def _smtp_relay(relay: Any, *, enabled: bool) -> None:
+    """로컬 릴레이 설정(D-551). 칸 모양은 헬퍼가 설정 파일을 쓸 때 다시 검사한다(`app/mail/relay_files.py`) - 여기서는 저장 전에
+    사람에게 빠른 오류를 준다. 공개키(`dkim_public`)는 서버가 적는 칸이라 모양만 본다."""
+    from app.mail import relay_files as rf
+    from app.mail.config import ALL_DELIVERIES, ALL_SECURITY_MODES, DEFAULT_RELAY, DELIVERY_SMARTHOST
+
+    if not isinstance(relay, dict):
+        raise ValidationAppError("로컬 릴레이 설정은 객체여야 합니다.")
+    unknown = sorted(k for k in relay if k not in DEFAULT_RELAY)
+    if unknown:
+        raise ValidationAppError("로컬 릴레이 설정에 없는 항목입니다: " + ", ".join(unknown))
+    delivery = relay.get("delivery", DELIVERY_SMARTHOST)
+    if delivery not in ALL_DELIVERIES:
+        raise ValidationAppError("전달 방식은 상위 SMTP 이용 또는 인터넷으로 직접 전달이어야 합니다.")
+    smarthost = relay.get("smarthost", {})
+    if not isinstance(smarthost, dict) or any(k not in ("host", "port", "security", "username") for k in smarthost):
+        raise ValidationAppError("상위 SMTP 서버 설정이 올바르지 않습니다.")
+    host = str(smarthost.get("host") or "").strip().lower()
+    if host and not (rf.HOST_RE.match(host) or rf.IPV4_RE.match(host)):
+        raise ValidationAppError("상위 SMTP 서버 주소는 smtp.example.com 처럼 이름이나 IP 만 적습니다.")
+    port = smarthost.get("port", 587)
+    if not isinstance(port, int) or isinstance(port, bool) or not (0 < port < 65536):
+        raise ValidationAppError("상위 SMTP 서버 포트는 1~65535 사이의 정수여야 합니다.")
+    if smarthost.get("security", "starttls") not in ALL_SECURITY_MODES:
+        raise ValidationAppError("상위 SMTP 서버의 보안 연결은 STARTTLS, SSL, 사용 안 함 중 하나여야 합니다.")
+    username = str(smarthost.get("username") or "").strip()
+    if username and not rf.USERNAME_RE.match(username):
+        raise ValidationAppError("상위 SMTP 계정에는 공백이나 줄바꿈을 넣을 수 없습니다.")
+    helo = str(relay.get("helo_name") or "").strip().lower()
+    if helo and not rf.DOMAIN_RE.match(helo):
+        raise ValidationAppError("서버 이름(HELO)은 mail.example.com 같은 이름이어야 합니다.")
+    public_ip = str(relay.get("public_ip") or "").strip()
+    if public_ip and not rf.IPV4_RE.match(public_ip):
+        raise ValidationAppError("공인 IP 는 203.0.113.10 같은 IPv4 주소여야 합니다.")
+    for key, label in (("ipv4_only", "IPv4 만 쓰기"), ("dkim_enabled", "DKIM 서명")):
+        if key in relay and not isinstance(relay[key], bool):
+            raise ValidationAppError(f"{label}는 켬 또는 끔이어야 합니다.")
+    selector = str(relay.get("dkim_selector") or "").strip().lower()
+    if selector and not rf.SELECTOR_RE.match(selector):
+        raise ValidationAppError("DKIM 선택자는 영문 소문자와 숫자, 하이픈으로 씁니다.")
+    if relay.get("dkim_enabled") and not selector:
+        raise ValidationAppError("DKIM 서명을 켜려면 선택자가 필요합니다.")
+    public = str(relay.get("dkim_public") or "")
+    if public and (len(public) > 1024 or not re.fullmatch(r"[A-Za-z0-9+/=]+", public)):
+        raise ValidationAppError("DKIM 공개키 모양이 올바르지 않습니다.")
+    try:
+        rf.normalize_overrides(relay.get("transport_overrides") or [])
+    except rf.RelayParamsError as exc:
+        raise ValidationAppError(str(exc)) from None
+    resolvers = relay.get("compare_resolvers") or []
+    if not isinstance(resolvers, list) or len(resolvers) > 3 or not all(
+            isinstance(r, str) and rf.IPV4_RE.match(r.strip()) for r in resolvers):
+        raise ValidationAppError("비교할 공개 DNS 서버는 IPv4 주소로 세 개까지 넣을 수 있습니다.")
+    if enabled:
+        if delivery == DELIVERY_SMARTHOST and not host:
+            raise ValidationAppError("상위 SMTP 이용을 고르면 상위 SMTP 서버 주소가 필요합니다.")
+        if delivery != DELIVERY_SMARTHOST and not helo:
+            raise ValidationAppError("인터넷으로 직접 전달하려면 서버 이름(HELO)이 필요합니다.")
 
 
 _SMTP_HOST_FORBIDDEN = re.compile(r"[\s/@?#\\]")

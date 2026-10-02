@@ -1,0 +1,1 @@
+{"queue_name": "deferred", "queue_id": "84A7BF6954", "arrival_time": 1790904671, "message_size": 400, "forced_expire": false, "sender": "noreply@example.test", "recipients": [{"address": "later@deferred.test", "delay_reason": "connect to 127.0.0.1[127.0.0.1]:2699: Connection refused"}]}

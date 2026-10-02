@@ -59,7 +59,7 @@ from app.core.deps import (
     require_permission,
     require_roles,
 )
-from app.core.errors import ForbiddenError, NotFoundError, RateLimitedError, ValidationAppError
+from app.core.errors import ConflictError, ForbiddenError, NotFoundError, RateLimitedError, ValidationAppError
 from app.core.pagination import PageParams
 from app.core.scope import Principal, require_global_management, visible_user_ids
 from app.core.sort import SortParams
@@ -69,6 +69,7 @@ from app.mail.config import (
     SMTP_SETTING_KEY,
     config_from_db,
     configuration_problems,
+    helper_params,
     is_sendable,
     mail_status,
 )
@@ -182,8 +183,8 @@ def status(request: Request, db: Session = Depends(get_db), principal: Principal
         "pending_unconfigured_count": pending_unconfigured_count(db, now=now),
         "backlog": {"count": pending_unconfigured_count(db, now=now), "window_days": backlog_window_days(db)},
         "base_url": _base_url_state(request, can_configure),
-        # 로컬 릴레이(M7)는 P14 에서 선다. 그 전에는 없다.
-        "relay": None,
+        # 로컬 릴레이(M7, D-551) - 그 방식일 때만 구성 요소 상태와 최근 바깥 전달을 싣는다(상태 면의 두 줄).
+        "relay": _status_relay(request, db, config),
         "capabilities": {
             "can_configure": can_configure,
             "can_operate": _can_operate(request.state.user, principal),
@@ -193,7 +194,50 @@ def status(request: Request, db: Session = Depends(get_db), principal: Principal
     }
 
 
+def _status_relay(request: Request, db: Session, config) -> dict | None:
+    if not config.local_relay:
+        return None
+    from app.mail import relay_tracking
+
+    status, detail = _helper_status(request, config)
+    component = _component_view(status, config, detail)
+    return {"delivery": config.relay.delivery, "component": {k: component[k] for k in ("state", "label", "message", "help", "stale")},
+            "outer": relay_tracking.last_outcome(db)}
+
+
 # ── 설정 (D-545 · D-548) ──────────────────────────────────────────────────────
+
+
+class SmarthostRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    host: str = Field(default="", max_length=253)
+    port: int = Field(default=587, ge=1, le=65535)
+    security: Literal["none", "starttls", "ssl"] = "starttls"
+    username: str = Field(default="", max_length=320)
+
+
+class TransportOverride(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    domain: str = Field(max_length=253)
+    host: str = Field(max_length=253)
+
+
+class RelaySettingsRequest(BaseModel):
+    """로컬 릴레이 설정(D-551). DKIM 공개키는 사람이 넣지 않는다 - 키를 만들 때 서버가 적는다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    delivery: Literal["smarthost", "direct"] = "smarthost"
+    smarthost: SmarthostRequest = Field(default_factory=SmarthostRequest)
+    helo_name: str = Field(default="", max_length=253)
+    public_ip: str = Field(default="", max_length=15)
+    ipv4_only: bool = False
+    dkim_enabled: bool = False
+    dkim_selector: str = Field(default="", max_length=63)
+    transport_overrides: list[TransportOverride] = Field(default_factory=list, max_length=20)
+    compare_resolvers: list[str] = Field(default_factory=list, max_length=3)
 
 
 class MailSettingsRequest(BaseModel):
@@ -214,6 +258,12 @@ class MailSettingsRequest(BaseModel):
     # 비밀번호(있으면 같은 저장에서 고정 칸에 쓴다). 응답 · 감사 · 로그 어디에도 값이 나가지 않는다.
     password: str | None = Field(default=None, max_length=1024)
     clear_password: bool = False
+    # 보내는 방법(D-551). 「외부 SMTP 사용」이 기본이다.
+    mode: Literal["external", "local_relay"] = "external"
+    relay: RelaySettingsRequest | None = None
+    # 상위 SMTP 비밀번호(로컬 릴레이의 상위 SMTP 이용). 같은 저장에서 고정 칸에 쓴다.
+    relay_password: str | None = Field(default=None, max_length=1024)
+    clear_relay_password: bool = False
 
 
 def _settings_view(request: Request, db: Session) -> dict:
@@ -223,8 +273,10 @@ def _settings_view(request: Request, db: Session) -> dict:
             "enabled": config.enabled, "host": config.host, "port": config.port, "security": config.security,
             "from_address": config.from_address, "from_name": config.from_name, "username": config.username,
             "timeout_seconds": config.timeout_seconds, "tls_verify": config.tls_verify, "ca_pem": config.ca_pem,
+            "mode": config.mode, "relay": config.relay.as_dict(),
         },
         "password": _password_state(request),
+        "relay_password": _relay_password_state(request),
         "presets": {"ports": PORT_PRESETS},
         "limits": {"timeout_seconds": [1, 300], "ca_pem_max": 20480, "from_name_max": 100},
     }
@@ -253,13 +305,37 @@ def put_settings(body: MailSettingsRequest, request: Request, db: Session = Depe
     from app.settings.registry import validate_value
     from app.settings.service import apply_setting
 
-    value = body.model_dump(exclude={"password", "clear_password"})
+    from app.core.secret_slots import SLOT_SMTP_RELAY_PASSWORD
+
+    value = body.model_dump(exclude={"password", "clear_password", "relay_password", "clear_relay_password"})
     for key in ("host", "from_address", "from_name", "username"):
         value[key] = str(value[key] or "").strip()
     value["ca_pem"] = str(value["ca_pem"] or "").strip()
+    # 로컬 릴레이 칸: 보내지 않았으면 저장된 값을 그대로 둔다. DKIM 공개키는 서버가 적는 칸이라 저장된 값을 이어 쓰고, 선택자를
+    # 바꾸면 비운다(새 선택자의 키를 만들면 다시 적힌다).
+    stored_relay = _stored_smtp(db).get("relay") or {}
+    if value.get("relay") is None:
+        value["relay"] = stored_relay
+    else:
+        relay = value["relay"]
+        relay["dkim_selector"] = str(relay.get("dkim_selector") or "").strip().lower()
+        same_selector = relay["dkim_selector"] == str(stored_relay.get("dkim_selector") or "")
+        relay["dkim_public"] = str(stored_relay.get("dkim_public") or "") if same_selector else ""
     # 저장 전에 모양부터 본다 - 비밀번호를 먼저 써 놓고 설정이 거절되면 반쪽만 저장된다.
     validate_value(SMTP_SETTING_KEY, value)
     now = request.app.state.clock.now()
+    if body.relay_password:
+        changed = secret_store(request).write(SLOT_SMTP_RELAY_PASSWORD, body.relay_password)
+        record_audit_from_request(
+            request, db, action="secret.write", object_type="secret", object_id=SLOT_SMTP_RELAY_PASSWORD,
+            after={"changed": changed},
+        )
+    elif body.clear_relay_password:
+        changed = secret_store(request).delete(SLOT_SMTP_RELAY_PASSWORD)
+        record_audit_from_request(
+            request, db, action="secret.delete", object_type="secret", object_id=SLOT_SMTP_RELAY_PASSWORD,
+            after={"changed": changed},
+        )
     if body.password:
         changed = secret_store(request).write(PASSWORD_SLOT, body.password)
         record_audit_from_request(
@@ -281,6 +357,14 @@ def put_settings(body: MailSettingsRequest, request: Request, db: Session = Depe
         before=_audit_value(result["before"] if isinstance(result.get("before"), dict) else dict(DEFAULT_SMTP)),
         after=_audit_value(value),
     )
+    relay_apply_result = None
+    saved = config_from_db(db)
+    if saved.local_relay:
+        # 켜져 있는 릴레이에는 저장한 설정을 곧바로 다시 적용한다 - 저장이 하나이듯 적용도 저장과 함께다. 꺼져 있으면 화면의
+        # 「로컬 릴레이 켜기」가 켠다.
+        status, _detail = _helper_status(request, saved)
+        if status and status.get("component") == "running":
+            relay_apply_result = _apply_relay(request, db, reason="settings")
     verify = None
     if is_sendable(config_from_db(db), _secrets(request)):
         job = enqueue(
@@ -288,7 +372,8 @@ def put_settings(body: MailSettingsRequest, request: Request, db: Session = Depe
             user_id=request.state.user.id, max_attempts=1,
         )
         verify = {"job_id": job.id, "timeout_seconds": VERIFY_TIMEOUT_SECONDS}
-    return {**_settings_view(request, db), "health": current_health(request, db), "verify": verify}
+    return {**_settings_view(request, db), "health": current_health(request, db), "verify": verify,
+            "relay_apply": relay_apply_result}
 
 
 # ── 발송 기록 ─────────────────────────────────────────────────────────────────
@@ -566,6 +651,291 @@ def verify_result(job_id: str, request: Request, db: Session = Depends(get_db)):
         "health": current_health(request, db),
     }
 
+
+
+# ── ClovirAssist 로컬 릴레이 (M7, D-551) ─────────────────────────────────────
+#
+# 켜고 끄기 · DKIM 키 · 준비 점검 · 지금 다시 보내기. 모두 메일 설정 권한(`SYSTEM_CONFIGURE`)이고 쓰기는 CSRF 를 지난다(라우터 의존).
+# 특권 헬퍼에 넘기는 인자는 **저장된 설정에서만** 만든다(`config.helper_params`) - 사람이 인자를 고르는 문이 없고, 인수(takeover) 같은
+# 인자도 없다. 기존 메일 발송 구성이 있는 서버에서는 헬퍼가 거절한다.
+
+COMPONENT_WORDS = {
+    "ready": ("구성 요소 준비됨", "이 서버에 설치돼 있고 꺼져 있습니다."),
+    "running": ("동작 중", "로컬 릴레이가 메일을 받아 바깥으로 전달하고 있습니다."),
+    "stopped": ("멈춤", "메일 발송 구성 요소가 동작하지 않습니다."),
+    "not_installed": ("설치되지 않음", "이 서버에는 로컬 릴레이 구성 요소가 설치되지 않았습니다."),
+    "foreign": ("기존 메일 발송 구성이 있음",
+                "이 서버에는 기존 메일 발송 구성이 있습니다. ClovirAssist 로컬 릴레이가 자동으로 구성되지 않았습니다."),
+    "unavailable": ("확인할 수 없음", "이 서버의 시스템 도우미에 닿지 못해 로컬 릴레이 상태를 알 수 없습니다."),
+}
+COMPONENT_HELP = {
+    "not_installed": "외부 SMTP 사용을 고르거나 서버에서 구성 요소를 설치하세요.",
+    "foreign": "그 구성을 쓰려면 '외부 SMTP 사용'에서 그 서버를 지정하세요.",
+    "stopped": "로컬 릴레이를 다시 켜 보세요. 계속 멈추면 기술 정보를 확인하세요.",
+}
+DEFAULT_DKIM_SELECTOR = "ca1"
+
+
+def _sysops(request: Request):
+    existing = getattr(request.app.state, "sysops_client", None)
+    if existing is not None:
+        return existing
+    from app.sysops.client import SysopsClient
+
+    return SysopsClient()
+
+
+def _helper_status(request: Request, config) -> tuple[dict | None, str | None]:
+    params = {}
+    if config.relay.dkim_selector and config.sender_domain:
+        params = {"dkim": {"domain": config.sender_domain, "selector": config.relay.dkim_selector}}
+    reply = _sysops(request).call("mailrelay.status", params)
+    if not (reply.available and reply.ok):
+        return None, reply.detail
+    return reply.data or {}, None
+
+
+def _component_view(status: dict | None, config, detail: str | None = None) -> dict:
+    from app.mail import relay_files
+
+    state = (status or {}).get("component") or "unavailable"
+    label, message = COMPONENT_WORDS.get(state, COMPONENT_WORDS["unavailable"])
+    applied = (status or {}).get("applied_relay_fingerprint")
+    wanted = None
+    try:
+        wanted = relay_files.relay_fingerprint(relay_files.normalize_params(helper_params(config)))
+    except relay_files.RelayParamsError:
+        wanted = None
+    return {
+        "state": state,
+        "label": label,
+        "message": message,
+        "help": COMPONENT_HELP.get(state),
+        # 저장한 설정이 아직 켜진 릴레이에 적용되지 않았는가(다시 적용이 필요한가).
+        "stale": state == "running" and bool(wanted) and applied != wanted,
+        # 화면은 「기술 정보」 안에서만 그린다 - 꾸러미 · 서비스 · 듣는 소켓 · 기존 구성 여부.
+        "technical": {
+            "packages": status.get("packages"), "other_mta": status.get("other_mta"), "config": status.get("config"),
+            "services": status.get("services"), "listeners": status.get("listeners"),
+            "queue_count": status.get("queue_count"),
+        } if status else {"helper": detail},
+    }
+
+
+def _relay_password_state(request: Request) -> dict:
+    from app.core.secret_refs import STATUS_CONFIGURED
+    from app.core.secret_slots import SLOT_SMTP_RELAY_PASSWORD
+
+    provider = _secrets(request)
+    stored = bool(provider) and provider.status(SLOT_SMTP_RELAY_PASSWORD) == STATUS_CONFIGURED
+    return {"stored": stored}
+
+
+def _relay_view(request: Request, db: Session) -> dict:
+    from app.mail import relay_readiness, relay_tracking
+
+    config = config_from_db(db)
+    status, detail = _helper_status(request, config)
+    readiness = relay_readiness.load(db)
+    if readiness and readiness.get("fingerprint") != config.relay_fingerprint:
+        # 점검한 뒤 설정이 바뀌었다 - 옛 결과를 지금 설정의 것처럼 보이지 않는다.
+        readiness = {**readiness, "stale": True}
+    dkim = (status or {}).get("dkim")
+    return {
+        "mode": config.mode,
+        "component": _component_view(status, config, detail),
+        "config": config.relay.as_dict(),
+        "password": _relay_password_state(request),
+        "dkim": {
+            "selector": config.relay.dkim_selector or None,
+            "record_name": (dkim or {}).get("record_name"),
+            "public": config.relay.dkim_public or (dkim or {}).get("public"),
+            "key_exists": bool((dkim or {}).get("key_exists")),
+        },
+        "readiness": readiness,
+        "outer": relay_tracking.last_outcome(db),
+    }
+
+
+def _require_local_relay(config) -> None:
+    if not config.local_relay:
+        raise ConflictError("보내는 방법을 ClovirAssist 로컬 릴레이로 저장한 뒤에 쓸 수 있습니다.")
+
+
+def _apply_relay(request: Request, db: Session, *, reason: str) -> dict:
+    """저장된 설정으로 헬퍼 `mailrelay.apply` 를 부르고 감사에 남긴다. 결과 한 덩어리를 돌려준다(예외 없음)."""
+    from app.mail import relay_files
+
+    config = config_from_db(db)
+    try:
+        params = relay_files.normalize_params(helper_params(config))
+    except relay_files.RelayParamsError as exc:
+        raise ValidationAppError(str(exc)) from None
+    reply = _sysops(request).call("mailrelay.apply", params)
+    record_audit_from_request(
+        request, db, action="mail.relay.apply", object_type="mail_settings", object_id=SMTP_SETTING_KEY,
+        after={"reason": reason, "available": reply.available, "ok": reply.ok, "changed": reply.changed,
+               "rolled_back": reply.rolled_back, "detail": reply.detail},
+        result="success" if reply.ok else "failure",
+    )
+    return {"ok": reply.ok, "available": reply.available, "message": reply.detail,
+            "technical": (reply.data or {}).get("technical") if not reply.ok else None}
+
+
+def _start_verify(request: Request, db: Session) -> dict | None:
+    from app.jobs.handlers.mail_verify import MAIL_VERIFY_JOB_TYPE, VERIFY_TIMEOUT_SECONDS
+    from app.jobs.repository import enqueue
+
+    if not is_sendable(config_from_db(db), _secrets(request)):
+        return None
+    job = enqueue(
+        db, job_type=MAIL_VERIFY_JOB_TYPE, payload={"auto": True}, now=request.app.state.clock.now(),
+        user_id=request.state.user.id, max_attempts=1,
+    )
+    return {"job_id": job.id, "timeout_seconds": VERIFY_TIMEOUT_SECONDS}
+
+
+@router.get("/relay", dependencies=[Depends(require_permission(SYSTEM_CONFIGURE))])
+def relay_state(request: Request, db: Session = Depends(get_db)):
+    """로컬 릴레이 한 벌 — 구성 요소 상태 · 설정 · DKIM · 준비 점검 결과 · 최근 바깥 전달."""
+    return _relay_view(request, db)
+
+
+@router.post("/relay/apply", dependencies=[Depends(require_permission(SYSTEM_CONFIGURE))])
+def relay_apply(request: Request, db: Session = Depends(get_db)):
+    """로컬 릴레이를 켜거나 저장한 설정을 다시 적용한다. 성공하면 앱 → 릴레이 연결 확인을 시작한다."""
+    config = config_from_db(db)
+    _require_local_relay(config)
+    result = _apply_relay(request, db, reason="manual")
+    verify = _start_verify(request, db) if result["ok"] else None
+    return {"result": result, "relay": _relay_view(request, db), "verify": verify, "health": current_health(request, db)}
+
+
+@router.post("/relay/disable", dependencies=[Depends(require_permission(SYSTEM_CONFIGURE))])
+def relay_disable(request: Request, db: Session = Depends(get_db)):
+    """로컬 릴레이를 끈다. 큐에 남은 메일은 다시 켤 때까지 나가지 않는다(화면이 먼저 확인을 받는다)."""
+    reply = _sysops(request).call("mailrelay.disable", {})
+    record_audit_from_request(
+        request, db, action="mail.relay.disable", object_type="mail_settings", object_id=SMTP_SETTING_KEY,
+        after={"available": reply.available, "ok": reply.ok, "detail": reply.detail},
+        result="success" if reply.ok else "failure",
+    )
+    return {"result": {"ok": reply.ok, "available": reply.available, "message": reply.detail},
+            "relay": _relay_view(request, db)}
+
+
+class RelayDkimRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    selector: str | None = Field(default=None, max_length=63)
+
+
+@router.post("/relay/dkim", dependencies=[Depends(require_permission(SYSTEM_CONFIGURE))])
+def relay_dkim(request: Request, body: RelayDkimRequest | None = None, db: Session = Depends(get_db)):
+    """DKIM 키를 만든다(이미 있으면 그대로 쓴다). 공개키와 선택자를 설정에 적는다 - 개인키는 서버 밖으로 나가지 않는다."""
+    from app.mail import relay_files
+    from app.settings.service import apply_setting
+
+    config = config_from_db(db)
+    _require_local_relay(config)
+    if not config.sender_domain:
+        raise ValidationAppError("보내는 사람 주소를 먼저 저장하세요. 그 도메인으로 키를 만듭니다.")
+    selector = ((body.selector if body else None) or config.relay.dkim_selector or DEFAULT_DKIM_SELECTOR).strip().lower()
+    if not relay_files.SELECTOR_RE.match(selector):
+        raise ValidationAppError("DKIM 선택자는 영문 소문자와 숫자, 하이픈으로 씁니다.")
+    reply = _sysops(request).call("mailrelay.dkim_generate", {"domain": config.sender_domain, "selector": selector})
+    record_audit_from_request(
+        request, db, action="mail.relay.dkim", object_type="mail_settings", object_id=SMTP_SETTING_KEY,
+        after={"selector": selector, "domain": config.sender_domain, "ok": reply.ok, "changed": reply.changed},
+        result="success" if reply.ok else "failure",
+    )
+    if not (reply.available and reply.ok):
+        raise ConflictError(reply.detail or "DKIM 키를 만들지 못했습니다.")
+    value = _stored_smtp(db)
+    relay = dict(value.get("relay") or {})
+    relay.update({"dkim_selector": selector, "dkim_public": str((reply.data or {}).get("public") or "")})
+    value["relay"] = relay
+    apply_setting(db, request.app.state.settings_cache, key=SMTP_SETTING_KEY, value=value,
+                  updated_by=request.state.user.id, now=request.app.state.clock.now())
+    return {"result": {"ok": True, "message": reply.detail}, "relay": _relay_view(request, db)}
+
+
+class RelayCheckRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    probe_domain: str | None = Field(default=None, max_length=253)
+
+
+@router.post("/relay/check", dependencies=[Depends(require_permission(SYSTEM_CONFIGURE))])
+def relay_check(request: Request, body: RelayCheckRequest | None = None, db: Session = Depends(get_db)):
+    """준비 점검을 큐에 넣는다(대화형 레인). 메일은 보내지 않는다."""
+    from app.jobs.handlers.mail_relay_check import MAIL_RELAY_CHECK_JOB_TYPE
+    from app.jobs.repository import enqueue
+    from app.mail import relay_files
+
+    config = config_from_db(db)
+    _require_local_relay(config)
+    probe = ((body.probe_domain if body else None) or "").strip().lower()
+    if probe and not relay_files.DOMAIN_RE.match(probe):
+        raise ValidationAppError("시험할 받는 도메인은 example.com 같은 이름이어야 합니다.")
+    job = enqueue(
+        db, job_type=MAIL_RELAY_CHECK_JOB_TYPE, payload={"probe_domain": probe or None},
+        now=request.app.state.clock.now(), user_id=request.state.user.id, max_attempts=1,
+    )
+    record_audit_from_request(
+        request, db, action="mail.relay.check", object_type="mail_settings", object_id=job.id,
+        after={"probe_domain": probe or None},
+    )
+    return {"job_id": job.id, "status": job.status}
+
+
+@router.get("/relay/check/{job_id}", dependencies=[Depends(require_permission(SYSTEM_CONFIGURE))])
+def relay_check_result(job_id: str, request: Request, db: Session = Depends(get_db)):
+    from app.jobs.handlers.mail_relay_check import MAIL_RELAY_CHECK_JOB_TYPE
+    from app.jobs.models import STATUS_FAILED, STATUS_QUEUED, STATUS_RUNNING, Job
+    from app.mail import relay_readiness
+
+    job = db.get(Job, job_id)
+    if job is None or job.job_type != MAIL_RELAY_CHECK_JOB_TYPE:
+        raise NotFoundError("준비 점검 기록을 찾을 수 없습니다.")
+    pending = job.status in (STATUS_QUEUED, STATUS_RUNNING)
+    return {
+        "job_id": job.id, "status": job.status, "pending": pending,
+        "error": (job.last_error or "").strip() or None if job.status == STATUS_FAILED else None,
+        "readiness": None if pending else relay_readiness.load(db),
+    }
+
+
+@router.post("/relay/flush", dependencies=[Depends(require_permission(SYSTEM_CONFIGURE))])
+def relay_flush(request: Request, db: Session = Depends(get_db)):
+    """큐에 남은 메일을 지금 다시 보내도록 한다(받는 쪽이 잠시 거절했던 메일)."""
+    reply = _sysops(request).call("mailrelay.flush", {})
+    record_audit_from_request(
+        request, db, action="mail.relay.flush", object_type="mail_settings", object_id=SMTP_SETTING_KEY,
+        after={"available": reply.available, "ok": reply.ok}, result="success" if reply.ok else "failure",
+    )
+    if not (reply.available and reply.ok):
+        raise ConflictError(reply.detail or "큐를 다시 보내지 못했습니다.")
+    return {"result": {"ok": True, "message": reply.detail}}
+
+
+def _stored_smtp(db: Session) -> dict:
+    """저장된 `smtp` 값(기본값으로 채운 사본). 서버가 적는 칸(DKIM 공개키)을 고칠 때 쓴다."""
+    import copy
+    import json as _json
+
+    from app.settings.models import AppSetting
+
+    row = db.get(AppSetting, SMTP_SETTING_KEY)
+    value = copy.deepcopy(DEFAULT_SMTP)
+    if row is not None:
+        try:
+            stored = _json.loads(row.value_json)
+        except (TypeError, ValueError):
+            stored = None
+        if isinstance(stored, dict):
+            value.update({k: v for k, v in stored.items() if k in DEFAULT_SMTP})
+    return value
 
 # ── 메일 모양 미리 보기 (D-549) ──────────────────────────────────────────────
 

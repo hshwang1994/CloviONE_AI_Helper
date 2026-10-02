@@ -14,6 +14,9 @@ import { SettingRow } from "../../ui/adminKit.jsx";
 import { ChoiceCards } from "../../ui/ChoiceCards.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 import { MailStatusCard } from "./MailStatusCard.jsx";
+import {
+  MAIL_RELAY_KEY, RelayFields, RelayReadOnly, RelayReadiness, RelayVerifyContext, useRelayQuery,
+} from "./RelaySection.jsx";
 
 /* 메일 · 설정 탭 (계획 M1, D-548) — 관리자의 작업 순서대로 읽힌다: 켜기 → 보내는 방법 → 보내는 사람 → 고른 방식의 설정 → 보안 → 저장.
  *
@@ -28,13 +31,38 @@ import { MailStatusCard } from "./MailStatusCard.jsx";
 
 export const MAIL_SETTINGS_KEY = ["mail-settings"];
 const SECURITY = [["starttls", "STARTTLS"], ["ssl", "SSL"], ["none", "사용 안 함"]];
+const EMPTY_RELAY = {
+  delivery: "smarthost", smarthost: { host: "", port: 587, security: "starttls", username: "" }, helo_name: "",
+  public_ip: "", ipv4_only: false, dkim_enabled: false, dkim_selector: "", dkim_public: "", transport_overrides: [],
+  compare_resolvers: [],
+};
 const EMPTY = {
   enabled: false, host: "", port: 587, security: "starttls", from_address: "", from_name: "", username: "",
-  timeout_seconds: 20, tls_verify: true, ca_pem: "",
+  timeout_seconds: 20, tls_verify: true, ca_pem: "", mode: "external", relay: EMPTY_RELAY,
 };
 
 function sameValue(a, b) {
+  if (a && typeof a === "object") return JSON.stringify(a) === JSON.stringify(b);
   return String(a ?? "") === String(b ?? "");
+}
+
+/* 저장 본문의 로컬 릴레이 칸 — 서버가 적는 칸(DKIM 공개키)은 보내지 않는다(보내면 422). 숫자 칸은 숫자로. */
+function relayBody(relay) {
+  const r = { ...EMPTY_RELAY, ...(relay || {}) };
+  const sh = { ...EMPTY_RELAY.smarthost, ...(r.smarthost || {}) };
+  return {
+    delivery: r.delivery,
+    smarthost: { host: String(sh.host || "").trim(), port: Number(sh.port), security: sh.security, username: String(sh.username || "").trim() },
+    helo_name: String(r.helo_name || "").trim(),
+    public_ip: String(r.public_ip || "").trim(),
+    ipv4_only: Boolean(r.ipv4_only),
+    dkim_enabled: Boolean(r.dkim_enabled),
+    dkim_selector: String(r.dkim_selector || "").trim(),
+    transport_overrides: (r.transport_overrides || [])
+      .map((o) => ({ domain: String(o.domain || "").trim(), host: String(o.host || "").trim() }))
+      .filter((o) => o.domain || o.host),
+    compare_resolvers: (r.compare_resolvers || []).map((s) => String(s).trim()).filter(Boolean),
+  };
 }
 
 export function MailSettingsTab({ status, verify, onDirtyChange }) {
@@ -51,25 +79,42 @@ function EditableSettings({ status, verify, onDirtyChange }) {
   const [draft, setDraft] = React.useState({});
   const [password, setPassword] = React.useState("");
   const [clearPassword, setClearPassword] = React.useState(false);
+  const [relayPassword, setRelayPassword] = React.useState("");
+  const [clearRelayPassword, setClearRelayPassword] = React.useState(false);
   const [advanced, setAdvanced] = React.useState(false);
 
-  const base = (query.data && query.data.settings) || EMPTY;
+  const base = { ...EMPTY, ...((query.data && query.data.settings) || {}) };
+  base.relay = { ...EMPTY_RELAY, ...(base.relay || {}) };
   const values = { ...base, ...draft };
   const presets = ((query.data && query.data.presets) || {}).ports || { starttls: 587, ssl: 465, none: 25 };
   const stored = Boolean(query.data && query.data.password && query.data.password.stored);
-  const dirty = Object.keys(draft).some((k) => !sameValue(draft[k], base[k])) || Boolean(password) || clearPassword;
+  const relayPasswordStored = Boolean(query.data && query.data.relay_password && query.data.relay_password.stored);
+  const dirty = Object.keys(draft).some((k) => !sameValue(draft[k], base[k])) || Boolean(password) || clearPassword
+    || Boolean(relayPassword) || clearRelayPassword;
+  const local = values.mode === "local_relay";
+  const relayQuery = useRelayQuery(local);
   React.useEffect(() => { if (onDirtyChange) onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   React.useEffect(() => () => { if (onDirtyChange) onDirtyChange(false); }, [onDirtyChange]);
 
   const save = useMutation({
     mutationFn: (body) => api("/api/admin/mail/settings", { method: "PUT", body }),
     onSuccess: (res) => {
-      qc.setQueryData(MAIL_SETTINGS_KEY, { settings: res.settings, password: res.password, presets: res.presets, limits: res.limits });
+      qc.setQueryData(MAIL_SETTINGS_KEY, {
+        settings: res.settings, password: res.password, relay_password: res.relay_password, presets: res.presets, limits: res.limits,
+      });
       qc.invalidateQueries({ queryKey: ["mail-status"] });
+      qc.invalidateQueries({ queryKey: MAIL_RELAY_KEY });
       setDraft({});
       setPassword("");
       setClearPassword(false);
-      toast("메일 설정을 저장했습니다.", "success");
+      setRelayPassword("");
+      setClearRelayPassword(false);
+      const applied = res.relay_apply;
+      if (applied && !applied.ok) {
+        toast("메일 설정을 저장했지만 로컬 릴레이에 적용하지 못했습니다.", "error");
+      } else {
+        toast(applied ? "메일 설정을 저장하고 로컬 릴레이에 적용했습니다." : "메일 설정을 저장했습니다.", "success");
+      }
       if (res.verify && res.verify.job_id && verify) verify.watch(res.verify.job_id);
     },
   });
@@ -78,6 +123,7 @@ function EditableSettings({ status, verify, onDirtyChange }) {
   if (query.isError) return <ErrorState error={query.error} onRetry={query.refetch} />;
 
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
+  const setRelay = (patch) => setDraft((d) => ({ ...d, relay: { ...(d.relay || base.relay), ...patch } }));
   function changeSecurity(next) {
     const before = values.security;
     const patch = { security: next };
@@ -87,17 +133,21 @@ function EditableSettings({ status, verify, onDirtyChange }) {
   }
 
   async function submit() {
-    const body = { ...values, port: Number(values.port), timeout_seconds: Number(values.timeout_seconds) };
+    const body = {
+      ...values, port: Number(values.port), timeout_seconds: Number(values.timeout_seconds), relay: relayBody(values.relay),
+    };
     if (password) body.password = password;
     if (clearPassword && !password) body.clear_password = true;
-    if (base.tls_verify !== false && body.tls_verify === false && body.security !== "none") {
+    if (relayPassword) body.relay_password = relayPassword;
+    if (clearRelayPassword && !relayPassword) body.clear_relay_password = true;
+    if (!local && base.tls_verify !== false && body.tls_verify === false && body.security !== "none") {
       const ok = await confirm(
         "서버 인증서 확인을 끕니다. 중간에서 메일과 로그인 비밀번호를 가로챌 수 있게 됩니다. 사설 인증서라면 CA 인증서를 붙여 넣는 쪽이 안전합니다. 계속할까요?",
         { danger: true, title: "인증서 확인 끄기", confirmLabel: "끄고 저장" },
       );
       if (!ok) return;
     }
-    if (body.security === "none" && body.username && !(base.security === "none" && base.username)) {
+    if (!local && body.security === "none" && body.username && !(base.security === "none" && base.username)) {
       const ok = await confirm(
         "보안 연결 없이 로그인하면 비밀번호가 암호화되지 않은 채로 전송됩니다. 사내망 중계에서만 쓰세요. 계속할까요?",
         { danger: true, title: "보안 연결 없이 로그인", confirmLabel: "그대로 저장" },
@@ -110,8 +160,8 @@ function EditableSettings({ status, verify, onDirtyChange }) {
   const saveError = failureText([save, "메일 설정을 저장하지 못했습니다."]);
   const off = !values.enabled;
   return (
-    <>
-      <MailStatusCard health={status.health} summary={status.summary} checking={verify && verify.waiting}
+    <RelayVerifyContext.Provider value={verify}>
+      <MailStatusCard health={status.health} summary={status.summary} relay={status.relay} checking={verify && verify.waiting}
         timedOut={verify && verify.timedOut} />
       {status.base_url && status.base_url.problem ? <Callout tone="warn" compact>{status.base_url.problem}</Callout> : null}
 
@@ -133,13 +183,12 @@ function EditableSettings({ status, verify, onDirtyChange }) {
 
         <FormSection titleAs="h2" title="보내는 방법">
           <ChoiceCards
-            name="mail-mode" ariaLabel="보내는 방법" value="external" onChange={() => {}}
+            name="mail-mode" ariaLabel="보내는 방법" value={values.mode} onChange={(next) => set({ mode: next })}
             options={[
               { value: "external", label: "외부 SMTP 사용", description: "회사 SMTP 서버나 외부 메일 서비스로 보냅니다." },
               {
-                value: "local_relay", label: "ClovirAssist 로컬 릴레이", disabled: true,
+                value: "local_relay", label: "ClovirAssist 로컬 릴레이",
                 description: "이 서버에 설치된 발송 전용 구성 요소로 보냅니다.",
-                note: "이 서버에서는 아직 고를 수 없습니다.",
               },
             ]}
           />
@@ -159,6 +208,19 @@ function EditableSettings({ status, verify, onDirtyChange }) {
           </FieldRow>
         </FormSection>
 
+        {local ? (
+          <>
+            <RelayFields
+              values={values} setRelay={setRelay} relay={relayQuery.data || null} savedLocal={base.mode === "local_relay"} dirty={dirty}
+              relayPassword={relayPassword} setRelayPassword={setRelayPassword} clearRelayPassword={clearRelayPassword}
+              setClearRelayPassword={setClearRelayPassword} relayPasswordStored={relayPasswordStored}
+            />
+            {relayQuery.isError ? <ErrorState error={relayQuery.error} onRetry={relayQuery.refetch} /> : null}
+            <RelayReadiness relay={relayQuery.data || null} savedLocal={base.mode === "local_relay"} dirty={dirty} />
+          </>
+        ) : null}
+
+        {local ? null : (
         <FormSection titleAs="h2" title="SMTP 서버">
           <FieldRow columns={["2fr", "12rem", "8rem"]}>
             <Field label="서버 주소" htmlFor="mail-host" required={!off}>
@@ -200,6 +262,9 @@ function EditableSettings({ status, verify, onDirtyChange }) {
           </FieldRow>
         </FormSection>
 
+        )}
+
+        {local ? null : (
         <FormSection titleAs="h2" title="보안">
           <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 } }}>
             <SettingRow
@@ -235,6 +300,7 @@ function EditableSettings({ status, verify, onDirtyChange }) {
             </Box>
           ) : null}
         </FormSection>
+        )}
 
         {saveError ? <Callout tone="danger" compact>{saveError}</Callout> : null}
         <ActionFooter
@@ -246,13 +312,15 @@ function EditableSettings({ status, verify, onDirtyChange }) {
           ) : null}
         >
           <Button disabled={!dirty || save.isPending}
-            onClick={() => { setDraft({}); setPassword(""); setClearPassword(false); }}>
+            onClick={() => {
+              setDraft({}); setPassword(""); setClearPassword(false); setRelayPassword(""); setClearRelayPassword(false);
+            }}>
             되돌리기
           </Button>
           <Button variant="primary" disabled={!dirty} loading={save.isPending} onClick={submit}>저장</Button>
         </ActionFooter>
       </Card>
-    </>
+    </RelayVerifyContext.Provider>
   );
 }
 
@@ -269,14 +337,15 @@ function ReadOnlySettings({ status, verify }) {
   const securityLabel = Object.fromEntries(SECURITY)[s.security] || s.security;
   return (
     <>
-      <MailStatusCard health={status.health} summary={s} checking={verify && verify.waiting} timedOut={verify && verify.timedOut} />
+      <MailStatusCard health={status.health} summary={s} relay={status.relay} checking={verify && verify.waiting}
+        timedOut={verify && verify.timedOut} />
       <Card stack data-testid="mail-settings-readonly">
         <Callout tone="info" compact>메일 서버 설정은 시스템 관리자만 바꿀 수 있습니다.</Callout>
         <FormSection titleAs="h2" title="메일 보내기">
           <ReadOnlyValue label="메일 발송" value={s.enabled ? "사용" : "사용 안 함"} />
         </FormSection>
         <FormSection titleAs="h2" title="보내는 방법">
-          <ReadOnlyValue label="보내는 방법" value="외부 SMTP 사용" />
+          <ReadOnlyValue label="보내는 방법" value={s.mode === "local_relay" ? "ClovirAssist 로컬 릴레이" : "외부 SMTP 사용"} />
         </FormSection>
         <FormSection titleAs="h2" title="보내는 사람">
           <FieldRow columns={["1fr", "1fr"]}>
@@ -284,6 +353,7 @@ function ReadOnlySettings({ status, verify }) {
             <ReadOnlyValue label="보내는 이름" value={s.from_name} />
           </FieldRow>
         </FormSection>
+        {s.mode === "local_relay" ? <RelayReadOnly summary={s} /> : (
         <FormSection titleAs="h2" title="SMTP 서버">
           <FieldRow columns={["2fr", "12rem", "8rem"]}>
             <ReadOnlyValue label="서버 주소" value={s.host} />
@@ -295,6 +365,7 @@ function ReadOnlySettings({ status, verify }) {
             <ReadOnlyValue label="비밀번호" value={!s.username ? "사용 안 함" : (s.password && s.password.stored ? "저장됨" : "저장되지 않음")} />
           </FieldRow>
         </FormSection>
+        )}
         <FormSection titleAs="h2" title="보안">
           <ReadOnlyValue label="서버 인증서 확인" value={s.security === "none" ? "보안 연결 없음" : (s.tls_verify === false ? "확인 안 함" : "확인함")} />
         </FormSection>

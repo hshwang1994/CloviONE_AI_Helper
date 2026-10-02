@@ -45,6 +45,7 @@ from __future__ import annotations
 import email.generator
 import io
 import logging
+import re
 import smtplib
 import socket
 import ssl
@@ -142,6 +143,21 @@ def classify(exc: BaseException) -> tuple[str, bool]:
     if isinstance(exc, (TimeoutError, ConnectionError, OSError)):
         return FAILURE_CONNECT, False
     return FAILURE_UNKNOWN, False
+
+
+def relay_tls_context(secret_provider) -> ssl.SSLContext:
+    """로컬 릴레이로 가는 보안 연결(D-551). 서버 인증서는 릴레이가 켤 때 만든 그것 하나만 믿고(고정), 앱만 가진 클라이언트 열쇠를
+    내민다 - 릴레이는 그 열쇠의 지문 하나만 중계를 허가한다. 사람이 고치는 칸이 없다."""
+    from app.core.secret_slots import SLOT_SMTP_RELAY_CLIENT
+    from app.mail.config import relay_server_cert
+
+    pem = relay_server_cert()
+    if not pem:
+        raise ssl.SSLError("로컬 릴레이의 서버 인증서가 없습니다.")
+    context = ssl.create_default_context(cadata=pem)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(certfile=str(secret_provider.path(SLOT_SMTP_RELAY_CLIENT)))
+    return context
 
 
 def tls_context(config: MailConfig) -> ssl.SSLContext:
@@ -278,14 +294,67 @@ class SendReceipt:
     response: str | None = None
 
 
+_BRACKET_IP = re.compile(r"\[(\d{1,3}(?:\.\d{1,3}){3})\]")
+
+
+def probe_mx(host: str, helo: str | None = None, *, port: int = 25, timeout: int = 10) -> dict:
+    """받는 쪽 메일 서버의 25번에 붙어 인사(EHLO)만 하고 끊는다 — **메일은 보내지 않는다**(MAIL 명령이 없다).
+
+    로컬 릴레이의 「인터넷으로 직접 전달」 준비 점검이 쓴다(D-551): 바깥 25번이 열려 있는지, 받는 쪽이 이 서버를 어떤 주소로 보는지
+    (인사말의 `Hello [x.x.x.x]`)를 잰다. 실패는 예외가 아니라 결과의 `error` 다.
+    """
+    result: dict = {"host": host, "connected": False, "banner": None, "ehlo": None, "egress_ip": None, "error": None}
+    server = None
+    try:
+        server = smtplib.SMTP(timeout=timeout, local_hostname=helo or None)
+        code, banner = server.connect(host, port)
+        result["connected"] = True
+        result["banner"] = _response_text(code, banner)
+        code, reply = server.ehlo()
+        text = reply.decode("utf-8", "replace") if isinstance(reply, bytes) else str(reply or "")
+        result["ehlo"] = _response_text(code, text.splitlines()[0] if text else "")
+        found = _BRACKET_IP.search(text)
+        if found:
+            result["egress_ip"] = found.group(1)
+        server.quit()
+    except (smtplib.SMTPException, OSError) as exc:
+        result["error"] = f"{type(exc).__name__}: {exc}"[:RESPONSE_MAX]
+        if server is not None:
+            try:
+                server.close()
+            except OSError:
+                pass
+    return result
+
+
 class SmtpTransport:
     """실제 발송기. 워커에서만 인스턴스가 만들어진다(app/worker_main.py).
 
     테스트와 진단은 같은 모양의 다른 객체를 끼운다 - 그래서 ``send`` · ``verify`` 시그니처가 계약이다.
     """
 
+    def _open_relay(self, config: MailConfig, secret_provider, trail: list[str]):
+        """로컬 릴레이(127.0.0.1:2525)에 붙는다 — 이름 찾기와 로그인이 없고, 보안 연결은 언제나 맺는다(D-551)."""
+        from app.mail import relay_files
+
+        timeout = max(1, int(config.timeout_seconds or 20))
+        trail.append(STAGE_CONNECT)
+        server = smtplib.SMTP(relay_files.RELAY_HOST, relay_files.RELAY_PORT, timeout=timeout)
+        try:
+            trail.append(STAGE_GREETING)
+            server.ehlo()
+            trail.append(STAGE_TLS)
+            server.starttls(context=relay_tls_context(secret_provider))
+            server.ehlo()
+        except BaseException:
+            server.close()
+            raise
+        return server
+
     def _open(self, config: MailConfig, secret_provider, trail: list[str]):
         """이름을 찾고 연결하고 인사하고 보안 연결을 맺고 로그인한다. 들어간 단계를 `trail` 에 적는다."""
+        if getattr(config, "local_relay", False):
+            return self._open_relay(config, secret_provider, trail)
         timeout = max(1, int(config.timeout_seconds or 20))
         trail.append(STAGE_DNS)
         _resolve(config.host, config.port)
@@ -376,10 +445,14 @@ class SmtpTransport:
         """
         trail: list[str] = []
         skipped = set()
-        if config.security not in (SECURITY_STARTTLS, SECURITY_SSL):
-            skipped.add(STAGE_TLS)
-        if not config.username:
-            skipped.add(STAGE_AUTH)
+        if getattr(config, "local_relay", False):
+            # 로컬 릴레이는 고정 주소라 이름을 찾지 않고, 계정 대신 클라이언트 인증서로 허가받는다.
+            skipped.update({STAGE_DNS, STAGE_AUTH})
+        else:
+            if config.security not in (SECURITY_STARTTLS, SECURITY_SSL):
+                skipped.add(STAGE_TLS)
+            if not config.username:
+                skipped.add(STAGE_AUTH)
         if not probe_recipient:
             skipped.add(STAGE_RECIPIENT)
         try:

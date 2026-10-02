@@ -176,6 +176,9 @@ EXEMPT: dict[str, str] = {
     "app/mail/router.py::verify_result":
         "연결 확인 잡은 설치 한 벌의 SMTP 설정을 확인한 결과다(`mail_verify` 만 받고 다른 잡 종류는 404) — "
         "좁힐 범위가 없다. 결과에 든 것은 건강 상태 문장뿐이고 콘솔 읽기 역할이 지킨다.",
+    "app/mail/router.py::relay_check_result":
+        "로컬 릴레이 준비 점검 잡은 서버 한 대의 메일 구성 요소를 점검한 결과다(`mail_relay_check` 만 받고 다른 잡 종류는 "
+        "404, D-551) — 좁힐 범위가 없다. 메일 설정 권한(`SYSTEM_CONFIGURE`)만 부른다.",
     "app/mail/router.py::template_preview":
         "경로의 값은 메일 종류(열 가지 고정 표의 키)이지 행 id 가 아니다 — 응답은 `app/mail/samples.py` 의 고정 표본만 "
         "그린다(실제 사용자 · 티켓 · 토큰이 없다, D-549). 좁힐 범위가 없고 콘솔 읽기 역할이 지킨다.",

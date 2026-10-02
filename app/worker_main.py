@@ -280,6 +280,7 @@ def build_handlers() -> dict:
     """Job handler registry."""
     from app.jobs.handlers.chat_message import handle_chat_message
     from app.jobs.handlers.llm_connection_test import handle_llm_connection_test
+    from app.jobs.handlers.mail_relay_check import MAIL_RELAY_CHECK_JOB_TYPE, handle_mail_relay_check
     from app.jobs.handlers.mail_send import handle_mail_send
     from app.jobs.handlers.mail_verify import MAIL_VERIFY_JOB_TYPE, handle_mail_verify
     from app.jobs.handlers.project_weekly_summary import handle_project_weekly_summary
@@ -294,6 +295,8 @@ def build_handlers() -> dict:
         "mail_send": handle_mail_send,
         # 메일 서버 연결 확인(계획 3.3). 화면이 결과를 기다리므로 대화형 레인에서 돈다(app/jobs/lanes.py).
         MAIL_VERIFY_JOB_TYPE: handle_mail_verify,
+        # 로컬 릴레이 준비 점검(D-551). 같은 이유로 대화형 레인이다.
+        MAIL_RELAY_CHECK_JOB_TYPE: handle_mail_relay_check,
         # AI 연결 확인(9-5 · D-515). 웹 요청에서 기다리면 처리 칸이 수십 초 잠긴다 -
         # 이유는 핸들러 파일 맨 위에 적어 뒀다.
         JOB_TYPE_TEST: handle_llm_connection_test,
@@ -718,6 +721,11 @@ def build_batch_worker(session_factory, clock: Clock, ctx: WorkerContext, settin
     from app.ai.health import register_ai_health_tick
 
     register_ai_health_tick(worker, session_factory, ctx.extras["ai_runtime"])
+
+    # 로컬 릴레이로 넘긴 메일의 바깥 전달 추적(D-551) - 1분마다, 방금 넘긴 메일이 있으면 15초마다. 할 일이 없으면 색인 질의 한 번이다.
+    from app.mail.relay_tracking import register_tick as register_relay_tracking_tick
+
+    register_relay_tracking_tick(worker, session_factory)
 
     # 통합 검색 인덱스 재구축 (PLAN Phase 5) — search_index_interval_seconds 간격.
     #

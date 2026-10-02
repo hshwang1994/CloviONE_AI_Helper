@@ -179,7 +179,8 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
     # 진짜 전송기는 영수증(`SendReceipt`: Message-ID · 다음 서버의 응답)을 돌려준다. 시험의 가짜 전송기는 문자열 하나나
     # 아무것도 안 돌려줄 수 있다.
     message_id = getattr(receipt, "message_id", None) or (receipt if isinstance(receipt, str) else None)
-    record_sent(db, delivery, now=now, message_id=message_id, response=getattr(receipt, "response", None))
+    record_sent(db, delivery, now=now, message_id=message_id, response=getattr(receipt, "response", None),
+                relay_delivery=config.relay.delivery if config.local_relay else None)
     health.record_result(db, config, ok=True, now=now, source="send", secret_provider=secret_provider)
     logger.info("메일 발송 완료 (kind=%s, delivery=%s)", delivery.kind, delivery.id)
 

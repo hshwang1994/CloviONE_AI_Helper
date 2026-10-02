@@ -16522,6 +16522,56 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
   주소의 메일함으로 간다」를 말한다. 받은 편지함 확인은 사람이 남기는 E2E 증거다(P18).
 - **잰 것**: `tests/unit/test_mail_labels.py`(단계마다 낱말 · 어떤 낱말도 도착 · 받았습니다가 아님 · 시험 문장), `tests/integration/test_mail_delivery.py`(다시 보낼 차례).
 
+### D-551. 「ClovirAssist 로컬 릴레이」 — Postfix · OpenDKIM 은 기본 설치 · 기본 꺼짐의 발송 전용 구성 요소이고, 받는 문은 127.0.0.1:2525 하나에 앱 클라이언트 인증서다 (UI/UX · AI · 메일 회차 P14)
+
+- **원인**: 메일을 보내려면 외부 SMTP 계정이 있어야 했다. 계정이 없는 설치(지금의 랩)는 메일을 쓸 수 없었다.
+- **결정 — 보내는 방법 둘**: 「외부 SMTP 사용」(기본, 지금까지의 동작)과 「ClovirAssist 로컬 릴레이」. 로컬 릴레이 안에서 「상위 SMTP 이용」
+  (다른 SMTP 서버를 거친다)과 「인터넷으로 직접 전달(고급)」(받는 쪽 MX 로 바로)을 고른다. 직접 전달을 고를 때만 서버 이름(HELO) ·
+  공인 IP · IPv4 만 쓰기 · DKIM 서명 · 받는 도메인별 전달 서버(분리 DNS 용, 최대 20줄)가 보인다.
+- **결정 — 기본 설치 · 기본 꺼짐**: 설치기 Stage 1 이 `postfix` · `opendkim` · `libsasl2-modules`(상위 SMTP 로그인 방식 모듈)를 깐다.
+  설치하는 동안 `policy-rc.d`(exit 101)로 서비스가 뜨지 않게 막고(이미 있으면 그 파일은 두고 mask), debconf 「No configuration」이라
+  main.cf 가 생기지 않는다. 끝나면 두 서비스를 끄고 disabled · inactive 이며 25 · 2525 · 8891 을 아무도 듣지 않는지 확인한다(어기면
+  Stage 1 실패). 오프라인은 번들의 `debs/`(Packages.gz)를 임시 로컬 apt 원본으로 건다. 다른 MTA(`mail-transport-agent` 제공 꾸러미)가
+  있거나 제품 표지가 없는 main.cf 가 있으면 **아무것도 깔거나 끄지 않는다**(기존 구성을 지우거나 덮거나 인수하지 않는다).
+  `--without-mail-relay` 는 꾸러미 설치까지 빼는 특수 설치 예외이고, 나중 설치는 `clovirassist mail-relay` 다. 관리자가 켠 릴레이는
+  업그레이드가 그대로 둔다.
+- **결정 — 보안 계약 넷과 구현**: ① 외부에서 접근할 수 없다 — `inet_interfaces = loopback-only`, master.cf 의 듣는 서비스는
+  `127.0.0.1:2525` 하나(패키지 기본 `smtp inet` 25번 줄을 걷는다). ② ClovirAssist 만 쓸 수 있다 — 받는 문은 보안 연결 강제
+  (`smtpd_tls_security_level = encrypt`)이고 중계 허가는 `permit_tls_clientcerts` 하나, 허가 목록에는 앱만 가진 클라이언트 인증서의
+  SHA-256 지문 하나다. 앱은 릴레이의 서버 인증서 하나만 믿는다(고정). ③ 열린 중계가 될 수 없다 — `smtpd_relay_restrictions` ·
+  `smtpd_recipient_restrictions` 가 `permit_tls_clientcerts, reject`, 로컬 배달 없음. ④ 일반 로컬 프로세스가 임의로 발송할 수
+  없다 — 2525 는 인증서가 없으면 거절이고, **`sendmail` 명령(setgid postdrop)으로 큐에 넣는 길을 `authorized_submit_users =`(빈 목록)와
+  `pickup` 서비스 제거로 닫는다**(설계 중 찾은 빈틈: 클라이언트 인증서만으로는 이 길이 남는다). 계획이 「현재 구현 후보」로 둔 받는 문
+  127.0.0.1:2525 + 앱 클라이언트 인증서는 아래 실측에서 운영 복잡도 · 호환성 문제가 없어 그대로 쓴다(더 단순한 방식으로 바꾸지 않았다).
+- **결정 — 헬퍼 동작**(`mailrelay.*`, 범용 시스템 API 로 부를 수 없다): status · apply(쓰기 → `postfix check` → enable · restart →
+  받는 문 사후 확인, 어기면 끄고 실패 · 엔진이 파일을 되돌린다) · disable · dkim_generate(RSA-2048, opendkim 0600, 있는 선택자는 덮지
+  않음) · queue · log(큐 id 별 요약만, 원문 없음) · flush. 실행 파일은 `dpkg-query` · `postfix` · `postconf` · `postqueue` · `journalctl`
+  뿐이고 `apt-get` 은 없다. 계획의 `postmap` 은 쓰지 않는다 — 지도는 `texthash:`(Postfix 가 시작할 때 읽는다)로 둬 실행 파일을 하나
+  줄였다. 일반 서비스 제어(`MANAGED_UNITS`)에도 넣지 않았다 — 켜고 끄기는 저장된 설정을 지나는 메일 화면 하나다.
+- **결정 — 비밀**: 상위 SMTP 비밀번호(`smtp.relay_password`, 사람이 넣는다)는 웹이 헬퍼에 넘기지 않고 헬퍼가 root 로 읽어
+  `sasl_passwd`(0600)에만 쓴다. 앱 클라이언트 열쇠(`smtp.relay_client`, 키 + 인증서 PEM)는 헬퍼가 만들어 비밀 칸(0640)에 둔다. 서버
+  개인키 · DKIM 개인키는 root · opendkim 만 읽는다. 이 셋은 헬퍼의 되돌리기 백업 사본에 넣지 않는다.
+- **결정 — DNS · 준비 점검 · 추적**: DNS 조회는 `app/mail/dns.py` 하나(dnspython, 가둠 시험). 준비 점검(대화형 레인 잡
+  `mail_relay_check`, 결과는 `sync_status["mail_relay"]`)은 줄마다 지금 상태 · 할 일 · 고칠 곳을 말한다: 구성 요소 · 동작 · 받는 문 ·
+  앱 → 릴레이(봉투 시험) · (상위 SMTP) 연결과 로그인 · (직접 전달) 바깥 IP · 바깥 25번(인사만) · 받는 쪽 MX(시스템 해석기 대 비교할 공개
+  해석기 — 분리 DNS 면 전달 서버를 제안) · 보내는 도메인 · SPF(조회 10회, 도메인이 아닌 include 는 permerror) · DKIM · DMARC · PTR(FCrDNS) ·
+  HELO. 복사할 DNS 레코드(SPF 는 기존과 합친 제안)를 준다. 메일은 보내지 않는다. 넘긴 메일은 DATA 응답의 `queued as X` 를 남기고
+  (「로컬 릴레이가 접수함」), 배치 틱(1분, 방금 넘긴 메일이 있으면 15초)이 큐 · 로그로 바깥 결과(전달함 · 전달 재시도 중 · 수신측이 거부함 ·
+  전달 시간이 지남, 이틀 뒤 모름)를 채운다(0048). 헬퍼가 없으면 추측하지 않는다.
+- **결정 — 화면**: 메일 · 설정 탭의 보내는 방법 카드 둘이 다 열리고, 로컬 릴레이를 고르면 SMTP 서버 · 보안 구획 대신 「로컬 릴레이」
+  (구성 요소 상태 한 줄 + 활성화 · 다시 적용 · 비활성화, 전달 방식 카드 - 단추 이름은 동사표 PA-RC-0002 를 따른다) · 고른 방식의 칸 · 「바깥으로 보내기 준비」(점검 줄과 복사할 레코드)가
+  선다. 활성화 · 키 추가 · 점검은 저장한 설정으로만 한다. 상태 면에 「로컬 릴레이」 · 「바깥 전달」 두 줄, 발송 기록에 「바깥 전달」 열과
+  「지금 다시 보내기」. 일반 화면에 Postfix · OpenDKIM 이름이 없다(기술 정보 안에만).
+- **잰 것**: 실제 Postfix 3.8.6(Ubuntu 24.04 컨테이너) — `scripts/ui_qa/relay_container_e2e.py` 17/17(받는 문 · 25번 닫힘 · 인증서
+  중계 · 인증서 없는 중계 554 · STARTTLS 없이 530 · 다른 OS 사용자 554 · 다른 사용자의 sendmail 거절 · 전달 서버 · DKIM 서명 · 컨테이너
+  주소의 2525 닫힘 · 미룸 큐 · 5.4.4 반송). 실제 systemd · apt — `scripts/ui_qa/relay_systemd_e2e.py`(설치기 기본 꺼짐 · 재실행 무해 ·
+  다른 MTA 가드, 헬퍼로 켜기 → 앱 전송기로 한 통 → DKIM 서명 도착 → 로그 「전달함」 → 끄기). 이 실측이 찾은 결함 둘(꾸러미 기본
+  opendkim.conf 의 주석 예시를 기존 서명 설정으로 읽음 · 끄기가 남의 25번을 우리 것으로 셈)을 고치고 단위 시험으로 못박았다.
+  시험: `tests/unit/test_mail_relay_files.py` · `test_mail_relay_parts.py` · `test_sysops_mailrelay_actions.py` ·
+  `test_mail_transport_relay.py` · `test_mail_dns_containment.py`, `tests/integration/test_mail_relay_api.py`,
+  `tests/security/test_mail_relay_secrets.py`, `tests/regression/test_installer_mail_relay.py` · `test_migration_0048_mail_relay_tracking.py`,
+  프런트 `screens/mail/relay-section.test.jsx`. 증거 `docs/platform/EVIDENCE/mail/2026-10-02-relay-container.md`.
+
 ### D-550. 알림 메일은 계정 주소가 기본이고, 다른 주소는 그 주소로 보낸 6자리 코드를 넣어야 쓰며, 내 프로필은 「메일 알림」 · 「알림 배지」 카드 둘이다 (UI/UX · AI · 메일 회차 P13)
 
 - **원인**: 받는 주소가 언제나 계정 이메일이었고 화면은 그 사실을 보이지 않았다. 메일 설정은 배지 카드의 아래 구획이라 두 목록이 같은 라벨을

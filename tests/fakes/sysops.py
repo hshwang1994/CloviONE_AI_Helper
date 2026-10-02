@@ -59,3 +59,9 @@ class FakeRunner:
         self.files[dst] = self.files[src]
         self.modes[dst] = self.modes.get(src, 0o644)
         return True
+
+    def chown(self, path: str, user: str, group: str, *, mode: int | None = None) -> None:
+        self.owners = getattr(self, "owners", {})
+        self.owners[path] = (user, group)
+        if mode is not None:
+            self.modes[path] = mode

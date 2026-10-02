@@ -67,7 +67,8 @@ UMask=0027
 # 쓸 수 있다. 경계는 액션 표(app/sysops/actions.py)와 그 안의 이름 검사다. 이 줄은 액션이
 # 어디를 쓰는지 한 곳에서 읽히게 하려는 기록이고, 새 액션이 새 경로를 쓰면 함께 적는다.
 # `/etc/clovirassist/secrets`: 비밀 값 저장(secret.write, 계획 2.3).
-ReadWritePaths=/etc/hosts /etc/systemd /etc/ssl/clovirassist /etc/clovirassist/tls /etc/clovirassist/secrets /var/log/clovirassist /var/backups/clovirassist /run/clovirassist
+# `/etc/postfix` · `/etc/opendkim` · `/etc/opendkim.conf`: ClovirAssist 로컬 릴레이 설정과 DKIM 키(mailrelay.*, D-551).
+ReadWritePaths=/etc/hosts /etc/systemd /etc/ssl/clovirassist /etc/clovirassist/tls /etc/clovirassist/secrets /var/log/clovirassist /var/backups/clovirassist /run/clovirassist -/etc/postfix -/etc/opendkim -/etc/opendkim.conf
 
 [Install]
 WantedBy=multi-user.target

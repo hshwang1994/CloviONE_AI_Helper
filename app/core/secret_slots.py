@@ -25,8 +25,13 @@ from app.core.errors import ValidationAppError
 
 KIND_TEXT = "text"
 KIND_JSON = "json"
+KIND_PEM = "pem"
 
 SLOT_SMTP_PASSWORD = "smtp.password"
+# ClovirAssist 로컬 릴레이(D-551): 상위 SMTP 로그인 비밀번호(사람이 메일 화면에서 넣는다)와 앱의 클라이언트 열쇠(키 + 인증서 PEM,
+# 헬퍼가 릴레이를 켤 때 만든다 - 사람이 넣지 않는다).
+SLOT_SMTP_RELAY_PASSWORD = "smtp.relay_password"
+SLOT_SMTP_RELAY_CLIENT = "smtp.relay_client"
 SLOT_ANTHROPIC_API_KEY = "ai.anthropic.api_key"
 SLOT_OPENAI_API_KEY = "ai.openai.api_key"
 SLOT_OPENAI_CHATGPT = "ai.openai.chatgpt"
@@ -45,6 +50,8 @@ SECRET_SLOTS: dict[str, SecretSlot] = {
     slot.name: slot
     for slot in (
         SecretSlot(SLOT_SMTP_PASSWORD, "메일(SMTP) 비밀번호", KIND_TEXT, 1024, True),
+        SecretSlot(SLOT_SMTP_RELAY_PASSWORD, "상위 SMTP 비밀번호", KIND_TEXT, 1024, True),
+        SecretSlot(SLOT_SMTP_RELAY_CLIENT, "로컬 릴레이 연결 열쇠", KIND_PEM, 16384, False),
         SecretSlot(SLOT_ANTHROPIC_API_KEY, "Anthropic API 키", KIND_TEXT, 1024, True),
         SecretSlot(SLOT_OPENAI_API_KEY, "OpenAI API 키", KIND_TEXT, 1024, True),
         SecretSlot(SLOT_OPENAI_CHATGPT, "ChatGPT 계정 연결 정보", KIND_JSON, 16384, False),
@@ -81,6 +88,8 @@ def normalize_value(slot: SecretSlot, value: object) -> str:
         raise ValidationAppError(f"{slot.label}에 쓸 수 없는 문자가 들어 있습니다.")
     if slot.kind == KIND_TEXT and ("\n" in text or "\r" in text):
         raise ValidationAppError(f"{slot.label}에는 줄바꿈이 들어갈 수 없습니다.")
+    if slot.kind == KIND_PEM and "-----BEGIN" not in text:
+        raise ValidationAppError(f"{slot.label} 형식이 올바르지 않습니다.")
     if slot.kind == KIND_JSON:
         try:
             parsed = json.loads(text)

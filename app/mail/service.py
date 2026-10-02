@@ -300,8 +300,16 @@ def queue_mail_to_users(
 
 def record_sent(
     db: Session, row: MailDelivery, *, now: datetime, message_id: str | None = None, response: str | None = None,
+    relay_delivery: str | None = None,
 ) -> None:
-    """다음 서버가 본문을 받았다(D-555 — 「접수」이지 「도착」이 아니다). 그 서버의 응답 한 줄을 남긴다."""
+    """다음 서버가 본문을 받았다(D-555 — 「접수」이지 「도착」이 아니다). 그 서버의 응답 한 줄을 남긴다.
+
+    로컬 릴레이로 넘겼으면(`relay_delivery`) 릴레이가 준 큐 id 를 적고 바깥 결과를 「접수」(queued)로 둔다 - 받는 쪽까지 갔는지는
+    추적 틱이 채운다(`app/mail/relay_tracking.py`).
+    """
+    from app.mail.labels import REMOTE_QUEUED
+    from app.mail.relay_log import queue_id_from_response
+
     row.status = MAIL_SENT
     row.sent_at = now
     row.last_error = None
@@ -310,6 +318,13 @@ def record_sent(
     if message_id:
         row.message_id = message_id[:300]
     row.relay_response = (response or "")[:300] or None
+    if relay_delivery:
+        row.relay_delivery = relay_delivery
+        row.relay_queue_id = queue_id_from_response(response)
+        row.remote_status = REMOTE_QUEUED
+        row.remote_stage = None
+        row.remote_detail = None
+        row.remote_checked_at = now
     row.updated_at = now
     db.flush()
 
@@ -550,10 +565,32 @@ def _skip_label(reason: str | None) -> str | None:
 
 
 def _mode_of(row: MailDelivery) -> str:
-    """이 메일을 어느 방식으로 보냈는가. 로컬 릴레이 큐 id 가 있으면 로컬 릴레이다(M7), 아니면 외부 SMTP 다."""
+    """이 메일을 어느 방식으로 보냈는가. 로컬 릴레이로 넘긴 행은 전달 방식이 적혀 있다(M7, 0048), 아니면 외부 SMTP 다."""
     from app.mail.labels import MODE_EXTERNAL, MODE_LOCAL_RELAY
 
-    return MODE_LOCAL_RELAY if getattr(row, "relay_queue_id", None) else MODE_EXTERNAL
+    return MODE_LOCAL_RELAY if (row.relay_delivery or row.relay_queue_id) else MODE_EXTERNAL
+
+
+def _relay_view(row: MailDelivery) -> dict | None:
+    """로컬 릴레이로 넘긴 메일의 바깥 전달 — 낱말 · 막힌 단계의 문장 · 받는 쪽이 말한 문장(기술 정보) · 마지막으로 본 시각."""
+    from app.mail.labels import REMOTE_LABELS, REMOTE_STAGE_LABELS
+    from app.mail.relay_log import STAGE_SENTENCES
+
+    if _mode_of(row) != "local_relay":
+        return None
+    return {
+        "delivery": row.relay_delivery,
+        "queue_id": row.relay_queue_id,
+        "remote_status": row.remote_status,
+        "remote_label": REMOTE_LABELS.get((row.remote_status or "", row.relay_delivery or "")) or REMOTE_LABELS.get(
+            (row.remote_status or "", "")),
+        "remote_stage": row.remote_stage,
+        "remote_stage_label": REMOTE_STAGE_LABELS.get(row.remote_stage or ""),
+        "remote_sentence": STAGE_SENTENCES.get(row.remote_stage or ""),
+        "remote_detail": row.remote_detail,
+        "remote_checked_at": row.remote_checked_at.isoformat() if row.remote_checked_at else None,
+        "flushable": row.remote_status in ("queued", "deferred"),
+    }
 
 
 def delivery_view(row: MailDelivery, *, sending: bool = False) -> dict:
@@ -569,7 +606,8 @@ def delivery_view(row: MailDelivery, *, sending: bool = False) -> dict:
         "to_email": row.to_email,
         "subject": row.subject,
         "status": row.status,
-        "status_label": delivery_word(row.status, mode=_mode_of(row), remote_status=remote_status, sending=sending),
+        "status_label": delivery_word(row.status, mode=_mode_of(row), remote_status=remote_status,
+                                      relay_delivery=row.relay_delivery, sending=sending),
         "status_kind": delivery_kind(row.status, remote_status=remote_status),
         "mode": _mode_of(row),
         # 누적 실패 수다(재발송해도 이어진다). 이번 회차의 시도 수 · 상한은 상세의 `job` 이 말한다 - 예전에는 둘을 섞어
@@ -587,6 +625,8 @@ def delivery_view(row: MailDelivery, *, sending: bool = False) -> dict:
         "skip_reason": row.skip_reason,
         "skip_reason_label": _skip_label(row.skip_reason),
         "message_id": row.message_id,
+        # 로컬 릴레이의 바깥 전달(D-551). 외부 SMTP 로 보낸 행은 null 이다.
+        "relay": _relay_view(row),
         "resendable": row.kind not in NOT_RESENDABLE_KINDS
         and row.status in (MAIL_FAILED, MAIL_UNCONFIGURED, MAIL_CANCELLED),
         "cancellable": row.status in PENDING_MAIL_STATUSES,

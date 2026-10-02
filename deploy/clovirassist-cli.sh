@@ -22,8 +22,9 @@ ClovirAssist 운영 명령
   sudo clovirassist <명령> [옵션]
 
 서버
-  install | upgrade | rollback | uninstall | verify | version | preflight | storage | ai
+  install | upgrade | rollback | uninstall | verify | version | preflight | storage | ai | mail-relay
                         설치 스크립트의 같은 이름 명령이다. 옵션은 clovirassist install --help 로 봅니다
+                        mail-relay 는 로컬 릴레이 구성 요소를 나중에 깐다(깐 뒤에도 꺼져 있고 메일 화면에서 켠다)
   first-admin-code      사용자가 아직 없을 때 첫 관리자 설정 코드를 새로 만든다
 
 제품
@@ -41,7 +42,7 @@ command="${1:-}"
 shift || true
 
 case "$command" in
-  install|upgrade|rollback|uninstall|verify|version|preflight|storage|ai)
+  install|upgrade|rollback|uninstall|verify|version|preflight|storage|ai|mail-relay)
     exec "$INSTALLER" "$command" "$@" ;;
   first-admin-code)
     exec "$INSTALLER" app-cli user_cli first-admin-code "$@" ;;

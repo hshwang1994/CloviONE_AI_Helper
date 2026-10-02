@@ -27,11 +27,13 @@ app.state 가 없는 자리) 그 항목은 검사하지 않는다 - 그 경우 �
 
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-from app.core.secret_slots import SLOT_SMTP_PASSWORD
+from app.core.secret_slots import SLOT_SMTP_PASSWORD, SLOT_SMTP_RELAY_CLIENT, SLOT_SMTP_RELAY_PASSWORD
 
 SMTP_SETTING_KEY = "smtp"
 
@@ -39,6 +41,30 @@ SECURITY_NONE = "none"
 SECURITY_STARTTLS = "starttls"
 SECURITY_SSL = "ssl"
 ALL_SECURITY_MODES = (SECURITY_NONE, SECURITY_STARTTLS, SECURITY_SSL)
+
+# 보내는 방법(D-551). 「외부 SMTP 사용」이 기본이고 지금까지의 동작이다. 「ClovirAssist 로컬 릴레이」는 이 서버에 함께 설치된 발송 전용
+# 구성 요소로 보내고, 그 안에서 「상위 SMTP 이용」 · 「인터넷으로 직접 전달(고급)」을 고른다.
+MODE_EXTERNAL = "external"
+MODE_LOCAL_RELAY = "local_relay"
+ALL_MODES = (MODE_EXTERNAL, MODE_LOCAL_RELAY)
+DELIVERY_SMARTHOST = "smarthost"
+DELIVERY_DIRECT = "direct"
+ALL_DELIVERIES = (DELIVERY_SMARTHOST, DELIVERY_DIRECT)
+
+# 로컬 릴레이 설정. 외부 SMTP 칸 값은 되돌아갈 때를 위해 그대로 남는다. `dkim_public` 은 사람이 넣지 않는다 - 키를 만들 때 헬퍼가
+# 돌려준 공개키를 서버가 적는다(준비 점검이 DNS 의 값과 견준다).
+DEFAULT_RELAY: dict[str, Any] = {
+    "delivery": DELIVERY_SMARTHOST,
+    "smarthost": {"host": "", "port": 587, "security": SECURITY_STARTTLS, "username": ""},
+    "helo_name": "",
+    "public_ip": "",
+    "ipv4_only": False,
+    "dkim_enabled": False,
+    "dkim_selector": "",
+    "dkim_public": "",
+    "transport_overrides": [],
+    "compare_resolvers": [],
+}
 
 # 기본값에 설치처 고유값(호스트, 도메인)을 넣지 않는다 - scripts/check_tenant_defaults.py
 # 가 막는 것과 같은 종류의 사고다(다른 고객사 설치가 조용히 남의 서버를 가리킨다).
@@ -55,11 +81,81 @@ DEFAULT_SMTP: dict[str, Any] = {
     # 이름을 전혀 보지 않았다. 사설 CA 를 쓰는 내부 릴레이는 `ca_pem` 에 그 CA 를 붙여 넣는다.
     "tls_verify": True,
     "ca_pem": "",
+    "mode": MODE_EXTERNAL,
+    "relay": copy.deepcopy(DEFAULT_RELAY),
 }
 
 # 로그인 비밀번호를 읽는 유일한 칸(D-545). 이름은 슬롯 표 한 곳에만 적는다.
 PASSWORD_SLOT = SLOT_SMTP_PASSWORD
 CA_PEM_MAX_CHARS = 20480
+
+
+@dataclass(frozen=True)
+class SmarthostConfig:
+    host: str = ""
+    port: int = 587
+    security: str = SECURITY_STARTTLS
+    username: str = ""
+
+
+@dataclass(frozen=True)
+class RelayConfig:
+    """로컬 릴레이 설정(D-551). 비밀(상위 SMTP 비밀번호 · 앱 열쇠)은 담지 않는다."""
+
+    delivery: str = DELIVERY_SMARTHOST
+    smarthost: SmarthostConfig = field(default_factory=SmarthostConfig)
+    helo_name: str = ""
+    public_ip: str = ""
+    ipv4_only: bool = False
+    dkim_enabled: bool = False
+    dkim_selector: str = ""
+    dkim_public: str = ""
+    transport_overrides: tuple[tuple[str, str], ...] = ()
+    compare_resolvers: tuple[str, ...] = ()
+
+    def as_dict(self) -> dict:
+        return {
+            "delivery": self.delivery,
+            "smarthost": {"host": self.smarthost.host, "port": self.smarthost.port,
+                          "security": self.smarthost.security, "username": self.smarthost.username},
+            "helo_name": self.helo_name, "public_ip": self.public_ip, "ipv4_only": self.ipv4_only,
+            "dkim_enabled": self.dkim_enabled, "dkim_selector": self.dkim_selector, "dkim_public": self.dkim_public,
+            "transport_overrides": [{"domain": d, "host": h} for d, h in self.transport_overrides],
+            "compare_resolvers": list(self.compare_resolvers),
+        }
+
+
+def relay_config(raw: Any) -> RelayConfig:
+    """설정 값의 `relay` → RelayConfig. 모양이 이상한 칸은 기본값으로 떨어진다(`smtp_config` 와 같은 원칙)."""
+    values = copy.deepcopy(DEFAULT_RELAY)
+    if isinstance(raw, dict):
+        for key in values:
+            if key in raw:
+                values[key] = raw[key]
+    sh = values["smarthost"] if isinstance(values["smarthost"], dict) else {}
+    port = sh.get("port", 587)
+    overrides = []
+    for item in values["transport_overrides"] if isinstance(values["transport_overrides"], list) else []:
+        if isinstance(item, dict) and item.get("domain") and item.get("host"):
+            overrides.append((str(item["domain"]).strip().lower(), str(item["host"]).strip().lower()))
+    resolvers = values["compare_resolvers"] if isinstance(values["compare_resolvers"], list) else []
+    return RelayConfig(
+        delivery=values["delivery"] if values["delivery"] in ALL_DELIVERIES else DELIVERY_SMARTHOST,
+        smarthost=SmarthostConfig(
+            host=str(sh.get("host") or "").strip().lower(),
+            port=port if isinstance(port, int) and not isinstance(port, bool) else 587,
+            security=sh.get("security") if sh.get("security") in ALL_SECURITY_MODES else SECURITY_STARTTLS,
+            username=str(sh.get("username") or "").strip(),
+        ),
+        helo_name=str(values["helo_name"] or "").strip().lower(),
+        public_ip=str(values["public_ip"] or "").strip(),
+        ipv4_only=values["ipv4_only"] is True,
+        dkim_enabled=values["dkim_enabled"] is True,
+        dkim_selector=str(values["dkim_selector"] or "").strip().lower(),
+        dkim_public=str(values["dkim_public"] or "").strip(),
+        transport_overrides=tuple(overrides),
+        compare_resolvers=tuple(str(r).strip() for r in resolvers if str(r).strip()),
+    )
 
 
 @dataclass(frozen=True)
@@ -76,6 +172,23 @@ class MailConfig:
     timeout_seconds: int
     tls_verify: bool = True
     ca_pem: str = ""
+    mode: str = MODE_EXTERNAL
+    relay: RelayConfig = field(default_factory=RelayConfig)
+
+    @property
+    def local_relay(self) -> bool:
+        return self.mode == MODE_LOCAL_RELAY
+
+    @property
+    def relay_fingerprint(self) -> str:
+        """로컬 릴레이 설정의 지문(건강 상태의 지문에 들어간다). 외부 SMTP 면 비어 있다."""
+        if not self.local_relay:
+            return ""
+        return hashlib.sha256(json.dumps(self.relay.as_dict(), sort_keys=True).encode("utf-8")).hexdigest()
+
+    @property
+    def sender_domain(self) -> str:
+        return self.from_address.rsplit("@", 1)[-1].lower() if "@" in self.from_address else ""
 
     def public_view(self) -> dict:
         """화면에 그대로 내보내도 되는 모양. 비밀번호도, 비밀번호 칸의 이름도 싣지 않는다."""
@@ -91,6 +204,8 @@ class MailConfig:
             "tls_verify": self.tls_verify,
             # 인증서 원문은 비밀이 아니지만 길다(최대 20KB). 상태 화면은 붙어 있는지만 알면 된다.
             "ca_pem_set": bool(self.ca_pem),
+            "mode": self.mode,
+            "relay": self.relay.as_dict(),
         }
 
 
@@ -122,7 +237,40 @@ def smtp_config(raw: Any) -> MailConfig:
         # 모르는 값은 확인하는 쪽으로 떨어진다 - 확인을 끄는 것은 명시적인 선택이어야 한다.
         tls_verify=values["tls_verify"] is not False,
         ca_pem=str(values["ca_pem"] or "").strip(),
+        mode=values["mode"] if values["mode"] in ALL_MODES else MODE_EXTERNAL,
+        relay=relay_config(values["relay"]),
     )
+
+
+def helper_params(config: MailConfig) -> dict:
+    """특권 헬퍼 `mailrelay.apply` 의 인자 — 저장된 설정에서만 만든다(사람이 인자를 직접 고르지 않는다).
+    헬퍼가 `app/mail/relay_files.py::normalize_params` 로 다시 검사한다."""
+    relay = config.relay
+    params: dict[str, Any] = {
+        "delivery": relay.delivery,
+        "sender_domain": config.sender_domain,
+        "helo_name": relay.helo_name,
+        "ipv4_only": relay.ipv4_only,
+    }
+    if relay.delivery == DELIVERY_SMARTHOST:
+        params["smarthost"] = {"host": relay.smarthost.host, "port": relay.smarthost.port,
+                               "security": relay.smarthost.security, "username": relay.smarthost.username}
+    else:
+        params["dkim"] = {"selector": relay.dkim_selector} if relay.dkim_enabled else None
+        params["transport_overrides"] = [{"domain": d, "host": h} for d, h in relay.transport_overrides]
+    return params
+
+
+def relay_server_cert() -> str | None:
+    """로컬 릴레이의 서버 인증서(공개) - 앱이 이것 하나만 믿는다(고정). 없으면 릴레이가 아직 켜진 적이 없다."""
+    from pathlib import Path
+
+    from app.mail import relay_files
+
+    try:
+        return Path(relay_files.SERVER_CERT).read_text(encoding="ascii")
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
 def config_from_db(db) -> MailConfig:
@@ -174,6 +322,8 @@ def configuration_problems(config: MailConfig, secret_provider=None) -> list[str
     problems: list[str] = []
     if not config.enabled:
         problems.append("메일 발송이 꺼져 있습니다. 메일 설정에서 발송을 켜세요.")
+    if config.local_relay:
+        return problems + _relay_problems(config, secret_provider)
     if not config.host:
         problems.append("메일 서버 주소가 비어 있습니다.")
     if not (0 < config.port < 65536):
@@ -189,6 +339,29 @@ def configuration_problems(config: MailConfig, secret_provider=None) -> list[str
 
         if secret_provider.status(PASSWORD_SLOT) != STATUS_CONFIGURED:
             problems.append("로그인 계정의 비밀번호가 저장되지 않았습니다. 메일 설정에서 비밀번호를 저장하세요.")
+    return problems
+
+
+def _relay_problems(config: MailConfig, secret_provider) -> list[str]:
+    """로컬 릴레이 방식의 「보낼 수 없는 까닭」. 받는 문(127.0.0.1:2525)은 고정이라 사람이 채울 칸이 아니다."""
+    from app.core.secret_refs import STATUS_CONFIGURED
+
+    problems: list[str] = []
+    relay = config.relay
+    if not config.from_address:
+        problems.append("보내는 사람 주소가 비어 있습니다.")
+    if relay.delivery == DELIVERY_SMARTHOST:
+        if not relay.smarthost.host:
+            problems.append("상위 SMTP 서버 주소가 비어 있습니다.")
+        if relay.smarthost.username and secret_provider is not None \
+                and secret_provider.status(SLOT_SMTP_RELAY_PASSWORD) != STATUS_CONFIGURED:
+            problems.append("상위 SMTP 계정의 비밀번호가 저장되지 않았습니다. 메일 설정에서 비밀번호를 저장하세요.")
+    elif not relay.helo_name:
+        problems.append("인터넷으로 직접 전달하려면 서버 이름(HELO)이 필요합니다.")
+    if secret_provider is not None and (
+        secret_provider.status(SLOT_SMTP_RELAY_CLIENT) != STATUS_CONFIGURED or relay_server_cert() is None
+    ):
+        problems.append("로컬 릴레이가 아직 켜지지 않았습니다. 메일 설정에서 로컬 릴레이를 켜세요.")
     return problems
 
 
