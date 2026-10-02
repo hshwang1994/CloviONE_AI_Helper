@@ -1,5 +1,10 @@
 """최초 실행 셋업 체크리스트 (9-3, P3).
 
+qa-contract-change: 초기 설정이 체크리스트가 됐다(D-534). TLS 는 인증서 경로가 없는 설치에서 「확인 불가」가 아니라 「해야 함」이고
+그 줄에서 「외부 프록시가 맡음」을 고를 수 있다(고르면 완료다). 의미 검색 모델 안내는 상태 문장이 아니라 펼친 칸의 메모(`notes`)다.
+사용자 배너는 조직 판정 하나를 60초 동안 다시 쓰므로 바뀐 상태는 그 시간이 지난 뒤 보인다(시험은 가짜 시계를 61초 넘긴다).
+시스템 관리자가 아닌 사람의 배너는 「관리자에게 문의」가 아니라 「시스템 관리자가 초기 설정을 끝내야 합니다」이고 링크가 없다.
+
 qa-contract-change: AI 항목의 문장을 AI 연결 화면의 상태 면과 같은 함수(`state_display`, A8 · D-539)가 만든다. 그래서 할 일의
 안내가 「…확인하세요」에서 「AI 연결 화면에서 제공자와 인증을 정하세요」로, 검색 모델이 없을 때의 메모가 「문서 검색 모델」에서
 「의미 검색 모델은 선택이며 지금은 낱말로 찾습니다」로 바뀌었다. 「할 일이고 무엇을 할지 말한다」는 성질은 그대로 잰다.
@@ -138,13 +143,13 @@ def test_every_item_is_exactly_one_of_the_three_states(client, sysadmin):
         assert item["state"] in STATES, f"{item['key']} 의 상태가 셋 중 하나가 아니다"
 
 
-def test_a_fresh_install_shows_both_todo_and_unknown(client, sysadmin):
-    """둘이 합쳐져 있으면 이 단정 중 하나는 반드시 깨진다."""
-    states = {i["key"]: i["state"] for i in _items(client)["items"]}
-    assert STATE_TODO in states.values(), "사람이 할 일이 하나도 없다고 말한다"
-    # TLS: 이 서버가 인증서를 직접 들고 있지 않다. 앞단 프록시가 끊는 설치일 수도 있어
-    # 앱은 **알 수 없다** - '안 됨' 이 아니라 '확인 불가' 다.
-    assert states["tls"] == STATE_UNKNOWN
+def test_a_fresh_install_shows_todo_and_offers_the_proxy_choice_for_tls(client, sysadmin):
+    """새 설치에는 사람이 할 일이 있다. TLS: 이 서버가 인증서를 직접 들고 있지 않다 - 앞단 프록시가 끊는 설치일 수도 있어
+    「외부 프록시가 맡음」을 고를 수 있게 한다(전달 머리글로 저절로 판정하지 않는다, D-534)."""
+    items = {i["key"]: i for i in _items(client)["items"]}
+    assert STATE_TODO in {i["state"] for i in items.values()}, "사람이 할 일이 하나도 없다고 말한다"
+    assert items["tls"]["state"] == STATE_TODO
+    assert {"key": "tls", "value": "proxy", "label": "외부 프록시가 맡음"} in items["tls"]["choices"]
 
 
 def test_todo_tells_you_what_to_do_and_unknown_tells_you_what_to_check(client, sysadmin):
@@ -290,7 +295,7 @@ def test_a_new_unmapped_user_does_not_reopen_the_banner(client, login_as, setup_
 
 
 def test_the_user_banner_reopens_when_the_only_gap_is_unknown_not_todo(
-    client, login_as, setup_complete, db
+    client, login_as, setup_complete, db, fake_clock
 ):
     """필수 항목(조직과 부서)이 확인 불가(unknown)면 사람이 할 일은 없지만 화면은 실제로 빌 수 있다 - 활성 조직 행이
     하나도 없는 설치다.
@@ -311,6 +316,7 @@ def test_the_user_banner_reopens_when_the_only_gap_is_unknown_not_todo(
     for org in db.query(Organization).all():
         org.status = "archived"
     db.commit()
+    fake_clock.advance(61)  # 배너의 판정은 60초 동안 다시 쓴다(D-534)
     notices = client.get("/api/system/status").json()["notices"]
     setup = [n for n in notices if n["id"] == USER_NOTICE_ID]
     assert setup, "조직이 확인 불가(unknown) 상태인데도 사용자 배너가 조용하다"
@@ -338,7 +344,7 @@ def test_the_regular_user_notice_has_no_link(client, login_as):
         if n["id"] == USER_NOTICE_ID
     ][0]
     assert setup["href"] is None
-    assert "문의" in setup["message"]
+    assert "시스템 관리자가 초기 설정을 끝내야 합니다" in setup["message"]
 
 
 # ── 나머지 가지 (안 밟아 본 판정은 안 만든 판정과 같다) ──────────────────────
@@ -580,5 +586,6 @@ def test_no_model_at_all_says_so(client, sysadmin):
     _set_gateway(client, embed=False, generate=False)
     item = _by_key(_items(client))["llm"]
     assert item["state"] == STATE_TODO
-    assert "AI 제공자를 아직 연결하지 않았습니다" in item["detail"] and "의미 검색 모델은 선택이며" in item["detail"]
+    assert "AI 제공자를 아직 연결하지 않았습니다" in item["detail"]
+    assert any("의미 검색 모델은 선택이며" in note for note in item["notes"]), "선택 안내는 펼친 칸의 메모다"
 

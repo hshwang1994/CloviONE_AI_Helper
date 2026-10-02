@@ -5,30 +5,23 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* 최초 실행 셋업 마법사 화면 (9-3, P3).
+/* 초기 설정 체크리스트 화면 (9-3 · D-520 · D-534).
  *
- * 이 화면이 지켜야 하는 것은 예쁘게 그리는 것이 아니라 **서버가 말한 사실을 바꾸지 않는
- * 것**이다. 여기서 못박는 것은 넷이다.
+ * 이 화면이 지켜야 하는 것은 예쁘게 그리는 것이 아니라 **서버가 말한 사실을 바꾸지 않는 것**이다.
  *
- *   ① 서버가 준 **순서 그대로** 그린다. 화면이 상태로 다시 정렬하면(끝난 것을 아래로 등)
- *      안내 순서가 의존 순서가 아니게 되고, 사용자는 앞이 안 돼서 뒤가 안 되는 것임을
- *      영원히 모른다.
- *   ② "안 됨"과 "확인 불가"를 **다른 말로** 보여 준다. 색만 다르면 색을 못 보는 사람에게는
- *      같은 것이고, 같은 말이면 사람이 할 일과 물어볼 일이 뒤섞인다.
- *   ③ **남은 항목은 접어 둬도 계속 보인다.** 한 번 닫으면 다시 못 보는 마법사는 설정을
- *      미룬 사람에게 아무 도움이 안 된다.
- *   ④ **없는 화면으로 보내지 않는다.** 항목마다 붙는 링크는 실제로 라우팅되는 경로여야
- *      한다. 죽은 링크는 안내가 아니라 막다른 길이다.
+ *   ① 서버가 준 **순서 그대로** 필수 · 선택 구획에 그린다. 상태로 다시 정렬하지 않는다.
+ *   ② 상태를 **낱말로** 말한다(색과 아이콘만으로 말하지 않는다). 상태 낱말은 서버가 준다.
+ *   ③ 지금 할 줄은 하나뿐이고 저절로 펼쳐지며, 요약 띠의 주 동작이 그 항목의 화면으로 간다.
+ *   ④ 선택 값은 서버의 선택 API 하나로 바꾸고, 돌아온 체크리스트로 바로 다시 그린다(다른 선택을 덮지 않는다).
+ *   ⑤ **없는 화면으로 보내지 않는다.** 링크는 실제로 라우팅되는 경로다.
  *
- * qa-contract-change: 메일 항목의 링크가 설정 표의 메일 한 줄(`#/settings?setting=smtp`)에서 메일 화면의 설정 탭(`#/mail?tab=settings`)으로
- * 옮겼다(D-548 — 메일 설정은 메일 화면에서만 바꾼다). 같은 링크 단언을 새 주소로 잰다.
- * qa-contract-change: 진행 문장이 필수 항목을 센다(D-520) — 설치가 끝났는지는 필수 항목이 정하므로 「6개 중 1개」가 「필수 항목 6개 중 1개」가 됐다(이
- * 시험의 픽스처는 required 를 적지 않아 모든 항목이 필수다). 필수 · 선택 구역과 「사용하지 않음」, 서버가 주는 링크를 따로 잰다.
- * 그 전 변경: 레일이 「지금 할 차례」 판이 됐다(D-501). 다음 항목의 이름 · 할 일 · 고치는 화면으로 가는 링크(이 화면의 주 동작)가 레일에
- * 서고, 목록의 그 줄은 할 일과 링크를 되풀이하지 않는다 — 그래서 「안 됨에는 할 일」 단언이 레일과 다음이 아닌 항목 두 자리로 나뉜다. 남은 수는
- * 조각 문장 + 상태 요약 카드 둘에서 한 문장(「6개 중 1개가 끝났습니다. 직접 할 일이 4개, 확인할 것이 1개 남았습니다.」)으로 모였고, 접은 뒤의
- * 단언은 숫자 한 글자(「5」) 대신 그 문장 전체를 잰다. 레일에도 다음 항목의 이름이 서서 「조직과 부서」가 화면에 둘이므로, 불러왔는지는
- * 항목 표식(`setup-item-*`)으로 기다린다. 「지금 할 차례」 표지 하나 단언은 목록 안으로 좁히고, 레일이 같은 항목을 가리킨다는 단언을 더한다.
+ * qa-contract-change: 초기 설정이 카드 격자에서 체크리스트가 됐다(D-534). 항목은 카드가 아니라 한 판 위의 줄이고, 번호(1/6)와
+ * 「목록 접기」가 없어졌으며, 상태는 넷(됨 · 안 됨 · 확인 불가 · 사용하지 않음)에서 서버가 고르는 일곱(완료 · 해야 함 · 확인 필요 ·
+ * 정하지 않음 · 문제 있음 · 사용하지 않음 · 앞 항목 대기)이 됐다. 진행 문장은 화면이 세지 않고 서버의 `headline` · `subline` 을 그린다
+ * (그래서 `setupProgressText` 와 그 시험을 걷었다). 「사용하지 않음」은 범용 설정 API 로 객체 전체를 덮지 않고
+ * `PUT /api/admin/setup/choices/{key}` 로 한 값만 보낸다. 지금 할 줄은 목록에서 할 일을 숨기지 않고 저절로 펼쳐진다 — 요약 띠의
+ * 주 동작과 줄의 이동 단추가 같은 화면을 가리킨다(띠는 지름길, 줄은 모든 줄이 같은 모양). 끝난 줄은 단추를 세우지 않고 펼친 칸에
+ * 이동 링크와 선택 되돌리기를 둔다.
  */
 
 const apiMock = vi.fn();
@@ -40,66 +33,90 @@ let mockRole = "system_admin";
 vi.mock("../app/auth.jsx", () => ({
   useAuth: () => ({ data: { role: mockRole, id: "u-1" } }),
 }));
+const copyMock = vi.fn(() => Promise.resolve(true));
+vi.mock("./ops/opsHelpers.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  copyText: (...args) => copyMock(...args),
+}));
 
-import { SetupWizard, SETUP_LINKS, setupProgressText } from "./SetupWizard.jsx";
+import { SetupWizard, SETUP_LINKS } from "./SetupWizard.jsx";
 import { REGISTRY } from "./registry.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
 const CHECKLIST = "/api/admin/setup/checklist";
+const STATUS_LABELS = {
+  done: "완료", todo: "해야 함", check: "확인 필요", pending: "정하지 않음",
+  problem: "문제 있음", skipped: "사용하지 않음", waiting: "앞 항목 대기",
+};
+const STATE_OF = { done: "done", skipped: "skipped", check: "unknown" };
 
-function item(key, label, state, extra = {}) {
+function item(key, label, status, extra = {}) {
   return {
     key,
     label,
     why: `${label} 가 안 되면 화면이 빕니다.`,
-    state,
+    state: STATE_OF[status] || "todo",
+    status,
+    status_label: STATUS_LABELS[status],
     detail: `${label} 상태 설명`,
-    action: state === "todo" ? `${label} 를 채우세요` : null,
-    question: state === "unknown" ? `${label} 를 확인해 주세요` : null,
+    action: ["todo", "pending", "problem", "waiting"].includes(status) ? `${label} 를 채우세요` : null,
+    question: status === "check" ? `${label} 를 확인해 주세요` : null,
+    required: true,
     requires: [],
     requires_why: "",
     blocked_by: null,
     blocked_by_label: null,
+    notes: [],
+    command: null,
+    choices: [],
+    checked_at: null,
     ...extra,
   };
 }
 
-// 갓 설치한 세계와 같은 모양: 앞이 끝났고, 하나가 안 됐고, 그 뒤가 막혔고, 확인 불가가 있다.
-function payload(overrides = {}) {
-  const items = overrides.items || [
-    item("admin_account", "관리자 계정", "done"),
-    item("organization", "조직과 부서", "todo"),
-    /* 여기 「Notion 토큰과 데이터베이스」 항목이 있었고 사용자 매핑이 그것에 막혀 있었다.
-       app/setup/steps.py 에서 그 단계가 빠지면서 매핑은 조직과 부서에 막힌다 — 이 픽스처는
-       서버가 실제로 주는 목록과 같은 모양이라야 화면을 시험한 것이 된다. */
-    item("user_mapping", "사용자 매핑", "todo", {
-      requires: ["organization"],
-      requires_why: "사람을 넣을 조직 단위가 먼저 있어야 연결이 의미를 갖습니다.",
-      blocked_by: "organization",
-      blocked_by_label: "조직과 부서",
-    }),
-    item("llm", "AI 러너", "todo", {
-      requires: ["user_mapping"],
-      blocked_by: "user_mapping",
-      blocked_by_label: "사용자 매핑",
-    }),
-    item("integrations", "외부 연동", "todo", {
-      requires: ["llm"],
-      blocked_by: "llm",
-      blocked_by_label: "AI 러너",
-    }),
-    item("tls", "TLS 인증서", "unknown"),
-  ];
+// 서버(`build_setup_checklist`)가 주는 모양 그대로 — 지금 할 줄, 필수 진행, 요약 두 문장.
+function payload(items, extra = {}) {
+  const open = items.filter((i) => i.state !== "done" && i.state !== "skipped");
+  const requiredRemaining = open.filter((i) => i.required).map((i) => i.key);
+  const requiredTotal = items.filter((i) => i.required).length;
+  const current = (open.find((i) => !i.blocked_by && i.required) || open.find((i) => !i.blocked_by) || {}).key || null;
   return {
-    items,
-    remaining: items.filter((i) => i.state !== "done").map((i) => i.key),
-    todo: items.filter((i) => i.state === "todo").map((i) => i.key),
-    unknown: items.filter((i) => i.state === "unknown").map((i) => i.key),
-    next_key: (items.find((i) => i.state !== "done" && !i.blocked_by) || {}).key || null,
-    complete: items.every((i) => i.state === "done"),
-    ...overrides,
+    items: items.map((i) => ({ ...i, current: i.key === current })),
+    next_key: current,
+    current_key: current,
+    required_total: requiredTotal,
+    required_done: requiredTotal - requiredRemaining.length,
+    required_remaining: requiredRemaining,
+    complete: !requiredRemaining.length,
+    headline: requiredRemaining.length ? `필수 설정 ${requiredRemaining.length}개가 남았습니다.` : "기본 설정이 끝났습니다.",
+    subline: requiredRemaining.length ? `필수 ${requiredTotal}개 중 ${requiredTotal - requiredRemaining.length}개가 끝났습니다.` : "선택 기능도 모두 정했습니다.",
+    ...extra,
   };
+}
+
+// 갓 설치한 세계: 관리자는 있고, 조직이 비었고, TLS 는 인증서 경로가 없으며, 메일은 아직 정하지 않았고, AI 는 조직을 기다린다.
+function freshItems() {
+  return [
+    item("admin_account", "관리자 계정", "done", { href: "#/users", link_label: "사용자 화면 열기" }),
+    item("mail", "메일 발송", "pending", {
+      required: false, optional_choice: "mail", choice: "use", configured: false,
+      href: "#/mail?tab=settings", link_label: "메일 설정 열기",
+      choices: [{ key: "mail", value: "unused", label: "사용하지 않음" }],
+    }),
+    item("organization", "조직과 부서", "todo", { href: "#/departments", link_label: "부서 화면 열기", requires: ["admin_account"] }),
+    item("llm", "AI", "waiting", {
+      required: false, optional_choice: "llm", choice: "use",
+      requires: ["organization"], requires_why: "조직 단위가 없으면 AI 가 살아 있어도 답이 비어 있습니다.",
+      blocked_by: "organization", blocked_by_label: "조직과 부서",
+      href: "#/ai-connection", link_label: "AI 연결 열기",
+    }),
+    item("integrations", "외부 연동", "done", { required: false, href: "#/diagnostics", link_label: "진단에서 연동 상태 보기" }),
+    item("tls", "TLS 인증서", "todo", {
+      detail: "인증서 파일을 찾지 못했습니다.", href: "#/diagnostics", link_label: "진단에서 인증서 확인",
+      choices: [{ key: "tls", value: "proxy", label: "외부 프록시가 맡음" }],
+    }),
+  ];
 }
 
 function renderWizard() {
@@ -119,210 +136,281 @@ function renderWizard() {
   );
 }
 
+function serve(body) {
+  apiMock.mockImplementation((path) => Promise.resolve(path === CHECKLIST ? body : {}));
+}
+
+const keysIn = (root) => Array.from(root.querySelectorAll("[data-setup-key]")).map((n) => n.getAttribute("data-setup-key"));
+
 beforeEach(() => {
   mockRole = "system_admin";
   apiMock.mockReset();
-  apiMock.mockImplementation((path) => {
-    if (path === CHECKLIST) return Promise.resolve(payload());
-    return Promise.resolve({});
-  });
+  copyMock.mockClear();
+  serve(payload(freshItems()));
 });
 
-// ── ① 순서 ────────────────────────────────────────────────────────────────────
+// ── ① 순서와 구획 ────────────────────────────────────────────────────────────
 
-describe("안내 순서", () => {
-  it("서버가 준 순서를 그대로 그린다", async () => {
+describe("순서와 구획", () => {
+  it("필수와 선택이 다른 구획에 서고, 구획 안에서는 서버가 준 순서 그대로다", async () => {
     renderWizard();
     await screen.findByTestId("setup-item-organization");
-    const keys = Array.from(document.querySelectorAll("[data-setup-key]")).map((n) =>
-      n.getAttribute("data-setup-key")
-    );
-    expect(keys).toEqual([
-      "admin_account", "organization", "user_mapping",
-      "llm", "integrations", "tls",
-    ]);
+    const required = screen.getByRole("list", { name: "필수 항목" });
+    const optional = screen.getByRole("list", { name: "선택 항목" });
+    expect(keysIn(required)).toEqual(["admin_account", "organization", "tls"]);
+    expect(keysIn(optional)).toEqual(["mail", "llm", "integrations"]);
+    expect(screen.getByRole("heading", { level: 2, name: "필수" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "선택" })).toBeInTheDocument();
   });
 
-  it("끝난 항목을 아래로 밀어내거나 목록에서 빼지 않는다", async () => {
+  it("끝난 항목을 아래로 밀어내거나 빼지 않는다", async () => {
     renderWizard();
-    await waitFor(() => expect(screen.getByText("관리자 계정")).toBeInTheDocument());
-    const keys = Array.from(document.querySelectorAll("[data-setup-key]")).map((n) =>
-      n.getAttribute("data-setup-key")
-    );
-    // 끝난 admin_account 가 여전히 첫 자리다.
-    expect(keys[0]).toBe("admin_account");
+    const required = await screen.findByRole("list", { name: "필수 항목" });
+    expect(keysIn(required)[0]).toBe("admin_account");
   });
 
-  it("끝난 항목은 한 줄이다 — 이름 · 「됨」 · 지금 상태만 서고 까닭과 이동 링크는 없다 (D-501)", async () => {
-    renderWizard();
-    const done = await screen.findByTestId("setup-item-admin_account");
-    expect(done).toHaveAttribute("data-setup-state", "done");
-    expect(within(done).getByText("관리자 계정")).toBeInTheDocument();
-    expect(within(done).getByText("됨")).toBeInTheDocument();
-    expect(within(done).getByText("관리자 계정 상태 설명")).toBeInTheDocument();
-    expect(within(done).queryByText(/화면이 빕니다/)).toBeNull();
-    expect(within(done).queryByRole("link")).toBeNull();
-    // 반례 — 남은 항목은 까닭을 그대로 펼친다.
-    const tls = screen.getByTestId("setup-item-tls");
-    expect(within(tls).getByText(/화면이 빕니다/)).toBeInTheDocument();
-  });
-});
-
-// ── ② 세 가지 상태 ────────────────────────────────────────────────────────────
-
-describe("됨, 안 됨, 확인 불가", () => {
-  it("세 상태를 색이 아니라 글자로 구분한다", async () => {
-    renderWizard();
-    await screen.findByTestId("setup-item-organization");
-    expect(screen.getAllByText("됨").length).toBe(1);
-    expect(screen.getAllByText("안 됨").length).toBe(4);
-    expect(screen.getAllByText("확인 불가").length).toBe(1);
-  });
-
-  it("확인 불가에는 물어볼 것을 보여 주고 할 일을 지어내지 않는다", async () => {
-    renderWizard();
-    const tls = await screen.findByTestId("setup-item-tls");
-    expect(within(tls).getByText(/확인해 주세요/)).toBeInTheDocument();
-    expect(within(tls).queryByText(/채우세요/)).toBeNull();
-  });
-
-  it("안 됨에는 사람이 할 일을 보여 준다 — 지금 할 차례의 할 일은 레일이 한 번 말한다", async () => {
-    // 막히지 않은 「안 됨」이 둘인 설치: 앞의 것이 지금 할 차례이고 뒤의 것은 목록에서 자기 할 일을 말한다.
-    const items = [
-      item("admin_account", "관리자 계정", "done"),
-      item("organization", "조직과 부서", "todo"),
-      item("mail", "메일(SMTP) 발송", "todo"),
-    ];
-    apiMock.mockImplementation(() => Promise.resolve(payload({ items })));
-    renderWizard();
-    const rail = await screen.findByTestId("setup-summary");
-    expect(within(rail).getByText(/조직과 부서 를 채우세요/)).toBeInTheDocument();
-    // 목록의 그 줄은 같은 할 일을 되풀이하지 않는다(한 사실은 한 곳).
-    const org = screen.getByTestId("setup-item-organization");
-    expect(within(org).queryByText(/조직과 부서 를 채우세요/)).toBeNull();
-    // 다음이 아닌 「안 됨」은 목록에서 자기 할 일을 말한다.
-    const mail = screen.getByTestId("setup-item-mail");
-    expect(within(mail).getByText(/메일\(SMTP\) 발송 를 채우세요/)).toBeInTheDocument();
-    expect(screen.getAllByText(/를 채우세요/)).toHaveLength(2);
-  });
-});
-
-// ── 막힌 항목 ─────────────────────────────────────────────────────────────────
-
-describe("막힌 항목", () => {
-  it("무엇 때문에 막혔는지 앞 항목의 이름으로 말한다", async () => {
-    renderWizard();
-    const mapping = await screen.findByTestId("setup-item-user_mapping");
-    expect(within(mapping).getByText(/조직과 부서/)).toBeInTheDocument();
-    expect(within(mapping).getByText(/먼저/)).toBeInTheDocument();
-  });
-
-  it("지금 할 차례는 막히지 않은 첫 항목 하나뿐이다", async () => {
+  it("항목은 카드가 아니라 한 판 위의 줄이다 — 번호와 「목록 접기」가 없다", async () => {
     renderWizard();
     const org = await screen.findByTestId("setup-item-organization");
-    const list = org.closest("ul");
-    const now = within(list).getAllByText("지금 할 차례");
-    expect(now.length).toBe(1);
+    expect(org.tagName).toBe("LI");
+    expect(org.closest("[data-surface='plate']")).toBe(screen.getByTestId("setup-checklist"));
+    expect(org.querySelector("[data-surface]")).toBeNull();
+    expect(screen.queryByText(/\d\/\d/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /목록 접기|목록 펼치기/ })).toBeNull();
+  });
+});
+
+// ── ② 상태 낱말 ──────────────────────────────────────────────────────────────
+
+describe("상태", () => {
+  it("상태를 아이콘 모양과 낱말로 말한다 — 낱말은 서버가 준 것이다", async () => {
+    renderWizard();
+    await screen.findByTestId("setup-item-organization");
+    const expectRow = (key, status, label) => {
+      const row = screen.getByTestId("setup-item-" + key);
+      expect(row).toHaveAttribute("data-row-status", status);
+      expect(row.querySelector(`[data-status-icon="${status}"]`)).not.toBeNull();
+      expect(within(row).getByText(label, { selector: "[data-status-label]" })).toBeInTheDocument();
+    };
+    expectRow("admin_account", "done", "완료");
+    expectRow("organization", "todo", "해야 함");
+    expectRow("mail", "pending", "정하지 않음");
+    expectRow("llm", "waiting", "앞 항목 대기");
+    expectRow("tls", "todo", "해야 함");
+  });
+
+  it("일곱 상태의 아이콘 모양이 모두 다르다", async () => {
+    const statuses = ["done", "todo", "check", "pending", "problem", "skipped", "waiting"];
+    serve(payload(statuses.map((s, i) => item("k" + i, "항목 " + i, s))));
+    renderWizard();
+    await screen.findByTestId("setup-item-k0");
+    const icons = statuses.map((s, i) => screen.getByTestId("setup-item-k" + i).querySelector("[data-status-icon] path").getAttribute("d"));
+    expect(new Set(icons).size).toBe(statuses.length);
+  });
+
+  it("줄의 설명은 지금 상태 한 문장이다", async () => {
+    renderWizard();
+    const tls = await screen.findByTestId("setup-item-tls");
+    expect(within(tls).getByText("인증서 파일을 찾지 못했습니다.")).toBeInTheDocument();
+  });
+});
+
+// ── ③ 지금 할 줄과 요약 띠 ────────────────────────────────────────────────────
+
+describe("지금 할 차례와 요약 띠", () => {
+  it("지금 할 줄은 하나뿐이고 저절로 펼쳐져 할 일과 까닭을 말한다", async () => {
+    renderWizard();
+    const org = await screen.findByTestId("setup-item-organization");
+    expect(screen.getAllByText("지금 할 차례")).toHaveLength(1);
+    expect(org).toHaveAttribute("aria-current", "step");
     expect(within(org).getByText("지금 할 차례")).toBeInTheDocument();
-    // 레일의 「지금 할 차례」 판이 같은 항목을 가리킨다.
-    const rail = screen.getByTestId("setup-summary");
-    expect(within(rail).getByRole("heading", { level: 2, name: "지금 할 차례" })).toBeInTheDocument();
-    expect(rail.querySelector("[data-setup-now]").getAttribute("data-setup-now")).toBe("organization");
+    const toggle = within(org).getByRole("button", { name: "조직과 부서 자세히 보기" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const panel = document.getElementById(toggle.getAttribute("aria-controls"));
+    expect(panel).not.toBeNull();
+    expect(within(panel).getByText("조직과 부서 를 채우세요")).toBeInTheDocument();
+    expect(within(panel).getByText(/화면이 빕니다/)).toBeInTheDocument();
+    // 다른 줄은 접혀 있다.
+    expect(within(screen.getByTestId("setup-item-tls")).getByRole("button", { name: "TLS 인증서 자세히 보기" }))
+      .toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("요약 띠는 서버의 두 문장과 필수 진행을 그리고, 주 동작은 지금 할 항목의 화면으로 간다", async () => {
+    renderWizard();
+    const band = await screen.findByTestId("setup-summary");
+    expect(within(band).getByRole("heading", { level: 2, name: "필수 설정 2개가 남았습니다." })).toBeInTheDocument();
+    expect(band).toHaveTextContent("필수 3개 중 1개가 끝났습니다.");
+    const bar = within(band).getByRole("progressbar", { name: "필수 설정 진행" });
+    expect(bar).toHaveAttribute("aria-valuenow", "1");
+    expect(bar).toHaveAttribute("aria-valuemax", "3");
+    const links = within(band).getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveTextContent("부서 화면 열기");
+    expect(links[0].getAttribute("href")).toBe("#/departments");
+    expect(links[0].className).toMatch(/containedPrimary/);
+  });
+
+  it("요약 띠가 문서 순서의 앞이다 — 좁은 화면에서도 띠가 목록 위에 선다", async () => {
+    renderWizard();
+    const band = await screen.findByTestId("setup-summary");
+    const org = screen.getByTestId("setup-item-organization");
+    expect(band.compareDocumentPosition(org) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("전부 끝나도 목록은 그대로 남고, 지금 할 차례도 주 동작도 없다", async () => {
+    const done = freshItems().map((i) => ({ ...i, state: "done", status: "done", status_label: "완료", action: null, blocked_by: null, blocked_by_label: null, choices: [] }));
+    serve(payload(done));
+    renderWizard();
+    const band = await screen.findByTestId("setup-summary");
+    expect(band).toHaveAttribute("data-band-status", "done");
+    expect(within(band).getByRole("heading", { level: 2, name: "기본 설정이 끝났습니다." })).toBeInTheDocument();
+    expect(within(band).queryByRole("link")).toBeNull();
+    expect(screen.queryByText("지금 할 차례")).toBeNull();
+    expect(document.querySelectorAll("[data-setup-key]")).toHaveLength(6);
+  });
+
+  it("필수가 끝나면 선택 항목에 문제가 있어도 띠는 완료이고 둘째 문장이 그 사실을 말한다", async () => {
+    const items = freshItems().map((i) => (i.required
+      ? { ...i, state: "done", status: "done", status_label: "완료", action: null }
+      : i.key === "mail" ? { ...i, status: "problem", status_label: "문제 있음", configured: true, choices: [] } : i));
+    serve(payload(items, { subline: "메일 발송에 문제가 있습니다." }));
+    renderWizard();
+    const band = await screen.findByTestId("setup-summary");
+    expect(band).toHaveAttribute("data-band-status", "done");
+    expect(band).toHaveTextContent("메일 발송에 문제가 있습니다.");
   });
 });
 
-// ── 레일 — 지금 할 차례 (D-501) ────────────────────────────────────────────────
+// ── 줄의 동작 ────────────────────────────────────────────────────────────────
 
-describe("레일 — 지금 할 차례가 이 화면의 주 동작이다 (D-501)", () => {
-  it("다음 항목의 고치는 화면으로 가는 링크가 레일에 하나 서고, 목록의 그 줄에는 없다", async () => {
+describe("줄의 동작", () => {
+  it("할 일이 있는 줄만 줄 위에 단추가 선다 — 끝난 줄과 앞 항목을 기다리는 줄에는 없다", async () => {
     renderWizard();
-    const rail = await screen.findByTestId("setup-summary");
-    const go = within(rail).getByRole("link", { name: SETUP_LINKS.organization.label });
-    expect(go.getAttribute("href")).toBe(SETUP_LINKS.organization.href);
-    expect(within(rail).getAllByRole("link")).toHaveLength(1);
-    const org = screen.getByTestId("setup-item-organization");
-    expect(within(org).queryByRole("link")).toBeNull();
+    await screen.findByTestId("setup-item-organization");
+    const inline = (key) => screen.getByTestId("setup-item-" + key).querySelector("[data-row-actions]");
+    expect(inline("admin_account")).toBeNull();
+    expect(inline("integrations")).toBeNull();
+    expect(inline("llm")).toBeNull();
+    expect(within(inline("organization")).getByRole("link", { name: "부서 화면 열기" }).getAttribute("href")).toBe("#/departments");
+    expect(within(inline("mail")).getByRole("button", { name: "사용하지 않음" })).toBeInTheDocument();
+    expect(within(inline("tls")).getByRole("button", { name: "외부 프록시가 맡음" })).toBeInTheDocument();
   });
 
-  it("진행은 한 문장이다 — 같은 수를 조각 문장과 요약 카드로 두 번 세우지 않는다", async () => {
+  it("끝난 줄을 펼치면 이동 링크와 선택 되돌리기가 펼친 칸에 있다", async () => {
+    const user = userEvent.setup();
+    const items = freshItems().map((i) => (i.key === "tls"
+      ? { ...i, state: "done", status: "done", status_label: "완료", action: null, detail: "외부 프록시가 TLS 를 맡습니다.",
+        notes: ["프록시 인증서의 만료일은 이 서버가 확인하지 않습니다."], choices: [{ key: "tls", value: "app", label: "이 서버의 인증서 사용" }] }
+      : i));
+    serve(payload(items));
     renderWizard();
-    const rail = await screen.findByTestId("setup-summary");
-    expect(rail).toHaveTextContent("필수 항목 6개 중 1개가 끝났습니다. 직접 할 일이 4개, 확인할 것이 1개 남았습니다.");
-    expect(within(rail).queryByText("남은 항목")).toBeNull();
-    expect(document.querySelector("[data-summary-total]")).toBeNull();
+    const tls = await screen.findByTestId("setup-item-tls");
+    await user.click(within(tls).getByRole("button", { name: "TLS 인증서 자세히 보기" }));
+    expect(within(tls).getByRole("button", { name: "TLS 인증서 자세히 보기" })).toHaveAttribute("aria-expanded", "true");
+    expect(within(tls).getByText("프록시 인증서의 만료일은 이 서버가 확인하지 않습니다.")).toBeInTheDocument();
+    expect(within(tls).getByRole("button", { name: "이 서버의 인증서 사용" })).toBeInTheDocument();
+    expect(within(tls).getByRole("link", { name: "진단에서 인증서 확인" })).toBeInTheDocument();
   });
 
-  it("진행 문장은 없는 갈래를 말하지 않는다", () => {
-    const base = { items: [item("a", "가", "done"), item("b", "나", "todo")], todo: ["b"], unknown: [] };
-    expect(setupProgressText(base)).toBe("필수 항목 2개 중 1개가 끝났습니다. 직접 할 일이 1개 남았습니다.");
-    expect(setupProgressText({ ...base, items: [item("a", "가", "unknown")], todo: [], unknown: ["a"] }))
-      .toBe("필수 항목 1개 중 아직 끝난 항목이 없습니다. 확인할 것이 1개 남았습니다.");
-    // 선택 항목은 필수 수에 들지 않고 남은 수만 덧붙는다.
-    const mixed = { items: [item("a", "가", "done"), item("m", "메일", "todo", { required: false })], optional_pending: ["m"] };
-    expect(setupProgressText(mixed)).toBe("필수 항목 1개 중 1개가 끝났습니다. 선택 항목은 1개가 남아 있습니다.");
+  it("앞 항목을 기다리는 줄은 무엇 때문에 막혔는지 앞 항목의 이름으로 말한다", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    const llm = await screen.findByTestId("setup-item-llm");
+    await user.click(within(llm).getByRole("button", { name: "AI 자세히 보기" }));
+    expect(within(llm).getByText(/조직과 부서를 먼저 끝내야 이 항목을 진행할 수 있습니다\./)).toBeInTheDocument();
+    expect(within(llm).getByText(/AI 가 살아 있어도 답이 비어 있습니다/)).toBeInTheDocument();
   });
 
-  it("레일이 문서 순서의 앞이다 — 좁은 화면에서도 할 차례가 목록 위에 선다", async () => {
+  it("펼침 단추를 다시 누르면 접힌다 — 지금 할 줄도 사람이 접을 수 있다", async () => {
+    const user = userEvent.setup();
     renderWizard();
-    const rail = await screen.findByTestId("setup-summary");
-    const org = screen.getByTestId("setup-item-organization");
-    expect(rail.compareDocumentPosition(org) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const org = await screen.findByTestId("setup-item-organization");
+    const toggle = within(org).getByRole("button", { name: "조직과 부서 자세히 보기" });
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(within(org).queryByText("조직과 부서 를 채우세요")).toBeNull();
+  });
+
+  it("복사할 명령은 펼친 칸의 코드 칸과 복사 단추다", async () => {
+    const user = userEvent.setup();
+    const items = freshItems().map((i) => (i.key === "organization"
+      ? { ...i, command: "sudo clovirassist status" } : i));
+    serve(payload(items));
+    renderWizard();
+    const org = await screen.findByTestId("setup-item-organization");
+    expect(within(org).getByText("sudo clovirassist status").tagName).toBe("CODE");
+    await user.click(within(org).getByRole("button", { name: "명령 복사" }));
+    expect(copyMock).toHaveBeenCalledWith("sudo clovirassist status");
   });
 });
 
-// ── ③ 접어도 남은 항목은 계속 보인다 ─────────────────────────────────────────
+// ── ④ 선택 값 ────────────────────────────────────────────────────────────────
 
-describe("끝난 뒤에도 계속 보인다", () => {
-  it("목록을 접어도 남은 항목 수는 사라지지 않는다", async () => {
+describe("선택 값", () => {
+  it("「사용하지 않음」은 선택 API 로 그 값 하나만 보내고, 돌아온 체크리스트로 다시 그린다", async () => {
+    const user = userEvent.setup();
+    const after = payload(freshItems().map((i) => (i.key === "mail"
+      ? { ...i, state: "skipped", status: "skipped", status_label: "사용하지 않음", choice: "unused", action: null,
+        detail: "사용하지 않기로 했습니다.", choices: [{ key: "mail", value: "use", label: "다시 사용" }] }
+      : i)));
+    apiMock.mockImplementation((path, opts) => {
+      if (path === CHECKLIST) return Promise.resolve(payload(freshItems()));
+      if (path === "/api/admin/setup/choices/mail") return Promise.resolve(after);
+      return Promise.resolve({});
+    });
+    renderWizard();
+    const mail = await screen.findByTestId("setup-item-mail");
+    await user.click(within(mail).getByRole("button", { name: "사용하지 않음" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/setup/choices/mail", { method: "PUT", body: { value: "unused" } }));
+    await waitFor(() => expect(screen.getByTestId("setup-item-mail")).toHaveAttribute("data-row-status", "skipped"));
+    // 응답으로 그렸다 - 체크리스트를 다시 부르지 않았다.
+    expect(apiMock.mock.calls.filter(([p]) => p === CHECKLIST)).toHaveLength(1);
+    // 범용 설정 API 로 객체 전체를 덮지 않는다.
+    expect(apiMock.mock.calls.some(([p]) => String(p).includes("/api/admin/settings/"))).toBe(false);
+    expect(await screen.findByText("메일 발송 항목을 사용하지 않음으로 두었습니다.")).toBeInTheDocument();
+  });
+
+  it("TLS 의 「외부 프록시가 맡음」도 같은 선택 API 다", async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    const tls = await screen.findByTestId("setup-item-tls");
+    await user.click(within(tls).getByRole("button", { name: "외부 프록시가 맡음" }));
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/setup/choices/tls", { method: "PUT", body: { value: "proxy" } }));
+  });
+
+  it("선택을 바꾸지 못하면 서버의 문장을 알린다", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation((path) => {
+      if (path === CHECKLIST) return Promise.resolve(payload(freshItems()));
+      return Promise.reject(Object.assign(new Error("이 항목에서 고를 수 없는 값입니다."), { status: 422 }));
+    });
+    renderWizard();
+    const mail = await screen.findByTestId("setup-item-mail");
+    await user.click(within(mail).getByRole("button", { name: "사용하지 않음" }));
+    expect(await screen.findByText("이 항목에서 고를 수 없는 값입니다.")).toBeInTheDocument();
+  });
+
+  it("「다시 확인」은 체크리스트를 다시 부른다", async () => {
     const user = userEvent.setup();
     renderWizard();
     await screen.findByTestId("setup-item-organization");
-
-    await user.click(screen.getByRole("button", { name: /목록 접기/ }));
-    expect(screen.queryByTestId("setup-item-organization")).toBeNull();
-    // 접어도 요약은 남는다. 이것이 사라지면 "한 번 닫으면 끝" 인 마법사가 된다.
-    const rail = screen.getByTestId("setup-summary");
-    expect(rail).toHaveTextContent("필수 항목 6개 중 1개가 끝났습니다. 직접 할 일이 4개, 확인할 것이 1개 남았습니다.");
-    // 할 차례도 남는다 — 목록을 접은 사람이 다음에 할 일을 잃지 않는다.
-    expect(within(rail).getByRole("link", { name: SETUP_LINKS.organization.label })).toBeInTheDocument();
-  });
-
-  it("전부 끝나도 항목 목록은 그대로 남는다", async () => {
-    const doneItems = payload().items.map((i) => ({
-      ...i, state: "done", action: null, question: null, blocked_by: null,
-      blocked_by_label: null,
-    }));
-    apiMock.mockImplementation(() =>
-      Promise.resolve(payload({ items: doneItems, remaining: [], todo: [], unknown: [], next_key: null, complete: true }))
-    );
-    renderWizard();
-    await waitFor(() => expect(screen.getByText("조직과 부서")).toBeInTheDocument());
-    expect(screen.getByTestId("setup-summary")).toHaveTextContent(/끝났습니다/);
-    const keys = Array.from(document.querySelectorAll("[data-setup-key]"));
-    expect(keys.length).toBe(6);
-    // 다 끝나면 할 차례도 주 동작도 없다.
-    expect(screen.queryByText("지금 할 차례")).toBeNull();
-    expect(within(screen.getByTestId("setup-summary")).queryByRole("link")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "다시 확인" }));
+    await waitFor(() => expect(apiMock.mock.calls.filter(([p]) => p === CHECKLIST)).toHaveLength(2));
   });
 });
 
-// ── ④ 죽은 링크를 만들지 않는다 ──────────────────────────────────────────────
+// ── ⑤ 죽은 링크를 만들지 않는다 ──────────────────────────────────────────────
 
 describe("링크", () => {
-  it("항목 링크는 실제로 라우팅되는 관리자 경로만 가리킨다", () => {
+  it("대체 링크 표는 실제로 라우팅되는 관리자 경로만 가리킨다", () => {
     // AdminRoutes.jsx 가 명시적으로 거는 경로 + registry.js 가 만드는 경로.
     const explicit = [
       "dashboard", "search", "users", "offboarding", "settings",
       "diagnostics", "maintenance", "dev-report", "scheduler-calendar",
-      // 9-5 로 생긴 AI 관리 화면. 이 목록은 AdminRoutes.jsx 의 명시 경로를 손으로 옮겨
-      // 적은 것이라 새 경로가 생기면 여기도 같이 늘려야 한다. `notion-console` 은 화면과
-      // 함께 라우트도 없어져 여기서 뺐다 — 남겨 두면 죽은 링크를 검사가 눈감아 준다.
       "llm-console",
       // AI 연결(D-539) — 설정의 AI 탭이 화면 하나가 됐다. AdminRoutes 가 직접 건다.
       "ai-connection",
-      // 조직 콘솔 셋(D-406) — registry 를 떠났지만 AdminRoutes 가 직접 건다
-      // (ORG_CONSOLE_KEYS). registry 키 합산만 믿으면 살아 있는 이 경로들을
-      // 죽은 링크로 오판한다.
+      // 조직 콘솔 셋(D-406) — registry 를 떠났지만 AdminRoutes 가 직접 건다.
       "organizations", "departments", "org-tree",
       // 메일 화면(D-548) — 설정 · 발송 기록 · 알림 메일 탭을 AdminRoutes 가 직접 건다.
       "mail",
@@ -335,21 +423,19 @@ describe("링크", () => {
     }
   });
 
-  it("링크가 있는 항목은 그 링크를 화면에 그린다", async () => {
+  it("서버가 준 링크가 대체 표보다 먼저다", async () => {
+    const items = freshItems().map((i) => (i.key === "mail"
+      ? { ...i, status: "check", status_label: "확인 필요", state: "unknown", action: null, question: "연결 확인을 눌러 주세요",
+        href: "#/mail", link_label: "메일 화면 열기", choices: [] }
+      : i));
+    serve(payload(items));
     renderWizard();
-    const runners = await screen.findByTestId("setup-item-llm");
-    const anchor = within(runners).getByRole("link");
-    expect(anchor.getAttribute("href")).toBe(SETUP_LINKS.llm.href);
+    const mail = await screen.findByTestId("setup-item-mail");
+    expect(within(mail).getByRole("link", { name: "메일 화면 열기" }).getAttribute("href")).toBe("#/mail");
   });
 
-  it("메일 항목은 설정 표의 메일 줄을 연다 — 메일 발송 화면의 「메일 설정 열기」와 같은 곳 · 같은 이름이다", () => {
+  it("메일 · AI 항목의 대체 링크는 메일 설정 탭과 AI 연결 화면이다", () => {
     expect(SETUP_LINKS.mail).toEqual({ href: "#/mail?tab=settings", label: "메일 설정 열기" });
-  });
-
-  it("SYS-06: llm 항목은 AI 설정으로 보낸다 — probe_llm의 안내 문구가 실제로 말하는 곳과 같다", () => {
-    // app/setup/probes.py::probe_llm 은 이제 Model Gateway 의 capabilities 를 읽고, 그
-    // 안내가 「AI 설정을 확인하세요」라고 말한다(S11 이전에는 러너 화면이었다). 링크가
-    // 다른 곳으로 가면 그 문구를 따라도 이 항목을 고칠 수 있는 화면에 도달하지 못한다.
     expect(SETUP_LINKS.llm.href).toBe("#/ai-connection");
   });
 });
@@ -360,65 +446,7 @@ describe("권한", () => {
   it("시스템 관리자가 아니면 안내를 보여 주고 목록을 부르지 않는다", async () => {
     mockRole = "admin";
     renderWizard();
-    await waitFor(() =>
-      expect(screen.getByText(/시스템 관리자만/)).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByText(/시스템 관리자만/)).toBeInTheDocument());
     expect(apiMock).not.toHaveBeenCalledWith(CHECKLIST);
-  });
-});
-
-// ── 필수와 선택, 사용하지 않음 (D-520) ─────────────────────────────────────────
-
-describe("필수와 선택", () => {
-  function optionalPayload(extra = {}) {
-    const items = [
-      item("admin_account", "관리자 계정", "done", { required: true }),
-      item("mail", "메일(SMTP) 발송", "todo", {
-        required: false, optional_choice: "mail", choice: "use", configured: false,
-        href: "#/mail?tab=settings", link_label: "메일 설정 열기",
-      }),
-      item("organization", "조직과 부서", "done", { required: true }),
-      item("llm", "AI", "skipped", { required: false, optional_choice: "llm", choice: "unused", configured: false,
-        detail: "사용하지 않기로 했습니다.", action: null }),
-      item("tls", "TLS 인증서", "done", { required: true }),
-    ];
-    return payload({
-      items, remaining: ["mail"], todo: ["mail"], unknown: [], skipped: ["llm"], optional_pending: ["mail"],
-      required_remaining: [], next_key: "mail", complete: true, summary: "정상 설치입니다(AI 사용 안 함).", ...extra,
-    });
-  }
-
-  it("필수 항목과 선택 항목이 다른 구역에 서고, 필수가 끝나면 설치가 끝났다고 말한다", async () => {
-    apiMock.mockImplementation((path) => Promise.resolve(path === CHECKLIST ? optionalPayload() : {}));
-    renderWizard();
-    const required = await screen.findByRole("region", { name: "필수 항목" });
-    const optional = screen.getByRole("region", { name: "선택 항목" });
-    expect(within(required).getByTestId("setup-item-organization")).toBeInTheDocument();
-    expect(within(optional).getByTestId("setup-item-mail")).toBeInTheDocument();
-    expect(screen.getByTestId("setup-summary")).toHaveTextContent("필수 설정이 모두 끝났습니다. 정상 설치입니다(AI 사용 안 함).");
-    expect(within(optional).getByText("사용하지 않음")).toBeInTheDocument();
-  });
-
-  it("「사용하지 않음으로 표시」가 다른 선택을 지킨 채 한 값만 바꾼다", async () => {
-    const user = userEvent.setup();
-    apiMock.mockImplementation((path) => Promise.resolve(path === CHECKLIST ? optionalPayload() : {}));
-    renderWizard();
-    const mail = await screen.findByTestId("setup-item-mail");
-    await user.click(within(mail).getByRole("button", { name: "사용하지 않음으로 표시" }));
-    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/admin/settings/setup_optional_choices",
-      { method: "PUT", body: { value: { mail: "unused", llm: "unused" } } }));
-    const llm = screen.getByTestId("setup-item-llm");
-    expect(within(llm).getByRole("button", { name: "사용하기로 바꾸기" })).toBeInTheDocument();
-  });
-
-  it("서버가 준 링크가 대체 표보다 먼저다", async () => {
-    const items = optionalPayload().items.map((i) => (i.key === "mail"
-      ? { ...i, state: "unknown", action: null, question: "연결 확인을 눌러 주세요", href: "#/mail", link_label: "메일 발송 화면 열기" }
-      : i));
-    apiMock.mockImplementation((path) => Promise.resolve(path === CHECKLIST
-      ? optionalPayload({ items, next_key: null }) : {}));
-    renderWizard();
-    const mail = await screen.findByTestId("setup-item-mail");
-    expect(within(mail).getByRole("link", { name: "메일 발송 화면 열기" }).getAttribute("href")).toBe("#/mail");
   });
 });

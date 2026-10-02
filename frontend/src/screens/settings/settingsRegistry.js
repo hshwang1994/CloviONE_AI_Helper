@@ -73,7 +73,7 @@ export const OBJECT_SCHEMA_HELP = {
   // 같은 모양이라야 한다(틀린 예시를 그대로 붙여 넣으면 저장이 거부된다).
   backup_schedule: 'JSON 예: {"enabled": true, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14, "keep_days": 7}, cron 은 분 시 일 월 요일(0 3 * * * = 매일 새벽 3시), keep 은 남길 백업 개수(1~365), keep_days 는 개수를 넘어도 남기는 기간(0~365일).',
   mail_notification_types: 'JSON 예: ["ticket_assigned", "ticket_status_changed", "ticket_resolved"], 메일 발송 화면의 「메일로 보내는 알림」에서 고르는 것이 편합니다.',
-  setup_optional_choices: 'JSON 예: {"mail": "use", "llm": "unused"}, 초기 설정 화면의 「사용하지 않음으로 표시」에서 고르는 것이 편합니다.',
+  setup_optional_choices: 'JSON 예: {"mail": "use", "llm": "unused", "tls": "app"}, 초기 설정 화면의 「사용하지 않음」과 「외부 프록시가 맡음」 단추로 고르는 것이 편합니다.',
 };
 // 값의 정본은 서버(app/core/authz.py)이고, 화면 쪽 사본은 lib/roles.js 한 곳이다(지시 21).
 export const WRITE_ROLES = CONSOLE_WRITE_ROLES;

@@ -58,6 +58,10 @@ LINK_DIAGNOSTICS_INTEGRATIONS = ("#/diagnostics", "진단에서 연동 상태 �
 LINK_DIAGNOSTICS_TLS = ("#/diagnostics", "진단에서 인증서 확인")
 # 인증서 만료가 이만큼 가까우면 다시 할 일이다.
 TLS_RENEW_DAYS = 14
+# TLS 를 누가 맡는가(`setup_optional_choices.tls`, D-534). 인증서 경로가 없는 설치만 「외부 프록시가 맡음」을 고를 수 있다.
+TLS_APP = "app"
+TLS_PROXY = "proxy"
+TLS_PROXY_NOTE = "외부 프록시가 TLS 를 맡는다고 표시했습니다. 프록시 인증서의 만료일은 이 서버가 확인하지 않습니다."
 
 
 @dataclass(frozen=True)
@@ -79,21 +83,30 @@ class Outcome:
     link_label: str | None = None
     checked_at: str | None = None
     configured: bool = True
+    # 펼친 칸의 덧붙임(D-534) — 선택 안내 · 기준 주소 문제처럼 상태를 바꾸지 않는 사실. 복사할 명령은 `command` 하나다.
+    notes: tuple[str, ...] = ()
+    command: str | None = None
+    # 「문제 있음」 — 할 일이지만 설정이 비어서가 아니라 동작이 실패하고 있다(실패 단계의 문장이 `detail` 이다).
+    problem: bool = False
+    # 이 항목에서 고를 수 있는 값(`setup_optional_choices` 의 그 키). TLS 의 「외부 프록시가 맡음」 · 「이 서버의 인증서」.
+    choices: tuple[str, ...] = ()
 
 
-def _done(detail: str, *, link=None, checked_at=None) -> Outcome:
+def _done(detail: str, *, link=None, checked_at=None, notes=(), choices=()) -> Outcome:
     return Outcome(state=STATE_DONE, detail=detail, href=link[0] if link else None,
-                   link_label=link[1] if link else None, checked_at=checked_at)
+                   link_label=link[1] if link else None, checked_at=checked_at, notes=tuple(notes), choices=tuple(choices))
 
 
-def _todo(detail: str, action: str, *, link=None, checked_at=None, configured=True) -> Outcome:
+def _todo(detail: str, action: str, *, link=None, checked_at=None, configured=True, notes=(), problem=False,
+          choices=()) -> Outcome:
     return Outcome(state=STATE_TODO, detail=detail, action=action, href=link[0] if link else None,
-                   link_label=link[1] if link else None, checked_at=checked_at, configured=configured)
+                   link_label=link[1] if link else None, checked_at=checked_at, configured=configured,
+                   notes=tuple(notes), problem=problem, choices=tuple(choices))
 
 
-def _unknown(detail: str, question: str, *, link=None, checked_at=None) -> Outcome:
+def _unknown(detail: str, question: str, *, link=None, checked_at=None, notes=()) -> Outcome:
     return Outcome(state=STATE_UNKNOWN, detail=detail, question=question, href=link[0] if link else None,
-                   link_label=link[1] if link else None, checked_at=checked_at)
+                   link_label=link[1] if link else None, checked_at=checked_at, notes=tuple(notes))
 
 
 @dataclass(frozen=True)
@@ -112,6 +125,12 @@ class ProbeContext:
     gateway: object | None = None
     # 프로세스에 하나뿐인 AI 런타임(`app.state.ai_runtime`, D-515). 답변 생성의 판정은 여기서 온다.
     runtime: object | None = None
+    # 특권 헬퍼 클라이언트(`app.state.sysops_client`). 로컬 릴레이 방식의 메일만 쓴다 - 없으면 기본 소켓으로 묻는다.
+    sysops: object | None = None
+    # 「사용 · 사용하지 않음 · 외부 프록시」 선택(`setup_optional_choices`). 체크리스트가 한 번 읽어 넘긴다.
+    choices: dict | None = None
+    # 메일 속 링크의 기준 주소(설치가 정한 접속 주소). 문제면 메일 항목의 펼친 칸에 한 줄을 더한다.
+    base_url: str = ""
 
 
 # ── 관리자 계정 ──────────────────────────────────────────────────────────────
@@ -150,11 +169,25 @@ def probe_admin_account(ctx: ProbeContext) -> Outcome:
 # ── 메일(SMTP) 발송 ──────────────────────────────────────────────────────────
 
 
-def probe_mail(ctx: ProbeContext) -> Outcome:
-    """메일은 선택 항목이다(D-520). 판정은 메일 발송 화면과 같은 건강 상태(`app/mail/health.py::health_state`)다.
+def _base_url_notes(ctx: ProbeContext) -> tuple[str, ...]:
+    """기준 주소 문제는 상태를 바꾸지 않고 한 줄만 더한다(설치기가 `https://<DNS 이름>` 을 쓰므로 경고다, M6)."""
+    value = (ctx.base_url or "").rstrip("/")
+    if not value:
+        return ()
+    if not value.startswith("https://"):
+        return ("메일 속 링크가 https 주소가 아닙니다. 설치할 때 정한 접속 주소를 확인하세요.",)
+    if "127.0.0.1" in value or "localhost" in value:
+        return ("메일 속 링크가 이 서버 안에서만 열리는 주소입니다. 설치할 때 정한 접속 주소를 확인하세요.",)
+    return ()
 
-    예전에는 값이 채워져 있으면 「됨」이었다 - 발송이 전부 실패해도 초기 설정은 끝난 것처럼 보였다. 이제 실제 연결
-    확인이나 발송이 성공해야 「됨」이다.
+
+def probe_mail(ctx: ProbeContext) -> Outcome:
+    """메일은 선택 항목이다(D-520). 판정은 보내는 방법마다 다른 표다(계획 M6, D-534).
+
+    공통 — 발송이 꺼져 있으면 「해야 함」이고 「사용하지 않음」으로 숨길 수 있다(관리자의 뜻이 「설정됨」을 정한다:
+    `configured = 발송 켬`). 켰는데 칸이 비면 숨길 수 없는 「해야 함」이다(마저 채우거나 메일 화면에서 발송을 끈다). 발송이 실패하면
+    「문제 있음」이다. 외부 SMTP 는 연결 확인 · 발송이 성공해야 완료다. 로컬 릴레이는 앱 → 릴레이가 정상이고 **지금 설정 이후에
+    바깥 전달이 성공한 기록**이 있어야 완료다 - 받는 쪽까지 간 것을 본 뒤에만 끝났다고 말한다.
     """
     from app.mail import health as mail_health
     from app.mail.config import config_from_db
@@ -162,32 +195,111 @@ def probe_mail(ctx: ProbeContext) -> Outcome:
     config = config_from_db(ctx.db)
     state = mail_health.health_state(ctx.db, config, ctx.secrets)
     checked_at = state.get("checked_at")
+    notes = _base_url_notes(ctx)
     if state["state"] == mail_health.STATE_DISABLED:
         return _todo(
             "메일 발송이 꺼져 있습니다.",
-            "메일을 쓰려면 메일 화면에서 발송을 켜고 설정을 채우세요. 메일을 쓰지 않는다면 이 항목을 사용하지 않음으로 표시하세요.",
-            link=LINK_MAIL_SETTING, configured=False,
+            "메일을 쓰려면 메일 화면에서 발송을 켜고 설정을 채우세요. 메일을 쓰지 않는다면 이 줄의 「사용하지 않음」을 고르세요.",
+            link=LINK_MAIL_SETTING, configured=False, notes=notes,
         )
     if state["state"] == mail_health.STATE_UNCONFIGURED:
+        problems = state.get("problems") or [state.get("message") or ""]
         return _todo(
-            f"메일 발송 설정이 비어 있습니다. {state['message']}",
-            "메일 설정을 채우세요. 메일을 쓰지 않는다면 이 항목을 사용하지 않음으로 표시하세요.",
-            link=LINK_MAIL_SETTING, configured=False,
-        )
-    if state["state"] == mail_health.STATE_UNVERIFIED:
-        return _unknown(
-            "메일 설정은 채워졌지만 아직 발송을 확인하지 않았습니다.",
-            "메일 화면에서 연결 확인을 눌러 주세요.",
-            link=LINK_MAIL_SCREEN, checked_at=checked_at,
+            "메일 설정 일부가 남아 있습니다: " + " ".join(p for p in problems if p),
+            "메일 화면에서 설정을 마저 채우세요. 메일을 쓰지 않는다면 메일 화면에서 발송을 끈 뒤 「사용하지 않음」을 고르세요.",
+            link=LINK_MAIL_SETTING, notes=notes,
         )
     if state["state"] == mail_health.STATE_FAILING:
         return _todo(
             f"메일 발송이 실패하고 있습니다. {state['message']}",
-            "메일 화면에서 원인을 확인하고 설정을 고치세요.",
-            link=LINK_MAIL_SCREEN, checked_at=checked_at,
+            "메일 화면에서 실패한 단계를 확인하고 설정을 고치세요.",
+            link=LINK_MAIL_SCREEN, checked_at=checked_at, notes=notes, problem=True,
+        )
+    if config.local_relay:
+        return _probe_local_relay(ctx, config, state, notes)
+    if state["state"] == mail_health.STATE_UNVERIFIED:
+        return _unknown(
+            "메일 설정은 채워졌지만 아직 확인하지 않았습니다.",
+            "연결 확인이나 시험 메일로 확인하세요.",
+            link=LINK_MAIL_SCREEN, checked_at=checked_at, notes=notes,
         )
     return _done(f"메일 발송이 확인됐습니다({config.host}:{config.port}).", link=LINK_MAIL_SCREEN,
-                 checked_at=checked_at)
+                 checked_at=checked_at, notes=notes)
+
+
+def _probe_local_relay(ctx: ProbeContext, config, state: dict, notes: tuple[str, ...]) -> Outcome:
+    """로컬 릴레이 방식(M6 표의 로컬 줄). 구성 요소 → 앱 → 릴레이 → 준비 점검 → 바깥 전달 순서로 본다."""
+    from app.mail import health as mail_health
+    from app.mail import relay_readiness
+    from app.mail.config import DELIVERY_DIRECT
+
+    client = ctx.sysops
+    if client is None:
+        from app.sysops.client import SysopsClient
+
+        client = SysopsClient()
+    reply = client.call("mailrelay.status", {})
+    status = reply.data if reply.available and reply.ok else None
+    checked_at = state.get("checked_at")
+    if status is None:
+        return _unknown("로컬 릴레이 상태를 확인할 수 없습니다.", "진단 화면에서 시스템 도우미가 동작하는지 확인해 주세요.",
+                        link=LINK_MAIL_SCREEN, notes=notes)
+    component = status.get("component")
+    if component == "not_installed":
+        return _todo("이 서버에는 로컬 릴레이 구성 요소가 설치되지 않았습니다.",
+                     "메일 화면에서 외부 SMTP 사용을 고르거나, 서버에서 구성 요소를 설치하세요.",
+                     link=LINK_MAIL_SETTING, notes=notes)
+    if component == "foreign":
+        return _todo("이 서버에는 기존 메일 발송 구성이 있습니다. ClovirAssist 로컬 릴레이가 자동으로 구성되지 않았습니다.",
+                     "그 구성을 쓰려면 메일 화면에서 외부 SMTP 사용을 고르고 그 서버를 지정하세요.",
+                     link=LINK_MAIL_SETTING, notes=notes)
+    if component != "running":
+        detail = "메일 발송 구성 요소가 동작하지 않습니다." if component == "stopped" else "로컬 릴레이가 꺼져 있습니다."
+        return _todo(detail, "메일 화면에서 로컬 릴레이를 활성화하세요.", link=LINK_MAIL_SETTING, notes=notes,
+                     problem=component == "stopped")
+    if state["state"] == mail_health.STATE_UNVERIFIED:
+        return _unknown("로컬 릴레이는 동작하지만 앱에서 아직 확인하지 않았습니다.", "연결 확인이나 시험 메일로 확인하세요.",
+                        link=LINK_MAIL_SCREEN, checked_at=checked_at, notes=notes)
+    readiness = relay_readiness.load(ctx.db)
+    if readiness and readiness.get("fingerprint") == config.relay_fingerprint:
+        failed = [row.get("label") for row in readiness.get("checks") or [] if row.get("state") == "fail"]
+        if failed:
+            return _todo("준비 점검에서 고칠 것이 있습니다: " + ", ".join(failed) + ".",
+                         "메일 화면의 바깥으로 보내기 준비에서 줄마다 고칠 곳을 보세요.",
+                         link=LINK_MAIL_SETTING, notes=notes)
+    outer = _relay_outer_since(ctx.db)
+    if outer is None:
+        return _unknown("로컬 릴레이가 아직 바깥으로 전달한 기록이 없습니다.", "준비 점검을 실행하고 시험 메일을 보내세요.",
+                        link=LINK_MAIL_SETTING, checked_at=checked_at, notes=notes)
+    # 「최근 확인」은 그 바깥 결과를 본 시각이다(화면이 그 시각을 펼친 칸에 적는다).
+    seen = outer.remote_checked_at.isoformat() if outer.remote_checked_at else checked_at
+    if outer.remote_status == "delivered":
+        detail = ("수신측 메일 서버까지 전달을 확인했습니다." if (outer.relay_delivery or DELIVERY_DIRECT) == DELIVERY_DIRECT
+                  else "상위 SMTP 서버가 접수한 것을 확인했습니다.")
+        return _done(detail, link=LINK_MAIL_SCREEN, checked_at=seen, notes=notes)
+    from app.mail.relay_log import STAGE_SENTENCES
+
+    sentence = STAGE_SENTENCES.get(outer.remote_stage or "") or "바깥 전달이 끝나지 않았습니다."
+    if outer.remote_status == "deferred":
+        return _unknown(f"바깥 전달을 다시 시도하고 있습니다. {sentence}", "잠시 뒤 메일 화면의 발송 기록에서 결과를 확인하세요.",
+                        link=LINK_MAIL_SCREEN, checked_at=seen, notes=notes)
+    return _todo(f"바깥 전달이 실패했습니다. {sentence}", "메일 화면의 바깥으로 보내기 준비와 발송 기록에서 원인을 확인하세요.",
+                 link=LINK_MAIL_SCREEN, checked_at=seen, notes=notes, problem=True)
+
+
+def _relay_outer_since(db: Session):
+    """지금 메일 설정을 저장한 뒤의 가장 최근 바깥 결과(전달함 · 미룸 · 거부 · 시간 지남). 설정을 바꾸면 옛 결과는 말하지 않는다."""
+    from app.mail.models import MailDelivery
+    from app.settings.models import AppSetting
+
+    row = db.get(AppSetting, "smtp")
+    since = row.updated_at if row is not None else None
+    stmt = select(MailDelivery).where(
+        MailDelivery.remote_status.in_(("delivered", "deferred", "bounced", "expired")),
+    )
+    if since is not None:
+        stmt = stmt.where(MailDelivery.sent_at >= since)
+    return db.execute(stmt.order_by(MailDelivery.remote_checked_at.desc().nulls_last()).limit(1)).scalar_one_or_none()
 
 
 # ── 조직과 부서 ──────────────────────────────────────────────────────────────
@@ -256,14 +368,16 @@ def probe_llm(ctx: ProbeContext) -> Outcome:
     shown = console.state_display(info, verifying=console.pending_verify(ctx.db) is not None,
                                   embed_available=bool(embed.available))
     setup = shown["setup"]
-    detail = " ".join(filter(None, [setup["detail"], setup.get("note")]))
+    notes = (setup["note"],) if setup.get("note") else ()
     if setup["state"] == console.SETUP_DONE:
-        return _done(detail, link=LINK_AI, checked_at=checked_at)
+        return _done(setup["detail"], link=LINK_AI, checked_at=checked_at, notes=notes)
     if setup["state"] == console.SETUP_TODO:
-        return _todo(detail, setup.get("action") or "AI 연결 화면을 여세요.", link=LINK_AI,
-                     configured=configured, checked_at=checked_at)
-    return _unknown(detail, setup.get("question") or "AI 연결 화면에서 지금 확인을 누르세요.", link=LINK_AI,
-                    checked_at=checked_at)
+        # 막힌 연결(연결 오류 · 재로그인 필요)은 비어 있는 것이 아니라 고장이다 - 「문제 있음」이다.
+        return _todo(setup["detail"], setup.get("action") or "AI 연결 화면을 여세요.", link=LINK_AI,
+                     configured=configured, checked_at=checked_at, notes=notes,
+                     problem=shown["key"] in ("error", "reauth_required"))
+    return _unknown(setup["detail"], setup.get("question") or "AI 연결 화면에서 지금 확인을 누르세요.", link=LINK_AI,
+                    checked_at=checked_at, notes=notes)
 
 
 # ── 외부 연동 ────────────────────────────────────────────────────────────────
@@ -319,21 +433,26 @@ def _health_outcome(statuses: list[str], *, noun: str, fix: str, ask: str) -> Ou
 
 
 def probe_tls(ctx: ProbeContext) -> Outcome:
-    from app.health.service import cert_days_remaining, is_self_signed_cert
+    """TLS 는 필수 항목이다. 인증서가 있으면 만료일로 판정한다. 인증서 경로가 없는 설치만 「외부 프록시가 맡음」을 고를 수 있고
+    고르면 완료다(D-534) - 전달 머리글로 자동 판정하지 않는다(앱 서버가 그 머리글을 믿지 않는다)."""
+    from app.health.service import cert_days_remaining, cert_info
 
     cert_path = getattr(ctx.settings, "tls_cert_path", None)
+    choice = (ctx.choices or {}).get("tls", TLS_APP)
     if not cert_path:
-        # 앞단 nginx 가 TLS 를 끊고 앱은 평문 127.0.0.1 로만 받는 설치가 정상적으로 있다.
-        # 그 설치에서 "인증서를 넣으세요" 는 따르면 안 되는 지시다.
-        return _unknown(
-            "이 앱에 인증서 경로가 설정돼 있지 않습니다.",
-            "앞단 프록시에서 TLS 를 끊는 구성인가요? 그렇다면 프록시 쪽 인증서를 확인해 주세요.",
-            link=LINK_DIAGNOSTICS_TLS,
+        # 앞단 nginx · 로드밸런서가 TLS 를 끊고 앱은 평문 127.0.0.1 로만 받는 설치가 정상적으로 있다.
+        if choice == TLS_PROXY:
+            return _done("외부 프록시가 TLS 를 맡습니다.", link=LINK_DIAGNOSTICS_TLS, notes=(TLS_PROXY_NOTE,),
+                         choices=(TLS_APP,))
+        return _todo(
+            "이 서버에 인증서가 설정돼 있지 않습니다.",
+            "인증서를 설치하세요. 앞단 프록시가 TLS 를 맡는 구성이면 이 줄의 「외부 프록시가 맡음」을 고르세요.",
+            link=LINK_DIAGNOSTICS_TLS, choices=(TLS_PROXY,),
         )
     if not Path(cert_path).exists():
         return _todo(
-            "설정된 경로에 인증서 파일이 없습니다.",
-            "TLS_CERT_PATH 경로를 확인하거나 인증서 파일을 그 자리에 두세요.",
+            "설정된 자리에 인증서 파일이 없습니다.",
+            "설치할 때 정한 인증서 파일이 그 자리에 있는지 확인하세요.",
             link=LINK_DIAGNOSTICS_TLS,
         )
     days = cert_days_remaining(ctx.settings)
@@ -344,14 +463,14 @@ def probe_tls(ctx: ProbeContext) -> Outcome:
             link=LINK_DIAGNOSTICS_TLS,
         )
     if days < 0:
-        return _todo("인증서가 이미 만료됐습니다.", "새 인증서로 교체하세요.", link=LINK_DIAGNOSTICS_TLS)
+        return _todo("인증서가 이미 만료됐습니다.", "새 인증서로 교체하세요.", link=LINK_DIAGNOSTICS_TLS, problem=True)
     if days <= TLS_RENEW_DAYS:
         return _todo(f"인증서 만료까지 {days}일 남았습니다.", "만료되기 전에 새 인증서로 교체하세요.",
                      link=LINK_DIAGNOSTICS_TLS)
     # TLS 는 필수 항목이고 설치가 자체 서명 인증서를 만들어 처음부터 끝나 있다(계획 3.5, D-520). 예전에는 자체 서명을
     # 「확인 불가」로 두었는데, 필수 항목이 된 뒤로 그 판정은 모든 새 설치를 영원히 미완료로 만든다. 끝난 것으로 두고
     # 신뢰된 인증서로 바꾸기를 권한다 - 브라우저가 지금도 경고를 띄운다는 사실은 그대로 적는다.
-    if is_self_signed_cert(ctx.settings):
+    if (cert_info(ctx.settings) or {}).get("self_signed"):
         return _done(
             f"설치가 만든 자체 서명 인증서가 있습니다(만료까지 {days}일). 브라우저가 경고를 띄우므로 사용자에게 "
             "공개하는 주소라면 신뢰된 인증서로 바꾸기를 권합니다.",

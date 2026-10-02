@@ -116,7 +116,7 @@ def state_display(info: dict, *, verifying: bool = False, embed_available: bool 
                  "action": "AI 연결 화면에서 AI 사용을 켜세요.", "note": note}
     elif key == "unconfigured":
         setup = {"state": SETUP_TODO, "detail": "AI 제공자를 아직 연결하지 않았습니다.",
-                 "action": "AI 연결 화면에서 제공자와 인증을 정하세요. AI 를 쓰지 않는다면 사용하지 않음으로 표시하세요.",
+                 "action": "AI 연결 화면에서 제공자와 인증을 정하세요. AI 를 쓰지 않는다면 이 줄의 「사용하지 않음」을 고르세요.",
                  "note": note}
     elif key == DISPLAY_VERIFYING:
         setup = {"state": SETUP_UNKNOWN, "detail": "연결을 확인하고 있습니다.",

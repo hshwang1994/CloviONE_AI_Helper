@@ -71,7 +71,7 @@ SETUP_STEPS: tuple[SetupStep, ...] = (
     ),
     SetupStep(
         key="mail",
-        label="메일(SMTP) 발송",
+        label="메일 발송",
         # 화면에 그대로 나가는 문장이다. 내부 식별자나 배너 같은 구현 이야기를 넣지 않는다(최종 캡처에서 「(ADM-02R)」과
         # 「사용자 배너에는 쓰지 않지만」이 화면에 보였다).
         why=(
@@ -161,6 +161,12 @@ USER_VISIBLE_KEYS: tuple[str, ...] = tuple(
 REQUIRED_KEYS: tuple[str, ...] = tuple(step.key for step in SETUP_STEPS if step.required)
 # 「사용하지 않음」을 고를 수 있는 선택 항목의 이름.
 OPTIONAL_CHOICES: tuple[str, ...] = tuple(step.optional_choice for step in SETUP_STEPS if step.optional_choice)
+# 초기 설정에서 고를 수 있는 값의 전부(`setup_optional_choices`, D-534). 메일 · AI 는 쓸지 말지, TLS 는 누가 맡는지다.
+CHOICE_VALUES: dict[str, tuple[str, ...]] = {
+    **{key: ("use", "unused") for key in OPTIONAL_CHOICES},
+    "tls": ("app", "proxy"),
+}
+CHOICE_DEFAULTS: dict[str, str] = {**{key: "use" for key in OPTIONAL_CHOICES}, "tls": "app"}
 
 __all__ = [
     "SetupStep",
@@ -170,4 +176,6 @@ __all__ = [
     "USER_VISIBLE_KEYS",
     "REQUIRED_KEYS",
     "OPTIONAL_CHOICES",
+    "CHOICE_VALUES",
+    "CHOICE_DEFAULTS",
 ]

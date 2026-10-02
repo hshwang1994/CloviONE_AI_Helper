@@ -1,68 +1,47 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
-import { fmtDateTime } from "../lib/format.js";
+import { fmtDateTime, objectParticle } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import {
-  PageHeader, Card, Badge, Button, Callout, Skeleton, ErrorState, EmptyState,
-  DotLabel, SectionTitle, useToast,
+  PageHeader, Card, Button, Skeleton, ErrorState, EmptyState, FlowStack, FormSection, useToast,
 } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
-import { GRID_GAP } from "../ui/density.js";
+import { FONT_SIZE, FONT_WEIGHT, LINE_HEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { copyText } from "./ops/opsHelpers.js";
+import { CHECKLIST_CONTAINER, ChecklistList, ChecklistRow } from "./setup/ChecklistRow.jsx";
+import { SetupSummary } from "./setup/SetupSummary.jsx";
 
-/* 최초 실행 셋업 마법사 (9-3, P3 · 계획 3.5, D-520).
+/* 초기 설정 체크리스트 (9-3 · D-520 · D-534).
  *
  * ## 이 화면이 하는 일과 하지 않는 일
  *
- * **하는 일**: 서버가 계산한 남은 항목을 **그 순서 그대로** 보여 주고, 막힌 항목이 무엇
- * 때문에 막혔는지 말하고, 각 항목을 실제로 고칠 수 있는 화면으로 보낸다. 선택 항목(메일, AI)은
- * 「사용하지 않음」으로 표시할 수 있다 - 그 한 값만 여기서 바꾼다(`setup_optional_choices`).
+ * **하는 일**: 서버가 계산한 항목을 **그 순서 그대로** 필수 · 선택 두 구획에 세우고, 맨 위 요약 띠가 지금 상태 한 문장과 다음 할 일을
+ * 말한다. 항목마다 상태 아이콘 · 이름 · 상태 한 문장 · 동작이 한 줄에 서고, 펼치면 할 일 · 왜 필요한가 · 막힌 까닭 · 덧붙임 · 복사할
+ * 명령 · 최근 확인이 보인다. 지금 할 줄은 저절로 펼쳐진다.
  *
- * **하지 않는 일**: 다른 설정은 여기서 바꾸지 않는다. 조직, 부서, 연동, AI 설정에는 이미 각자의
- * 화면이 있고 거기에는 검증과 감사와 되돌리기가 붙어 있다. 마법사가 지름길을 하나 더 내면
- * 그 세 가지가 없는 두 번째 쓰기 경로가 생긴다.
- *
- * ## 필수와 선택
- *
- * 설치가 끝났는지는 **필수 항목**(관리자 계정, 조직과 부서, TLS)만 본다. 메일과 AI 를 쓰지 않는 설치도 정상 설치다 -
- * 선택 항목은 아래 구역에 따로 서고 남아 있어도 「끝났다」를 막지 않는다.
- *
- * ## 폭
- *
- * 예전에는 판 폭을 70rem 으로 묶어(`READ_COLUMN`) 넓은 화면의 오른쪽 3분의 1 이 비었다. 이제 항목 하나가 카드 하나이고
- * 카드들이 격자로 선다 - 긴 줄은 카드 폭 안에서 접히고 화면은 끝까지 쓴다(계획 2.1).
+ * **하지 않는 일**: 설정 자체는 여기서 바꾸지 않는다. 조직, 부서, 메일, AI 연결, 연동에는 각자의 화면이 있고 거기에 검증과 감사와
+ * 되돌리기가 붙어 있다. 여기서 바꾸는 것은 선택 값 하나뿐이다(메일 · AI 「사용하지 않음」, TLS 「외부 프록시가 맡음」) — 서버가 그 키
+ * 하나를 행 잠금 안에서 합치고(`PUT /api/admin/setup/choices/{key}`) 새 체크리스트를 돌려준다. 화면은 그 값으로 바로 다시 그린다.
  *
  * ## 왜 상태로 다시 정렬하지 않는가
  *
- * 끝난 것을 아래로 내리고 싶은 유혹이 있다. 그러면 안내 순서가 의존 순서가 아니게 되고,
- * 사용자는 3번이 안 되는 이유가 1번이라는 것을 영원히 모른다. 순서는 서버가 정한다.
+ * 끝난 것을 아래로 내리면 안내 순서가 의존 순서가 아니게 되고, 사용자는 뒤 항목이 안 되는 이유가 앞 항목이라는 것을 모른다.
  *
  * ## 왜 닫는 버튼이 없는가
  *
- * 접을 수는 있지만 **남은 항목 수는 접어도 남는다**. 한 번 닫으면 다시 못 보는 마법사는
- * 설정을 미룬 사람에게 아무 도움이 안 된다(과제 요구 3).
+ * 한 번 닫으면 다시 못 보는 마법사는 설정을 미룬 사람에게 아무 도움이 안 된다(과제 요구 3). 끝난 뒤에도 목록은 그대로 남는다.
  */
 
-// 상태를 색으로만 말하지 않는다(WCAG 1.4.1, 이 앱의 Badge, Callout 과 같은 규칙).
-const STATE_LABEL = { done: "됨", todo: "안 됨", unknown: "확인 불가", skipped: "사용하지 않음" };
-/* 상태는 `Badge` 다(분류라면 `Tag`). 예전에는 여기서 알약을 손으로 그렸는데(테두리 + 색 글자 +
-   `RADIUS.full`), 그 알약은 제품의 다른 어떤 상태 표시와도 모양이 달랐다. */
-const STATE_KIND = { done: "ok", todo: "warn", unknown: "info", skipped: "neutral" };
-
-/* 한 문장을 네 자리(권한 없음·로딩·오류·본문)가 각자 복사해 들고 있었다. */
-const DESCRIPTION = "처음 설치할 때 필요한 설정 중 아직 안 끝난 항목을 순서대로 안내합니다.";
-
-const CHOICES_SETTING = "/api/admin/settings/setup_optional_choices";
+const DESCRIPTION = "처음 설치할 때 필요한 설정을 순서대로 안내합니다.";
+const HELP = "확인 필요는 설정은 됐지만 실제로 동작하는지 아직 확인하지 않았다는 뜻입니다. "
+  + "선택 기능은 쓰지 않는다면 사용하지 않음으로 둘 수 있고, 그것도 끝난 것으로 셉니다.";
 
 /* 항목마다 "그래서 어디로 가면 되는가" - 서버가 링크를 주지 않을 때(옛 서버)만 쓰는 대체 표다.
  *
- * ⚠️ **여기 적는 경로는 실제로 라우팅되는 것이어야 한다.** 죽은 링크는 안내가 아니라
- * 막다른 길이고, 이 화면은 막다른 길을 없애려고 만든 것이다. setup-wizard.test.jsx 가
- * 모든 값이 AdminRoutes.jsx 의 명시 경로이거나 registry.js 의 키인지 확인한다. 서버가 주는 링크(`app/setup/probes.py`)도
- * 같은 경로들이다. */
+ * ⚠️ **여기 적는 경로는 실제로 라우팅되는 것이어야 한다.** 죽은 링크는 안내가 아니라 막다른 길이다. setup-wizard.test.jsx 가
+ * 모든 값이 AdminRoutes.jsx 의 명시 경로이거나 registry.js 의 키인지 확인한다. 서버가 주는 링크(`app/setup/probes.py`)도 같은 경로들이다. */
 export const SETUP_LINKS = {
   admin_account: { href: "#/users", label: "사용자 화면 열기" },
   mail: { href: "#/mail?tab=settings", label: "메일 설정 열기" },
@@ -72,183 +51,143 @@ export const SETUP_LINKS = {
   tls: { href: "#/diagnostics", label: "진단에서 인증서 확인" },
 };
 
-/** 항목의 링크 - 서버가 준 것이 먼저다(상태마다 가야 할 곳이 다르다: 메일이 비었으면 설정 줄, 실패하면 메일 발송 화면). */
+/** 항목의 링크 - 서버가 준 것이 먼저다(상태마다 가야 할 곳이 다르다). */
 export function linkOf(item) {
   if (item && item.href && item.link_label) return { href: item.href, label: item.link_label };
   return (item && SETUP_LINKS[item.key]) || null;
 }
 
-/* 끝난 항목과 사용하지 않는 항목은 **한 줄 카드**다(D-501 — 끝남 · 정상은 한 줄, 남은 일 · 이상만 펼친다). 이름 · 상태 ·
-   지금 상태 한 문장이 한 줄에 선다. 사용하지 않는 항목에는 「사용하기로 바꾸기」가 함께 선다. */
-function CompactItem({ item, position, onChoice, choosing }) {
-  const skipped = item.state === "skipped";
-  return (
-    <Card
-      component="li"
-      data-setup-key={item.key}
-      data-testid={"setup-item-" + item.key}
-      data-setup-state={item.state}
-      sx={{ listStyle: "none", display: "grid", gap: 0.5, alignContent: "start" }}
-    >
-      <Box sx={{ display: "flex", alignItems: "baseline", columnGap: 1, rowGap: 0.25, flexWrap: "wrap" }}>
-        <Typography component="span" variant="caption" color="text.secondary">{position}</Typography>
-        <Typography component="h2" variant="body1" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
-          {item.label}
-        </Typography>
-        <Badge value={STATE_LABEL[item.state] || item.state} kind={STATE_KIND[item.state]} />
-      </Box>
-      {item.detail ? (
-        <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{item.detail}</Typography>
-      ) : null}
-      {skipped && item.optional_choice ? (
-        <Box>
-          <Button size="sm" disabled={choosing} onClick={() => onChoice(item, "use")}>사용하기로 바꾸기</Button>
-        </Box>
-      ) : null}
-    </Card>
-  );
+/* 끝난 줄(완료 · 사용하지 않음)과 앞 항목을 기다리는 줄은 줄 위에 단추를 세우지 않는다 — 할 일이 있는 줄만 단추가 선다(D-501).
+   끝난 줄의 이동 링크와 선택 되돌리기(「다시 사용」 · 「이 서버의 인증서 사용」)는 펼친 칸에 있다. */
+const SETTLED = new Set(["done", "skipped"]);
+function hasInlineActions(item) {
+  return !SETTLED.has(item.status) && item.status !== "waiting";
 }
 
-/* 남은 항목 하나 — 이름 · 상태 · 지금 상태 · 할 일(또는 확인할 것 · 막힌 까닭) · 그것이 왜 필요한가 · 고치는 화면.
- *
- * **지금 할 차례인 항목은 할 일과 이동 링크를 여기서 말하지 않는다** — 맨 위 「지금 할 차례」 판이 그 둘을 이 화면의
- * 주 동작으로 든다(D-501 — 한 사실은 한 곳). 목록의 그 카드에는 「지금 할 차례」 표지가 서서 위 판과 같은 항목임을 잇는다. */
-function SetupItem({ item, isNext, position, onChoice, choosing }) {
+function choiceToast(item, choice) {
+  if (choice.value === "unused") return `${item.label} 항목을 사용하지 않음으로 두었습니다.`;
+  if (choice.value === "use") return `${item.label} 항목을 다시 사용합니다.`;
+  if (choice.value === "proxy") return "외부 프록시가 TLS 를 맡는다고 표시했습니다.";
+  if (choice.value === "app") return "이 서버의 인증서로 TLS 를 확인합니다.";
+  return "선택을 바꿨습니다.";
+}
+
+function ItemButtons({ item, onChoice, choosing }) {
   const link = linkOf(item);
-  const blocked = item.blocked_by != null;
-  const canSkip = item.optional_choice && item.choice !== "unused" && item.configured === false;
+  const choices = item.choices || [];
+  if (!link && !choices.length) return null;
   return (
-    <Card
-      component="li"
-      data-setup-key={item.key}
-      data-testid={"setup-item-" + item.key}
-      data-setup-state={item.state}
-      sx={{ listStyle: "none", display: "grid", gap: 0.75, alignContent: "start", opacity: blocked ? 0.75 : 1 }}
-    >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Typography component="span" variant="caption" color="text.secondary">{position}</Typography>
-        {/* 항목 제목은 h2 그대로다(h1 바로 아래, 판에 따로 제목이 없다). 크기만 본문 단계로 내렸다. */}
-        <Typography component="h2" variant="body1" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
-          {item.label}
-        </Typography>
-        <Badge value={STATE_LABEL[item.state] || item.state} kind={STATE_KIND[item.state]} />
-        {/* 목록 안에서 면 배지를 세우지 않는다(RULES §2) — 「지금 할 차례」는 점 + 낱말을 600 으로 세운다. */}
-        {isNext ? <DotLabel label="지금 할 차례" tone="info" strong sx={{ fontSize: FONT_SIZE.bodySm }} /> : null}
+    <>
+      {link ? <Button size="sm" href={link.href}>{link.label}</Button> : null}
+      {choices.map((c) => (
+        <Button key={c.key + ":" + c.value} size="sm" disabled={choosing} onClick={() => onChoice(item, c)}>{c.label}</Button>
+      ))}
+    </>
+  );
+}
+
+function DetailLine({ label, children }) {
+  return (
+    <>
+      <Typography component="dt" sx={{ fontSize: FONT_SIZE.caption, lineHeight: LINE_HEIGHT.bodySm, fontWeight: FONT_WEIGHT.semibold, color: "text.secondary" }}>
+        {label}
+      </Typography>
+      {/* 까닭 · 덧붙임은 두세 문장의 산문이다 - 넓은 화면에서 한 줄이 끝없이 늘지 않게 산문 폭으로 묶는다. */}
+      <Box component="dd" sx={{ m: 0, minWidth: 0, maxWidth: PROSE_MAX_WIDTH, fontSize: FONT_SIZE.bodySm, lineHeight: LINE_HEIGHT.bodySm, ...KO_WORD_BREAK }}>
+        {children}
       </Box>
-      <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{item.detail}</Typography>
-      {blocked ? (
-        <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>
-          {item.blocked_by_label}를 먼저 끝내야 이 항목을 진행할 수 있습니다.
-          {item.requires_why ? " " + item.requires_why : ""}
-        </Typography>
-      ) : isNext ? null : <NextStep item={item} />}
-      <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>{item.why}</Typography>
-      {item.checked_at ? (
-        <Typography variant="caption" color="text.secondary">마지막 확인 {fmtDateTime(item.checked_at)}</Typography>
-      ) : null}
-      {(link && !isNext) || canSkip ? (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-          {link && !isNext ? (
-            <Link href={link.href} underline="hover" variant="body2" sx={{ fontWeight: FONT_WEIGHT.semibold }}>
-              {link.label}
-            </Link>
-          ) : null}
-          {canSkip ? (
-            <Button size="sm" disabled={choosing} onClick={() => onChoice(item, "unused")}>사용하지 않음으로 표시</Button>
-          ) : null}
-        </Box>
-      ) : null}
-    </Card>
+    </>
   );
 }
 
-/* 사람이 할 일 한 줄 — 「안 됨」은 할 일이고 「확인 불가」는 확인할 것이다. 같은 말로 부르면 사람이 할 일과 물어볼
-   일이 뒤섞인다. 목록의 카드와 맨 위 판이 이 한 부품을 쓴다. */
-function NextStep({ item }) {
-  const [label, text] = item.action ? ["할 일", item.action] : item.question ? ["확인할 것", item.question] : [null, null];
-  if (!label) return null;
+function CommandLine({ command }) {
+  const toast = useToast();
+  const copy = () => copyText(command).then((ok) => toast(ok ? "명령을 복사했습니다." : "복사하지 못했습니다. 명령을 직접 선택해 복사하세요.", ok ? "success" : "error"));
   return (
-    <Typography variant="body2" sx={KO_WORD_BREAK}>
-      <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 1 }}>{label}</Box>
-      {text}
-    </Typography>
-  );
-}
-
-/** 진행을 말하는 한 문장 — 「필수 항목 3개 중 2개가 끝났습니다. 직접 할 일이 1개 남았습니다.」
- *
- * 설치가 끝났는지는 필수 항목이 정하므로(D-520) 문장도 필수 항목을 센다. 선택 항목은 남은 수만 덧붙인다. */
-export function setupProgressText(data) {
-  const items = (data && data.items) || [];
-  const required = items.filter((i) => i.required !== false);
-  const done = required.filter((i) => i.state === "done").length;
-  const todo = required.filter((i) => i.state === "todo").length;
-  const unknown = required.filter((i) => i.state === "unknown").length;
-  const optional = ((data && data.optional_pending) || []).length;
-  const head = done
-    ? `필수 항목 ${required.length}개 중 ${done}개가 끝났습니다.`
-    : `필수 항목 ${required.length}개 중 아직 끝난 항목이 없습니다.`;
-  const rest = [todo ? `직접 할 일이 ${todo}개` : null, unknown ? `확인할 것이 ${unknown}개` : null].filter(Boolean);
-  const tail = optional ? ` 선택 항목은 ${optional}개가 남아 있습니다.` : "";
-  return (rest.length ? `${head} ${rest.join(", ")} 남았습니다.` : head) + tail;
-}
-
-/* **지금 할 차례** 판 — 목록 위에 전폭으로 선다.
- *
- * 다음 항목의 할 일과 그것을 고치는 화면으로 가는 단추가 이 화면의 주 동작이다(D-501 — 채움은 화면당 하나). 목록을 접어도
- * 이 판은 남는다. 필수 항목이 다 끝나면 설치가 끝났다는 문장과 설치 상태(`summary`)가 선다 - 선택 항목이 남았으면 다음
- * 차례로 그것을 안내한다. */
-function NowRail({ data }) {
-  const items = data.items || [];
-  const next = items.find((i) => i.key === data.next_key) || null;
-  const link = next ? linkOf(next) : null;
-  return (
-    <Box data-testid="setup-summary" sx={{ display: "grid", gap: 1.5, justifyItems: "stretch" }}>
-      {data.complete ? (
-        <Callout tone="success">
-          필수 설정이 모두 끝났습니다. {data.summary || "정상 설치입니다."}
-        </Callout>
-      ) : null}
-      {next ? (
-        <>
-          <SectionTitle spacing="none"
-            component="h2"
-            title="지금 할 차례"
-
-            action={link ? <Button variant="primary" href={link.href}>{link.label}</Button> : null}
-          />
-          <Box data-setup-now={next.key} sx={{ display: "grid", gap: 0.5 }}>
-            <Typography variant="body1" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_WORD_BREAK }}>{next.label}</Typography>
-            <NextStep item={next} />
-          </Box>
-        </>
-      ) : null}
-      <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{setupProgressText(data)}</Typography>
+    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, minWidth: 0 }}>
+      <Box
+        component="code"
+        sx={{
+          flex: "1 1 auto", minWidth: 0, display: "block", px: 1, py: 0.5, borderRadius: 1, bgcolor: "background.inset",
+          fontFamily: "monospace", fontSize: FONT_SIZE.caption, lineHeight: LINE_HEIGHT.bodySm, whiteSpace: "pre-wrap", wordBreak: "break-all",
+        }}
+      >
+        {command}
+      </Box>
+      <Button size="sm" onClick={copy} aria-label="명령 복사">복사</Button>
     </Box>
   );
 }
 
-/* 항목 카드의 격자. 카드 하나의 바닥 폭(22rem)을 넘는 만큼 열이 는다 - 넓은 화면은 두세 열, 좁은 화면은 한 열이다. */
-const ITEM_GRID = {
-  m: 0, p: 0, display: "grid", gap: GRID_GAP, alignItems: "start",
-  gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 22rem), 1fr))",
-};
+/* 펼친 칸 — 할 일(또는 확인할 것 · 막힌 까닭), 왜 필요한가, 덧붙임, 복사할 명령, 최근 확인. 끝난 줄은 이동 링크와 선택 되돌리기도 여기에. */
+function ItemDetails({ item, onChoice, choosing }) {
+  const waiting = item.status === "waiting";
+  const settledButtons = !hasInlineActions(item) && !waiting;
+  return (
+    <Box sx={{ display: "grid", rowGap: 1.5, minWidth: 0 }}>
+      <Box
+        component="dl"
+        sx={{
+          m: 0, display: "grid", gridTemplateColumns: "minmax(0,1fr)", columnGap: 2, rowGap: 0.75, alignItems: "baseline",
+          [`@container ${CHECKLIST_CONTAINER} (min-width: 30rem)`]: { gridTemplateColumns: "6.5rem minmax(0,1fr)" },
+        }}
+      >
+        {waiting ? (
+          <DetailLine label="막힌 까닭">
+            {`${item.blocked_by_label}${objectParticle(item.blocked_by_label || "")} 먼저 끝내야 이 항목을 진행할 수 있습니다.`}
+            {item.requires_why ? " " + item.requires_why : ""}
+          </DetailLine>
+        ) : item.action && !SETTLED.has(item.status) ? (
+          <DetailLine label="할 일">{item.action}</DetailLine>
+        ) : item.question && !SETTLED.has(item.status) ? (
+          <DetailLine label="확인할 것">{item.question}</DetailLine>
+        ) : null}
+        {item.why ? <DetailLine label="왜 필요한가">{item.why}</DetailLine> : null}
+        {(item.notes || []).length ? (
+          <DetailLine label="참고">
+            {item.notes.map((note, i) => (
+              <Box key={i} component="p" sx={{ m: 0, "& + &": { mt: 0.5 } }}>{note}</Box>
+            ))}
+          </DetailLine>
+        ) : null}
+        {item.command ? <DetailLine label="명령"><CommandLine command={item.command} /></DetailLine> : null}
+        {item.checked_at ? <DetailLine label="최근 확인">{fmtDateTime(item.checked_at)}</DetailLine> : null}
+      </Box>
+      {settledButtons ? (
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+          <ItemButtons item={item} onChoice={onChoice} choosing={choosing} />
+        </Box>
+      ) : null}
+    </Box>
+  );
+}
 
-function ItemSection({ title, items, all, data, onChoice, choosing }) {
+function ChecklistSection({ title, description, items, expanded, onToggle, onChoice, choosing }) {
   if (!items.length) return null;
   return (
-    <Box component="section" aria-label={title} sx={{ display: "grid", gap: 1.5 }}>
-      <SectionTitle spacing="none" component="h2" title={title}  />
-      <Box component="ul" sx={ITEM_GRID}>
-        {items.map((item) => {
-          const position = `${all.indexOf(item) + 1}/${all.length}`;
-          return item.state === "done" || item.state === "skipped"
-            ? <CompactItem key={item.key} item={item} position={position} onChoice={onChoice} choosing={choosing} />
-            : <SetupItem key={item.key} item={item} position={position} isNext={item.key === data.next_key}
-              onChoice={onChoice} choosing={choosing} />;
-        })}
-      </Box>
-    </Box>
+    <FormSection titleAs="h2" title={title} description={description}>
+      <ChecklistList aria-label={title + " 항목"}>
+        {items.map((item) => (
+          <ChecklistRow
+            key={item.key}
+            id={"setup-" + item.key}
+            data-setup-key={item.key}
+            data-testid={"setup-item-" + item.key}
+            data-setup-state={item.state}
+            name={item.label}
+            status={item.status}
+            statusLabel={item.status_label}
+            description={item.detail}
+            current={!!item.current}
+            actions={hasInlineActions(item) ? <ItemButtons item={item} onChoice={onChoice} choosing={choosing} /> : null}
+            expanded={expanded(item)}
+            onToggle={() => onToggle(item)}
+          >
+            <ItemDetails item={item} onChoice={onChoice} choosing={choosing} />
+          </ChecklistRow>
+        ))}
+      </ChecklistList>
+    </FormSection>
   );
 }
 
@@ -258,9 +197,10 @@ export function SetupWizard() {
   // 서버와 같은 게이트(app/setup/router.py: SYSTEM_ADMIN_ONLY). 넓게 두면 눌렀더니 403인
   // 막다른 길이 되고, 요청 자체를 보내면 권한 없는 사람이 실패 요청만 반복한다.
   const allowed = role === "system_admin";
-  const [open, setOpen] = React.useState(true);
   const qc = useQueryClient();
   const toast = useToast();
+  // 사람이 직접 여닫은 줄만 기억한다. 나머지는 「지금 할 줄이면 펼침」 — 선택을 바꿔 다음 줄이 지금 할 차례가 되면 그 줄이 펼쳐진다.
+  const [toggled, setToggled] = React.useState({});
 
   const query = useQuery({
     queryKey: ["setup-checklist"],
@@ -269,26 +209,28 @@ export function SetupWizard() {
     retry: false,
   });
 
-  /* 「사용하지 않음」은 선택 항목의 선택 한 값을 바꾼다(`setup_optional_choices`, system_admin 전용). 다른 항목의 선택은
-     그대로 싣는다 - 한 항목만 보내면 나머지가 기본값으로 돌아간다. */
   const choose = useMutation({
-    mutationFn: ({ item, value }) => {
-      const current = Object.fromEntries(((query.data && query.data.items) || [])
-        .filter((i) => i.optional_choice).map((i) => [i.optional_choice, i.choice || "use"]));
-      return api(CHOICES_SETTING, { method: "PUT", body: { value: { ...current, [item.optional_choice]: value } } });
-    },
-    onSuccess: (_res, vars) => {
-      toast(vars.value === "unused" ? vars.item.label + " 항목을 사용하지 않음으로 표시했습니다." : vars.item.label + " 항목을 다시 사용합니다.");
-      qc.invalidateQueries({ queryKey: ["setup-checklist"] });
+    mutationFn: ({ choice }) => api(`/api/admin/setup/choices/${encodeURIComponent(choice.key)}`, { method: "PUT", body: { value: choice.value } }),
+    onSuccess: (res, vars) => {
+      // 서버가 새 체크리스트를 돌려준다 - 다시 묻지 않고 그 값으로 그린다.
+      if (res && Array.isArray(res.items)) qc.setQueryData(["setup-checklist"], res);
+      else qc.invalidateQueries({ queryKey: ["setup-checklist"] });
+      toast(choiceToast(vars.item, vars.choice), "success");
     },
     onError: (e) => toast((e && e.message) || "선택을 바꾸지 못했습니다.", "error"),
   });
-  const onChoice = (item, value) => choose.mutate({ item, value });
+  const onChoice = (item, choice) => choose.mutate({ item, choice });
+  const expanded = (item) => (item.key in toggled ? toggled[item.key] : !!item.current);
+  const onToggle = (item) => setToggled((prev) => ({ ...prev, [item.key]: !expanded(item) }));
+
+  const header = (actions) => (
+    <PageHeader area="설정" title="초기 설정" description={DESCRIPTION} help={HELP} actions={actions} />
+  );
 
   if (!allowed) {
     return (
       <Box className="c-screen">
-        <PageHeader area="설정" title="초기 설정" description={DESCRIPTION} />
+        {header(null)}
         <EmptyState
           layout="page"
           title="권한이 없습니다"
@@ -302,15 +244,18 @@ export function SetupWizard() {
   if (query.isLoading) {
     return (
       <Box className="c-screen">
-        <PageHeader area="설정" title="초기 설정" description={DESCRIPTION} />
-        <Card><Skeleton lines={7} /></Card>
+        {header(null)}
+        <FlowStack>
+          <Card><Skeleton lines={2} /></Card>
+          <Card><Skeleton lines={6} /></Card>
+        </FlowStack>
       </Box>
     );
   }
   if (query.isError) {
     return (
       <Box className="c-screen">
-        <PageHeader area="설정" title="초기 설정" description={DESCRIPTION} />
+        {header(null)}
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       </Box>
     );
@@ -320,34 +265,39 @@ export function SetupWizard() {
   const items = data.items || [];
   const required = items.filter((i) => i.required !== false);
   const optional = items.filter((i) => i.required === false);
+  const current = items.find((i) => i.key === (data.current_key || data.next_key)) || null;
+  const currentLink = current ? linkOf(current) : null;
   return (
     <Box className="c-screen">
-      <PageHeader
-        area="설정"
-        title="초기 설정"
-        description={DESCRIPTION}
-        help="확인할 것은 이 서버가 스스로 판단할 수 없어 사람에게 묻는 항목입니다. 선택 항목은 쓰지 않는다면 사용하지 않음으로 표시할 수 있습니다."
-        actions={
-          <Button onClick={() => setOpen((v) => !v)}>
-            {open ? "목록 접기" : "목록 펼치기"}
-          </Button>
-        }
-      />
-      {/* 「지금 할 차례」가 위, 항목이 아래다(D-501 — 머리 → 지금 할 일 → 목록). 폭은 묶지 않는다(계획 2.1). */}
-      <Box sx={{ display: "grid", gap: GRID_GAP, gridTemplateColumns: "minmax(0, 1fr)", alignItems: "start" }}>
-        <Card component="aside" aria-label="초기 설정 진행">
-          <NowRail data={data} />
+      {header(
+        <Button loading={query.isFetching} onClick={() => query.refetch()}>다시 확인</Button>
+      )}
+      <FlowStack>
+        <SetupSummary
+          data={data}
+          primary={currentLink ? <Button variant="primary" href={currentLink.href}>{currentLink.label}</Button> : null}
+        />
+        <Card stack data-testid="setup-checklist">
+          <ChecklistSection
+            title="필수"
+            description="모두 끝나야 설치가 끝납니다."
+            items={required}
+            expanded={expanded}
+            onToggle={onToggle}
+            onChoice={onChoice}
+            choosing={choose.isPending}
+          />
+          <ChecklistSection
+            title="선택"
+            description="쓰지 않는 기능은 사용하지 않음으로 둘 수 있습니다."
+            items={optional}
+            expanded={expanded}
+            onToggle={onToggle}
+            onChoice={onChoice}
+            choosing={choose.isPending}
+          />
         </Card>
-        {open ? (
-          <>
-            <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-              항목은 의존 순서대로 섭니다. 앞 항목이 끝나야 뒤 항목이 실제로 동작합니다.
-            </Typography>
-            <ItemSection title="필수 항목" items={required} all={items} data={data} onChoice={onChoice} choosing={choose.isPending} />
-            <ItemSection title="선택 항목" items={optional} all={items} data={data} onChoice={onChoice} choosing={choose.isPending} />
-          </>
-        ) : null}
-      </Box>
+      </FlowStack>
     </Box>
   );
 }

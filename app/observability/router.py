@@ -37,6 +37,14 @@ from app.users.models import User
 router = APIRouter(prefix="/api/system", tags=["system"])
 
 
+def _notice_holder(request: Request) -> dict:
+    holder = getattr(request.app.state, "setup_notice_cache", None)
+    if holder is None:
+        holder = {}
+        request.app.state.setup_notice_cache = holder
+    return holder
+
+
 @router.get("/status")
 def system_status(
     request: Request,
@@ -51,15 +59,18 @@ def system_status(
     # 않는다 — 그 침묵이 이 과제가 없애려는 상태다. 판정은 셋업 체크리스트 한 곳에서만
     # 오고(app/setup/checklist.py) 여기서는 그 결과를 이 화면의 알림 모양으로 옮긴다.
     from app.setup.checklist import setup_notice
+    from app.users.models import ROLE_SYSTEM_ADMIN
 
+    # 판정은 배너를 만드는 항목(조직과 부서) 하나뿐이고 60초 동안 다시 쓴다(D-534). 초기 설정 화면은 시스템 관리자만 열므로
+    # 링크도 그 사람에게만 준다.
     setup = setup_notice(
         db,
         request.app.state.settings,
         secrets=request.app.state.secret_provider,
         cache=request.app.state.settings_cache,
-        gateway=getattr(request.app.state, "ai_gateway", None),
-        runtime=getattr(request.app.state, "ai_runtime", None),
-        for_admin=user.role in CONSOLE_READ_ROLES,
+        now=now,
+        for_admin=user.role == ROLE_SYSTEM_ADMIN,
+        holder=_notice_holder(request),
     )
     if setup is not None:
         notices.append(setup)

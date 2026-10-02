@@ -378,16 +378,18 @@ def _bounded_int(low: int, high: int, unit: str):
 
 
 def _setup_choices(value: Any) -> None:
-    """초기 설정의 선택 항목마다 「사용」(use)이나 「사용하지 않음」(unused)(계획 3.5, D-520)."""
-    from app.setup.steps import OPTIONAL_CHOICES
+    """초기 설정의 선택 값(계획 3.5 · S1, D-520 · D-534). 메일 · AI 는 「사용」(use) · 「사용하지 않음」(unused), TLS 는 「이 서버의
+    인증서」(app) · 「외부 프록시가 맡음」(proxy)."""
+    from app.setup.steps import CHOICE_VALUES
 
     if not isinstance(value, dict):
-        raise ValidationAppError("선택 항목마다 use 나 unused 를 적는 객체여야 합니다.")
-    unknown = sorted(k for k in value if k not in OPTIONAL_CHOICES)
+        raise ValidationAppError("선택 항목마다 값을 적는 객체여야 합니다.")
+    unknown = sorted(k for k in value if k not in CHOICE_VALUES)
     if unknown:
         raise ValidationAppError("모르는 선택 항목입니다: " + ", ".join(unknown))
-    if any(v not in ("use", "unused") for v in value.values()):
-        raise ValidationAppError("선택 항목의 값은 use 나 unused 입니다.")
+    for key, choice in value.items():
+        if choice not in CHOICE_VALUES[key]:
+            raise ValidationAppError(f"{key} 의 값은 " + ", ".join(CHOICE_VALUES[key]) + " 중 하나입니다.")
 
 
 def _ai_concurrency(value: Any) -> None:
@@ -518,8 +520,8 @@ REGISTRY: dict[str, SettingSpec] = {
                     _positive_int(30)),
         # 초기 설정 화면이 고친다(D-520). 메일과 AI 를 쓰지 않는 설치도 정상 설치다 - 「사용하지 않음」이면 설정이 비어
         # 있어도 초기 설정의 할 일로 세지 않는다.
-        SettingSpec("setup_optional_choices", "object", {"mail": "use", "llm": "use"}, False,
-                    "초기 설정에서 메일과 AI 를 쓰는지 고릅니다", _setup_choices),
+        SettingSpec("setup_optional_choices", "object", {"mail": "use", "llm": "use", "tls": "app"}, False,
+                    "초기 설정에서 메일과 AI 를 쓰는지, TLS 를 누가 맡는지 고릅니다", _setup_choices),
         # 노션 데이터베이스 id 셋(9-4)이 여기 있었다. 티켓 목록과 문서 목록이 그 값을
         # 읽어 노션을 조회했기 때문이다. 지금은 셋 다 자체 데이터베이스에서 나오므로
         # 관리자가 정할 것이 없다. 옛 데이터를 한 번 읽어 오는 이관 CLI 는 데이터베이스를

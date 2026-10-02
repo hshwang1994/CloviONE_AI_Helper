@@ -292,6 +292,17 @@ def _lock_or_insert(
     raise RuntimeError(f"설정 행을 넣지도 읽지도 못했습니다: {key}")
 
 
+def lock_for_merge(db: Session, *, key: str, updated_by: str | None, now: datetime) -> Any:
+    """설정 한 키의 행을 이 트랜잭션에 잠그고(없으면 기본값 자리표를 넣어 잠근다) 지금 값을 돌려준다.
+
+    객체 설정의 **한 칸만** 바꾸는 저장(초기 설정의 선택, D-534)이 쓴다. 잠그기 전에 읽은 값으로 합치면 두 요청이 같은 옛 값에서
+    각자 합쳐 한쪽의 칸을 잃는다 - 특히 행이 아직 없는 첫 저장에서는 `FOR UPDATE` 가 잠글 행이 없다(실측: 동시 두 저장에서 한
+    칸이 사라졌다). 잠근 뒤 읽고 합친 값을 `apply_setting` 에 넘긴다(같은 트랜잭션이라 다시 잠가도 기다리지 않는다).
+    """
+    _row, current = _lock_or_insert(db, key=key, spec=get_spec(key), updated_by=updated_by, now=now)
+    return current
+
+
 def apply_setting(
     db: Session,
     cache: SettingsCache,

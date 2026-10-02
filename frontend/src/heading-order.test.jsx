@@ -103,13 +103,15 @@ describe("heading 순서 — 건너뛰지 않는다(PA-RC-0012)", () => {
     assertSequentialHeadings(container, "SystemOps");
   });
 
-  it("SetupWizard: 체크리스트 항목 제목이 h1 다음 h3이 아니라 h2다", async () => {
+  it("SetupWizard: 요약 띠와 구획 제목은 h1 다음 h2, 체크리스트 항목은 그 아래 h3 이다", async () => {
     apiMock.mockImplementation((path) => {
       if (path === "/api/admin/setup/checklist") {
         return Promise.resolve({
+          headline: "필수 설정 1개가 남았습니다.", subline: "필수 2개 중 1개가 끝났습니다.",
+          required_total: 2, required_done: 1, current_key: "llm",
           items: [
-            { key: "org", label: "조직 만들기", why: "w", state: "done", detail: "d", action: null, question: null, requires: [], requires_why: "", blocked_by: null, blocked_by_label: null },
-            { key: "llm", label: "AI 러너", why: "w", state: "todo", detail: "d", action: "a", question: null, requires: [], requires_why: "", blocked_by: null, blocked_by_label: null },
+            { key: "org", label: "조직 만들기", why: "w", state: "done", status: "done", status_label: "완료", detail: "d", action: null, question: null, required: true, requires: [], requires_why: "", blocked_by: null, blocked_by_label: null, notes: [], choices: [], current: false },
+            { key: "llm", label: "AI 러너", why: "w", state: "todo", status: "todo", status_label: "해야 함", detail: "d", action: "a", question: null, required: true, requires: [], requires_why: "", blocked_by: null, blocked_by_label: null, notes: [], choices: [], current: true },
           ],
         });
       }

@@ -161,18 +161,13 @@ def _cert_days_remaining(settings: Settings, now: datetime | None = None) -> int
     if not cert_path or not Path(cert_path).exists():
         return None
     try:
-        # _test_decode_cert is the only stdlib entry point that decodes a PEM
-        # file on disk without opening a socket. It returns a dict whose
-        # "notAfter" is an ssl-style time string, e.g. "Jul 14 00:00:00 2027 GMT".
-        cert = ssl._ssl._test_decode_cert(str(cert_path))  # type: ignore[attr-defined]
-        not_after = cert.get("notAfter")
+        # 파일은 `cert_info` 가 한 번만 푼다(경로 · 수정 시각 · 크기가 같으면 다시 풀지 않는다). "notAfter" 는
+        # cert_time_to_seconds 가 UTC epoch 로 바꿔 둔 값이다(strptime 의 로캘 · %Z 모호함을 피한다).
+        info = cert_info(settings)
+        not_after = (info or {}).get("not_after")
         if not not_after:
             return None
-        # cert_time_to_seconds parses the ssl time string to a UTC epoch,
-        # sidestepping locale/%Z ambiguities in strptime.
-        expiry = datetime.fromtimestamp(
-            ssl.cert_time_to_seconds(not_after), tz=timezone.utc
-        )
+        expiry = datetime.fromtimestamp(not_after, tz=timezone.utc)
         reference = now if now is not None else datetime.now(timezone.utc)
         if reference.tzinfo is None:
             reference = reference.replace(tzinfo=timezone.utc)
@@ -182,6 +177,43 @@ def _cert_days_remaining(settings: Settings, now: datetime | None = None) -> int
         # journalctl에 남겨 최소한 눈에는 띄게 한다 — 화면(대시보드 타일)은 여전히 None.
         logger.warning("cert expiry check failed for %s: %s", cert_path, exc)
         return None
+
+
+_CERT_CACHE: dict[str, tuple[tuple, dict | None]] = {}
+
+
+def cert_info(settings: Settings) -> dict | None:
+    """인증서 한 벌의 읽은 값 — `{"not_after": UTC epoch | None, "self_signed": bool | None}`. 파일이 없으면 None.
+
+    초기 설정 체크리스트와 대시보드가 같은 파일을 요청마다 두 번(만료일 · 자체 서명) 풀었다. 경로 · 수정 시각 · 크기가 같으면
+    프로세스 안에서 다시 풀지 않는다 - 파일을 바꾸면 수정 시각이 바뀌어 저절로 다시 읽는다(계획 S1).
+    """
+    cert_path = getattr(settings, "tls_cert_path", None)
+    if not cert_path:
+        return None
+    path = Path(cert_path)
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    marker = (stat.st_mtime_ns, stat.st_size)
+    cached = _CERT_CACHE.get(str(path))
+    if cached is not None and cached[0] == marker:
+        return cached[1]
+    info: dict | None
+    try:
+        cert = ssl._ssl._test_decode_cert(str(path))  # type: ignore[attr-defined]
+        not_after = cert.get("notAfter")
+        subject, issuer = cert.get("subject"), cert.get("issuer")
+        info = {
+            "not_after": ssl.cert_time_to_seconds(not_after) if not_after else None,
+            "self_signed": (subject == issuer) if subject and issuer else None,
+        }
+    except Exception as exc:  # pragma: no cover - defensive: never break the checklist
+        logger.warning("cert read failed for %s: %s", path, exc)
+        info = {"not_after": None, "self_signed": None}
+    _CERT_CACHE[str(path)] = (marker, info)
+    return info
 
 
 def cert_days_remaining(settings: Settings, now: datetime | None = None) -> int | None:
@@ -207,15 +239,7 @@ def is_self_signed_cert(settings: Settings) -> bool | None:
     cert_path = getattr(settings, "tls_cert_path", None)
     if not cert_path or not Path(cert_path).exists():
         return None
-    try:
-        cert = ssl._ssl._test_decode_cert(str(cert_path))  # type: ignore[attr-defined]
-        subject, issuer = cert.get("subject"), cert.get("issuer")
-        if not subject or not issuer:
-            return None
-        return subject == issuer
-    except Exception as exc:  # pragma: no cover - defensive: never break the checklist
-        logger.warning("cert self-signed check failed for %s: %s", cert_path, exc)
-        return None
+    return (cert_info(settings) or {}).get("self_signed")
 
 
 def build_dashboard(
