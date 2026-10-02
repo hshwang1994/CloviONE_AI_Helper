@@ -1205,15 +1205,17 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
           }),
           /* 행은 **최소 48px**. 표 칸의 `height` 는 CSS 에서 최솟값으로 계산되므로, 두 줄짜리
              셀(문서 목록의 제목+요약)은 그대로 더 자란다 — 바닥만 고른다. */
+          /* 넓은 화면(xxl · uhd)의 위아래 여백은 **몸 칸**의 것이다. 예전에는 `root` 에 있어 머리 칸의 5(= (40 − 30) / 2)를 덮어 2560
+             에서 머리 줄이 행 높이(55px)만큼 섰다 — 정렬 단추 30 에 위아래 10 이 붙었다(P17V 프로브 `table_heights`). */
           body: ({ theme }) => ({
             height: remPx(CONTROL.tableRow),
             borderBottomColor: theme.palette.rule,
+            [`@media (min-width:${BREAKPOINTS.xxl}px)`]: { paddingTop: 10, paddingBottom: 10 },
+            [`@media (min-width:${BREAKPOINTS.uhd}px)`]: { paddingTop: 12, paddingBottom: 12 },
           }),
           root: {
             fontSize: FONT_SIZE.bodySm,
             verticalAlign: "middle",
-            [`@media (min-width:${BREAKPOINTS.xxl}px)`]: { paddingTop: 10, paddingBottom: 10 },
-            [`@media (min-width:${BREAKPOINTS.uhd}px)`]: { paddingTop: 12, paddingBottom: 12 },
           },
         },
       },

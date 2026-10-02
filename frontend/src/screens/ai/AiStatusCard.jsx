@@ -1,8 +1,8 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { fmtDateTime } from "../../lib/format.js";
-import { Button, Callout, Card, DotLabel, HeadRow, MetaBar, TechDetail } from "../../ui/kit.jsx";
+import { fmtDateTime, fmtListStamp } from "../../lib/format.js";
+import { Button, Callout, Card, DotLabel, FACTS_ROW_SX, HeadRow, MetaBar, TechDetail } from "../../ui/kit.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 
 /* 연결 상태 면 (계획 A3, D-539) — 화면에서 카드는 이것 하나다(F7 카드 규율: 독립된 상태).
@@ -15,8 +15,10 @@ import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 export const KIND_TONE = { ok: "ok", info: "info", warn: "warn", error: "danger", muted: "neutral" };
 const TOOLS_TEXT = { ok: "사용 가능", unsupported: "사용할 수 없음", unknown: "아직 모름" };
 
+/* 띠에는 짧은 꼴(「3분 전」 · 「8월 24일」)을 쓴다 — 「2026. 10. 2. 오전 11:00」 둘이 띠를 1366 에서 두 줄로 접어 첫 폼 칸을 밀었다(P17V).
+   정확한 시각은 「기술 정보」에 있다. */
 function when(iso) {
-  return iso ? fmtDateTime(iso) : "아직 없음";
+  return iso ? fmtListStamp(iso) : "아직 없음";
 }
 
 function TechLine({ name, value }) {
@@ -71,28 +73,33 @@ export function AiStatusCard({ data, onVerify, verifying = false, timedOut = fal
       {timedOut ? (
         <Callout tone="info" compact>확인이 시간 안에 끝나지 않았습니다. 잠시 뒤 다시 확인하세요.</Callout>
       ) : null}
-      <MetaBar items={items} ariaLabel="지금 쓰는 연결" />
-      <TechDetail>
-        <Box sx={{ display: "grid", gap: 0.5 }}>
-          <TechLine name="연결 상태 코드" value={state.state} />
-          <TechLine name="까닭 코드" value={technical.reason_code} />
-          <TechLine name="연속 실패" value={technical.consecutive_failures ? `${technical.consecutive_failures}회` : null} />
-          <TechLine name="프록시" value={technical.proxy} />
-          <TechLine name="연결한 계정" value={technical.account_label} />
-          <TechLine name="토큰 만료" value={technical.access_expires_at ? fmtDateTime(technical.access_expires_at) : null} />
-          <TechLine name="갱신 토큰 만료" value={technical.refresh_expires_at ? fmtDateTime(technical.refresh_expires_at) : null} />
-          <TechLine name="도구 시험 모델" value={technical.tools_checked_model} />
-          <TechLine name="도구 시험 시각" value={(data.capabilities || {}).checked_at ? fmtDateTime(data.capabilities.checked_at) : null} />
-          <TechLine name="색인 문서" value={index ? `${index.documents ?? 0}건, 조각 ${index.chunks ?? 0}개` : null} />
-          <TechLine
-            name="의미 검색 모델"
-            value={index && index.semantic != null ? (index.semantic ? "있음" : "없음(낱말로 찾습니다)") : null}
-          />
-          {data.chatgpt && data.chatgpt.manage_usage_url && config.auth_method === "chatgpt" ? (
-            <TechLine name="요금제 사용량" value={data.chatgpt.manage_usage_url} />
-          ) : null}
-        </Box>
-      </TechDetail>
+      {/* 칸마다 이름과 값이 한 줄에 붙는 띠다 — 상태 면은 짧아야 한다(F7, 높이 상한 약 120px). 「기술 정보」는 그 띠 끝에 접혀 붙는다. */}
+      <Box sx={FACTS_ROW_SX}>
+        <MetaBar strip items={items} ariaLabel="지금 쓰는 연결" sx={{ flex: "1 1 auto", minWidth: 0 }} />
+        <TechDetail trailing>
+          <Box sx={{ display: "grid", gap: 0.5 }}>
+            <TechLine name="연결 상태 코드" value={state.state} />
+          <TechLine name="최근 성공 시각" value={state.last_success_at ? fmtDateTime(state.last_success_at) : null} />
+          <TechLine name="최근 확인 시각" value={state.checked_at ? fmtDateTime(state.checked_at) : null} />
+            <TechLine name="까닭 코드" value={technical.reason_code} />
+            <TechLine name="연속 실패" value={technical.consecutive_failures ? `${technical.consecutive_failures}회` : null} />
+            <TechLine name="프록시" value={technical.proxy} />
+            <TechLine name="연결한 계정" value={technical.account_label} />
+            <TechLine name="토큰 만료" value={technical.access_expires_at ? fmtDateTime(technical.access_expires_at) : null} />
+            <TechLine name="갱신 토큰 만료" value={technical.refresh_expires_at ? fmtDateTime(technical.refresh_expires_at) : null} />
+            <TechLine name="도구 시험 모델" value={technical.tools_checked_model} />
+            <TechLine name="도구 시험 시각" value={(data.capabilities || {}).checked_at ? fmtDateTime(data.capabilities.checked_at) : null} />
+            <TechLine name="색인 문서" value={index ? `${index.documents ?? 0}건, 조각 ${index.chunks ?? 0}개` : null} />
+            <TechLine
+              name="의미 검색 모델"
+              value={index && index.semantic != null ? (index.semantic ? "있음" : "없음(낱말로 찾습니다)") : null}
+            />
+            {data.chatgpt && data.chatgpt.manage_usage_url && config.auth_method === "chatgpt" ? (
+              <TechLine name="요금제 사용량" value={data.chatgpt.manage_usage_url} />
+            ) : null}
+          </Box>
+        </TechDetail>
+      </Box>
     </Card>
   );
 }

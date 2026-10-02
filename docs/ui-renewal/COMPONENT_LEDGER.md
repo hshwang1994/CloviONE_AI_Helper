@@ -47,7 +47,8 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 토스트 | `useToast` | `ui/kit.jsx` | 성공 · 정보만, 잉크 면(다크 함몰면), 모서리 8 | 51 | 빈 상태와 오류 | `toast-announce` |
 | 팝오버 동작 목록 | `overflowMenuItems` | `ui/kit.jsx` | 32 항목, 파괴적만 error 글자 + 위 선 | 3 | 팝오버와 모달 | `kit.test` |
 | 폼 칸 | `FormFieldCell` | `ui/kit.jsx` | 라벨 20 · 필드 36(바닥 — 칩이 접히면 자란다) · 도움말 auto, 오류가 도움말 자리 | 1 | 폼 필드 | `handoff-kit-contract`, `new-ticket-layout` |
-| 속성 줄 | `MetaBar` | `ui/kit.jsx` | 키/값 | 7 | — | `metabar-hierarchy` |
+| 속성 줄 | `MetaBar` | `ui/kit.jsx` | 키/값. `strip` — 모든 칸이 이름과 값이 한 줄에 붙는 띠 하나(짧은 상태 면, P17V) | 7 | — | `metabar-hierarchy` |
+| 사실 줄 | `FACTS_ROW_SX` · `TechDetail trailing` | `ui/kit.jsx` | 상태 면의 단계 · 속성 띠 끝에 「기술 정보」가 접힌 채 오른쪽 끝에 붙고, 펼치면 제 줄로 내려간다(메일 · AI 연결 상태 면, P17V) | 2 | — | `tech-detail-trailing` |
 | 페이지 머리 | `PageHeader` | `ui/kit.jsx` | 제목 28/700 + 설명 + 동작 34 | 34 | 머리 | `page-header-*` |
 | 필터 바 그릇 | `FilterSurface` | `ui/FilterBar.jsx` | 판 없음 · 아래 실선 · 줄 칸 문맥 제공 · 이름 붙은 크기 컨테이너(wide 칸 계단의 기준 — 내용 폭으로 줄어드는 자리에 두지 않는다, D-496) | 2 | 검색과 필터 바 | `filter-row-width`, `handoff-kit-contract` |
 | 필터 바 도구 줄 | `ToolbarRow` | `ui/FilterBar.jsx` | 검색 슬롯 320(직계), 좁으면 100% | 2 | 검색과 필터 바 | `handoff-kit-contract` |
@@ -314,7 +315,8 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 - **그릇을 세우는 조건(D-501)**: 요약은 누를 수 있거나, 경보이거나, 그 값의 유일한 자리일 때만 그릇을 갖는다. 값이 없는 그릇은
   서지 않는다 — 값이 null 인 타일과 전체가 0 이면서 누를 칩이 없는 카드는 `StatusKpi.jsx` 가 세우지 않는다. 누를 것 없는 측정이
   둘 이하이면 판 대신 `MetaBar` 한 줄이다(`SummaryView.jsx::STRIP_AS_META_MAX` — 진단의 두 판도 같은 상수를 쓴다).
-- **합이 전체인 구성 → `StatusSummaryCard`**: 프로젝트 목록 구성(누르면 좁힘) · 개발자 리포트 팀 합계(신호 둘 +
+- **합이 전체인 구성 → `StatusSummaryCard`**: 프로젝트 목록 구성(누르면 좁힘, 위험 칩 「건강도 낮음」 · 「지연 마일스톤」과 머리 오른쪽 평균 진행률 ·
+  정의 줄까지 카드 하나 — P17V 첫 화면 기준) · 개발자 리포트 팀 합계(신호 둘 +
   정의 목록 `notes` · 건수 낱말 `unit="건"`) · 메일 발송 현황(각주는 정의 목록, 한 통도 없으면 서지 않는다) · 예약 달력
   이 구간 실행 · 작업 큐(상태 다섯의 합이 전체다 — 전체를 안 줘 머리 줄이 비던 카드였다).
   걷은 카드 둘: 조직 정합성의 관리자 범위 카드는 바로 아래 두 줄 표를 다시 셌다 — 관리자 수는 절 제목 옆 건수 칩이다. 설치 마법사의

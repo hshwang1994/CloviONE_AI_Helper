@@ -18,7 +18,7 @@ import { FONT_SIZE, FONT_WEIGHT, ICON, RADIUS, remPx } from "../ui/theme.js";
 import { CHAT } from "../ui/chat.js";
 import { PAGE_FILL_HEIGHT } from "../ui/density.js";
 import { useChat } from "./useChat.js";
-import { copyText, dayKeyKST, formatConversationText, mascotMode } from "./chat-helpers.js";
+import { copyText, dayKeyKST, formatConversationText, mascotMode, mascotStatusText } from "./chat-helpers.js";
 import { COLUMNS, THREAD_MAX } from "./chat/layout.js";
 import { ConversationSidebar } from "./chat/ConversationSidebar.jsx";
 import { DaySeparator, Message, TypingBubble } from "./chat/MessageThread.jsx";
@@ -260,7 +260,7 @@ export function Chat() {
           ) : null}
           <span className="sr-only" role="status" aria-live="polite">{convCopied}</span>
           {/* 쓸 수 없을 때는 「대화를 시작해 보세요」라고 권하지 않는다 — 판 상태가 까닭을 말한다. */}
-          <MascotStatus mode={mascot} text={unavailable ? "지금은 답할 수 없습니다." : undefined} />
+          <MascotStatus mode={mascot} text={mascotStatusText({ mode: mascot, unavailable, hasMessages: !!(cid && items.length) })} />
         </Box>
 
         {/* 스레드 전체를 aria-live로 감싸면 1.5초 폴링마다 대화가 통째로 다시 낭독된다.

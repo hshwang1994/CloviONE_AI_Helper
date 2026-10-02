@@ -24,6 +24,28 @@ function renderBar(items) {
   );
 }
 
+describe("짧은 상태 면의 띠(strip)", () => {
+  it("모든 칸이 이름과 값이 한 줄에 붙는 띠 하나이고, 위 선 없이 첫 칸이 글 시작점에 선다", () => {
+    const { container } = render(
+      <ThemeModeProvider>
+        <MetaBar strip ariaLabel="지금 쓰는 연결" items={[
+          { key: "p", label: "제공자", value: "OpenAI" },
+          { key: "m", label: "모델", value: "gpt-5" },
+        ]} />
+      </ThemeModeProvider>,
+    );
+    const bar = container.querySelector('[data-meta-strip="true"]');
+    expect(bar).not.toBeNull();
+    const cells = bar.querySelectorAll('.k-metacell[data-meta-rank="secondary"]');
+    expect(cells.length).toBe(2);
+    // 이름과 값이 한 칸 안에 같은 줄로 선다(이름 위 · 값 아래가 아니다).
+    expect(getComputedStyle(cells[0]).display).toBe("flex");
+    expect(screen.getByText("OpenAI")).toBeInTheDocument();
+    // 위 줄이 없으니 가르는 선도 없다.
+    expect(getComputedStyle(cells[0].parentElement).borderTopWidth).not.toBe("1px");
+  });
+});
+
 describe("상세 속성의 위계", () => {
   it("rank 를 아무도 선언 안 하면 예전 그대로 한 줄이다", () => {
     const { container } = renderBar([

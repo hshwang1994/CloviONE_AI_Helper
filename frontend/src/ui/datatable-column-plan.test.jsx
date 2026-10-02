@@ -8,7 +8,10 @@ import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
 
 /* 그려진 표가 열 배분(D-529)을 실제로 쓰는가. 배분 함수만 맞고 `<col>` 에 옛 rem 바닥이 그대로 서면 화면은 하나도 안 바뀐다 —
  * 표가 받은 칸(px)을 못 박고 그려진 `<col>` · 표 폭 · 숨긴 열 알림 · 붙박이 첫 열을 잰다. jsdom 은 배치를 안 하므로 칸 폭을
- * 직접 먹인다(`datatable-narrow-columns.test.jsx` 와 같은 방식). */
+ * 직접 먹인다(`datatable-narrow-columns.test.jsx` 와 같은 방식).
+ *
+ * qa-contract-change: 남는 폭의 첫 몫이 내용 몫이 됐다(P17V, `plan-columns.test.js` 와 같은 까닭). 1366 칸에서 이메일 열이 값 폭
+ * (232px)을 받고 이름 · 부서 열이 그 차이를 내준다 — 그려진 `<col>` 폭도 그 값으로 옮겼다. */
 
 const ROLE_LABELS = ["일반 사용자", "운영자", "감사자", "관리자", "시스템 관리자"];
 const COLS = [
@@ -61,7 +64,7 @@ describe("그려진 표가 열 배분을 쓴다", () => {
   it("조직 @1366 의 칸(724px)에서 보조 열 직책만 숨기고 남은 열이 px 폭을 받는다", () => {
     const { container } = draw();
     expect(screen.queryByRole("columnheader", { name: /직책/ })).toBeNull();
-    expect(colWidths(container)).toEqual(["154px", "185px", "169px", "96px", "120px"]);
+    expect(colWidths(container)).toEqual(["127px", "232px", "149px", "96px", "120px"]);
     const table = container.querySelector("table");
     expect(table.style.width || getComputedStyle(table).width).toBe("100%");
     // 숨긴 사실은 표 발이 말한다 — 판단은 창이 아니라 표가 받은 폭이라 「표 폭」이다.

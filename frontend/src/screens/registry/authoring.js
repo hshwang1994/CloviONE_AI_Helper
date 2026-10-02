@@ -197,8 +197,15 @@ export const AUTHORING_SCREENS = {
       { key: "status", type: "select", label: "상태", options: opt([["draft", "초안"], ["published", "적용 중"], ["archived", "보관"]]) },
     ],
     columns: [
-      { ...col("name", "이름", "name"), rowLink: true, rowName: (r) => r.name + " v" + r.version, render: (r) => r.name + " v" + r.version },
-      { key: "applies_to_labels", label: "적용 기능", type: "text", render: (r) => (r.applies_to_labels || []).join(", ") || "-" },
+      {
+        ...col("name", "이름", "name"), rowLink: true, rowName: (r) => r.name + " v" + r.version,
+        value: (r) => r.name + " v" + r.version, render: (r) => r.name + " v" + r.version,
+      },
+      /* 그린 글자를 `value` 로도 말한다 — 열 배분이 값 폭을 알아야 「모든 기능」처럼 짧은 값 옆의 빈 폭을 이름 열에 내준다(D-529 보정). */
+      {
+        key: "applies_to_labels", label: "적용 기능", type: "text",
+        value: (r) => (r.applies_to_labels || []).join(", ") || "-", render: (r) => (r.applies_to_labels || []).join(", ") || "-",
+      },
       { key: "status", label: "상태", type: "status", render: (r) => { const [value, kind] = lifecycle(r.status); return React.createElement(Badge, { value, kind }); } },
       { key: "applied_30d", label: "최근 30일 적용", type: "count" },
       dateCol("last_applied_at", "최근 적용"),

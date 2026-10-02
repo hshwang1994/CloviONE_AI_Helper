@@ -24,9 +24,11 @@ export function QuickPrompts({ onPick, busy }) {
    같은 상태를 두 번 낭독시키지 않는다. */
 export function Welcome({ title, help, onPick, busy, mode }) {
   /* 대화가 없는 AI 도우미는 화면 전체가 비어 있는 자리다 — 화면 빈 상태(page)이고 클로비는 화면 계약
-     크기(132, 짧은 화면 112)다(D-485 · 계획 P-12). 다음 행동은 시작 예시다. */
+     크기(132, 짧은 화면 112)다(D-485 · 계획 P-12). 다음 행동은 시작 예시다.
+     폭 46rem — 시작 예시 여섯이 두 줄로 선다. 38rem 에서는 세 줄로 접혀 환영 화면이 1366×768 대화 영역(약 405px)보다
+     커졌다(P17V). */
   return (
-    <Box sx={{ m: "auto", width: "100%", maxWidth: "38rem" }}>
+    <Box sx={{ m: "auto", width: "100%", maxWidth: "46rem" }}>
       <EmptyState
         layout="page"
         icon={<MascotPose mode={mode} place="emptyPage" decorative />}

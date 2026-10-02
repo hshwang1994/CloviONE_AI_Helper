@@ -217,8 +217,9 @@ COMPOSITION_JS = r"""
     // (4) 조건 줄 밖에 선 조건 칩(칸 안 칩은 칸 해부 검사가 센다).
     const loose = all('.MuiChip-root, [data-condition-chip]', s).filter((c) => !c.closest('[data-condition-line]') && !c.closest('.MuiInputBase-root, .MuiAutocomplete-root'));
     if (loose.length) problems.push('조건 줄 밖 칩 ' + loose.length);
-    // (5) 목록과 가르는 아래 실선. 서랍 안 면은 선을 긋지 않는다.
-    if (!inOverlay(s) && !(px(getComputedStyle(s).borderBottomWidth) >= 1)) problems.push('아래 실선 없음');
+    // (5) 목록과 가르는 아래 실선. 서랍 안 면은 선을 긋지 않는다. 작업 공간 판의 도구 줄 안 면도 긋지 않는다 — 판 도구 줄이 고정
+    //     영역의 경계이고 바로 아래 표 머리(함몰면)가 목록의 시작을 말한다(D-531, 조직 관리 구성원 판).
+    if (!inOverlay(s) && !s.closest('[data-pane-toolbar]') && !(px(getComputedStyle(s).borderBottomWidth) >= 1)) problems.push('아래 실선 없음');
     // (6) 한 줄에 설 자리가 있는데 검색(과 오른쪽 끝 묶음)만 한 줄을 쓴다.
     const sr = rect(s);
     const items = [];
@@ -318,8 +319,8 @@ COMPOSITION_JS = r"""
           const gap = valueInfo.r.left - pr.right;
           const centre = (valueInfo.r.top + valueInfo.r.height / 2) - (pr.top + pr.height / 2);
           if (rec.length < 3) rec.push({ inset: Math.round(inset * 10) / 10, gap: Math.round(gap * 10) / 10, centre: Math.round(centre * 10) / 10 });
-          if (!near(inset, C.prefixInset, 1)) problems.push('접두 들여쓰기 ' + Math.round(inset));
-          if (!near(gap, C.prefixGap, 1)) problems.push('접두-값 간격 ' + Math.round(gap));
+          if (!near(inset, C.prefixInset * R, 1)) problems.push('접두 들여쓰기 ' + Math.round(inset));
+          if (!near(gap, C.prefixGap * R, 1)) problems.push('접두-값 간격 ' + Math.round(gap));
           if (Math.abs(centre) > 1.5) problems.push('세로 중심 ' + centre.toFixed(1));
           if (String(valueInfo.weight) !== '600') problems.push('값 굵기 ' + valueInfo.weight);
           if (valueInfo.opacity < 0.99) problems.push('값 흐림 ' + valueInfo.opacity);
@@ -428,8 +429,10 @@ COMPOSITION_JS = r"""
   }
   if (!E.footerExempt) {
     for (const f of all('[data-list-footer]')) {
-      /* 판 안 보조 표(`placement="card"`)의 발은 그 판의 마지막 줄이다 — 목록 판이 아니어도 판 밖이 아니다. */
-      if (inOverlay(f) || f.closest('[data-list-surface], [data-table-placement="card"]')) continue;
+      /* 판 안 보조 표(`placement="card"`)의 발은 그 판의 마지막 줄이다 — 목록 판이 아니어도 판 밖이 아니다. 작업 공간 판의 발
+         (`data-pane-foot`)와 채움 표의 발(`data-table-fill` 틀의 마지막 줄)도 그 판의 마지막 고정 줄이다 — 표 몸만 굴러가고 발은
+         그 아래 선다(D-531). */
+      if (inOverlay(f) || f.closest('[data-list-surface], [data-table-placement="card"], [data-pane-foot], [data-table-fill]')) continue;
       check('list_surface').checked++;
       fail('list_surface', { ...where(f), problem: '목록 발이 판 밖' });
     }
@@ -455,9 +458,11 @@ COMPOSITION_JS = r"""
     const filled = [
       ...all('.MuiButton-containedPrimary, .MuiButton-containedError'),
       ...all('.MuiIconButton-root').filter((b) => primaryHex && toHex(getComputedStyle(b).backgroundColor) === primaryHex),
-    ].filter((b) => !inOverlay(b) && !inShell(b));
+    /* 비활성 단추는 채움 면을 그리지 않는다(회색) — 주 동작을 다투지 않는다. 대화 입력 칸(`data-chat-composer`)은 입력 영역이라
+       자기 몫이다: AI 를 쓸 수 없는 대화 화면에서 「AI 연결 열기」와 막힌 「전송」이 둘로 세어졌다(P17V). */
+    ].filter((b) => !inOverlay(b) && !inShell(b) && !b.disabled && !b.classList.contains('Mui-disabled'));
     check('primary_budget').checked++;
-    const scopeOf = (b) => b.closest('[data-form-scope], [data-action-footer], [data-list-selection]');
+    const scopeOf = (b) => b.closest('[data-form-scope], [data-action-footer], [data-list-selection], [data-chat-composer]');
     const loose = filled.filter((b) => !scopeOf(b));
     if (loose.length > 1) fail('primary_budget', { problem: '화면 채움 ' + loose.length, buttons: loose.slice(0, 5).map(text) });
     const inRows = filled.filter((b) => b.closest('tbody'));
@@ -668,7 +673,10 @@ COMPOSITION_JS = r"""
       for (const [key, n] of truncated) {
         const c = info.find((x) => x.key === key);
         if (c && c.content) problems.push('값 길이 열 말줄임 ' + key + ' ' + n + '칸');
-        const other = roomy.filter((r) => r.key !== key);
+        /* 잘린 열이 이미 제 상한에 닿았으면 옆 열의 여유는 잘못 나눈 폭이 아니다 — 상한은 한 열이 폭을 독점하지 못하게 하는 계약이다
+           (D-529). 그 열이 더 받을 수 있을 때만 「옆 열 여유」를 실패로 센다(P17V: 정책 긴 데이터의 이름 열이 18rem 에 닿아 있었다). */
+        const capped = c && c.max != null && c.w >= c.max - 2;
+        const other = capped ? [] : roomy.filter((r) => r.key !== key);
         if (other.length) problems.push('말줄임 ' + key + ' ' + n + '칸, 옆 열 여유 ' + other.map((r) => r.key + ' ' + Math.round(r.w - need.get(r.key)) + 'px').join(','));
       }
     }

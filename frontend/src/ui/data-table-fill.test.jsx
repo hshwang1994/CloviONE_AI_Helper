@@ -46,6 +46,32 @@ describe("채움 표", () => {
     expect(getComputedStyle(footer).position).not.toBe("sticky");
   });
 
+  it("숨긴 열 안내는 표 위가 아니라 판 아래 발에 선다 — 고정 도구 줄이 길어지지 않는다", () => {
+    const original = Element.prototype.getBoundingClientRect;
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 300 });
+    Element.prototype.getBoundingClientRect = function rect() {
+      return { width: 300, height: 100, top: 0, left: 0, right: 300, bottom: 100, x: 0, y: 0, toJSON() {} };
+    };
+    globalThis.ResizeObserver = class {
+      constructor(cb) { this.cb = cb; }
+      observe() { this.cb([]); }
+      unobserve() {}
+      disconnect() {}
+    };
+    try {
+      const cols = [...COLS, { key: "title", label: "직책", type: "enum", tier: "secondary" }];
+      const rows = ROWS.map((r) => ({ ...r, title: "선임" }));
+      const { container } = ui(<DataTable fill stickyHeader columns={cols} rows={rows} rowKey={(r) => r.id} list={LIST} onRow={() => {}} />);
+      const footer = container.querySelector("[data-list-footer]");
+      const note = [...container.querySelectorAll("*")].find((el) => el.children.length === 0 && /직책 열을 숨겼습니다/.test(el.textContent || ""));
+      expect(note).toBeTruthy();
+      expect(footer.contains(note)).toBe(true);
+    } finally {
+      Element.prototype.getBoundingClientRect = original;
+      delete HTMLElement.prototype.clientWidth;
+    }
+  });
+
   it("열 이름은 상자 위에 붙는다 — 상자가 스크롤 창이라고 안쪽에 알린다", () => {
     const { container } = ui(<DataTable fill stickyHeader columns={COLS} rows={ROWS} rowKey={(r) => r.id} list={LIST} />);
     const box = container.querySelector('[data-table-box="fill"]');

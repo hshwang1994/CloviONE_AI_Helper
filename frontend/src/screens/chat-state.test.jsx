@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
-  mascotMode, MASCOT_PHASE_TEXT, pollDelayMs,
+  mascotMode, MASCOT_PHASE_TEXT, mascotStatusText, pollDelayMs,
   POLL_BASE_MS, POLL_MAX_MS, POLL_MAX_FAILURES, POLL_RECOVERY_MS,
 } from "./chat-helpers.js";
 import { messageSources } from "./chat/SourceList.jsx";
@@ -86,6 +86,18 @@ describe("mascotMode", () => {
 });
 
 // ── 2. 폴링 스케줄(순수) ────────────────────────────────────────────────────
+
+describe("mascotStatusText", () => {
+  it("대화가 오간 뒤 쉬는 때는 「이어서 물어보세요.」 — 「대화를 시작해 보세요.」는 대화가 없을 때만이다", () => {
+    expect(mascotStatusText({ mode: "idle", hasMessages: true })).toBe("이어서 물어보세요.");
+    expect(mascotStatusText({ mode: "idle", hasMessages: false })).toBe(MASCOT_PHASE_TEXT.idle);
+  });
+
+  it("쓸 수 없으면 단계와 무관하게 그 사실을 말하고, 다른 단계는 단계 문구 그대로다", () => {
+    expect(mascotStatusText({ mode: "thinking", unavailable: true, hasMessages: true })).toBe("지금은 답할 수 없습니다.");
+    expect(mascotStatusText({ mode: "thinking", hasMessages: true })).toBe(MASCOT_PHASE_TEXT.thinking);
+  });
+});
 
 describe("pollDelayMs", () => {
   it("실패가 없으면 기본 간격", () => {

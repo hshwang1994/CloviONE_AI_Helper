@@ -526,8 +526,10 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     return () => document.removeEventListener("paste", onPaste);
   }, [pasteEnabled]);
 
+  /* 맨 아래에 붙이는 것은 **대화가 있을 때**만이다. 대화가 없으면 환영 화면이 서는데, 그것까지 맨 아래로 굴리면 화면 높이가
+     모자란 1366×768 에서 클로비 머리가 대화 영역 윗선에 잘렸다(P17V 상태 캡처). */
   useEffect(() => {
-    if (stick && bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    if (stick && items.length && bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
   }, [items, stick]);
 
   function onScroll() {

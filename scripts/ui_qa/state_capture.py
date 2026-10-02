@@ -121,7 +121,7 @@ class Capture:
 
     def __init__(self, browser, base: str, label: str, storage_state: dict) -> None:
         from scripts.ui_qa.composition_checks import COMPOSITION_CONTRACT, COMPOSITION_JS, expect_for
-        from scripts.ui_qa.kit_measure import CONTRACT, MEASURE_JS, _mascot_hfrac
+        from scripts.ui_qa.kit_measure import MEASURE_JS, _mascot_hfrac, contract_for
         from scripts.ui_qa.visual_probes import VISUAL_CONTRACT, VISUAL_JS
 
         self.browser, self.base, self.label = browser, base, label
@@ -131,11 +131,11 @@ class Capture:
         self.pages: list[dict] = []
         self.measure: dict[str, dict] = {}
         self.problems: list[str] = []
-        self._js = (MEASURE_JS, CONTRACT, _mascot_hfrac(), COMPOSITION_JS, COMPOSITION_CONTRACT, expect_for, VISUAL_JS, VISUAL_CONTRACT)
+        self._js = (MEASURE_JS, contract_for, _mascot_hfrac(), COMPOSITION_JS, COMPOSITION_CONTRACT, expect_for, VISUAL_JS, VISUAL_CONTRACT)
 
     def shoot(self, route_id: str, state: str, label: str, hash_path: str, *, wait: str, routes=(), act=None,
               console: str = "admin", viewports=VIEWPORTS) -> None:
-        measure_js, contract, hfrac, comp_js, comp_contract, expect_for, visual_js, visual_contract = self._js
+        measure_js, contract_for, hfrac, comp_js, comp_contract, expect_for, visual_js, visual_contract = self._js
         for width, height in viewports:
             vp = f"{width}x{height}"
             ctx = self.browser.new_context(viewport={"width": width, "height": height}, storage_state=self.storage_state)
@@ -153,6 +153,8 @@ class Capture:
                 page.mouse.move(0, 0)
                 name = f"{route_id}__{state}__{vp}.png"
                 page.screenshot(path=str(self.shots / name), full_page=True)
+                # 계약값은 루트 글자 비율로 곱한다(2560 구간은 루트 18px — `kit_measure.contract_for`).
+                contract = contract_for(page.evaluate("parseFloat(getComputedStyle(document.documentElement).fontSize) || 16"))
                 result = page.evaluate(measure_js, {**contract, "scope": None, "mascotHfrac": hfrac})
                 composed = page.evaluate(comp_js, {**comp_contract, "scope": None, "expect": expect_for(route_id)})
                 if isinstance(composed, dict) and not composed.get("error"):
@@ -291,7 +293,8 @@ def run(label: str) -> int:
             def open_delete(page):
                 page.get_by_role("button", name=f"{big['big_name']} 작업 더 보기").click()
                 page.get_by_role("menuitem", name="삭제").click()
-                page.wait_for_selector("[role=dialog]", timeout=10000)
+                # 보이는 창을 기다린다 — 화면에 숨은 `role=dialog` 가 먼저 있으면 첫 일치가 그것이라 10초를 기다리다 끝난다(P17 실측).
+                page.locator("[role=dialog]:visible").first.wait_for(timeout=10000)
             cap.shoot("admin_organizations", "delete-blocked", "조직 관리 · 삭제 불가 창", f"/departments/{big['big']}", wait=pane,
                       act=open_delete)
 
@@ -342,8 +345,14 @@ def run(label: str) -> int:
                         headers=csrf)
 
                 def relay_status(data):
+                    # 릴레이 줄만 바꾸면 건강 문장은 이 PC 의 실제 상태(릴레이 안 켬)를 말해 한 상태 면이 「켜지지 않았습니다」와
+                    # 「동작 중」을 함께 보였다(P17V). 고정 응답의 릴레이(동작 중 · 바깥 전달 성공)와 같은 건강으로 맞춘다.
                     data = dict(data)
                     data["relay"] = relay_view["status_relay"]
+                    data["health"] = {**(data.get("health") or {}), "state": "ok", "label": "정상",
+                                      "message": "메일 발송을 사용할 수 있습니다.", "stage": None, "failure_kind": None,
+                                      "stages": []}
+                    data["problems"] = []
                     return data
                 cap.shoot("admin_mail", "local-relay", "메일 · ClovirAssist 로컬 릴레이", "/mail?tab=settings",
                           wait="[data-testid=relay-component]",
@@ -371,7 +380,14 @@ def run(label: str) -> int:
             wait_ai = "[data-testid=ai-connection-form]"
             cap.shoot("admin_ai-connection", "unconfigured", "AI 연결 · 미연결", "/ai-connection", wait=wait_ai)
             configure_ai(app)
-            cap.shoot("admin_ai-connection", "api-key", "AI 연결 · API 키(확인 전)", "/ai-connection", wait=wait_ai)
+            # 모델 목록은 이 PC 에서 진짜 제공자를 부르지 못해 늘 실패한다 — 그 실패 상자가 「확인 전」 · 「정상」 화면에까지 섰다(P17V).
+            # 모델 목록 실패는 그 상태(`models-failed`)에서만 보이고, 다른 상태는 서버 응답 모양 그대로의 목록을 받는다.
+            models_ok = ("**/api/admin/ai/models*", _fixed({
+                "models": [{"id": "test-model", "label": "test-model"}, {"id": "claude-sonnet-4-5", "label": "Claude Sonnet 4.5"}],
+                "recommended_id": "test-model",
+            }))
+            cap.shoot("admin_ai-connection", "api-key", "AI 연결 · API 키(확인 전)", "/ai-connection", wait=wait_ai,
+                      routes=[models_ok])
 
             def display(key, label_, kind, message):
                 def fn(data):
@@ -383,14 +399,19 @@ def run(label: str) -> int:
                     if key == "ok":
                         data["capabilities"] = {"tools": "ok", "checked_at": "2026-10-02T02:00:00"}
                         st["last_success_at"] = "2026-10-02T02:00:00"
-                        st["last_checked_at"] = "2026-10-02T02:00:00"
+                        st["checked_at"] = "2026-10-02T02:00:00"
+                    if key == "reauth_required":
+                        # 재로그인은 ChatGPT 계정 연결의 상태다 — 지금 연결과 계정 칸도 그 모양이어야 한 화면이 한 상태를 말한다.
+                        data["config"] = {**(data.get("config") or {}), "provider": "openai", "auth_method": "chatgpt"}
+                        data["chatgpt"] = {**(data.get("chatgpt") or {}), "connected": False, "disconnected": True}
                     return data
                 return fn
             cap.shoot("admin_ai-connection", "ok", "AI 연결 · 정상", "/ai-connection", wait=wait_ai,
-                      routes=[("**/api/admin/ai", _rewrite(display("ok", "정상", "ok", "AI 가 정상으로 답합니다.")))])
+                      routes=[("**/api/admin/ai", _rewrite(display("ok", "정상", "ok", "AI 가 정상으로 답합니다."))), models_ok])
             cap.shoot("admin_ai-connection", "reauth", "AI 연결 · 재로그인 필요", "/ai-connection", wait=wait_ai,
                       routes=[("**/api/admin/ai", _rewrite(display("reauth_required", "재로그인 필요", "error",
-                                                                   "ChatGPT 로그인이 만료됐습니다. 다시 로그인하세요.")))])
+                                                                   "ChatGPT 로그인이 만료됐습니다. 다시 로그인하세요."))),
+                              models_ok])
             cap.shoot("admin_ai-connection", "models-failed", "AI 연결 · 모델 목록 실패", "/ai-connection", wait=wait_ai,
                       routes=[("**/api/admin/ai/models*", _fixed({"error": {"code": "upstream_error",
                                                                           "message": "제공자에게서 모델 목록을 받지 못했습니다."}}, 502))])
@@ -432,26 +453,49 @@ def run(label: str) -> int:
             threading.Thread(target=chat_loop, daemon=True).start()
             cap.shoot("user_chat", "welcome", "AI 도우미 · 첫 화면", "/chat", wait="main", console="user")
 
-            def ask(question: str, expect: str):
+            # 「문서 출처」가 찾을 문서. 씨앗 문서는 본문 판이 없어 색인 조각이 없다 — 검색이 0건이라 출처 없는 「찾지 못함」 답이
+            # 찍혔다(P17V). 본문 판을 남기고 색인을 한 번 돌린다(`tests/integration/test_chat_assistant_turn.py` 와 같은 길).
+            from sqlalchemy import select as _select
+
+            from app.ai.index import service as index_service
+            from app.knowledge import service as knowledge_service, versions as knowledge_versions
+            from app.knowledge.models import Document as KnowledgeDocument, KnowledgeSpace
+            with app.state.session_factory() as s:
+                space = s.execute(_select(KnowledgeSpace).where(
+                    KnowledgeSpace.slug == knowledge_service.COMMON_SPACE_SLUG)).scalars().first()
+                leave_doc = KnowledgeDocument(space_id=space.id, title="휴가 신청 규정", archived=False)
+                s.add(leave_doc)
+                s.flush()
+                knowledge_versions.snapshot(s, leave_doc, {"type": "doc", "content": [
+                    {"type": "paragraph", "content": [{"type": "text", "text": text}]} for text in (
+                        "휴가 신청은 사흘 전까지 휴가 신청서를 올리고 팀장의 승인을 받습니다.",
+                        "연차는 입사 1년 뒤부터 15일이 생기고, 반차는 오전과 오후로 나눠 씁니다.",
+                    )]}, author_id=None)
+                s.flush()
+                index_service.run_once(s, gateway=app.state.ai_gateway, limit=50)
+                s.commit()
+
+            def answered(expect: str):
+                # `/chat?ask=` 는 질문을 **새 대화**로 보낸다 — 폭마다 같은 대화에 질문이 쌓이거나, 앞 폭의 답을 보고 다음 폭의
+                # 답을 기다리지 않은 채 찍는 일이 없다(P17V: 1920 이 「●●● 0초」인 채로 찍혔다).
                 def act(page):
-                    box = page.get_by_role("textbox", name="메시지 입력")
-                    box.fill(question)
-                    box.press("Enter")
                     page.get_by_text(expect, exact=False).first.wait_for(timeout=30000)
                     page.wait_for_timeout(500)
                 return act
-            holder["adapter"] = ScriptedToolAdapter([
-                tool_call("search_documents", {"query": "휴가 신청"}),
-                "휴가 신청은 사내 규정 문서의 절차를 따릅니다. 아래 참고한 자료에서 신청 양식과 승인 순서를 확인하세요.",
-            ])
-            cap.shoot("user_chat", "document-sources", "AI 도우미 · 문서 출처가 있는 답", "/chat", wait="main", console="user",
-                      act=ask("휴가 신청 방법을 사내 문서에서 찾아 줘", "휴가 신청은 사내 규정"), viewports=((1366, 768), (1920, 1080)))
-            holder["adapter"] = ScriptedToolAdapter([
-                tool_call("my_work", {"view": "assigned", "include_done": None}),
-                "내가 담당한 티켓을 정리했습니다. 마감이 가까운 것부터 확인하세요.",
-            ])
-            cap.shoot("user_chat", "internal-data", "AI 도우미 · 내부 데이터(티켓) 조회", "/chat", wait="main", console="user",
-                      act=ask("내가 담당한 티켓을 알려 줘", "내가 담당한 티켓을 정리했습니다"), viewports=((1366, 768), (1920, 1080)))
+            from urllib.parse import quote as _quote
+            two_widths = ((1366, 768), (1920, 1080))
+            doc_turn = [tool_call("search_documents", {"query": "휴가 신청"}),
+                        "휴가 신청은 사흘 전까지 신청서를 올리고 팀장의 승인을 받습니다. 아래 참고한 자료에서 자세히 확인하세요."]
+            holder["adapter"] = ScriptedToolAdapter(doc_turn * len(two_widths))
+            cap.shoot("user_chat", "document-sources", "AI 도우미 · 문서 출처가 있는 답",
+                      "/chat?ask=" + _quote("휴가 신청 방법을 사내 문서에서 찾아 줘"), wait="main", console="user",
+                      act=answered("휴가 신청은 사흘 전까지"), viewports=two_widths)
+            work_turn = [tool_call("my_work", {"view": "assigned", "include_done": None}),
+                         "내가 담당한 티켓을 정리했습니다. 마감이 가까운 것부터 확인하세요."]
+            holder["adapter"] = ScriptedToolAdapter(work_turn * len(two_widths))
+            cap.shoot("user_chat", "internal-data", "AI 도우미 · 내부 데이터(티켓) 조회",
+                      "/chat?ask=" + _quote("내가 담당한 티켓을 알려 줘"), wait="main", console="user",
+                      act=answered("내가 담당한 티켓을 정리했습니다"), viewports=two_widths)
 
             # ── 프롬프트 · 정책 · 사용 통계 ──────────────────────────────────
             lists = (

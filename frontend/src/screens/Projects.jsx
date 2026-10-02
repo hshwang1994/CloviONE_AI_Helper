@@ -5,17 +5,15 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import {
   ListEmptyState,
-  Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, FormModal,
+  Badge, Button, Card, DataTable, ErrorState, FormModal,
   PageHeader, Skeleton, TitleCell, useToast,
 } from "../ui/kit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
+import { FONT_SIZE, FONT_WEIGHT, NUMERIC } from "../ui/theme.js";
 import { useAuth } from "../app/auth.jsx";
 import { useQueryState } from "../lib/useQueryState.js";
 import { DepartmentFilter, FilterSelect, SearchBox, unmatchedLabel } from "../ui/filters.jsx";
 import { FilterBar, FilterToggle } from "../ui/FilterBar.jsx";
-import { BarSeries } from "../ui/charts/BarSeries.jsx";
-import { Gauge } from "../ui/charts/Gauge.jsx";
 import { ProgressBar } from "../ui/charts/ProgressBar.jsx";
 import { useCreateProject, useDeptNames, useProjectDashboard, useProjectList } from "./project-queries.js";
 import {
@@ -115,200 +113,100 @@ const STATUS_TILES = [
   ["planned", "계획"],
 ];
 
-/* 요약의 한 칸. **판이 아니다** — 캔버스 위에 서고 실선이 이웃과 가른다(걷어 낸 판독 줄 `MetricStrip` 과
- * 같은 위계였다). 누를 수 있으면 버튼이 되고, 켜져 있으면 앞머리 레일이 그 사실을 말한다
- * (D-289: 이 제품은 선택을 면이 아니라 잉크와 레일로 말한다). */
-/** 선택을 말하는 앞머리 레일의 색. 켜져 있으면 강조색, 아니면 구분선이다(D-289). */
-function railColor(theme, active) {
-  return active ? theme.palette.primary.main : theme.palette.divider;
-}
-
-function SummaryPanel({ label, active, onClick, actionLabel, children }) {
-  const clickable = !!onClick;
+/* 평균 진행률 — 요약 카드 머리 오른쪽에 서는 값 하나와 그 막대다(지시 15: 숫자만 두지 않는다). 막대는 `aria-hidden` 이고 값은
+ * 글자로 그대로 있다. */
+function AverageProgress({ progress }) {
+  const pct = typeof progress.average_pct === "number" ? progress.average_pct : null;
   return (
-    <Box
-      component={clickable ? "button" : "div"}
-      type={clickable ? "button" : undefined}
-      onClick={onClick}
-      aria-pressed={clickable ? !!active : undefined}
-      aria-label={clickable ? actionLabel || label : undefined}
-      data-brand-role={clickable && active ? "selected-state" : undefined}
-      /* 시험이 「이 값과 이 각주가 **같은 칸**에 있다」를 짚는 자리. 자식 순서로 짚으면
-         안쪽 배치를 조금만 바꿔도 시험이 조용히 빈 문자열끼리 비교하며 통과한다. */
-      data-summary-panel={label}
-      sx={(t) => ({
-        textAlign: "left", font: "inherit", color: "inherit", bgcolor: "transparent",
-        border: 0, borderRadius: 0, px: 2, py: 1.5, minWidth: 0,
-        display: "grid", gap: 0.75, alignContent: "start",
-        cursor: clickable ? "pointer" : "default",
-        borderInlineStartStyle: "solid",
-        borderInlineStartWidth: "2px",
-        /* 논리 테두리는 MUI 가 안 펴 준다 — style·width·color 셋을 따로, 색은 **해석된
-           값**으로 적는다(F-W2R-01). 삼항을 여기 직접 쓰면 값이 식별자로 시작하지 않아
-           `check_logical_border_props.py` 가 「선언만 있고 안 그려진다」로 읽는다. */
-        borderInlineStartColor: railColor(t, active),
-        "&:hover": clickable ? { bgcolor: t.palette.background.inset } : undefined,
-        "&:focus-visible": { outline: `2px solid ${t.palette.focusRing}`, outlineOffset: 2 },
-      })}
-    >
-      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: FONT_WEIGHT.semibold }}>
-        {label}
+    <Box data-summary-metric="평균 진행률" sx={{ display: "flex", alignItems: "center", gap: 1.25, minWidth: 0 }}>
+      <Typography component="span" variant="body2" color="text.secondary" sx={{ fontWeight: FONT_WEIGHT.semibold, whiteSpace: "nowrap" }}>
+        평균 진행률
       </Typography>
-      {children}
+      <Typography component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, whiteSpace: "nowrap", ...NUMERIC }}>
+        {percentText(pct) || "-"}
+      </Typography>
+      {pct != null ? (
+        <Box sx={{ width: "7.5rem", flex: "0 0 auto" }}>
+          <ProgressBar percent={pct} revealKey={pct} />
+        </Box>
+      ) : null}
     </Box>
   );
 }
 
-/* 가장 오래 지난 마일스톤 셋. 「3건」만 말하면 그것을 본 사람이 할 수 있는 일이 없다 —
- * 어느 것이 얼마나 지났는지가 곧 할 일 목록이다.
+/* 가장 오래 밀린 마일스톤 하나를 말하는 문장. 「6건」만 말하면 그것을 본 사람이 할 수 있는 일이 없다 — 어느 것이 얼마나 지났는지가
+ * 곧 할 일이다. 0건도 「쟀고 없었다」는 답이라 문장으로 말한다(REAUDIT C7/RC6).
  *
- * 기준일은 **서버가 준 것**을 쓴다(`d.today`). 브라우저에서 오늘을 구하면 KST 09:00
- * 이전에 하루 밀린 「지연 일수」를 그린다(§불변 9). */
-function OverdueBars({ items, today }) {
-  const rows = (Array.isArray(items) ? items : [])
+ * 기준일은 **서버가 준 것**을 쓴다(`d.today`). 브라우저에서 오늘을 구하면 KST 09:00 이전에 하루 밀린 「지연 일수」를 그린다(§불변 9). */
+export function overdueSentence(overdue, today) {
+  const count = (overdue && overdue.count) || 0;
+  if (!count) return "지연된 마일스톤이 없습니다.";
+  const worst = (Array.isArray(overdue.items) ? overdue.items : [])
     .map((m) => ({ ...m, late: daysBetween(m.due_on, today) }))
     .filter((m) => typeof m.late === "number")
-    .sort((a, b) => b.late - a.late)
-    .slice(0, 3);
-  if (!rows.length) return null;
-  const worst = rows[0].late || 1;
-  return (
-    <BarSeries
-      /* 그림마다 «이 그림이 답하는 업무 질문» 을 적는다(W6). 이 자리는 「6건」이라는 수
-         옆에 서는 그림이라, 그 수를 본 사람이 다음에 할 일이 무엇인지를 말해야 한다. */
-      question="가장 오래 밀린 마일스톤이 무엇인지 봅니다."
-      items={rows.map((m) => ({
-        // 가운뎃점을 안 쓴다(`scripts/check_user_text.py`) — 화면 문구의 구분자는 여백이다.
-        label: m.project_name ? `${m.project_name} ${m.name}` : m.name,
-        value: m.late,
-        note: `${m.late}일 지남`,
-        color: "warning",
-      }))}
-      max={worst}
-      unit="일"
-    />
-  );
+    .sort((a, b) => b.late - a.late)[0];
+  if (!worst) return "마일스톤 " + count + "건이 예정일을 넘겼습니다.";
+  // 가운뎃점을 안 쓴다(`scripts/check_user_text.py`) — 프로젝트 이름과 마일스톤 이름 사이는 여백이다.
+  const name = worst.project_name ? worst.project_name + " " + worst.name : worst.name;
+  return "가장 오래 밀린 것은 " + worst.late + "일 지난 「" + name + "」입니다.";
 }
 
-/** 'YYYY-MM-DD' 두 개의 날짜 차이(일). 못 읽으면 `null` — 지어내지 않는다. */
-/* `daysBetween` 은 `project-format.js` 로 옮겼다 — 마일스톤 탭의 「n일 지남」과 같은 산수다. */
-
-/* 요약 줄. **숫자는 응답을 그대로 쓴다** - 여기서 더하거나 빼면 서버가 센 것과 갈라진다.
+/* 요약. **숫자는 응답을 그대로 쓴다** - 여기서 더하거나 빼면 서버가 센 것과 갈라진다.
  *
- * 못 잰 것을 함께 말하는 것이 이 줄의 계약이다. "Health 하위 0건" 이 '다 건강하다' 인지
- * '아무것도 안 쟀다' 인지는 완전히 다른 사실이고, 안 말하면 화면이 조용히 후자를 전자처럼
- * 보이게 한다(app/projects/service.py::project_dashboard). */
+ * 못 잰 것을 함께 말하는 것이 이 카드의 계약이다. "건강도 낮음 0건" 이 '다 건강하다' 인지 '아무것도 안 쟀다' 인지는 완전히 다른
+ * 사실이고, 안 말하면 화면이 조용히 후자를 전자처럼 보이게 한다(app/projects/service.py::project_dashboard).
+ *
+ * ## 요약은 카드 하나다 (P17V — F7 첫 화면 기준)
+ *
+ * 예전에는 구성 카드 아래에 진행과 위험을 세 칸(평균 진행률 막대 · 건강도 원 · 지연 마일스톤 막대 셋)으로 따로 세웠다. 지연 칸이
+ * 막대 셋으로 길어지면 이웃 두 칸이 그 높이를 따라 절반 넘게 비었고, 요약이 450px 를 넘어 1366 · 1920 첫 화면에서 표 머리가
+ * 711px 에서야 섰다. 이제 구성 카드 하나가 다 말한다:
+ *   - 머리 오른쪽: 평균 진행률(값과 막대)
+ *   - 칩 줄: 상태 넷(누르면 그 상태로 좁힌다) 뒤에 위험 칩 「건강도 낮음」 · 「지연 마일스톤」(누르면 그 조건으로 좁힌다)
+ *   - 정의 줄: 세 수가 무엇을 셌는가와 가장 오래 밀린 마일스톤 — 각 문장은 자기 이름(`dt`) 옆에 선다(VIS-09)
+ * 구성 칩과 위험 칩은 한 번에 하나만 걸린다(조건을 켜는 자리와 끄는 자리가 같다). */
 function Summary({ query, filters, onFilter }) {
   if (query.isPending) return <Card><Skeleton lines={3} /></Card>;
   if (query.isError) return <ErrorState layout="region" error={query.error} onRetry={() => query.refetch()} />;
 
   const d = query.data || {};
-  // PA-RC-0018 direction 4(0 지표 규칙): 프로젝트가 0건이면 여덟 타일 전부가 0/-다 —
-  // 빈 상태 위에 값 없는 카드 벽을 먼저 그리는 대신, 아래 EmptyState 하나로만 말한다.
-  // 이 total은 서버 집계(project_dashboard)라 목록 화면의 보관 필터와 무관하게 항상
-  // 전체 기준이다(위 주석 "요약을 화면에서 세지 않는 이유" 참고) — 필터로 화면에 0건이
-  // 보여도 조직에 프로젝트가 있으면 이 요약은 그대로 뜬다.
+  // PA-RC-0018 direction 4(0 지표 규칙): 프로젝트가 0건이면 값 없는 요약을 빈 상태 위에 먼저 그리지 않고 아래 EmptyState 하나로만
+  // 말한다. 이 total은 서버 집계(project_dashboard)라 목록 화면의 보관 필터와 무관하게 항상 전체 기준이다.
   if (!d.total) return null;
   const status = d.by_status || {};
   const progress = d.progress || {};
   const health = d.health || {};
   const trouble = health.trouble || {};
   const overdue = (d.milestones || {}).overdue || {};
-  const avg = percentText(progress.average_pct);
   // 재 본 프로젝트 수. 안 잰 것을 분모에 넣으면 아무것도 안 잰 조직이 가장 건강해 보인다.
   const scored = Math.max(0, (d.total || 0) - (health.unscored || 0));
+  // 위험 칩은 0건이면 서지 않는다 — 그때 「없다」는 사실은 정의 줄이 말한다.
+  const healthNote = (scored && !trouble.count ? "건강도가 낮은 프로젝트가 없습니다. " : "") + healthSummarySentence(health, scored);
 
-  /* 지표를 성격으로 **두 묶음**으로 나눈다 (지시 2).
-   *
-   * 예전에는 타일 여덟 장이 한 격자에 깔렸고, 프로젝트가 적으면 그중 다섯이 `0`/`-` 라
-   * 화면 절반을 "값이 없다"는 사실이 차지했다. 여덟 개가 같은 무게로 보이니 무엇이 핵심인지도
-   * 알 수 없었다.
-   *
-   *   1) 구성 — 전체가 지배 판독값이고 상태별 넷이 그 옆에 붙는다. 합이 전체가 되는 관계다.
-   *   2) 진행과 위험 — 성격이 다르다. 조치가 필요한지 보는 줄이라 따로 둔다.
-   */
   return (
-    <Box sx={{ mb: 2.5, display: "grid", gap: 1.5 }}>
-      {/* 구성 칸은 **누르면 목록이 그 상태로 좁아진다** (지시 15). 같은 칸을 다시 누르면
-          조건이 풀린다 — 조건을 켜는 자리와 끄는 자리가 다르면 사용자는 끄는 법을 못 찾는다. */}
-      {/* 구성은 상태 요약 카드 하나다(계획 표 7) — 전체 숫자 · 비율 바 · 상태 칩. 고른 칩을 다시 누르면
-          조건이 풀린다(`onSelect` 가 같은 키를 받으면 비운다). */}
+    <Box sx={{ mb: 2.5 }}>
       <StatusSummaryCard
         ariaLabel="프로젝트 구성"
         total={d.total}
         items={STATUS_TILES.map(([key, label]) => ({ key, value: status[key] || 0, label }))}
         value={filters.status || null}
         onSelect={(key) => onFilter({ status: filters.status === key ? "" : key, trouble: false, overdue: false })}
+        risks={[
+          { key: "trouble", label: "건강도 낮음", value: trouble.count || 0, kind: "danger", ariaLabel: "건강도가 낮은 프로젝트만 보기" },
+          { key: "overdue", label: "지연 마일스톤", value: overdue.count || 0, kind: "warn", ariaLabel: "지연 마일스톤이 있는 프로젝트만 보기" },
+        ]}
+        /* 빈 글자는 「아무것도 안 골랐다」다 — 위험 칩이 늘 `aria-pressed` 를 들게 한다(누르면 켜지고 다시 누르면 꺼지는 단추). */
+        riskValue={filters.trouble ? "trouble" : (filters.overdue ? "overdue" : "")}
+        onRiskSelect={(key) => onFilter(key === "trouble"
+          ? { trouble: !filters.trouble, status: "", overdue: false }
+          : { overdue: !filters.overdue, status: "", trouble: false })}
+        action={<AverageProgress progress={progress} />}
+        notes={[
+          { key: "progress", label: "평균 진행률", text: progressSummarySentence(progress) },
+          { key: "health", label: "건강도", text: healthNote },
+          { key: "overdue", label: "지연 마일스톤", text: overdueSentence(overdue, d.today) },
+        ]}
       />
-      {/* 진행과 위험 — **숫자만 나열하지 않는다** (지시 15).
-          평균 진행률은 막대가, 건강도는 원이 그 값을 그린다. 셋 다 성격이 달라서 한
-          판독 줄에 밀어 넣으면 무엇이 조치를 요구하는 값인지 안 보인다. */}
-      <Box
-        sx={{
-          display: "grid", gap: 1.5,
-          gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" },
-          alignItems: "stretch",
-        }}
-      >
-        <SummaryPanel label="평균 진행률">
-          <Typography sx={{ fontSize: FONT_SIZE.readout, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.15 }}>
-            {avg || "-"}
-          </Typography>
-          <ProgressBar
-            percent={typeof progress.average_pct === "number" ? progress.average_pct : null}
-            revealKey={progress.average_pct}
-          />
-          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-            {progressSummarySentence(progress)}
-          </Typography>
-        </SummaryPanel>
-
-        <SummaryPanel
-          label="건강도 낮음"
-          active={filters.trouble}
-          onClick={() => onFilter({ trouble: !filters.trouble, status: "", overdue: false })}
-          actionLabel="건강도가 낮은 프로젝트만 보기"
-        >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
-            {/* 재 본 것 중 몇이 차질인가. **안 잰 것은 분모가 아니다** — 넣으면 아무것도
-                안 잰 조직이 가장 건강해 보인다. */}
-            <Gauge
-              value={scored ? trouble.count : null}
-              max={scored || 1}
-              size="4.5rem"
-              thickness={6}
-              centerText={String(trouble.count || 0)}
-              color={trouble.count > 0 ? "error" : "success"}
-              emptyLabel="아직 안 쟀습니다"
-              revealKey={trouble.count}
-            />
-            <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>
-              {healthSummarySentence(health, scored)}
-            </Typography>
-          </Box>
-        </SummaryPanel>
-
-        <SummaryPanel
-          label="지연 마일스톤"
-          active={filters.overdue}
-          onClick={() => onFilter({ overdue: !filters.overdue, status: "", trouble: false })}
-          actionLabel="지연 마일스톤이 있는 프로젝트만 보기"
-        >
-          <Typography sx={{ fontSize: FONT_SIZE.readout, fontWeight: FONT_WEIGHT.extrabold, lineHeight: 1.15 }}>
-            {overdue.count || 0}
-          </Typography>
-          {/* 가장 오래 지난 것 셋. 「3건」만 말하면 그것을 본 사람이 할 수 있는 일이 없다 —
-              어느 것이 얼마나 지났는지가 곧 할 일 목록이다.
-              REAUDIT C7/RC6 — 0건이면 그림이 사라지고 큰 숫자 0만 남아 이웃 두 칸(둘 다
-              숫자 아래에 사연을 까는 줄이 있다)보다 가벼워 보였다. 0도 「쟀고 없었다」는
-              답이라 같은 자리에 문장을 채운다. */}
-          {overdue.count ? (
-            <OverdueBars items={overdue.items} today={d.today} />
-          ) : (
-            <EmptyState layout="inline" title="지연된 마일스톤이 없습니다." />
-          )}
-        </SummaryPanel>
-      </Box>
     </Box>
   );
 }
@@ -505,7 +403,7 @@ export function Projects() {
         actions={canWrite ? (
           <Button variant="primary" onClick={() => setCreating(true)}>새 프로젝트</Button>
         ) : null}
-        description="내가 볼 수 있는 프로젝트가 지금 어디까지 왔는지 봅니다."
+        help="내가 볼 수 있는 프로젝트가 지금 어디까지 왔는지 봅니다. 요약의 칩을 누르면 목록이 그 조건으로 좁아집니다."
       />
 
       <Summary

@@ -1073,13 +1073,23 @@ export function ScrollArea({ maxHeight, ariaLabel, children, sx }) {
  * `Callout` 안에만 두면 표·카드·상세가 각자 `<details>` 를 다시 만든다(그러면 라벨과
  * 포커스 표시가 화면마다 갈라진다). 그래서 primitive 로 둔다.
  */
-export function TechDetail({ label = "기술 정보", children, sx }) {
+/** 짧은 상태 면의 사실 줄 — 단계 · 속성 띠 뒤 끝에 「기술 정보」(`TechDetail trailing`)가 접힌 채 붙는 한 줄이다. 펼치면 기술 정보가
+ *  제 줄로 내려간다. 「기술 정보」에 줄 하나를 따로 주면 상태 면이 그만큼 길어져 첫 폼 칸이 1366 첫 화면 기준(420px) 아래로 밀렸다(P17V). */
+export const FACTS_ROW_SX = { display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: 3, rowGap: 0.75, minWidth: 0 };
+
+export function TechDetail({ label = "기술 정보", children, sx, trailing = false }) {
   if (children == null || children === "" || children === false) return null;
   return (
     <Box
       component="details"
       className="k-techdetail"
+      data-trailing={trailing ? "" : undefined}
       sx={{
+        /* `trailing` — 사실 줄(`FACTS_ROW_SX`)의 마지막 칸으로 접힌 채 오른쪽 끝에 선다. 펼치면 줄 전체 폭을 받아 제 줄로 내려간다. */
+        ...(trailing ? {
+          flex: "0 0 auto", marginInlineStart: "auto",
+          "&[open]": { flexBasis: "100%", marginInlineStart: 0 },
+        } : null),
         "& > summary": {
           cursor: "pointer", fontSize: FONT_SIZE.bodySm, color: "text.secondary",
           listStyle: "revert", width: "fit-content",
@@ -1358,14 +1368,16 @@ function MetaPrimaryRow({ list }) {
 }
 
 /** 참조용 값들 — 라벨과 값이 한 줄에 붙는 압축 띠. 찾을 때만 읽는다. */
-function MetaSecondaryRow({ list }) {
+function MetaSecondaryRow({ list, bare = false }) {
   return (
     <Box sx={(t) => ({
       display: "flex", flexWrap: "wrap", alignItems: "baseline",
       /* 위 줄과 갈라 놓는 실선 하나. 상자를 만들지 않는다 — 보조 정보에 컨테이너를 주면
-         그것이 다시 «판» 이 되고, 판이 둘이면 무엇이 위인지 알 수 없다. */
-      borderTop: 1, borderColor: "divider", mt: 0.25, pt: 0.75,
+         그것이 다시 «판» 이 되고, 판이 둘이면 무엇이 위인지 알 수 없다. 띠 하나만 서면(`bare`) 위 줄이 없어 선도 없다. */
+      ...(bare ? null : { borderTop: 1, borderColor: "divider", mt: 0.25, pt: 0.75 }),
       ...META_DIVIDERS(t),
+      /* 띠 하나만 서면 첫 칸의 이름이 위 줄의 글과 같은 시작점에 선다(칸 사이 여백은 둘째 칸부터다). */
+      ...(bare ? { "& > :first-of-type": { pl: 0 } } : null),
     })}>
       {list.map((it, i) => (
         <Box
@@ -1388,9 +1400,19 @@ function MetaSecondaryRow({ list }) {
   );
 }
 
-export function MetaBar({ items, ariaLabel, sx }) {
+export function MetaBar({ items, ariaLabel, sx, strip = false }) {
   const list = (items || []).filter(Boolean);
   if (!list.length) return null;
+  /* `strip` — 모든 칸이 압축 띠(이름과 값이 한 줄에 붙는다) 한 줄이다. 짧은 상태 면(높이 상한 약 120px, F7)처럼 속성을 읽기만
+     하는 자리가 쓴다 — 이름 위 · 값 아래 칸은 줄마다 두 줄을 먹어, AI 연결 상태 면이 190px 가 되고 첫 폼 칸이 1366 첫 화면 기준
+     (420px)을 넘었다(P17V). */
+  if (strip) {
+    return (
+      <Box className="k-metabar" role="group" aria-label={ariaLabel} data-meta-strip="true" sx={sx}>
+        <MetaSecondaryRow list={list} bare />
+      </Box>
+    );
+  }
   /* ## 위계는 폭이 아니라 **무게**다 (C9 · R-90 · 지시 75)
    *
    * S16 이 칸의 **폭**을 고쳤다 — 「높음」 두 글자와 긴 프로젝트 이름이 같은 폭을 받지
@@ -2558,7 +2580,9 @@ function GroupHeaderRow({ group, colSpan, collapsible, open, onToggle }) {
         colSpan={colSpan}
         sx={{
           height: remPx(CONTROL.tableGroupRow),
-          py: 0,
+          /* 묶음 줄은 몸 안의 `th` 라 넓은 화면의 몸 칸 여백(테마 `body`, 미디어 규칙)을 받는다 — 선택자를 한 단 세게 적어 그 여백을
+             이긴다(2560 에서 묶음 줄이 36 이 아니라 44 로 섰다, P17V). */
+          "&&": { paddingTop: 0, paddingBottom: 0 },
           ...(collapsible ? { px: 0 } : null),
           textAlign: "start",
           background: "background.inset",
@@ -2954,10 +2978,13 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
     )
     : null;
   const footNotes = [];
-  if (framed && hiddenCols.length) {
+  /* 발이 있는 표(판 위 표 · 작업 공간 판의 채움 표)는 숨긴 열 안내를 발에 둔다 — 채움 표의 발은 판 아래 고정 줄이다(D-531). 표 위
+     한 줄로 두면 고정 도구 줄이 그만큼 길어져 1366 판에서 표 행 하나를 먹었다(P17V). */
+  const footed = framed || fill;
+  if (footed && hiddenCols.length) {
     footNotes.push(<HiddenColumnsNote key="hidden" inline columns={hiddenCols} openable={!!onRow || !!rowHref} />);
   }
-  if (framed && collapse.caption) {
+  if (footed && collapse.caption) {
     footNotes.push(
       <Typography key="collapsed" component="span" variant="caption" color="text.secondary" data-collapsed-columns={dropped.join(",")}>
         {collapse.caption}
@@ -3339,11 +3366,11 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
        맡기지 않고 **그릇이 선언한다** — 새 열을 더하는 사람이 이 규칙을 몰라도 지켜진다. */
     <FlatBadgeSurface>
       {frame(<>
-      {/* 판이 있는 표는 이 두 안내를 발에 둔다(위 `footNotes`). 판 없는 표(모달 · 서랍)만 예전처럼 표 위 한 줄이다. */}
-      {framed ? null : <HiddenColumnsNote columns={hiddenCols} openable={!!onRow || !!rowHref} />}
+      {/* 판 위 표와 채움 표는 이 두 안내를 발에 둔다(위 `footNotes`). 발이 없는 표(모달 · 서랍)만 예전처럼 표 위 한 줄이다. */}
+      {footed ? null : <HiddenColumnsNote columns={hiddenCols} openable={!!onRow || !!rowHref} />}
       {/* 뺀 열은 **한 번 적는다** (R-91). 열이 조용히 사라지면 사용자는 그 값을 못 봤다는
           사실조차 모른다 — 무엇이 왜 없는지를 표가 직접 말한다. */}
-      {!framed && collapse.caption ? (
+      {!footed && collapse.caption ? (
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", px: 2, pt: 1.5 }} data-collapsed-columns={dropped.join(",")}>
           {collapse.caption}
         </Typography>
@@ -3487,7 +3514,9 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
         <TableBody>
           {isEmpty ? (
             <TableRow data-empty-band="">
-              <TableCell colSpan={wideCols.length || 1} sx={{ p: 0, borderBottom: 0 }}>
+              {/* 띠의 여백은 띠가 갖는다 — 넓은 화면의 몸 칸 여백(테마 `body` 미디어 규칙)을 한 단 센 선택자로 이긴다(2560 에서 띠가
+                  위아래 10 을 더 받아 84px 로 섰다, P17V). */}
+              <TableCell colSpan={wideCols.length || 1} sx={{ p: 0, borderBottom: 0, "&&": { paddingTop: 0, paddingBottom: 0 } }}>
                 <TableEmptyBandCtx.Provider value={BAND_IN_CELL}>{bandContent}</TableEmptyBandCtx.Provider>
               </TableCell>
             </TableRow>

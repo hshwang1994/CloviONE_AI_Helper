@@ -119,10 +119,13 @@ function AddressBlock({ address, mailOff }) {
         </FieldRow>
       ) : null}
       {pending ? (
-        <FieldRow columns={["12rem"]}>
+        /* 칸 폭은 동작 단추까지 담는 칸 전체다 — 예전에는 칸 하나를 12rem 으로 묶어 단추 셋(확인 · 코드 다시 받기 · 취소)이 그
+           폭을 다 가져가고 입력 칸이 10px 로 눌렸다(P17V 상태 캡처). 입력은 남는 폭을 받고, 칸 전체는 24rem 을 넘지 않는다. */
+        <FieldRow columns={["1fr"]}>
           <Field
-            label="확인 코드" htmlFor="notify-code"
-            help={`${pending.email}로 보낸 6자리 코드를 입력하세요. 코드는 15분 동안 쓸 수 있습니다.`}
+            label="확인 코드" htmlFor="notify-code" width="lg"
+            /* 주소 뒤에 조사를 바로 붙이지 않는다 — 「example.com로」처럼 영문 끝의 받침을 코드가 모른다. 「주소로」가 받는다. */
+            help={`${pending.email} 주소로 보낸 6자리 코드를 입력하세요. 코드는 15분 동안 쓸 수 있습니다.`}
             action={(
               <>
                 <Button variant="primary" loading={verify.isPending} disabled={!/^\d{6}$/.test(code.trim())} onClick={() => verify.mutate()}>

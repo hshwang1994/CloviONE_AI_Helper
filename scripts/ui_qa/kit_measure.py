@@ -76,7 +76,10 @@ CONTRACT = {
     "badge": {"h": 22, "px": 8, "r": 4, "w": 600},
     "tag": {"h": 22, "r": 6, "w": 400},
     "filterCell": 34,
+    # 필터 면 밖의 검색 칸 폭. 면 안이면 아래 계단이 정한다 — [필터 면 내용 폭 rem 이상, 칸 폭 rem], 큰 계단부터, 어느 계단에도
+    # 못 미치면 제 줄 전체(D-530, `FilterBar.jsx::SEARCH_SLOT_STEPS` · `composition_checks.py` 와 같은 수).
     "searchSlot": 320,
+    "searchSlotSteps": [[64, 20], [44, 16]],
     "table": {"head": 40, "row": 48, "group": 36, "footer": 44},
     "cardPadding": 20,
     "modal": {"radius": 8, "titleSize": 17, "titleWeight": 700, "close": 30},
@@ -89,6 +92,35 @@ CONTRACT = {
     "switch": {"trackW": 38, "trackH": 22, "thumb": 16, "hit": 44, "layoutH": 34, "ring": 4},
     "tol": 1,
 }
+
+# 계약값은 루트 글자 16px 기준 px 다. 2560 구간은 루트가 18px 라 rem 으로 정한 치수가 1.125 배로 선다 — 같은 비율로 곱해서 잰다
+# (`composition_checks.py` 가 이미 `R = rootPx / 16` 을 곱하는 것과 같다). 곱하지 않는 것: 글자 굵기 · 비율 · 허용 오차, rem 으로
+# 적은 계단, 스스로 루트 비율을 곱하는 스위치(`swScale`), px 로 정하는 마스코트 박스(`Mascot.jsx::mascotBoxPx`), 채팅 틀.
+# 허용 오차(`tol`)도 곱한다 — 테두리 1px 처럼 rem 이 아닌 조각이 남아 루트 18px 에서 비례값과 1px 남짓 어긋난다.
+# 둥글기(`RADIUS` 토큰)는 px 라 루트 글자를 따라 자라지 않는다 — 곱하면 2560 의 모달 모서리 8px 가 9 로 걸린다.
+_UNSCALED_KEYS = frozenset({"w", "titleWeight", "bubbleMax", "searchSlotSteps", "switch", "mascot", "chat",
+                            "radius", "r", "floatingRadius", "composerRadius"})
+
+
+def contract_for(root_px: float | None) -> dict:
+    """루트 글자 크기에 맞춘 계약값 사본."""
+    k = (root_px or 16) / 16
+    if abs(k - 1) < 1e-6:
+        return dict(CONTRACT)
+
+    def walk(key, value):
+        if key in _UNSCALED_KEYS or isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return round(value * k, 3)
+        if isinstance(value, list):
+            return [walk(None, v) for v in value]
+        if isinstance(value, dict):
+            return {kk: walk(kk, vv) for kk, vv in value.items()}
+        return value
+
+    return {key: walk(key, value) for key, value in CONTRACT.items()}
+
 
 CHECKS = (
     "button_height", "button_wrap", "button_clip", "icon_button_height", "segmented",
@@ -316,7 +348,19 @@ MEASURE_JS = r"""
       rows.get(row).push(box.getBoundingClientRect());
       if (f.getAttribute('data-filter-kind') === 'search' && (f.parentElement.matches('[data-filter-row]') || f.closest('[data-filter-surface]'))) {
         check('search_slot').checked++;
-        if (innerWidth >= 900 && !near(f.getBoundingClientRect().width, C.searchSlot)) fail('search_slot', { ...where(f), got: Math.round(f.getBoundingClientRect().width) });
+        /* 면 안의 검색 칸은 필터 면의 내용 폭이 계단을 고른다(D-530) — 64rem 이상 20rem · 44 ~ 64rem 16rem · 그보다 좁으면 제 줄
+           전체. 면 밖이면 계단을 못 보므로 20rem 이다. */
+        const surf = f.closest('[data-filter-surface]');
+        let want = C.searchSlot;
+        if (surf) {
+          const rp = px(getComputedStyle(document.documentElement).fontSize) || 16;
+          const ss = getComputedStyle(surf);
+          const inner = (surf.clientWidth - px(ss.paddingLeft) - px(ss.paddingRight)) / rp;
+          const step = (C.searchSlotSteps || []).find(([minRem]) => inner >= minRem);
+          want = step ? step[1] * rp : f.parentElement.getBoundingClientRect().width;
+        }
+        const got = f.getBoundingClientRect().width;
+        if (innerWidth >= 900 && !near(got, want)) fail('search_slot', { ...where(f), got: Math.round(got), want: Math.round(want) });
       }
     }
     for (const [, rects] of rows) {
@@ -337,7 +381,7 @@ MEASURE_JS = r"""
       if (!shown(t)) continue;
       check('filter_toggle').checked++;
       const aria = t.hasAttribute('aria-pressed') || t.hasAttribute('aria-expanded');
-      if (!near(hOf(t), 34) || !aria) fail('filter_toggle', { ...where(t), got: hOf(t), aria });
+      if (!near(hOf(t), C.filterCell) || !aria) fail('filter_toggle', { ...where(t), got: hOf(t), aria });
     }
   }
 
@@ -481,7 +525,9 @@ MEASURE_JS = r"""
          (`mascot-bounds.json`). 모르는 자산은 여백이 없다고 본다(크기를 부풀리지 않는다). */
       const file = (img.getAttribute('src') || '').split('/').pop();
       const hfrac = (C.mascotHfrac && C.mascotHfrac[file]) || 1;
-      const visible = img.getBoundingClientRect().height * hfrac;
+      /* 배치 높이를 잰다 — 숨쉬기 · 등장 애니메이션의 `scale` 이 걸린 순간의 테두리 상자(getBoundingClientRect)는 계약 크기보다
+         1 ~ 2px 크다(P17V 실측: 132 계약의 쉬는 클로비가 134 로 걸렸다). */
+      const visible = (img.offsetHeight || img.getBoundingClientRect().height) * hfrac;
       const ok = layout === 'page' ? visible <= C.mascot.pageMax + tol : visible <= C.mascot.region + tol;
       if (!ok) fail('mascot_size', { ...where(e), layout, visible: Math.round(visible), file });
     }
@@ -884,7 +930,9 @@ def measure(args) -> int:
                             # hover 로 떠올라(`translateY(-2px)`) 같은 줄 카드의 윗선 검사가 거짓으로 걸린다(G 실측: 놀이 목록).
                             page.mouse.move(0, 0)
                             page.wait_for_timeout(120)
-                            result = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": None, "mascotHfrac": hfrac})
+                            root_px = page.evaluate("parseFloat(getComputedStyle(document.documentElement).fontSize) || 16")
+                            contract = contract_for(root_px)
+                            result = page.evaluate(MEASURE_JS, {**contract, "scope": None, "mascotHfrac": hfrac})
                             composed = page.evaluate(COMPOSITION_JS, {**COMPOSITION_CONTRACT, "scope": None,
                                                                       "expect": expect_for(route.id)})
                             if isinstance(composed, dict) and not composed.get("error"):
@@ -900,8 +948,8 @@ def measure(args) -> int:
                             if args.open_modals:
                                 from scripts.ui_qa import interact
 
-                                def on_open(pg, opener, probe, _key=key):
-                                    got = pg.evaluate(MEASURE_JS, {**CONTRACT, "scope": ".MuiDialog-root", "mascotHfrac": hfrac})
+                                def on_open(pg, opener, probe, _key=key, _contract=contract):
+                                    got = pg.evaluate(MEASURE_JS, {**_contract, "scope": ".MuiDialog-root", "mascotHfrac": hfrac})
                                     if isinstance(got, dict) and not got.get("error"):
                                         where = f"{_key}__modal:{opener}"
                                         pages[where] = got

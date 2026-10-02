@@ -164,6 +164,9 @@ const ROW_CELL_SX = {
   "&& .MuiAutocomplete-inputRoot .MuiAutocomplete-input": { paddingLeft: 0, minWidth: remPx(30) },
   "& .MuiInputBase-input, & .MuiSelect-select": { paddingTop: 0, paddingBottom: 0, fontWeight: FONT_WEIGHT.semibold },
   "& .MuiSelect-select": { display: "flex", alignItems: "center", minHeight: 0 },
+  /* 접두 이름이 서는 왼쪽 여백은 종류와 무관하게 rem 하나다 — 셀렉트 · 자유 입력은 MUI 의 14px 그대로라 루트 18px 구간(2560)에서
+     자동완성(rem)과 2px 어긋났다(P17V 프로브 `filter_cell_anatomy`). */
+  "&& .MuiSelect-select, && .MuiInputBase-adornedStart:not(.MuiAutocomplete-inputRoot)": { paddingLeft: remPx(14) },
   "& .MuiInputBase-input:not([data-row-hint])::placeholder": { opacity: 1, color: "text.primary" },
   "& .MuiInputBase-input:not([data-row-hint])::-webkit-input-placeholder": { opacity: 1, color: "text.primary" },
   /* 「검색 또는 입력」 같은 **안내**는 값이 아니다 — 흐리지 않되 muted · 보통 굵기로 선다. */

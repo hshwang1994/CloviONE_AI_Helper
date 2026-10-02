@@ -8,7 +8,12 @@ import { COLUMN_TYPES } from "./columnTypes.js";
 /* 표 열 폭 배분 (F3 · D-529). 예전에는 폭 없는 제목 열이 남는 폭 전부를 먹고 나머지 열은 바닥 rem 이 곧 폭이었다 — 1920 에서
  * 조직 구성원 이름 열이 500px 넘게 비고 이메일이 잘렸으며, 1366 에서는 열 바닥 합이 판보다 넓어 상태 · 역할 열이 판 밖으로
  * 나갔다. 아래 황금값은 계획 문서의 조직 구성원 표 계산표다(루트 16 · 2560 은 18). 정수 px 로 올리는 큰 나머지 순서 때문에
- * 칸 하나가 1px 다를 수 있어 ±1 로 보고, 합은 칸 폭과 정확히 같아야 한다. */
+ * 칸 하나가 1px 다를 수 있어 ±1 로 보고, 합은 칸 폭과 정확히 같아야 한다.
+ *
+ * qa-contract-change: 남는 폭의 첫 몫이 내용 몫이 됐다(P17V). 계획의 계산표는 비중만으로 나눠 1366 에서 이메일 열이 185px 였고,
+ * 일반 길이 주소 「kim.jihoon@goodmit.co.kr」(232px)가 잘렸다 — 계획이 함께 요구한 「이메일 · 상태 · 역할 · 날짜는 일반 길이 값에서
+ * 말줄임 없음」과 어긋난다. 이제 값 폭까지 먼저 주고, 모자라면 값이 바닥보다 짧은 열(이름 · 부서)이 그 차이를 내준다. 황금값은
+ * 그 규칙으로 다시 쟀고(1366 · 1600 · 1920 · 말단 1366), 이메일이 잘리지 않는다는 단언을 더했다. */
 
 const ROLE_LABELS = ["일반 사용자", "운영자", "감사자", "관리자", "시스템 관리자"];
 const MEMBERS = [
@@ -38,17 +43,45 @@ function expectWidths(plan, want, avail) {
 }
 
 describe("조직 구성원 표 — 계획의 계산표", () => {
-  it("조직 @1366 = 724: 보조 열 직책만 숨기고 필수 넷이 모두 보인다", () => {
+  it("조직 @1366 = 724: 보조 열 직책만 숨기고 필수 넷이 모두 보인다 — 이메일은 값 폭을 받는다", () => {
     const plan = planColumns(ORG_COLS, 724, { rows: MEMBERS });
-    expectWidths(plan, { name: 154, title: null, email: 185, dept: 169, status: 96, role: 120 }, 724);
+    expectWidths(plan, { name: 127, title: null, email: 232, dept: 149, status: 96, role: 120 }, 724);
     expect(plan.hidden.map((c) => c.key)).toEqual(["title"]);
   });
 
-  it("조직 @1600 = 910 · @1920 = 1230: 늘어나는 세 열이 같은 비중으로 받는다", () => {
+  it("조직 @1600 = 910 · @1920 = 1230: 내용 몫 뒤에 늘어나는 세 열이 같은 비중으로 받는다", () => {
     expectWidths(planColumns(ORG_COLS, 910, { rows: MEMBERS }),
-      { name: 181, title: 104, email: 213, dept: 197, status: 96, role: 120 }, 910);
+      { name: 162, title: 104, email: 250, dept: 178, status: 96, role: 120 }, 910);
     expectWidths(planColumns(ORG_COLS, 1230, { rows: MEMBERS }),
-      { name: 287, title: 104, email: 319, dept: 304, status: 96, role: 120 }, 1230);
+      { name: 271, title: 104, email: 352, dept: 287, status: 96, role: 120 }, 1230);
+  });
+
+  it("🔴 일반 길이 주소는 어느 폭에서도 잘리지 않는다 — 값이 짧은 이름 · 부서 열이 그 차이를 내준다", () => {
+    const need = columnSpec(EMAIL, { rows: MEMBERS }).need * 16;
+    for (const avail of [724, 910, 1230]) {
+      const plan = planColumns(ORG_COLS, avail, { rows: MEMBERS });
+      expect(plan.widths.email, `@${avail}`).toBeGreaterThanOrEqual(need);
+      // 내준 열도 자기 값이 한 줄로 선다.
+      expect(plan.widths.name).toBeGreaterThanOrEqual(columnSpec(NAME, { rows: MEMBERS }).need * 16);
+      expect(plan.widths.dept).toBeGreaterThanOrEqual(columnSpec(DEPT, { rows: MEMBERS }).need * 16);
+    }
+  });
+
+  it("행 이름(`rowName`)이 있으면 그리는 함수만 있는 이름 열도 값 폭을 안다 — 내주지는 않는다", () => {
+    const named = { ...NAME, render: (r) => r.name, rowName: (r) => r.name };
+    const spec = columnSpec(named, { rows: MEMBERS });
+    expect(spec.need).toBe(columnSpec(NAME, { rows: MEMBERS }).need);
+    expect(spec.trusted).toBe(false);
+  });
+
+  it("값을 다 모르는 열은 내주지 않는다 — 그리는 함수만 있는 열은 잰 글 폭이 칸 폭이 아니다", () => {
+    const drawn = { ...NAME, render: (r) => r.name };
+    const plan = planColumns([drawn, TITLE, EMAIL, DEPT, STATUS, ROLE], 724, { rows: MEMBERS });
+    expect(plan.widths.name).toBeGreaterThanOrEqual(144);
+    // `value(row)` 를 적으면 그 열도 값 폭까지 내준다. `lead`(앞 그림 폭)는 그 값 폭에 더해진다.
+    const valued = { ...drawn, value: (r) => r.name, lead: 1.75 };
+    expect(columnSpec(valued, { rows: MEMBERS }).trusted).toBe(true);
+    expect(columnSpec(valued, { rows: MEMBERS }).need).toBe(columnSpec(NAME, { rows: MEMBERS }).need + 2);
   });
 
   it("조직 @2560 = 1783(루트 18): 늘어나는 열이 모두 상한이면 남는 폭을 모든 열이 지금 폭 비율로 나눈다", () => {
@@ -58,7 +91,7 @@ describe("조직 구성원 표 — 계획의 계산표", () => {
 
   it("말단 부서 @1366 · @1920: 부서 열은 그리지 않는다", () => {
     expectWidths(planColumns(LEAF_COLS, 724, { rows: MEMBERS }),
-      { name: 186, title: 104, email: 218, status: 96, role: 120 }, 724);
+      { name: 158, title: 104, email: 246, status: 96, role: 120 }, 724);
     expectWidths(planColumns(LEAF_COLS, 1230, { rows: MEMBERS }),
       { name: 369, title: 133, email: 451, status: 123, role: 154 }, 1230);
   });

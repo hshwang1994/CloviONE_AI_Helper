@@ -56,7 +56,10 @@ export function MailPreview() {
             <Box component="span" sx={{ color: "text.secondary", mr: 1 }}>제목</Box>
             {data.subject}
           </Typography>
+          {/* 견본 틀이다 — 메일 앱이 메일을 그리는 바탕을 흉내 내는 오목면이고, 그 안의 흰 판은 메일 자신이다. 판 안의 카드가 아니라
+              부품 갤러리의 견본 틀과 같은 자리라 시각 프로브(`nested_card`)에 그 사실을 말한다(`data-allow-nested`). */}
           <Box
+            data-allow-nested=""
             sx={{
               bgcolor: "background.inset", border: 1, borderColor: "divider", borderRadius: `${RADIUS.md}px`,
               p: 2, overflowX: "auto", display: "flex", justifyContent: "center",

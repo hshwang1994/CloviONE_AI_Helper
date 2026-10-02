@@ -383,3 +383,11 @@ export const MASCOT_PHASE_TEXT = {
   listening: "무엇이든 물어보세요.",
   idle: "대화를 시작해 보세요.",
 };
+
+/** 머리 클로비 옆 한 줄. 쓸 수 없으면 그 사실을, 대화가 오간 뒤 쉬는 때는 「이어서 물어보세요.」를, 나머지는 단계 문구를 말한다 —
+ *  이미 답이 오간 대화 옆에 「대화를 시작해 보세요.」가 서면 어색했다(P17V 상태 캡처). */
+export function mascotStatusText({ mode, unavailable = false, hasMessages = false } = {}) {
+  if (unavailable) return "지금은 답할 수 없습니다.";
+  if (mode === "idle" && hasMessages) return "이어서 물어보세요.";
+  return MASCOT_PHASE_TEXT[mode] || MASCOT_PHASE_TEXT.idle;
+}

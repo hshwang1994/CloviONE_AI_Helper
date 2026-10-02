@@ -27,8 +27,13 @@
  * 오른쪽 것부터다. `essential` 바닥 합이 칸보다 크면 더 숨기지 않고 표가 바닥 합 폭으로 서서 표 상자 안에서 가로로 굴러간다
  * (`scroll`) — 필수 값이 잘리거나 사라지는 것보다 굴리는 편이 낫다.
  *
- * 남는 폭: 늘어나는 열에 비중대로 상한까지 나누고, 모두 상한이면 남는 폭을 보이는 열(선택 · 동작 칸 제외)에 **지금 폭 비율로**
- * 나눈다. 마지막에 정수 px 로 올려 합이 칸 폭과 정확히 같게 한다(큰 나머지 순).
+ * 남는 폭은 세 번에 나눠 준다.
+ *   ① 내용 몫 — 늘어나는 열의 값이 한 줄로 서는 폭(값 필요 폭 + 앞 그림 `lead`)까지 상한 안에서 먼저 준다. 모자라면 값을 다 아는
+ *      늘어나는 열(`value(row)` 를 적었거나 그리는 함수가 없는 열) 가운데 값이 바닥보다 짧은 열이 그 차이만큼 내준다. 비중만으로
+ *      나누면 1366 조직 표에서 이름 · 부서 열이 짧은 값 옆에 수십 px 를 비워 둔 채 「kim.jihoon@goodmit.co…」가 잘렸다(P17V).
+ *   ② 비중 몫 — 남은 폭을 늘어나는 열에 비중대로 상한까지 나눈다(물 채우기).
+ *   ③ 모두 상한이면 남는 폭을 보이는 열(선택 · 동작 칸 제외)에 **지금 폭 비율로** 나눈다.
+ * 마지막에 정수 px 로 올려 합이 칸 폭과 정확히 같게 한다(큰 나머지 순).
  */
 import { COLUMN_TYPES, assignLeftoverWidth, lengthToPx, resolveColumn } from "./columnTypes.js";
 
@@ -124,6 +129,12 @@ export function columnValueText(col, row) {
       const v = c.hint(row);
       if (v != null && v !== "") return String(v);
     }
+    /* 행 이름(`rowName`)은 이름 · 제목 열이 그리는 글이다 — 그리는 함수만 있는 이름 열도 값 폭으로 내용 몫을 받는다(P17V: 정책 이름
+       열이 값 폭을 몰라 비중 몫만 받고 잘렸다). 값 폭을 남에게 내주는 것(`trusted`)은 여전히 `value` 를 적은 열만이다. */
+    if (typeof c.rowName === "function") {
+      const v = c.rowName(row);
+      if (v != null && v !== "") return String(v);
+    }
   } catch (e) {
     return null;
   }
@@ -182,7 +193,15 @@ export function columnSpec(col, { rootPx = 16, glyphs = 0, sortKey, rows } = {})
   if (growSpec) {
     const min = Math.max(minOverride != null ? minOverride : remOf(growSpec.minWidth), header);
     const max = Math.max(min, maxOverride != null ? maxOverride : remOf(growSpec.maxWidth));
-    return { ...base, kind: "grow", min, weight: growSpec.weight, max };
+    /* 값이 한 줄로 서는 폭 — 남는 폭의 첫 몫(내용 몫)이 이만큼 먼저 간다. `lead` 는 글 앞에 서는 그림(아바타 · 아이콘)과 그 사이
+       폭(rem)이다. 값을 다 아는 열(`trusted`)만 이 폭이 바닥보다 좁을 때 그 차이를 다른 열에 내준다 — 그리는 함수가 글 말고 다른
+       것을 더 그릴 수 있는 열은 잰 글 폭이 칸 폭이 아니다. */
+    const list = Array.isArray(c.values) ? c.values
+      : (rows || []).slice(0, VALUE_SAMPLE_ROWS).map((r) => columnValueText(c, r));
+    const measured = valuesNeedRem(list);
+    const need = measured ? Math.max(header, stepUp(measured + (Number(c.lead) || 0))) : null;
+    const trusted = need != null && (typeof c.value === "function" || typeof c.render !== "function");
+    return { ...base, kind: "grow", min, weight: growSpec.weight, max, need, trusted };
   }
   if (type === "actions") {
     const n = Math.max(1, Number(c.actionCount) || 1);
@@ -264,8 +283,29 @@ export function planColumns(columns, availPx, { rootPx = 16, sortKey, glyphsOf, 
     return { shown, hidden, widths, tableWidth, scroll: true, meta };
   }
 
-  // 남는 폭 — 늘어나는 열에 비중대로, 상한까지(물 채우기).
   let left = avail - floor;
+  // ① 내용 몫 — 늘어나는 열의 값이 한 줄로 서는 폭까지(상한 안에서). 모자라면 값이 바닥보다 짧은 열이 그 차이를 내준다.
+  const growers = shown.filter((c) => specs.get(c).kind === "grow");
+  const needPx = (c) => { const s = specs.get(c); return s.need != null ? Math.min(s.need, s.max) * root : null; };
+  const demand = new Map(growers.map((c) => [c, needPx(c) != null ? Math.max(0, needPx(c) - widthPx.get(c)) : 0]));
+  const wanted = [...demand.values()].reduce((a, b) => a + b, 0);
+  if (wanted > left + 1e-6) {
+    const slack = new Map(growers
+      .filter((c) => specs.get(c).trusted && needPx(c) != null && needPx(c) < widthPx.get(c) - 1e-6)
+      .map((c) => [c, widthPx.get(c) - needPx(c)]));
+    const totalSlack = [...slack.values()].reduce((a, b) => a + b, 0);
+    const borrow = Math.min(totalSlack, wanted - left);
+    if (borrow > 1e-6) {
+      for (const [c, s] of slack) widthPx.set(c, widthPx.get(c) - borrow * s / totalSlack);
+      left += borrow;
+    }
+  }
+  if (wanted > 1e-6) {
+    const share = Math.min(1, left / wanted);
+    for (const [c, d] of demand) if (d > 0) widthPx.set(c, widthPx.get(c) + d * share);
+    left = Math.max(0, left - wanted * share);
+  }
+  // ② 비중 몫 — 늘어나는 열에 비중대로, 상한까지(물 채우기).
   const room = (c) => specs.get(c).max * root - widthPx.get(c);
   let open = shown.filter((c) => specs.get(c).kind === "grow" && room(c) > 1e-6);
   while (left > 1e-6 && open.length) {
@@ -276,7 +316,7 @@ export function planColumns(columns, availPx, { rootPx = 16, sortKey, glyphsOf, 
     left -= step;
     open = open.filter((c) => room(c) > 1e-6);
   }
-  // 모두 상한이면 남는 폭을 보이는 열에 지금 폭 비율로 — 한 열이 혼자 먹지 않는다.
+  // ③ 모두 상한이면 남는 폭을 보이는 열에 지금 폭 비율로 — 한 열이 혼자 먹지 않는다.
   if (left > 1e-6) {
     const takers = shown.filter((c) => !NO_SPILL.has(specs.get(c).type));
     const total = takers.reduce((sum, c) => sum + widthPx.get(c), 0);

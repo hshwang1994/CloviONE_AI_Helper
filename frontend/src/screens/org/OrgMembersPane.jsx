@@ -11,7 +11,7 @@ import { FilterSelect, SearchBox } from "../../ui/filters.jsx";
 import { ListStateView } from "../../ui/ListStateView.jsx";
 import { LIST_STATE_COPY, isFailureState, resolveListState } from "../../ui/listState.js";
 import { PaneToolbar, WorkspacePane } from "../../ui/Workspace.jsx";
-import { PersonLine } from "../../ui/UserAvatar.jsx";
+import { PersonLine, personLineLead } from "../../ui/UserAvatar.jsx";
 import { FONT_WEIGHT } from "../../ui/theme.js";
 
 /* 구성원 판 (O1 · D-533) — 고른 조직이나 부서의 사람. 판 머리 · 도구 줄 · 표 머리 · 판 발은 고정이고 표 몸만 굴러간다.
@@ -48,11 +48,16 @@ export function memberColumns({ showDepartment }) {
     {
       key: "display_name", label: "이름", type: "name", rowLink: true,
       rowName: (u) => u.display_name || u.email,
+      /* 칸에 그려지는 글과 그 앞 아바타 폭 — 열 배분이 값 폭을 알아야 이름이 짧을 때 그 차이를 이메일 열에 내준다(D-529). */
+      value: (u) => u.display_name || "알 수 없음",
+      lead: personLineLead("xs"),
       render: (u) => <PersonLine person={u} name={u.display_name} size="xs" />,
     },
     { key: "title", label: "직책", type: "enum", tier: "secondary", priority: 0, render: (u) => u.title || "-" },
     { key: "email", label: "이메일", type: "identifier" },
-    showDepartment ? { key: "department", label: "부서", type: "path", tier: "secondary", priority: 1, render: (u) => u.department || "-" } : null,
+    /* 그리는 함수를 두지 않는다 — 글 값 열이라 칸 폭 안에서 말줄임 + 전체 값 툴팁이다. 그리는 함수가 있으면 말줄임 판정에서
+       빠져 아주 긴 부서 이름이 열두 줄로 접혀 행 하나가 250px 가 됐다(P17V 긴 값 상태 캡처). */
+    showDepartment ? { key: "department", label: "부서", type: "path", tier: "secondary", priority: 1, value: (u) => u.department || "-" } : null,
     {
       key: "state", label: "상태", type: "status", values: STATE_OPTIONS.map((o) => o.label),
       hint: (u) => stateOf(u).label,

@@ -9,7 +9,7 @@
                         160×56 이상)을 손으로 그린 상자
     brand_area          보라 계열 바탕 면적. 선택 상태 · 단추 · 탐색 셸 · 그림(svg) 밖의 면만 센다. 뷰포트의 3% 를 넘거나 한
                         요소가 1.5% 를 넘으면 실패(보라는 선택 상태와 주 동작에만 쓴다 — F7 색 쓰임표)
-    first_data_visible  첫 데이터 요소(표 머리 · 폼 칸 · 트리 행 · 체크리스트 행)의 윗변이 1920×1080 에서 440 · 1366×768 에서 420
+    first_data_visible  첫 데이터 요소(표 머리 · 폼 칸 · 설정 줄 · 선택 카드 · 트리 행 · 체크리스트 행)의 윗변이 1920×1080 에서 440 · 1366×768 에서 420
                         이하인가(루트 글자 18 · 20px 구간은 그 비율을 곱한다). 데이터 요소가 없는 화면은 표본 0 이다
 
     surface_count       (보고) 첫 화면에 걸친 테두리 판 수
@@ -160,7 +160,9 @@ VISUAL_JS = r"""
   out.brand_pct = brandPct;
 
   // ── 첫 화면 데이터 ──────────────────────────────────────────────────────
-  const DATA = 'thead, [role=columnheader], [data-form-field], [role=treeitem], [data-checklist-row]';
+  /* 폼 칸은 입력 칸(`data-form-field`)만이 아니다 — 설정 줄(`k-settingrow`, 스위치 · 체크 상자)과 선택 카드 묶음(radiogroup)도
+     「첫 폼 칸」이다. 그 둘을 안 세면 메일 설정처럼 스위치 · 선택 카드가 먼저 서는 폼이 입력 칸이 내려간 만큼 거짓으로 걸렸다(P17V). */
+  const DATA = 'thead, [role=columnheader], [data-form-field], [role=treeitem], [data-checklist-row], .k-settingrow, [role=radiogroup]';
   const firsts = [...root.querySelectorAll(DATA)].filter((el) => shown(el) && !inOverlay(el) && !inShell(el));
   if (firsts.length) {
     check('first_data_visible').checked++;

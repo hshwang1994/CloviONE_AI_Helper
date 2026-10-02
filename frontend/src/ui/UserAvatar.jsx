@@ -85,6 +85,13 @@ export function UserAvatar({ person, userId, name, size = "inline", label, sx })
 }
 
 /** 아바타 + 이름 한 줄. 사람을 이름으로만 부르던 자리를 이것으로 바꾼다. */
+/** 사람 줄(`PersonLine`)에서 이름 앞에 서는 폭(rem) — 아바타 + 사이 0.3125rem. 표의 이름 열이 `lead` 로 적어 값 폭에 더한다
+ *  (`columnPlan.columnSpec`). */
+export function personLineLead(size = "inline") {
+  const box = parseFloat(AVATAR_SIZE[size] || size);
+  return (Number.isFinite(box) ? box : 1.25) + 0.3125;
+}
+
 export function PersonLine({ person, name, size = "inline", bold, suffix, sx }) {
   return (
     <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.625, minWidth: 0, maxWidth: "100%", lineHeight: 1.25, ...sx }}>

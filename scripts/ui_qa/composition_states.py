@@ -571,7 +571,7 @@ def run(args) -> int:
 
     from scripts.ui_qa import capture as cap, tls
     from scripts.ui_qa.auth import ensure_session
-    from scripts.ui_qa.kit_measure import CONTRACT, MEASURE_JS, _mascot_hfrac
+    from scripts.ui_qa.kit_measure import MEASURE_JS, _mascot_hfrac, contract_for
 
     base = (args.base_url or cap.DEFAULT_BASE_URL).rstrip("/")
     insecure = tls.apply_default_https_context(cli_insecure=bool(getattr(args, "insecure", False)))
@@ -608,7 +608,8 @@ def run(args) -> int:
                                 record["shot"] = _shot_ref(shot)
                                 composed = page.evaluate(COMPOSITION_JS, {**COMPOSITION_CONTRACT, "scope": None,
                                                                           "expect": expect_for(route_id)})
-                                parts = page.evaluate(MEASURE_JS, {**CONTRACT, "scope": None, "mascotHfrac": hfrac})
+                                root_px = page.evaluate("parseFloat(getComputedStyle(document.documentElement).fontSize) || 16")
+                                parts = page.evaluate(MEASURE_JS, {**contract_for(root_px), "scope": None, "mascotHfrac": hfrac})
                                 record["composition"] = composed
                                 record["parts"] = {k: v for k, v in parts.items() if isinstance(v, dict) and "checked" in v}
                                 fails = []

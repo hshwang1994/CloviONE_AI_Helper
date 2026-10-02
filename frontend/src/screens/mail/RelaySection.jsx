@@ -206,7 +206,8 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
             options={[
               { value: "smarthost", label: "상위 SMTP 이용", description: "다른 SMTP 서버를 거쳐 보냅니다." },
               {
-                value: "direct", label: "인터넷으로 직접 전달", note: "고급",
+                /* 「고급」은 제목 옆 표지다 — 설명 아래 한 줄(`note`)로 두면 낱말 하나가 외딴 줄로 섰다(P17V 상태 캡처). */
+                value: "direct", label: "인터넷으로 직접 전달", badge: "고급",
                 description: "받는 쪽 메일 서버로 바로 보냅니다. DNS 설정이 필요합니다.",
               },
             ]}

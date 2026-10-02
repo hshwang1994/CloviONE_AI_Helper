@@ -20,6 +20,10 @@
  *
  * qa-contract-change: 필터 바의 켬/끔 스위치 · 체크박스를 34 중립 단추(FilterToggle, aria-pressed)로 옮겼다(핸드오프 RULES §3, 계획 P-14). 스위치 · 체크박스 역할로 찾던 단언을 같은 이름의 단추로 옮기고, 눌림 상태(aria-pressed)를 더 단언한다.
  * qa-contract-change: 요약 구성 칸(판독 줄 MetricStrip)이 상태 요약 카드(StatusSummaryCard)로 바뀌었다(계획 B-6, 표 7). 판독 칸 선택자에 카드의 큰 숫자와 상태 칩을 더하고, 서버 숫자를 그대로 쓴다는 단언과 누르면 좁히고 다시 누르면 푸는 단언은 그대로 둔다.
+ * qa-contract-change: 요약이 카드 하나가 됐다(P17V — F7 첫 화면 기준). 진행 · 위험 세 칸(평균 진행률 막대 · 건강도 원 · 지연 막대 셋)이
+ * 450px 를 넘어 표 머리가 711px 에서야 섰다. 이제 평균 진행률은 카드 머리 오른쪽의 값과 막대, 「건강도 낮음」 · 「지연 마일스톤」은
+ * 칩 줄의 위험 칩(누르면 좁힌다), 각 수의 뜻은 정의 줄(dt · dd)이다. 칸 선택자(`data-summary-panel`)를 값 선택자(`data-summary-metric`)
+ * 와 정의 줄로 옮기고, 통째 비교에 위험 칩 둘을 더했다. 건강도 원은 위험 칩이 대신한다 — 막대 단언(지시 15)은 그대로 둔다.
  */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -307,11 +311,18 @@ function tile(label) {
   throw new Error(`판독 칸 「${label}」 을 못 찾았다`);
 }
 
-/** 그림을 낀 요약 칸 하나. 자식 순서가 아니라 **이름**으로 짚는다(위 `summaryTiles` 와 같은 이유). */
-function panel(label) {
-  const el = document.querySelector(`[data-summary-panel="${label}"]`);
-  expect(el, `요약 칸 「${label}」 을 못 찾았다`).not.toBeNull();
+/** 요약 카드 머리 오른쪽의 값 하나(평균 진행률). 자식 순서가 아니라 **이름**으로 짚는다(위 `summaryTiles` 와 같은 이유). */
+function metric(label) {
+  const el = document.querySelector(`[data-summary-metric="${label}"]`);
+  expect(el, `요약 값 「${label}」 을 못 찾았다`).not.toBeNull();
   return el;
+}
+
+/** 요약 정의 줄에서 이름(dt) 바로 옆의 문장(dd). */
+function note(label) {
+  const dt = [...document.querySelectorAll("[data-summary-notes] dt")].find((el) => el.textContent.trim() === label);
+  expect(dt, `정의 「${label}」 을 못 찾았다`).toBeTruthy();
+  return dt.nextElementSibling;
 }
 
 function summaryTiles() {
@@ -452,30 +463,31 @@ describe("프로젝트 목록 — 요약", () => {
     await screen.findByText("배포 자동화");
 
     /* 통째로 비교한다. 타일 하나씩 보면 화면이 새 타일을 몰래 더해도 안 걸린다.
-       구성 칸 다섯은 판독 줄에 있고, 진행·위험 셋은 그림을 낀 칸으로 내려갔다(지시 15) —
-       아래 단언이 그 셋을 이어서 본다. */
+       구성 다섯과 위험 둘은 한 카드의 칩이고, 평균 진행률은 카드 머리 오른쪽 값이다 — 아래 단언이 그것을 이어서 본다. */
     expect(summaryTiles()).toEqual({
       "전체": "22",
       "진행": "12",
       "완료": "5",
       "보류": "3",
       "계획": "2",
+      "건강도 낮음": "4",
+      "지연 마일스톤": "6",
     });
 
-    // 진행과 위험 — 숫자는 그림 옆에 그대로 있다.
-    expect(within(panel("평균 진행률")).getByText("47.3%")).toBeInTheDocument();
-    expect(within(panel("건강도 낮음")).getByText("4")).toBeInTheDocument();
-    expect(within(panel("지연 마일스톤")).getByText("6")).toBeInTheDocument();
+    // 평균 진행률 — 숫자는 막대 옆에 그대로 있다.
+    expect(within(metric("평균 진행률")).getByText("47.3%")).toBeInTheDocument();
   });
 
-  it("🔴 숫자만 두지 않는다 — 진행률은 막대가, Health 는 원이 함께 선다 (지시 15)", async () => {
+  it("🔴 숫자만 두지 않는다 — 평균 진행률은 막대가 함께 서고, 위험은 누르는 칩이다 (지시 15)", async () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
 
     /* 「63.3%」와 「97.6%」는 글자로만 보면 비슷한 길이지만 막대로 보면 다른 그림이다.
        그림은 `aria-hidden` 이고 숫자는 글자로 그대로 있다 — 정보량은 안 줄어든다. */
-    expect(panel("평균 진행률").querySelector('[aria-hidden="true"]')).toBeTruthy();
-    expect(panel("건강도 낮음").querySelector("svg")).toBeTruthy();
+    expect(metric("평균 진행률").querySelector('[aria-hidden="true"]')).toBeTruthy();
+    // 위험 칩은 켜고 끄는 단추다 — 아무것도 안 골랐어도 눌림 상태를 말한다.
+    expect(screen.getByRole("button", { name: "건강도가 낮은 프로젝트만 보기" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "지연 마일스톤이 있는 프로젝트만 보기" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("🔴 요약 칸을 누르면 목록이 그 조건으로 좁아지고, 다시 누르면 풀린다", async () => {
@@ -542,17 +554,19 @@ describe("프로젝트 목록 — 요약", () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
 
-    // 예전엔 두 각주가 합쳐진 문단 하나가 그리드 전체 아래에 떨어져 있었다 - 어느 타일
-    // 얘기인지 DOM 만으로 확인할 방법이 없었다. 지금은 각 각주가 자기 판독 칸 안에
-    // 있어야 한다(kit.jsx::MetricStrip 의 note).
-    const avgTile = panel("평균 진행률");
-    expect(within(avgTile).getByText(/프로젝트 14건의 평균입니다/)).toBeInTheDocument();
+    // 예전엔 두 각주가 합쳐진 문단 하나가 그리드 전체 아래에 떨어져 있었다 - 어느 숫자
+    // 얘기인지 DOM 만으로 확인할 방법이 없었다. 지금은 각 각주가 자기 이름(dt) 바로 옆의
+    // 정의(dd)다(StatusSummaryCard 의 notes).
+    const avgNote = note("평균 진행률");
+    expect(within(avgNote).getByText(/프로젝트 14건의 평균입니다/)).toBeInTheDocument();
 
-    const healthTile = panel("건강도 낮음");
-    expect(within(healthTile).getByText(/판정할 규칙이 없습니다/)).toBeInTheDocument();
+    const healthNote = note("건강도");
+    expect(within(healthNote).getByText(/판정할 규칙이 없습니다/)).toBeInTheDocument();
 
-    // Health 각주가 평균 진행률 타일 안에는 없다(서로 새지 않는다).
-    expect(within(avgTile).queryByText(/판정할 규칙이 없습니다/)).toBeNull();
+    // 건강도 각주가 평균 진행률 정의 안에는 없다(서로 새지 않는다).
+    expect(within(avgNote).queryByText(/판정할 규칙이 없습니다/)).toBeNull();
+    // 지연 마일스톤은 가장 오래 밀린 것 하나를 이름과 지난 날수로 말한다.
+    expect(note("지연 마일스톤").textContent).toMatch(/가장 오래 밀린 것은 \d+일 지난 「.+」입니다\./);
   });
 
   it("PA-RC-0018 direction 4: 프로젝트가 0건이면 값 없는 요약 타일 여덟 장을 빈 상태 위에 그리지 않는다", async () => {

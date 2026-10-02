@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { fmtDateTime } from "../../lib/format.js";
-import { Callout, Card, DotLabel, HeadRow, TechDetail } from "../../ui/kit.jsx";
+import { Callout, Card, DotLabel, FACTS_ROW_SX, HeadRow, TechDetail } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 
 /* 메일 상태 면 (계획 M1 · M2, D-546) — 메일 화면에서 카드는 이것 하나다(F7 카드 규율: 독립된 상태).
@@ -90,18 +90,16 @@ export function MailStatusCard({ health, summary, relay = null, checking = false
   const problemList = h.state === "unconfigured" && (h.problems || []).length > 1 ? h.problems : null;
   return (
     <Card stack data-testid="mail-state" aria-label="메일 발송 상태">
-      <HeadRow
-        action={(
-          <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", whiteSpace: "nowrap" }}>
-            {checked}
-          </Typography>
-        )}
-      >
+      {/* 「최근 확인」은 단추가 아니라 글이라 머리 줄의 동작 칸(34)을 잡지 않는다 — 같은 줄 오른쪽 끝에 글로 선다. */}
+      <HeadRow>
         <Box sx={{ display: "flex", alignItems: "baseline", gap: 1.25, flexWrap: "wrap", minWidth: 0 }}>
           <DotLabel label={label} tone={checking ? "info" : tone} strong data-testid="mail-state-label" />
           {message && !(h.state === "failing" && !checking) ? (
             <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{message}</Typography>
           ) : null}
+          <Typography component="span" sx={{ marginInlineStart: "auto", fontSize: FONT_SIZE.bodySm, color: "text.secondary", whiteSpace: "nowrap" }}>
+            {checked}
+          </Typography>
         </Box>
       </HeadRow>
       {h.state === "failing" && !checking ? (
@@ -119,18 +117,23 @@ export function MailStatusCard({ health, summary, relay = null, checking = false
       {timedOut ? (
         <Callout tone="info" compact>확인이 시간 안에 끝나지 않았습니다. 잠시 뒤 다시 확인하세요.</Callout>
       ) : null}
-      {checking ? null : <StageList stages={h.stages} />}
-      {relay ? <RelayLines relay={relay} /> : null}
-      <TechDetail>
-        <Box sx={{ display: "grid", gap: 0.5 }}>
-          <TechLine name="상태 코드" value={h.state} />
-          <TechLine name="실패 종류" value={h.failure_kind} />
-          <TechLine name="실패 단계" value={h.stage} />
-          <TechLine name="연속 실패" value={h.consecutive_failures ? `${h.consecutive_failures}회` : null} />
-          <TechLine name="최근 성공" value={h.last_success_at ? fmtDateTime(h.last_success_at) : null} />
-          <TechLine name="메일 서버" value={relay ? "127.0.0.1:2525(로컬 릴레이)" : (summary && summary.host ? `${summary.host}:${summary.port}` : null)} />
-        </Box>
-      </TechDetail>
+      {relay && !checking ? <StageList stages={h.stages} /> : null}
+      {/* 사실 줄 끝에 「기술 정보」가 접힌 채 붙는다(`FACTS_ROW_SX`) — 외부 SMTP 는 단계 줄, 로컬 릴레이는 릴레이 두 줄의 첫 줄 끝이다. */}
+      <Box sx={FACTS_ROW_SX}>
+        {relay ? (
+          <Box sx={{ flex: "1 1 auto", minWidth: 0 }}><RelayLines relay={relay} /></Box>
+        ) : (checking ? null : <StageList stages={h.stages} />)}
+        <TechDetail trailing>
+          <Box sx={{ display: "grid", gap: 0.5 }}>
+            <TechLine name="상태 코드" value={h.state} />
+            <TechLine name="실패 종류" value={h.failure_kind} />
+            <TechLine name="실패 단계" value={h.stage} />
+            <TechLine name="연속 실패" value={h.consecutive_failures ? `${h.consecutive_failures}회` : null} />
+            <TechLine name="최근 성공" value={h.last_success_at ? fmtDateTime(h.last_success_at) : null} />
+            <TechLine name="메일 서버" value={relay ? "127.0.0.1:2525(로컬 릴레이)" : (summary && summary.host ? `${summary.host}:${summary.port}` : null)} />
+          </Box>
+        </TechDetail>
+      </Box>
     </Card>
   );
 }
