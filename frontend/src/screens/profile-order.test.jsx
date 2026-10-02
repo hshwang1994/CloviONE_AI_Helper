@@ -4,7 +4,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* qa-contract-change: 소유자가 5-3 에서 오른쪽 열의 순서를 「내 기기 → 방해금지 → 강조색 → 둘러보기」로 직접 지정했다 — 지시 18 의 「둘러보기가 강조색보다 위」를 뒤집는다. 그 지시의 근거는 「둘러보기가 스크롤 끝에 있다」였는데, 신원 머리가 전폭으로 나가고 설정이 한 줄이 되면서 오른쪽 열은 판 넷짜리 짧은 레일이 됐다. 단언은 늘었다 — 방향만 뒤집는 대신 레일 전체의 순서를 잰다.
+/* qa-contract-change: 왼쪽 판의 이름이 「알림 설정」에서 「알림 배지」로 바뀌었다(D-550) - 메일 알림이 제 카드가 되며 이 판은 배지만
+ * 다룬다. 순서 단언은 같은 판을 새 이름으로 찾는다.
+ *
+ * qa-contract-change: 소유자가 5-3 에서 오른쪽 열의 순서를 「내 기기 → 방해금지 → 강조색 → 둘러보기」로 직접 지정했다 — 지시 18 의 「둘러보기가 강조색보다 위」를 뒤집는다. 그 지시의 근거는 「둘러보기가 스크롤 끝에 있다」였는데, 신원 머리가 전폭으로 나가고 설정이 한 줄이 되면서 오른쪽 열은 판 넷짜리 짧은 레일이 됐다. 단언은 늘었다 — 방향만 뒤집는 대신 레일 전체의 순서를 잰다.
  *
  * 내 프로필의 **순서**와 아바타 자리.
  *
@@ -102,7 +105,7 @@ describe("내 프로필 — 순서", () => {
     mount();
     /* 이 판의 제목은 사람 이름이다 — 「계정」이라는 이름표가 따로 설 자리가 없다. */
     const identity = await screen.findByRole("heading", { level: 2, name: "나" });
-    const notifications = await screen.findByRole("heading", { name: "알림 설정" });
+    const notifications = await screen.findByRole("heading", { name: "알림 배지" });
     const devices = await screen.findByRole("heading", { name: /내 기기/ });
     const tour = await screen.findByRole("heading", { name: "둘러보기" });
     expect(order(identity, notifications)).toBe(-1);
@@ -110,12 +113,12 @@ describe("내 프로필 — 순서", () => {
     expect(order(identity, tour)).toBe(-1);
   });
 
-  /* 신원 머리가 **전폭**이라는 것은 「알림 설정과 같은 줄에 서지 않는다」는 뜻이다. 한 열
+  /* 신원 머리가 **전폭**이라는 것은 「알림 배지와 같은 줄에 서지 않는다」는 뜻이다. 한 열
      안으로 들어가면 아바타·이름·사실 넷·동작 셋이 세로로 접힌다(옆 시험이 구조로 잰다). */
-  it("신원 머리는 알림 설정과 다른 판이다", async () => {
+  it("신원 머리는 알림 배지와 다른 판이다", async () => {
     const { container } = mount();
     const identity = await screen.findByRole("heading", { level: 2, name: "나" });
-    const notifications = await screen.findByRole("heading", { name: "알림 설정" });
+    const notifications = await screen.findByRole("heading", { name: "알림 배지" });
     const headCard = identity.closest(".MuiCard-root");
     expect(headCard).toBeTruthy();
     expect(headCard.contains(notifications)).toBe(false);

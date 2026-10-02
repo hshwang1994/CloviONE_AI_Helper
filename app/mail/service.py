@@ -58,6 +58,7 @@ from app.mail.models import (
 from app.mail.renderers import (
     KIND_INVITE,
     KIND_NOTIFICATION,
+    KIND_NOTIFY_EMAIL_VERIFICATION,
     KIND_PASSWORD_RESET,
     KIND_TEST,
     MAIL_KIND_LABELS,
@@ -72,10 +73,12 @@ DEFAULT_RETRY_DELAYS: tuple[int, ...] = (60, 300, 900, 3600, 4 * 3600, 8 * 3600,
 RETRY_DELAYS_BY_KIND: dict[str, tuple[int, ...]] = {
     KIND_TEST: (),
     KIND_PASSWORD_RESET: (60, 300),
+    # 주소 확인 코드(M4) — 사람이 화면 앞에서 기다리는 메일이라 짧게 두 번만 다시 보낸다. 15분 뒤면 코드가 쓸모없다.
+    KIND_NOTIFY_EMAIL_VERIFICATION: (30, 120),
 }
 # 사람이 다시 보낼 수 없는 종류. 재설정 메일은 보낼 때 새 토큰을 만들어 오래된 요청을 되살리고, 시험 메일은
 # 새로 보내면 된다.
-NOT_RESENDABLE_KINDS = frozenset({KIND_PASSWORD_RESET, KIND_TEST})
+NOT_RESENDABLE_KINDS = frozenset({KIND_PASSWORD_RESET, KIND_TEST, KIND_NOTIFY_EMAIL_VERIFICATION})
 # 설정 전에 쌓인 메일 중 설정 뒤에 다시 보낼 수 있는 종류. 사람이 누를 때만 보내고, 보내기 직전에 아직 의미가 있는지와
 # 받는 사람이 여전히 원하는지를 다시 본다(계획 3.4). 기간은 관리자가 정한 최대 나이다(D-546) - 예전에는 7일로 고정이라
 # 「오래된 메일 기준」을 30일로 늘려도 8일 된 메일은 다시 보낼 수 없었다.

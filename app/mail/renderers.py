@@ -57,6 +57,7 @@ MAIL_KIND_LABELS: dict[str, str] = {
     KIND_APPROVAL_REQUESTED: "결재 요청 알림",
     KIND_TEST: "발송 시험",
     KIND_NOTIFICATION: "알림 메일",
+    KIND_NOTIFY_EMAIL_VERIFICATION: "주소 확인 코드",
 }
 
 
@@ -208,6 +209,24 @@ def _content_notification(db: Session, delivery: MailDelivery, ctx):
     )
 
 
+def _content_notify_verification(db: Session, delivery: MailDelivery, ctx):
+    """알림 받을 주소의 확인 코드(M4 · D-550). 코드는 **지금** 만들어 HMAC 만 남긴다 - 평문은 이 메일 본문에만 산다. 발송이
+    실패하면 이 트랜잭션과 함께 되감기고, 다음 시도가 새 코드를 만든다."""
+    from app.mail.content import verification_code_content
+    from app.profiles.notify_email import CODE_MINUTES, mint_for_mail
+
+    params = _params(delivery)
+    user = _require_user(db, params)
+    _email, code = mint_for_mail(
+        db, str(params.get("verification_id") or ""), now=ctx.clock.now(),
+        secret=str(getattr(ctx.settings, "session_secret", "") or ""),
+    )
+    return verification_code_content(
+        product=_product(db), base_url=_base_url(ctx), subject=delivery.subject, name=user.display_name, code=code,
+        minutes=CODE_MINUTES,
+    )
+
+
 # kind 하나에 내용 함수 하나. 여기 없는 kind 는 발송 자체가 거부된다 - 오타 난 kind 가
 # 조용히 빈 메일로 나가는 것보다, 잡이 영구 실패로 남아 눈에 띄는 편이 낫다.
 CONTENT_BUILDERS = {
@@ -217,6 +236,7 @@ CONTENT_BUILDERS = {
     KIND_APPROVAL_REQUESTED: _content_approval_requested,
     KIND_TEST: _content_test,
     KIND_NOTIFICATION: _content_notification,
+    KIND_NOTIFY_EMAIL_VERIFICATION: _content_notify_verification,
 }
 
 MAIL_KINDS = frozenset(CONTENT_BUILDERS)

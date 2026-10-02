@@ -39,6 +39,7 @@ export const MAIL_KIND_LABEL = {
   backup_failed: "백업 실패 알림",
   test: "발송 시험",
   notification: "알림 메일",
+  notify_email_verification: "주소 확인 코드",
 };
 
 const FAILURE_KIND_LABEL = {

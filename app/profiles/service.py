@@ -76,30 +76,34 @@ def clear_expired_dnd(db: Session, pref: UserPreference | None, state, *, now: d
 
 
 # 메일 발송 상태별로 내 설정 화면이 말하는 한 문장(계획 3.4). 정상이면 말하지 않는다.
+# 관리자의 메일 발송 상태(`app/mail/health.py` 의 다섯 상태) → 사용자에게 보이는 셋(D-550). 서버 주소 · 포트 · 방식 같은 말과
+# 값은 싣지 않는다 - 사용자 화면은 「내가 어떤 메일을 어디에서 받는가」만 다룬다.
+DELIVERY_STATES: dict[str, str] = {
+    "disabled": "off", "unconfigured": "off", "failing": "delayed", "unverified": "ok", "ok": "ok",
+}
 MAIL_DELIVERY_NOTICES: dict[str, str] = {
-    # 관리자가 메일 발송을 꺼 둔 설치(D-546 의 「사용 안 함」). 고장이 아니라 선택이다.
-    "disabled": "관리자가 메일 발송을 켜면 메일 알림을 받을 수 있습니다.",
-    "unconfigured": "관리자가 메일 발송을 설정하지 않아 지금은 메일 알림이 나가지 않습니다.",
-    "unverified": "관리자가 메일 발송을 아직 확인하지 않아 메일 알림이 도착하지 않을 수 있습니다.",
-    "failing": "메일 발송이 지금 실패하고 있어 메일 알림이 늦게 도착할 수 있습니다. 복구되면 밀린 메일을 다시 보냅니다.",
+    "off": "관리자가 메일 발송을 켜면 메일 알림을 받을 수 있습니다.",
+    "delayed": "현재 메일 알림 발송이 지연되고 있습니다.",
 }
 
 
-def mail_view(db: Session, pref: UserPreference | None, *, delivery_state: str | None, admin: bool = True) -> dict:
-    """「메일로도 받기」 한 벌 - 켜짐, 받는 유형, 고를 수 있는 유형, 메일 발송 상태의 한 문장."""
+def mail_view(
+    db: Session, pref: UserPreference | None, *, delivery_state: str | None, admin: bool = True,
+    role: str | None = None, address: dict | None = None,
+) -> dict:
+    """「메일 알림」 한 벌 - 켜짐, 받는 유형, 고를 수 있는 유형(받는 역할로 거른다), 받는 주소, 발송 상태(ok · delayed · off)."""
     from app.notifications.mail import recipient_view
 
-    view = recipient_view(db, pref, admin=admin)
-    view["delivery"] = {
-        "state": delivery_state,
-        "message": MAIL_DELIVERY_NOTICES.get(delivery_state or ""),
-    }
+    view = recipient_view(db, pref, admin=admin, role=role)
+    state = DELIVERY_STATES.get(delivery_state or "", "ok")
+    view["delivery"] = {"state": state, "message": MAIL_DELIVERY_NOTICES.get(state)}
+    view["address"] = address
     return view
 
 
 def preference_view(
     pref: UserPreference | None, *, now: datetime, timezone_name: str, avatar_url: str | None,
-    mail: dict | None = None, admin: bool = True,
+    mail: dict | None = None, admin: bool = True, role: str | None = None,
 ) -> dict:
     """설정 화면과 셸이 함께 쓰는 응답 모양. 설정이 없어도 **기본값으로 온전한 모양**을 낸다."""
     state = quiet_state(pref, now=now, timezone_name=timezone_name)
@@ -117,7 +121,7 @@ def preference_view(
         },
         "notifications": {
             "muted_types": muted,
-            "catalog": prefs.notification_type_catalog(admin=admin),
+            "catalog": prefs.notification_type_catalog(admin=admin, role=role),
             "unmutable": sorted(prefs.UNMUTABLE_TYPES),
         },
         # 알림을 메일로도 받기(계획 3.4). 라우터가 DB 와 메일 상태를 읽어 채운다.

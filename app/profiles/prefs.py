@@ -83,6 +83,20 @@ PREFS_RETIRED_TYPES = frozenset({"ai_policy_migrated"})
 # 알림 쪽의 같은 판정(`app/notifications/service.py::audience_for`)도 이 목록을 읽는다.
 ADMIN_ONLY_TYPES = frozenset({"backup_failed", "ai_provider_state"})
 
+# 그 유형을 **실제로 받는** 역할(D-550). 여기 없는 유형은 모두가 받는다. 예전에는 「일반 사용자인가」만 봐서 운영자 · 감사자에게
+# 받지도 않는 백업 실패 · AI 연결 상태 스위치가 보였다(백업 실패는 `notify_admins` 의 관리자 · 시스템 관리자만, AI 연결 상태는
+# 시스템 관리자만 받는다).
+TYPE_RECEIVER_ROLES: dict[str, frozenset[str]] = {
+    "backup_failed": frozenset({"admin", "system_admin"}),
+    "ai_provider_state": frozenset({"system_admin"}),
+}
+
+
+def receives(type_: str, role: str | None) -> bool:
+    """이 역할이 이 유형의 알림을 실제로 받는가."""
+    roles = TYPE_RECEIVER_ROLES.get(type_)
+    return roles is None or (role in roles)
+
 # ── 메일로도 받을 수 있는 유형 (계획 3.4, D-514) ─────────────────────────────
 #
 # 사람 한 명에게 일어난 협업 사건만 메일로 보낼 수 있다. 전용 메일이 따로 있는 유형(승인 요청, 백업 실패,
@@ -254,10 +268,11 @@ def evaluate_quiet(
     return QuietState(quiet=False)
 
 
-def notification_type_catalog(*, admin: bool = True) -> list[dict]:
-    """설정 화면이 그리는 유형 목록(서버가 정본). 일반 사용자에게는 관리자만 받는 유형을 빼고 보인다."""
+def notification_type_catalog(*, admin: bool = True, role: str | None = None) -> list[dict]:
+    """설정 화면이 그리는 유형 목록(서버가 정본). 역할을 주면 그 역할이 실제로 받는 유형만(`receives`), 안 주면 예전처럼
+    일반 사용자에게서 관리자만 받는 유형을 뺀다."""
     return [
         {"key": key, "label": label, "help": help_text}
         for key, (label, help_text) in NOTIFICATION_TYPES.items()
-        if admin or key not in ADMIN_ONLY_TYPES
+        if (receives(key, role) if role is not None else (admin or key not in ADMIN_ONLY_TYPES))
     ]

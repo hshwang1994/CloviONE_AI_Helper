@@ -16521,3 +16521,32 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
   까닭은 행의 까닭 문장이 말한다. 상태 조건(필터)에서는 접수를 「서버가 접수함」 하나로 묶는다. 발송 기록 도움말이 「접수는 받은 편지함 도착이 아니고 반송은 보내는
   주소의 메일함으로 간다」를 말한다. 받은 편지함 확인은 사람이 남기는 E2E 증거다(P18).
 - **잰 것**: `tests/unit/test_mail_labels.py`(단계마다 낱말 · 어떤 낱말도 도착 · 받았습니다가 아님 · 시험 문장), `tests/integration/test_mail_delivery.py`(다시 보낼 차례).
+
+### D-550. 알림 메일은 계정 주소가 기본이고, 다른 주소는 그 주소로 보낸 6자리 코드를 넣어야 쓰며, 내 프로필은 「메일 알림」 · 「알림 배지」 카드 둘이다 (UI/UX · AI · 메일 회차 P13)
+
+- **원인**: 받는 주소가 언제나 계정 이메일이었고 화면은 그 사실을 보이지 않았다. 메일 설정은 배지 카드의 아래 구획이라 두 목록이 같은 라벨을
+  두 번 보였다. 유형 목록은 「일반 사용자인가」만 봐서 운영자 · 감사자에게 받지도 않는 백업 실패 · AI 연결 상태 스위치가 보였다(실제 발송은 관리자 ·
+  시스템 관리자, AI 연결 상태는 시스템 관리자만 받는다).
+- **결정**:
+  - 알림 메일은 계정 주소로 받는 것이 기본이다. 다른 주소는 그 주소로 보낸 6자리 코드를 넣어야 쓰고, 확인이 끝나기 전에는 알림이 계정 주소로 간다.
+    「허용 이메일 도메인」 설정이 있으면 그 도메인의 주소만 받는다(빈 목록은 제한 없음 - 계정 만들기와 같은 규칙). 받는 주소는 **보내는 순간** 다시
+    푼다(`app/profiles/notify_email.py::resolve_address`) - 확인한 주소가 나중에 허용 밖이 되면 그 주소로 보내지 않고 계정 주소로 보낸다. 계정 주소를 넣으면
+    다른 주소를 지운다.
+  - 코드는 워커가 확인 메일을 그릴 때 만들고(재설정 토큰과 같은 원리) `session_secret` HMAC 만 저장한다 - DB · 잡 · 발송 행에 평문이 없다. 그린 때부터
+    15분 동안 쓸 수 있고, 확인 한 건당 다섯 번 틀리면 잠긴다(자기 세션의 리미터라 실패한 요청과 함께 되감기지 않는다). 확인 메일은 사람당 15분에 3통,
+    다시 받기는 60초 뒤다. 링크가 아니라 코드라 회사 메일의 링크 검사기가 확인을 써 버리지 못한다. 메일을 보낼 수 없는 설치는 409 다.
+  - API 넷(`POST /api/me/notify-email` · `POST /api/me/notify-email/verify` · `DELETE /api/me/notify-email/pending` · `DELETE /api/me/notify-email`)은 로그인한
+    본인의 것만 다루고 CSRF 를 요구하며 공개 경로가 없다. 감사는 `profile.notify_email.requested`(도메인만) · `.verified` · `.cleared`. 확인 메일(종류
+    `notify_email_verification`)은 관리자가 다시 보낼 수 없고 재시도는 30 · 120초이며, 보내기 직전에 그 확인이 아직 열려 있어야 보낸다(`verification_closed`).
+  - 프로필 응답의 `mail.address` 는 계정 주소 · 지금 보내는 주소 · 확인한 주소와 상태 · 확인 중인 주소 · 허용 도메인이고, `mail.delivery` 는
+    `{state: ok | delayed | off, message}` 뿐이다 - 관리자 쪽 다섯 상태를 셋으로 접고(꺼짐 · 미설정 → off, 실패 → delayed) 서버 주소 · 포트 · 방식을 싣지 않는다.
+  - 알림 유형 목록(배지 · 메일 둘 다)은 그 역할이 **실제로 받는** 유형만이다(`prefs.TYPE_RECEIVER_ROLES`).
+  - 화면: 왼쪽 열은 카드 둘 - 「메일 알림」(메일 알림 받기 스위치, 받는 주소와 상태 낱말 「계정 이메일 · 확인 중 · 확인됨 · 쓰지 않음」, 받을 알림
+    스위치)이 먼저, 「알림 배지」(옛 「알림 설정」)가 다음이다. 지연일 때만 한 문장 메시지 상자를 보이고, 관리자가 메일을 쓰지 않는 설치에서는 스위치를 꺼 둔
+    채 비활성으로 두고 까닭을 한 줄로 말한다. RULES §15 의 「내 프로필은 개별 리디자인 제외」를 이 카드에 한해 이번 사용자 지시가 덮는다.
+- **마이그레이션**: 0047 — `user_preferences.notify_email` · `notify_email_verified_at`, 표 `mail_address_verifications`(한 사람 · 한 목적에 열린 확인 하나 -
+  부분 유일 색인, 사용자 삭제 시 함께 지움).
+- **잰 것**: `tests/integration/test_notify_email_verification.py`(코드 전에는 계정 주소 · 평문이 메일 본문에만 · 다섯 번 틀리면 잠김(실 DB) · 만료 ·
+  15분에 3통 · 도메인 규칙과 좁아진 뒤 계정 주소 · 다른 사람의 확인을 못 씀 · CSRF · 409 · 계정 주소로 지우기 · 보내는 순간 확인한 주소),
+  `tests/unit/test_profile_mail_types.py`(역할별 유형), `tests/regression/test_migration_0047_notify_email.py`, 프런트 `profile/profile-mail-card.test.jsx` ·
+  `profile.test.jsx` · `profile-column-seam.test.jsx` · `profile-order.test.jsx`.

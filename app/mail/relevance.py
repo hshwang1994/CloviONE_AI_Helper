@@ -39,6 +39,7 @@ from app.mail.renderers import (
     KIND_BACKUP_FAILED,
     KIND_INVITE,
     KIND_NOTIFICATION,
+    KIND_NOTIFY_EMAIL_VERIFICATION,
     KIND_PASSWORD_RESET,
     KIND_TEST,
 )
@@ -95,7 +96,8 @@ REASON_LABELS: dict[str, str] = {
 }
 
 # 판정하지 않고 늘 보내는 종류(모듈 머리말).
-ALWAYS_RELEVANT_KINDS = frozenset({KIND_PASSWORD_RESET, KIND_TEST})
+# 주소 확인 코드(M4)는 받는 사람 재검사가 「그 확인이 아직 열려 있는가」를 이미 본다 - 나이 규칙을 따로 걸지 않는다.
+ALWAYS_RELEVANT_KINDS = frozenset({KIND_PASSWORD_RESET, KIND_TEST, KIND_NOTIFY_EMAIL_VERIFICATION})
 
 
 def _params(delivery: MailDelivery) -> dict:

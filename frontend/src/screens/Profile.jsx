@@ -17,7 +17,7 @@ import { ROLE_KO } from "../app/navConfig.js";
 import { invalidateNotifications } from "../app/notification-keys.js";
 import { invalidatePersonFaces } from "./ticket-views.js";
 import {
-  Badge, Button, Callout, Card, EmptyState, ErrorState, Field, FieldRow, PageHeader, SectionTitle, Skeleton, SubGroup,
+  Badge, Button, Callout, Card, EmptyState, ErrorState, Field, FieldRow, PageHeader, SectionTitle, Skeleton,
   useConfirm, useToast,
 } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../ui/theme.js";
@@ -28,6 +28,7 @@ import { GRID_GAP, pairTracks } from "../ui/density.js";
  * 통째로 사라졌다. 개인 설정은 이미 이 화면이 전부 갖고 있으므로(알림·방해금지·둘러보기)
  * 여기로 합친다(S19). 옛 주소는 이 화면으로 넘긴다. */
 import { AccentPicker } from "./settings/AccentPicker.jsx";
+import { MailNotificationCard } from "./profile/MailNotificationCard.jsx";
 
 /* 내 프로필 — 신원 머리 · 알림 설정 · 내 기기 · 방해금지 · 강조색 · 둘러보기.
  *
@@ -344,7 +345,7 @@ function NotificationCard({ prefs, save }) {
     <Card sx={CARD_ROWS}>
       <SectionTitle spacing="none"
         component="h2"
-        title="알림 설정"
+        title="알림 배지"
         help="끈 유형도 알림 목록에는 그대로 남습니다. 배지 숫자(빨간 점)에서만 빠집니다. 알림을 없애는 것이 아니라 조용히 하는 것입니다."
       />
       {/* 🔴 **평면 목록**이다 — 묶음 머리를 만들지 않는다.
@@ -390,72 +391,7 @@ function NotificationCard({ prefs, save }) {
       <Note sx={{ mt: 0 }}>
         계정 잠금처럼 보안에 관한 알림은 끌 수 없습니다. 침해를 알리는 유일한 신호이기 때문입니다.
       </Note>
-      <MailSection mail={prefs.mail} save={save} />
     </Card>
-  );
-}
-
-/* 메일로도 받기(계획 3.4) — 같은 판 안의 아래 구획이다. 왼쪽 열은 판 하나로 둔다(`profile-column-seam.test.jsx`).
- *
- * 고를 수 있는 유형은 **서버가 준다**(`mail.catalog` — 관리자가 허용한 유형). 스위치 하나는 한 가지만 보낸다: 큰
- * 스위치는 `{mail_enabled}`, 유형 스위치는 받을 유형 전체 `{mail_types}`. 메일 발송이 정상이 아니면 그 사실을 한
- * 문장으로 먼저 말한다 — 켰는데 메일이 안 오는 까닭을 사람이 찾지 않게. */
-function MailSection({ mail, save }) {
-  if (!mail) return null;
-  const catalog = mail.catalog || [];
-  const chosen = new Set(mail.types || []);
-  const toggleType = (key) => {
-    const next = new Set(chosen);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    save({ mail_types: catalog.map((row) => row.key).filter((k) => next.has(k)) });
-  };
-  const notice = mail.delivery && mail.delivery.message;
-  return (
-    <SubGroup spacing="tight"
-      title="메일로도 받기"
-      help="켜 두면 고른 알림을 내 계정 이메일로도 보냅니다. 방해금지와 배지 끄기는 메일에 영향을 주지 않습니다.">
-      {notice ? (
-        <Callout tone={mail.delivery.state === "unverified" ? "info" : "warn"} compact>{notice}</Callout>
-      ) : null}
-      {catalog.length ? (
-        <>
-          <SettingRow
-            compact label="메일로도 받기" description="아래에서 고른 알림을 이메일로도 받습니다."
-            controlId="pref-mail-enabled"
-            action={(
-              <Switch
-                id="pref-mail-enabled"
-                checked={!!mail.enabled}
-                onChange={() => save({ mail_enabled: !mail.enabled })}
-                slotProps={{ input: { "aria-label": "알림을 메일로도 받기" } }}
-              />
-            )}
-          />
-          <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, columnWidth: "20rem", columnGap: GRID_GAP }}>
-            {catalog.map((row) => (
-              <Box component="li" key={row.key} sx={{ breakInside: "avoid" }}>
-                {/* 비활성은 실제 조건 하나뿐이다 — 메일을 끈 동안에는 유형을 고를 수 없다. */}
-                <SettingRow
-                  compact label={row.label} description={row.help}
-                  controlId={`pref-mail-${row.key}`}
-                  action={(
-                    <Switch
-                      id={`pref-mail-${row.key}`}
-                      checked={chosen.has(row.key)}
-                      disabled={!mail.enabled}
-                      onChange={() => toggleType(row.key)}
-                      slotProps={{ input: { "aria-label": `${row.label} 메일로 받기` } }}
-                    />
-                  )}
-                />
-              </Box>
-            ))}
-          </Box>
-        </>
-      ) : (
-        <Note sx={{ mt: 0 }}>관리자가 메일로 보낼 알림을 아직 정하지 않았습니다.</Note>
-      )}
-    </SubGroup>
   );
 }
 
@@ -794,8 +730,12 @@ export function Profile() {
             }}
           />
           <Box sx={TWO_COL_EVEN}>
-            {/* 왼쪽은 판 하나다. 유형이 스물이라 이 판 하나가 오른쪽 넷과 키가 맞는다. */}
-            <NotificationCard prefs={prefsQuery.data} save={savePrefs.mutate} />
+            {/* 왼쪽은 판 둘이다 — 「메일 알림」(내가 어떤 메일을 어디에서 받는가)이 먼저, 「알림 배지」가 다음이다(D-550).
+                관리자의 메일 설정과 나뉜 카드이고, 메일 서버의 말과 값이 없다. */}
+            <Box sx={{ display: "grid", gap: GRID_GAP, alignContent: "start", minWidth: 0 }}>
+              <MailNotificationCard mail={prefsQuery.data.mail} save={savePrefs.mutate} />
+              <NotificationCard prefs={prefsQuery.data} save={savePrefs.mutate} />
+            </Box>
             {/* 오른쪽은 **내 기기 → 방해금지 → 강조색 → 둘러보기**다. 앞의 둘은 계정과
                 알림에 관한 것이고 뒤의 둘은 이 브라우저의 취향과 안내다 — 급한 것이 위다. */}
             <Box sx={{ display: "grid", gap: GRID_GAP, alignContent: "start", minWidth: 0 }}>

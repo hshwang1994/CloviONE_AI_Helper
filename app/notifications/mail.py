@@ -134,6 +134,9 @@ def fan_out_mail(db: Session, row, *, now: datetime, context: dict | None = None
     user = db.get(User, row.user_id)
     if block_reason(db, user, row.type) is not None:
         return None
+    from app.profiles.notify_email import resolve_address
+
+    to_email = resolve_address(db, user, _preference(db, user.id))
     params = {
         **(context or {}),
         "notification_id": row.id,
@@ -147,7 +150,7 @@ def fan_out_mail(db: Session, row, *, now: datetime, context: dict | None = None
         "route": destination_for(row.related_object_type, row.related_object_id, row.audience),
     }
     return queue_mail(
-        db, kind=KIND_NOTIFICATION, to_email=user.email, recipient_user_id=user.id, subject=mail_subject(db, row.title),
+        db, kind=KIND_NOTIFICATION, to_email=to_email, recipient_user_id=user.id, subject=mail_subject(db, row.title),
         params=params, now=now, idempotency_key=f"notification:{row.id}",
     )
 
@@ -155,7 +158,8 @@ def fan_out_mail(db: Session, row, *, now: datetime, context: dict | None = None
 def recheck_recipient(db: Session, delivery) -> str | None:
     """보내기 직전에 받는 사람 쪽 사정을 다시 본다. 보내면 안 되면 그 까닭을 돌려준다.
 
-    보내도 되면 **받는 주소를 지금 계정의 이메일로 고친다** - 큐에 들어간 뒤 이메일을 바꾼 사람은 새 주소로 받는다.
+    보내도 되면 **받는 주소를 지금 알림 주소로 고친다** - 큐에 들어간 뒤 계정 이메일을 바꿨거나 다른 주소를 확인한 사람은 새
+    주소로 받고, 허용 도메인이 좁아져 확인한 주소가 밖이 됐으면 계정 주소로 받는다(D-550).
     """
     from app.users.models import User
 
@@ -165,19 +169,27 @@ def recheck_recipient(db: Session, delivery) -> str | None:
         params = {}
     user = db.get(User, params.get("user_id")) if params.get("user_id") else None
     reason = block_reason(db, user, str(params.get("type") or ""))
-    if reason is None and user is not None and user.email and user.email != delivery.to_email:
-        delivery.to_email = user.email
+    if reason is None and user is not None:
+        from app.profiles.notify_email import resolve_address
+
+        target = resolve_address(db, user, _preference(db, user.id))
+        if target and target != delivery.to_email:
+            delivery.to_email = target
     return reason
 
 
-def recipient_view(db: Session, pref, *, admin: bool = True) -> dict:
-    """내 설정 화면의 「메일로도 받기」 한 벌 - 켜짐, 받는 유형, 고를 수 있는 유형(`app/profiles/router.py`).
+def recipient_view(db: Session, pref, *, admin: bool = True, role: str | None = None) -> dict:
+    """내 설정 화면의 「메일 알림」 한 벌 - 켜짐, 받는 유형, 고를 수 있는 유형(`app/profiles/router.py`).
 
-    일반 사용자에게는 관리자만 받는 유형(`ADMIN_ONLY_TYPES`)을 고를 칸으로 보이지 않는다.
+    역할을 주면 그 역할이 실제로 받는 유형만 고를 칸으로 보인다(`prefs.receives`, D-550). 안 주면 예전처럼 일반 사용자에게서
+    관리자만 받는 유형(`ADMIN_ONLY_TYPES`)을 뺀다.
     """
-    from app.profiles.prefs import ADMIN_ONLY_TYPES, NOTIFICATION_TYPES
+    from app.profiles.prefs import ADMIN_ONLY_TYPES, NOTIFICATION_TYPES, receives
 
-    allowed = tuple(t for t in allowed_types(db) if admin or t not in ADMIN_ONLY_TYPES)
+    allowed = tuple(
+        t for t in allowed_types(db)
+        if (receives(t, role) if role is not None else (admin or t not in ADMIN_ONLY_TYPES))
+    )
     return {
         "enabled": bool(pref.mail_enabled) if pref is not None else False,
         "types": chosen_types(pref, allowed),

@@ -4,7 +4,10 @@ import { render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* qa-contract-change: 이 화면이 「두 열 두 줄」에서 「전폭 신원 머리 + 두 열 한 줄」로 바뀌었다(5-3 시안 #5c). 줄이 하나면 「두 줄이 같은 이음매를 쓰는가」는 잴 대상이 없어진다 — 지우지 않고 방향을 바꿔 다시 적는다: 신원 머리가 정말 두 열 **밖**의 전폭인가, 그 한 줄이 여전히 공용 `pairTracks` 선언을 받는가. 단언은 늘었다.
+/* qa-contract-change: 왼쪽 열이 판 하나에서 판 둘(「메일 알림」 다음 「알림 배지」)로 바뀌었다(D-550) - 메일 알림이 배지 카드의
+ * 아래 구획이던 모양을 걷고 제 카드가 됐다. 왼쪽 열은 이제 판을 담는 세로 격자이고, 두 판이 모두 그 안에 있는지와 순서를 잰다.
+ *
+ * qa-contract-change: 이 화면이 「두 열 두 줄」에서 「전폭 신원 머리 + 두 열 한 줄」로 바뀌었다(5-3 시안 #5c). 줄이 하나면 「두 줄이 같은 이음매를 쓰는가」는 잴 대상이 없어진다 — 지우지 않고 방향을 바꿔 다시 적는다: 신원 머리가 정말 두 열 **밖**의 전폭인가, 그 한 줄이 여전히 공용 `pairTracks` 선언을 받는가. 단언은 늘었다.
  *
  * 내 프로필의 **신원 머리는 전폭이고, 설정 판은 한 줄에서 반반이다.**
  *
@@ -56,11 +59,12 @@ const PREFS = {
     ],
     unmutable: ["account_locked"],
   },
-  // 메일로도 받기(계획 3.4)는 같은 판 안의 아래 구획이다 - 이 구획이 있어도 왼쪽 열은 판 하나여야 한다.
+  // 메일 알림(D-550)은 제 카드다 - 왼쪽 열은 「메일 알림」 · 「알림 배지」 판 둘을 담는다.
   mail: {
     enabled: true, types: ["ticket_assigned"],
     catalog: [{ key: "ticket_assigned", label: "티켓 배정", help: "누군가 나를 티켓 담당자로 지정했을 때" }],
-    delivery: { state: "failing", message: "메일 발송이 지금 실패하고 있어 메일 알림이 늦게 도착할 수 있습니다." },
+    delivery: { state: "delayed", message: "현재 메일 알림 발송이 지연되고 있습니다." },
+    address: { account_email: "me@goodmit.co.kr", effective: "me@goodmit.co.kr", custom: null, pending: null, allowed_domains: [] },
   },
   dnd: {
     enabled: false, until: null, quiet_hours_enabled: false,
@@ -138,19 +142,22 @@ describe("내 프로필 — 신원 머리는 전폭이고 설정은 한 줄에�
     expect(settings.contains(avatar)).toBe(false);
   });
 
-  it("설정 줄은 판 넷을 담는다 — 왼쪽 하나, 오른쪽 셋 이상", async () => {
+  it("설정 줄은 두 열이다 — 왼쪽은 메일 알림 · 알림 배지 판 둘, 오른쪽은 셋 이상", async () => {
     const { container } = renderProfile();
-    await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(5));
+    await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(6));
     const [, settings] = cardRows(container);
     expect(settings.children).toHaveLength(2);
-    // 왼쪽은 판 하나(알림 설정), 오른쪽은 판들을 담는 세로 격자다.
-    expect(settings.children[0].className).toContain("MuiCard-root");
+    // 왼쪽은 판 둘을 담는 세로 격자다 - 메일 알림이 먼저, 알림 배지가 다음이다.
+    const left = [...settings.children[0].querySelectorAll(":scope > .MuiCard-root")];
+    expect(left).toHaveLength(2);
+    expect(left[0].querySelector("h2").textContent).toBe("메일 알림");
+    expect(left[1].textContent).toContain("알림 배지");
     expect(settings.children[1].querySelectorAll(":scope > .MuiCard-root").length).toBeGreaterThanOrEqual(3);
   });
 
   it("반례 — 머리가 설정 줄 안으로 들어가면 그 시험이 깨진다", async () => {
     const { container } = renderProfile();
-    await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(5));
+    await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(6));
 
     const [head, settings] = cardRows(container);
     settings.appendChild(head);

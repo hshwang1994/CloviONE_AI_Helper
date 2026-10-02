@@ -14,6 +14,8 @@
 qa-contract-change: 메일 본문이 내용 모델과 틀로 그려지며(D-549) 바닥글이 「내 프로필의 알림 설정에서 메일 알림을 끌 수 있습니다」에서
 「이 메일은 {제품}의 {유형} 알림 설정에 따라 보냈습니다」와 「알림 메일 설정 바꾸기」 링크로 바뀌었다 - 끄는 길이 메일에 있다는 성질을
 그 링크로 잰다. 메일 발송을 꺼 둔 설치의 상태는 「설정 덜 됨」이 아니라 「사용 안 함」이다(D-546).
+내 프로필이 받는 발송 상태는 관리자 쪽 다섯 상태가 아니라 셋(ok · delayed · off)이다(D-550) - 꺼 둔 설치는 `off` 이고
+「메일 발송을 켜면」 문장은 그대로 단언한다.
 """
 
 from __future__ import annotations
@@ -456,7 +458,7 @@ def test_preferences_carry_the_mail_block_and_accept_changes(client, app, world)
     assert body["enabled"] is False, "메일 알림은 기본으로 꺼져 있어야 한다"
     assert body["types"] == ["ticket_assigned", "ticket_status_changed", "ticket_resolved"]
     assert [c["key"] for c in body["catalog"]] == body["types"]
-    assert body["delivery"]["state"] == "disabled"
+    assert body["delivery"]["state"] == "off"
     assert "메일 발송을 켜면" in body["delivery"]["message"]
 
     r = client.patch("/api/me/preferences", json={"mail_enabled": True}, headers={"X-CSRF-Token": csrf})

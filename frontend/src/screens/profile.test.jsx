@@ -5,7 +5,11 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* 내 프로필 화면 — 세션 해제와 방해금지가 **사용자에게 정직하게 보이는가**.
+/* qa-contract-change: 「메일로도 받기」 구획이 「메일 알림」 카드(D-550)로 옮겨 갔다. 큰 스위치 이름이 「메일 알림 받기」가 됐고,
+ * 메일 발송 상태는 관리자 쪽 다섯 상태가 아니라 셋(ok · delayed · off)이라 「지연」일 때만 한 문장을 말하고 「꺼짐」이면 스위치를
+ * 비활성으로 두고 까닭을 한 줄로 말한다. 허용한 유형이 없을 때의 반례는 유형 스위치가 하나도 없음을 잰다(큰 스위치는 남는다).
+ *
+ * 내 프로필 화면 — 세션 해제와 방해금지가 **사용자에게 정직하게 보이는가**.
  *
  * 여기서 고정하는 것:
  *   1) 지금 쓰는 창은 '현재'로 표시되고 **그 줄에는 로그아웃 버튼이 없다**. 어느 줄이
@@ -274,7 +278,7 @@ describe("내 프로필", () => {
   });
 });
 
-describe("메일로도 받기", () => {
+describe("메일 알림", () => {
   const MAIL = {
     enabled: false,
     types: ["ticket_assigned", "ticket_status_changed"],
@@ -283,6 +287,7 @@ describe("메일로도 받기", () => {
       { key: "ticket_status_changed", label: "티켓 상태 변경", help: "지켜보거나 맡은 티켓의 상태가 바뀌었을 때" },
     ],
     delivery: { state: "ok", message: null },
+    address: { account_email: "me@goodmit.co.kr", effective: "me@goodmit.co.kr", custom: null, pending: null, allowed_domains: [] },
   };
 
   function withMail(mail) {
@@ -300,7 +305,7 @@ describe("메일로도 받기", () => {
     renderProfile();
     const typeSwitch = await screen.findByRole("switch", { name: "티켓 배정 메일로 받기" });
     expect(typeSwitch).toBeDisabled();
-    await userEvent.click(screen.getByRole("switch", { name: "알림을 메일로도 받기" }));
+    await userEvent.click(screen.getByRole("switch", { name: "메일 알림 받기" }));
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/api/me/preferences", {
       method: "PATCH", body: { mail_enabled: true },
     }));
@@ -315,16 +320,24 @@ describe("메일로도 받기", () => {
     }));
   });
 
-  it("메일 발송이 정상이 아니면 그 까닭을 한 문장으로 먼저 말한다", async () => {
-    withMail({ ...MAIL, delivery: { state: "unconfigured", message: "관리자가 메일 발송을 설정하지 않아 지금은 메일 알림이 나가지 않습니다." } });
+  it("메일 발송이 지연되면 그 사실을 한 문장으로 먼저 말한다", async () => {
+    withMail({ ...MAIL, delivery: { state: "delayed", message: "현재 메일 알림 발송이 지연되고 있습니다." } });
     renderProfile();
-    expect(await screen.findByText(/메일 발송을 설정하지 않아/)).toBeInTheDocument();
+    expect(await screen.findByText("현재 메일 알림 발송이 지연되고 있습니다.")).toBeInTheDocument();
+  });
+
+  it("관리자가 메일 발송을 쓰지 않으면 스위치가 꺼진 채 비활성이고 까닭을 한 줄로 말한다", async () => {
+    withMail({ ...MAIL, delivery: { state: "off", message: "관리자가 메일 발송을 켜면 메일 알림을 받을 수 있습니다." } });
+    renderProfile();
+    expect(await screen.findByRole("switch", { name: "메일 알림 받기" })).toBeDisabled();
+    expect(screen.getByText("관리자가 메일 발송을 켜면 메일 알림을 받을 수 있습니다.")).toBeInTheDocument();
   });
 
   it("반례: 관리자가 허용한 유형이 없으면 스위치 대신 그 사실을 말한다", async () => {
     withMail({ ...MAIL, catalog: [], types: [] });
     renderProfile();
     expect(await screen.findByText(/메일로 보낼 알림을 아직 정하지 않았습니다/)).toBeInTheDocument();
-    expect(screen.queryByRole("switch", { name: "알림을 메일로도 받기" })).toBeNull();
+    expect(screen.queryAllByRole("switch", { name: /메일로 받기$/ })).toHaveLength(0);
+    expect(screen.getByRole("switch", { name: "메일 알림 받기" })).toBeInTheDocument();
   });
 });

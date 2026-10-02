@@ -17,6 +17,7 @@ from datetime import timezone
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -278,14 +279,123 @@ def _mail_delivery_state(request: Request, db: Session) -> str | None:
 
 
 def _preferences(request: Request, db: Session, user: User, pref, *, now, tz) -> dict:
-    """세 경로(조회 · 수정 · 둘러보기)가 같은 모양을 돌려준다 - 한쪽만 `mail` 을 빠뜨리면 화면 캐시가 그 칸을 잃는다."""
+    """세 경로(조회 · 수정 · 둘러보기)가 같은 모양을 돌려준다 - 한쪽만 `mail` 을 빠뜨리면 화면 캐시가 그 칸을 잃는다.
+
+    알림 유형 목록은 이 사람의 역할이 실제로 받는 것만이다(D-550).
+    """
+    from app.profiles.notify_email import address_view
     from app.users.models import ROLE_USER
 
     admin = user.role != ROLE_USER
     return service.preference_view(
-        pref, now=now, timezone_name=tz, avatar_url=_avatar_url(pref, user.id), admin=admin,
-        mail=service.mail_view(db, pref, delivery_state=_mail_delivery_state(request, db), admin=admin),
+        pref, now=now, timezone_name=tz, avatar_url=_avatar_url(pref, user.id), admin=admin, role=user.role,
+        mail=service.mail_view(
+            db, pref, delivery_state=_mail_delivery_state(request, db), admin=admin, role=user.role,
+            address=address_view(db, user, pref, now=now),
+        ),
     )
+
+
+# ── 알림 받을 메일 주소 (M4 · D-550) ─────────────────────────────────────────
+
+
+class NotifyEmailRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(max_length=320)
+
+
+class NotifyEmailVerify(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(max_length=12)
+
+
+def _notify_limiter(request: Request, kind: str):
+    """확인 메일 보내기(사람당 15분에 3통)와 코드 확인(확인 한 건당 다섯 번)의 리미터 - 자기 세션에서 센다."""
+    from app.core.ratelimit import RateLimiter
+    from app.profiles.notify_email import MAX_ATTEMPTS, SEND_WINDOW_SECONDS, SENDS_PER_WINDOW
+
+    state = request.app.state
+    name = f"notify_email_{kind}_ratelimiter"
+    limiter = getattr(state, name, None)
+    if limiter is None:
+        if kind == "send":
+            limiter = RateLimiter(capacity=SENDS_PER_WINDOW, refill_per_second=SENDS_PER_WINDOW / SEND_WINDOW_SECONDS,
+                                  clock=state.clock, session_factory=state.session_factory)
+        else:
+            limiter = RateLimiter(capacity=MAX_ATTEMPTS, refill_per_second=MAX_ATTEMPTS / 86400,
+                                  clock=state.clock, session_factory=state.session_factory)
+        setattr(state, name, limiter)
+    return limiter
+
+
+def _prefs_after(request: Request, db: Session, user: User) -> dict:
+    now = request.app.state.clock.now()
+    return _preferences(request, db, user, service.get_preference(db, user.id), now=now,
+                        tz=request.app.state.settings.timezone)
+
+
+@router.post("/api/me/notify-email")
+def request_notify_email(
+    request: Request, payload: NotifyEmailRequest, db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """다른 주소로 받기 — 그 주소로 6자리 코드를 보낸다. 계정 주소를 넣으면 다른 주소를 지운다."""
+    from app.profiles import notify_email
+
+    now = request.app.state.clock.now()
+    outcome = notify_email.request_address(
+        db, user, payload.email, now=now, secret_provider=getattr(request.app.state, "secret_provider", None),
+        limiter=_notify_limiter(request, "send"),
+    )
+    domain = payload.email.strip().lower().rsplit("@", 1)[-1]
+    record_audit_from_request(
+        request, db, action="profile.notify_email.requested" if outcome == "requested" else "profile.notify_email.cleared",
+        object_type="user", object_id=user.id, after={"domain": domain} if outcome == "requested" else None,
+    )
+    return _prefs_after(request, db, user)
+
+
+@router.post("/api/me/notify-email/verify")
+def verify_notify_email(
+    request: Request, payload: NotifyEmailVerify, db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """코드를 맞추면 그 주소로 알림 메일을 받는다."""
+    from app.profiles import notify_email
+
+    email = notify_email.verify_code(
+        db, user, payload.code, now=request.app.state.clock.now(),
+        secret=str(getattr(request.app.state.settings, "session_secret", "") or ""),
+        limiter=_notify_limiter(request, "verify"),
+    )
+    record_audit_from_request(
+        request, db, action="profile.notify_email.verified", object_type="user", object_id=user.id,
+        after={"email": email},
+    )
+    return _prefs_after(request, db, user)
+
+
+@router.delete("/api/me/notify-email/pending")
+def cancel_notify_email(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """확인 중인 주소를 취소한다(확인한 다른 주소는 그대로다)."""
+    from app.profiles import notify_email
+
+    notify_email.clear(db, user, now=request.app.state.clock.now(), pending_only=True)
+    return _prefs_after(request, db, user)
+
+
+@router.delete("/api/me/notify-email")
+def clear_notify_email(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """계정 이메일로 되돌린다 - 확인한 다른 주소와 확인 중인 주소를 모두 지운다."""
+    from app.profiles import notify_email
+
+    notify_email.clear(db, user, now=request.app.state.clock.now())
+    record_audit_from_request(
+        request, db, action="profile.notify_email.cleared", object_type="user", object_id=user.id, after=None,
+    )
+    return _prefs_after(request, db, user)
 
 @router.get("/api/me/preferences")
 def get_preferences(

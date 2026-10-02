@@ -13,7 +13,7 @@ import re
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.models_base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -107,6 +107,10 @@ class UserPreference(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Boolean, nullable=False, default=False, server_default="0"
     )
     mail_types: Mapped[str | None] = mapped_column(Text)
+    # 알림 받을 다른 주소(M4 · D-550). 확인 코드를 넣어 확인한 주소만 여기 선다 - 확인 전 주소는 `MailAddressVerification` 에 있다.
+    # 둘 다 비어 있으면 계정 주소로 받는다. 허용 도메인이 좁아져 이 주소가 밖이 되면 보내는 순간 계정 주소로 돌아간다.
+    notify_email: Mapped[str | None] = mapped_column(String(320))
+    notify_email_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # ── 방해금지 ──────────────────────────────────────────────────────────────
     dnd_enabled: Mapped[bool] = mapped_column(
@@ -131,6 +135,34 @@ class UserPreference(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Boolean, nullable=False, default=False, server_default="0"
     )
     tour_completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class MailAddressVerification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """주소 확인 한 건(M4 · D-550, `app/profiles/notify_email.py`).
+
+    코드는 저장하지 않는다 - HMAC(`code_hash`)만 둔다. 코드는 워커가 확인 메일을 그릴 때 만들어지므로 그 전에는 `code_hash` ·
+    `code_sent_at` · `expires_at` 이 비어 있다. 한 사람 · 한 목적에 열린 확인은 하나다(0047 의 부분 유일 색인).
+    """
+
+    __tablename__ = "mail_address_verifications"
+    __table_args__ = (
+        Index("ix_mail_address_verifications_user", "user_id", "created_at"),
+        Index(
+            "ux_mail_address_verifications_open", "user_id", "purpose", unique=True,
+            postgresql_where=text("consumed_at IS NULL AND cancelled_at IS NULL"),
+        ),
+    )
+
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(32), nullable=False)
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    code_hash: Mapped[str | None] = mapped_column(String(64))
+    code_sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime)
+    delivery_id: Mapped[str | None] = mapped_column(String(36))
 
 
 class SavedView(UUIDPrimaryKeyMixin, TimestampMixin, Base):

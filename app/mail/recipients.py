@@ -42,6 +42,7 @@ from app.mail.renderers import (
     KIND_BACKUP_FAILED,
     KIND_INVITE,
     KIND_NOTIFICATION,
+    KIND_NOTIFY_EMAIL_VERIFICATION,
     KIND_PASSWORD_RESET,
     KIND_TEST,
 )
@@ -54,6 +55,7 @@ REASON_INACTIVE = "inactive"
 REASON_ADDRESS_CHANGED = "address_changed"
 REASON_NO_LONGER_ADMIN = "no_longer_admin"
 REASON_SENDER_NOT_ALLOWED = "sender_not_allowed"
+REASON_VERIFICATION_CLOSED = "verification_closed"
 REASON_NO_LONGER_DECIDER = "no_longer_decider"
 REASON_NO_ACCESS = "no_access"
 REASON_CHECK_FAILED = "check_failed"
@@ -63,6 +65,7 @@ RECIPIENT_CHECK_LABELS: dict[str, str] = {
     REASON_ADDRESS_CHANGED: "계정의 이메일 주소가 바뀌어 예전 주소로 보내지 않았습니다.",
     REASON_NO_LONGER_ADMIN: "받는 사람이 더 이상 관리자가 아니라 보내지 않았습니다.",
     REASON_SENDER_NOT_ALLOWED: "시험 메일을 보낸 사람에게 더 이상 메일 설정 권한이 없어 보내지 않았습니다.",
+    REASON_VERIFICATION_CLOSED: "주소 확인이 이미 끝났거나 취소돼 보내지 않았습니다.",
     REASON_NO_LONGER_DECIDER: "받는 사람이 더 이상 이 승인을 결재할 수 없어 보내지 않았습니다.",
     REASON_CHECK_FAILED: "받는 사람을 확인하지 못해 보내지 않았습니다.",
 }
@@ -164,6 +167,17 @@ def _rule_test(db: Session, delivery: MailDelivery, params: dict, now: datetime)
     return None
 
 
+def _rule_notify_verification(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
+    """주소 확인 코드(M4). 요청한 사람이 아직 활성이고 그 확인이 아직 열려 있어야 보낸다(다시 요청했거나 확인을 마쳤으면 옛 메일은
+    보내지 않는다)."""
+    from app.profiles.notify_email import is_open
+
+    blocked = _account_block(_recipient(db, delivery, params))
+    if blocked:
+        return blocked
+    return None if is_open(db, params.get("verification_id")) else REASON_VERIFICATION_CLOSED
+
+
 def _rule_notification(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
     """알림 쪽 판정을 그대로 쓴다 - 메일 알림을 껐거나 그 유형을 고르지 않았거나 계정이 닫혔다. 보내도 되면 받는 주소가
     지금 계정의 이메일로 고쳐진다."""
@@ -181,6 +195,7 @@ RECIPIENT_RULES: dict[str, Rule] = {
     KIND_BACKUP_FAILED: _rule_backup_failed,
     KIND_TEST: _rule_test,
     KIND_NOTIFICATION: _rule_notification,
+    KIND_NOTIFY_EMAIL_VERIFICATION: _rule_notify_verification,
 }
 
 
