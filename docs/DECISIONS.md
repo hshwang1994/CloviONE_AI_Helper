@@ -16655,7 +16655,7 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
 ### D-552. 랩 E2E 결과 — 시험 메일은 수신측 서버까지 갔고 받은 편지함에는 들어가지 않았으며, 랩 데이터가 드러낸 열 배분 · 사람 줄 · 준비 점검 결함을 고쳤다 (UI/UX · AI · 메일 회차 P18)
 
 - **배포**: `c7777553` 을 `git archive` → `install.sh upgrade --source local --yes` 로 올렸다(`UPGRADE_OK` · `VERIFY_OK` · `DEPLOY_VERIFY_OK`
-  정적 자산 57/57, alembic 0048). 아래 결함을 고친 커밋을 같은 길로 다시 올렸다.
+  정적 자산 57/57, alembic 0048). 아래 결함을 고친 `1dc64099` 와 `9a555d8d` 를 같은 길로 다시 올렸다(세 번 모두 같은 표지).
 - **메일 구성 요소 기본 꺼짐(E2E-2)**: postfix 3.8.6 · opendkim 2.11 이 깔렸고 두 유닛은 disabled · inactive, 25 · 2525 · 8891 을 듣는 것이
   없고 main.cf 가 없으며 다른 MTA 가 없다. `postfix@-` 의 enabled-runtime 은 생성기 표시이고 inactive 다.
 - **보안 계약 넷(랩의 실제 Postfix)**: 바깥에서 25 · 2525 · 8891 닫힘, 앱 → 릴레이 정상, 인증서 없는 중계 554 5.7.1, 보안 연결 없이 530,
@@ -16676,8 +16676,8 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
   읽음 · AI 미연결 상태의 브랜드 판정 · 작업 공간 판이 창 아래 끝까지 서는 것). 전체 페이지 캡처의 붙박이 발 위치 · 가상 목록의 빈 줄 · 빈
   sandbox 미리 보기는 캡처의 모양이다(미리 보기는 화면에 띄워 그려지는 것을 확인했다).
 - **하지 않은 것**: AI 연결 · 채팅 E2E 는 사용자가 이번에는 건너뛰기로 정했다(P-116).
-- **랩 상태**: 시험 뒤 로컬 릴레이와 메일 발송을 껐다 — 랩의 사용자는 실제 동료 주소라 알림 메일이 나가지 않게 한다. 설정 값은 남아 메일
-  화면에서 다시 켤 수 있다. QA 계정은 보관했다.
+- **랩 상태**: 시험 뒤 로컬 릴레이를 끄고 메일을 처음 상태에 가깝게(외부 SMTP · 발송 꺼짐) 되돌렸다 — 랩의 사용자는 실제 동료 주소라 알림
+  메일이 나가지 않게 한다. 로컬 릴레이 값은 남아 메일 화면에서 다시 고를 수 있다. QA 계정은 보관했다.
 - **잰 것**: `docs/platform/EVIDENCE/mail/2026-10-02-lab-relay-e2e.md`(배포 · 기본 꺼짐 · 계약 · 준비 점검 · 발송 단계 · 다시 올린 뒤의 점검),
   `docs/platform/EVIDENCE/ui/2026-10-02-visual-acceptance.md` 「랩 원격 캡처」 절, 시험 `tests/unit/test_mail_relay_parts.py` ·
   `frontend/src/ui/{plan-columns,datatable-column-plan,person-line-align}.test.*` · `screens/ai/ai-usage-stats.test.jsx`.

@@ -81,3 +81,18 @@ SPF 에 이 IP 합치기와 DKIM 공개키 등록과 공개 HELO 이름. 격리 
 받는 쪽이 보는 사실과 같다. 공개 SPF 는 `include:spf.protection.outlook.com include:mail.stibee.com include:google-site-verification=…` 이고 셋째 항목이
 도메인이 아니라 레코드 전체가 오류다(계획 단계의 관찰과 같다). 이 점검의 합친 SPF 제안은 그 항목을 그대로 옮겨 제안도 오류였다 — 위 5절의 마지막
 보정이 그것을 고쳤다.
+
+`9a555d8d` 를 올린 뒤 같은 점검의 SPF 줄은 할 일 「도메인이 아닌 항목을 빼세요. 아래 레코드는 그 항목을 뺀 제안입니다.」이고, 제안은
+`v=spf1 ip4:221.147.80.201 include:spf.protection.outlook.com include:mail.stibee.com -all` 이다(도메인이 아닌 항목을 뺐다는 한 줄이 레코드 아래에
+선다). 이 제안을 넣어도 받은 편지함까지 가려면 PTR · DKIM · 공개 HELO 이름이 함께 필요하다(P-126).
+
+## 7. 시험 뒤 랩 상태
+
+랩의 사용자는 실제 동료 주소라 알림 메일이 나가지 않게 처음 상태(메일을 설정한 적 없음 = 외부 SMTP · 발송 꺼짐)에 가깝게 되돌렸다.
+
+| 확인 | 결과 |
+|---|---|
+| 메일 설정 | 보내는 방법 「외부 SMTP 사용」, 메일 발송 꺼짐, 건강 「사용 안 함」. 로컬 릴레이 값(전달 방식 · 전달 서버 · 비교할 공개 DNS)은 남아 있어 메일 화면에서 다시 고르면 그대로 쓴다 |
+| 로컬 릴레이 | 「구성 요소 준비됨」(설치됨 · 꺼짐) — postfix · opendkim disabled · inactive, 25 · 2525 · 8891 을 듣는 것 없음 |
+| QA 계정 | `ui-qa@goodmit.co.kr` 보관, 서버의 계정 도우미 파일 삭제 |
+| 배포 | `c7777553` → `1dc64099`(랩 결함 수정) → `9a555d8d`(SPF 제안 · 프로브), 세 번 모두 `UPGRADE_OK` · `VERIFY_OK` · `DEPLOY_VERIFY_OK`(정적 자산 57/57) |
