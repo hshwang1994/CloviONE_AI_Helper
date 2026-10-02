@@ -439,6 +439,7 @@ export function RelayReadiness({ relay, savedLocal, dirty }) {
                       {rec.value}
                     </Typography>
                     {rec.request ? <Line>{rec.request}</Line> : null}
+                    {rec.note ? <Line>{rec.note}</Line> : null}
                   </Box>
                   <Button size="sm" onClick={() => copy(rec.value)} aria-label={`${rec.name} 값 복사`}>복사</Button>
                 </Box>

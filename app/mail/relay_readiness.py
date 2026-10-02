@@ -225,6 +225,26 @@ def spf_check(lookup, domain: str, ip: str) -> tuple[str, str]:
     return result, ""
 
 
+def _broken_spf_terms(record: str) -> list[str]:
+    """SPF 레코드에서 대상이 도메인이 아닌 include · redirect 항목 — 그 하나로 레코드 전체가 오류(permerror)다.
+
+    랩의 goodmit.co.kr 은 Google 사이트 확인 값(`google-site-verification=…`)을 include 로 적어 두었다. 그 값은 SPF 가 아니라 따로 선
+    TXT 레코드여야 확인에도 쓰인다. 합친 제안이 그 항목을 그대로 옮기면 제안한 레코드도 오류다."""
+    broken = []
+    for term in record.split()[1:]:
+        body = term[1:] if term[:1] in "+-~?" else term
+        lowered = body.lower()
+        if lowered.startswith("include:"):
+            target = body.split(":", 1)[1]
+        elif lowered.startswith("redirect="):
+            target = body.split("=", 1)[1]
+        else:
+            continue
+        if "%" not in target and not _SPF_DOMAIN.match(target):
+            broken.append(term)
+    return broken
+
+
 def spf_row(lookup, domain: str, ip: str | None) -> tuple[dict, str | None]:
     """SPF 한 줄과 지금 레코드(없으면 None). IP 를 모르면 모름이다."""
     current = next((v for v in lookup.txt(domain).values if v.lower().startswith("v=spf1")), None)
@@ -237,7 +257,9 @@ def spf_row(lookup, domain: str, ip: str | None) -> tuple[dict, str | None]:
         return row("spf", WARN, "보내는 도메인에 SPF 레코드가 없습니다.", need="아래 SPF 레코드를 도메인 DNS 에 넣으세요.",
                    where="도메인 DNS(아래 레코드 복사)"), current
     if result == "permerror":
-        return row("spf", FAIL, "보내는 도메인의 SPF 레코드에 오류가 있습니다.", need="SPF 레코드를 고치세요.",
+        need = ("도메인이 아닌 항목을 빼세요. 아래 레코드는 그 항목을 뺀 제안입니다." if current and _broken_spf_terms(current)
+                else "SPF 레코드를 고치세요.")
+        return row("spf", FAIL, "보내는 도메인의 SPF 레코드에 오류가 있습니다.", need=need,
                    where="도메인 DNS(아래 레코드 복사)", technical=why), current
     if result == "temperror":
         return row("spf", UNKNOWN, "SPF 를 조회하지 못했습니다."), current
@@ -408,14 +430,22 @@ def records_for(*, domain: str, egress_ip: str | None, current_spf: str | None, 
     제안하면 공개 DNS 에 SPF 가 둘이 되어 레코드 오류가 된다."""
     out: list[dict] = []
     if egress_ip and sender_seen:
+        note = None
         if current_spf:
             terms = current_spf.split()[1:]
+            broken = _broken_spf_terms(current_spf)
             all_terms = [t for t in terms if t.lstrip("+-~?").lower() == "all"]
-            rest = [t for t in terms if t not in all_terms and t.lower() != f"ip4:{egress_ip}"]
+            rest = [t for t in terms if t not in all_terms and t not in broken and t.lower() != f"ip4:{egress_ip}"]
             value = " ".join(["v=spf1", f"ip4:{egress_ip}", *rest, *(all_terms or ["~all"])])
+            if broken:
+                note = ("기존 SPF 에서 도메인이 아닌 항목(" + ", ".join(t if len(t) <= 60 else t[:57] + "..." for t in broken)
+                        + ")을 뺐습니다. 이 항목이 레코드 오류의 원인입니다.")
         else:
             value = f"v=spf1 ip4:{egress_ip} ~all"
-        out.append({"key": "spf", "name": domain, "type": "TXT", "value": value})
+        spf = {"key": "spf", "name": domain, "type": "TXT", "value": value}
+        if note:
+            spf["note"] = note
+        out.append(spf)
     if dkim_enabled and dkim_public and dkim_selector:
         txt = relay_certs.dkim_txt(dkim_public)
         out.append({"key": "dkim", "name": rf.dkim_record_name(domain, dkim_selector), "type": "TXT", "value": txt,

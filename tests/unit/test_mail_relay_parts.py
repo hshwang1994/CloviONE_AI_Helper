@@ -261,3 +261,29 @@ def test_a_domain_the_system_resolver_knows_keeps_the_old_judgement():
     assert seen is True and rows["spf"]["state"] == rr.OK and rows["dmarc"]["state"] == rr.WARN
     assert rows["sender_domain_public"]["message"] == "보내는 도메인(goodmit.co.kr)을 DNS 에서 찾았습니다."
     assert rows["ptr_fcrdns"]["state"] == rr.OK and rows["helo_dns"]["state"] == rr.OK
+
+
+def test_merged_spf_drops_a_term_that_is_not_a_domain():
+    # 랩의 공개 SPF 처럼 사이트 확인 값이 include 로 들어간 레코드 — 그 항목 하나로 레코드 전체가 오류다.
+    current = "v=spf1 include:spf.protection.outlook.com include:google-site-verification=QY1DgLBO55 -all"
+    public = FakeDns(txt={"x.com": [current], "spf.protection.outlook.com": ["v=spf1 ip4:40.92.0.0/15 -all"]})
+    spf, got = rr.spf_row(public, "x.com", IP)
+    assert spf["state"] == rr.FAIL and got == current
+    assert spf["need"] == "도메인이 아닌 항목을 빼세요. 아래 레코드는 그 항목을 뺀 제안입니다."
+    records = {r["key"]: r for r in rr.records_for(
+        domain="x.com", egress_ip=IP, current_spf=current, dkim_selector="ca1", dkim_public="", dkim_enabled=False,
+        from_address="noreply@x.com", helo="mail.x.com")}
+    assert records["spf"]["value"] == f"v=spf1 ip4:{IP} include:spf.protection.outlook.com -all"
+    assert "google-site-verification" in records["spf"]["note"] and records["spf"]["note"].endswith("원인입니다.")
+    # 제안한 레코드는 오류가 아니다.
+    fixed = FakeDns(txt={"x.com": [records["spf"]["value"]], "spf.protection.outlook.com": ["v=spf1 ip4:40.92.0.0/15 -all"]})
+    assert rr.spf_check(fixed, "x.com", IP)[0] == "pass"
+
+
+def test_counterexample_a_valid_record_keeps_every_term_and_has_no_note():
+    current = "v=spf1 include:spf.protection.outlook.com redirect=_spf.x.com"
+    records = {r["key"]: r for r in rr.records_for(
+        domain="x.com", egress_ip=IP, current_spf=current, dkim_selector="ca1", dkim_public="", dkim_enabled=False,
+        from_address="noreply@x.com", helo="mail.x.com")}
+    assert "include:spf.protection.outlook.com" in records["spf"]["value"] and "redirect=_spf.x.com" in records["spf"]["value"]
+    assert "note" not in records["spf"]

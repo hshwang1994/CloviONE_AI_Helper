@@ -347,6 +347,14 @@ CASES: list[dict] = [
         "html": """<table style="width:600px;border-collapse:collapse"><thead><tr><th style="text-align:left">제목</th><th style="text-align:right">건수</th></tr></thead><tbody><tr><td style="text-align:left">로그인 화면 정리</td><td style="text-align:right;font-variant-numeric:tabular-nums;">12</td></tr><tr><td style="text-align:left">배포 스크립트 점검</td><td style="text-align:right;font-variant-numeric:tabular-nums;">1,240</td></tr><tr><td style="text-align:left">권한 표 갱신</td><td style="text-align:right;font-variant-numeric:tabular-nums;">5</td></tr><tr><td style="text-align:left">메일 발송 확인</td><td style="text-align:right;font-variant-numeric:tabular-nums;">37</td></tr></tbody></table>""",
     },
     {
+        "name": "header_cell_alignment_mismatch/빈 표의 한 줄 띠는 열의 몸이 아니다 (P18 랩)",
+        "assertion": "header_cell_alignment_mismatch",
+        "expect": "skip",
+        "why": ("반례 - 몸 줄이 없는 표의 머리는 견줄 것이 없어 재지 않는다(표본 0). 여러 열에 걸친 띠의 왼쪽 글을 첫 열의 몸으로 읽으면 "
+                "가운데 머리가 틀렸다고 나왔다."),
+        "html": """<table style="width:600px;border-collapse:collapse"><thead><tr><th style="text-align:center">유형</th><th style="text-align:left">요청자</th><th style="text-align:right">건수</th></tr></thead><tbody><tr><td colspan="3" style="text-align:left">조건에 맞는 항목이 없습니다.</td></tr></tbody></table>""",
+    },
+    {
         "name": "optical_alignment/한 줄 입력의 여백이 아래에만 있으면 잡힌다",
         "assertion": "optical_alignment",
         "expect": "fail",

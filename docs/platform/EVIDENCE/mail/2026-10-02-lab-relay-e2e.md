@@ -63,4 +63,21 @@ SPF 에 이 IP 합치기와 DKIM 공개키 등록과 공개 HELO 이름. 격리 
 
 보내는 도메인 · SPF · DKIM · DMARC · 역방향 이름 · 서버 이름을 **받는 쪽이 보는 DNS** 로 판정한다. 비교할 공개 DNS 서버가 그 도메인을 알면 그것으로
 보고, 이 서버의 DNS 만 그 도메인을 알면 그것으로 본다. 어느 조회기도 모르면 SPF · DKIM · DMARC 는 「모름」이고 비교할 공개 DNS 서버를 넣으라고
-말하며, 기존 레코드를 모르는 채 새 SPF · DMARC 를 제안하지 않는다. 시험: `tests/unit/test_mail_relay_parts.py`(랩 모양의 분리 DNS · 반례 · 옛 판정 유지).
+말하며, 기존 레코드를 모르는 채 새 SPF · DMARC 를 제안하지 않는다. 합친 SPF 제안은 대상이 도메인이 아닌 include · redirect 를 빼고 그 사실을
+레코드 아래 한 줄(`note`)로 말한다. 시험: `tests/unit/test_mail_relay_parts.py`(랩 모양의 분리 DNS · 반례 · 옛 판정 유지 · 도메인이 아닌 항목 빼기),
+`frontend/src/screens/mail/relay-section.test.jsx`.
+
+## 6. 고쳐 다시 올린 뒤의 점검(`1dc64099`, 같은 설정 · 메일은 보내지 않음)
+
+| 점검 | 상태 | 문장 |
+|---|---|---|
+| 보내는 도메인 | 정상 | 보내는 도메인(goodmit.co.kr)을 공개 DNS 에서 찾았습니다. 이 서버의 DNS 는 이 도메인을 모릅니다(분리 DNS). |
+| SPF | 실패 | 보내는 도메인의 SPF 레코드에 오류가 있습니다. |
+| DKIM | 주의 | DKIM 서명을 쓰지 않습니다. |
+| DMARC | 정상 | DMARC 레코드가 있습니다(정책 none). |
+| 역방향 이름(PTR) | 실패 | 공인 IP 의 역방향 이름(PTR)이 없습니다. |
+| 서버 이름(HELO) | 실패 | 서버 이름(clovirassist.gooddi.lab)이 DNS 에 없습니다. |
+
+받는 쪽이 보는 사실과 같다. 공개 SPF 는 `include:spf.protection.outlook.com include:mail.stibee.com include:google-site-verification=…` 이고 셋째 항목이
+도메인이 아니라 레코드 전체가 오류다(계획 단계의 관찰과 같다). 이 점검의 합친 SPF 제안은 그 항목을 그대로 옮겨 제안도 오류였다 — 위 5절의 마지막
+보정이 그것을 고쳤다.

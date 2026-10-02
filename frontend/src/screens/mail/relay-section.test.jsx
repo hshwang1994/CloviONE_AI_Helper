@@ -60,7 +60,8 @@ const RELAY_VIEW = {
       { key: "ptr_fcrdns", label: "역방향 이름(PTR)", state: "fail", message: "공인 IP 의 역방향 이름(PTR)이 없습니다.",
         need: "역방향 이름을 등록해 달라고 요청하세요.", where: "회선이나 클라우드 업체" },
     ],
-    records: [{ key: "spf", name: "goodmit.co.kr", type: "TXT", value: "v=spf1 ip4:221.147.80.10 ~all" }],
+    records: [{ key: "spf", name: "goodmit.co.kr", type: "TXT", value: "v=spf1 ip4:221.147.80.10 ~all",
+      note: "기존 SPF 에서 도메인이 아닌 항목(include:google-site-verification=QY1D)을 뺐습니다. 이 항목이 레코드 오류의 원인입니다." }],
   },
   outer: null,
 };
@@ -209,6 +210,8 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
     await userEvent.click(screen.getByRole("button", { name: "복사할 DNS 레코드 펼치기" }));
     const records = screen.getByTestId("relay-records");
     expect(within(records).getByText("v=spf1 ip4:221.147.80.10 ~all")).toBeInTheDocument();
+    // 합친 제안에서 뺀 항목과 그 까닭이 레코드 아래 한 줄로 선다(P18 랩: 도메인이 아닌 include).
+    expect(within(records).getByText(/도메인이 아닌 항목\(include:google-site-verification=QY1D\)을 뺐습니다\./)).toBeInTheDocument();
     expect(within(records).getByRole("button", { name: "goodmit.co.kr 값 복사" })).toBeInTheDocument();
   });
 
