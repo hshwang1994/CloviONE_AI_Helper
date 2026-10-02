@@ -37,7 +37,7 @@ from app.core.errors import AppError, RateLimitedError, ValidationAppError
 from app.core.security import hash_password, validate_password_policy
 from app.mail.config import config_from_cache, configuration_problems
 from app.mail.renderers import KIND_PASSWORD_RESET
-from app.mail.service import queue_mail
+from app.mail.service import mail_subject, queue_mail
 from app.users.service import get_user_by_email, normalize_email
 
 router = APIRouter(tags=["auth-reset"])
@@ -171,7 +171,7 @@ def request_password_reset(
                 kind=KIND_PASSWORD_RESET,
                 to_email=user.email,
                 recipient_user_id=user.id,
-                subject="[ClovirAssist] 비밀번호 재설정 안내",
+                subject=mail_subject(db, "비밀번호 재설정 안내"),
                 params={"user_id": user.id},
                 now=now,
                 secret_provider=getattr(request.app.state, "secret_provider", None),

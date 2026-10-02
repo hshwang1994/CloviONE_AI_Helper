@@ -9294,7 +9294,7 @@
    "route": "/mail",
    "console": "admin",
    "host_surface": null,
-   "component": "frontend/src/screens/MailStatus.jsx",
+   "component": "frontend/src/screens/mail/MailScreen.jsx",
    "render_engine": "custom",
    "registry_key": null,
    "registry_key_source": null,
@@ -9674,7 +9674,7 @@
      "sample_combo": "1200x900/light"
     }
    },
-   "status_note": "S22 전량 실행에서 아직 실패하는 검사가 있다: brand_presence, dead_blank_region, oversized_empty_surface. 승격 검사는 아니라 Release 를 막지 않지만, 열린 Finding 을 든 화면을 「완료」라고 적지 않는다."
+   "status_note": "2026-10-02 P12(D-548): 「메일 발송」 화면은 「운영 › 메일」 세 탭(설정 · 발송 기록 · 알림 메일)이 됐다. SMTP 설정은 이 화면의 전용 API 로만 쓴다. 새 화면의 감사는 아직 하지 않았다(Acceptance 회차의 일)."
   },
   {
    "id": "admin_maintenance",

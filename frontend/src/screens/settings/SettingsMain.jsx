@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
@@ -111,8 +112,14 @@ export function Settings({ embedded = false } = {}) {
      그 상태에서 새로고침하면 사용자가 이미 닫은 것이 또 열리지 않게. 모르는 키는 조용히
      둔다 — 옛 링크가 오류 화면이 되지 않게 하는 이 저장소의 딥링크 규약 그대로다. */
   const deepLinkKey = deepLink.setting;
+  const navigate = useNavigate();
   React.useEffect(() => {
     if (!deepLinkKey) return;
+    /* 메일 서버 설정의 옛 주소(`?setting=smtp`)는 메일 화면의 설정 탭으로 보낸다(D-548) - 이 표는 그 줄을 그리지 않는다. */
+    if (deepLinkKey === "smtp") {
+      navigate("/mail?tab=settings", { replace: true });
+      return;
+    }
     /* 이 표가 실제로 그리는 줄만 연다. 유지보수·AI 키는 여기서 일부러 숨긴 것이라
        (전용 화면이 따로 있고, 서버가 역할도 다르게 막는다) 주소로 뒷문을 내지 않는다. */
     const row = rows.find((r) => r.key === deepLinkKey);

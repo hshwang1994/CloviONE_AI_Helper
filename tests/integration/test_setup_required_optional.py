@@ -3,6 +3,9 @@
 qa-contract-change: AI 항목의 링크가 설정의 AI 탭(`#/settings?tab=ai`)에서 AI 연결 화면(`#/ai-connection`)으로 옮겼고(D-539), 확인
 전의 물음이 「연결 확인을 눌러 주세요」에서 「AI 연결 화면에서 지금 확인을 누르세요」로 바뀌었다(상태 면과 같은 함수, A8).
 
+qa-contract-change: 메일 항목의 링크가 설정 표의 그 줄(`#/settings?setting=smtp`)과 메일 화면(`#/mail`)에서 메일 화면의 설정 탭
+(`#/mail?tab=settings`) 하나로 모였다(D-548 — 메일 설정은 메일 화면에서만 바꾼다).
+
 못박는 성질:
 1. 설치가 끝났는가(`complete`)는 필수 항목(관리자 계정, 조직과 부서, TLS)만 본다. 메일과 AI 가 비어 있어도 필수가 끝나면
    완료이고, 남은 선택 항목은 `optional_pending` 이 따로 말한다.
@@ -105,7 +108,7 @@ def test_mail_is_done_only_after_a_real_check(client, db, login_as, fake_clock):
     login_as("system_admin")
     configure_smtp(client.app)
     mail = _by_key(_checklist(client))["mail"]
-    assert mail["state"] == "unknown" and mail["href"] == "#/mail"
+    assert mail["state"] == "unknown" and mail["href"] == "#/mail?tab=settings"
     assert "연결 확인" in mail["question"]
 
     with client.app.state.session_factory() as s:
@@ -118,7 +121,7 @@ def test_mail_is_done_only_after_a_real_check(client, db, login_as, fake_clock):
 def test_unconfigured_mail_points_at_the_settings_row(client, login_as):
     login_as("system_admin")
     mail = _by_key(_checklist(client))["mail"]
-    assert (mail["state"], mail["href"], mail["link_label"]) == ("todo", "#/settings?setting=smtp", "메일 설정 열기")
+    assert (mail["state"], mail["href"], mail["link_label"]) == ("todo", "#/mail?tab=settings", "메일 설정 열기")
     assert mail["configured"] is False and "사용하지 않음" in mail["action"]
 
 

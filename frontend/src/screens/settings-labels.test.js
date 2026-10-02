@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { SETTING_LABELS, OBJECT_SCHEMA_HELP, summarizeSetting } from "./Settings.jsx";
+import { MAIL_SCREEN_KEYS } from "./settings/settingsRegistry.js";
 
 /* 설정 화면의 손으로 유지하는 맵이 `registry.py` 와 어긋나지 않는다 (N6).
  *
@@ -44,7 +45,9 @@ describe("설정 라벨 드리프트", () => {
   });
 
   it("구조가 있는 object 설정에는 JSON 예시 안내가 있다", () => {
-    const keys = registryKeys().filter((k) => OBJECT_TYPES.has(k));
+    // qa-contract-change: 메일 서버 설정(`smtp`)은 설정 표에 그리지 않고 메일 화면이 전용 API 로 다룬다(D-548) - 그 편집기가 없으니 JSON
+    // 예시도 필요 없다. 설정 표가 그리는 object 키만 본다.
+    const keys = registryKeys().filter((k) => OBJECT_TYPES.has(k) && !MAIL_SCREEN_KEYS.includes(k));
     expect(keys.length, "object 설정을 하나도 못 찾았다 — 정규식이 낡았다").toBeGreaterThan(0);
     const missing = keys.filter((k) => !OBJECT_SCHEMA_HELP[k]);
     expect(missing, `비개발자 관리자가 raw JSON 을 추측하게 된다: ${missing}`).toEqual([]);

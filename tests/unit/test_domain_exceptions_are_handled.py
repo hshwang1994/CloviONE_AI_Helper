@@ -285,7 +285,7 @@ TRIAGE: dict[str, Triage] = {
         ),
         caught_in=_fs("app/jobs/worker.py"),
         why="잡 처리기와 잡 루프만 던지고, 워커가 잡아 그 잡을 재시도 없이 실패로 끝낸다.",
-        reach={"render_body": _fs("app/mail/renderers.py", "app/jobs/handlers/mail_send.py")},
+        reach={"render_mail": _fs("app/mail/renderers.py", "app/jobs/handlers/mail_send.py")},
     ),
     "InvalidNonceError": Triage(
         defined_in="app/llm/prompt.py", kind=GUARD,

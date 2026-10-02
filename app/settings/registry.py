@@ -493,6 +493,11 @@ REGISTRY: dict[str, SettingSpec] = {
 #
 # 게이트를 라우터가 아니라 여기에 두는 이유: 키를 추가하는 사람과 라우터를 고치는 사람이
 # 다르다. 표 옆에 두면 새 키를 넣을 때 이 목록이 눈에 들어온다.
+# 전용 API 가 있는 키 → 범용 설정 API 가 거절할 때의 문장(D-548). 그 키의 저장 · 미리 검증 · 되돌리기는 전용 화면의 API 만 한다.
+DEDICATED_API_KEYS: dict[str, str] = {
+    "smtp": "메일 설정은 메일 화면에서 바꿉니다.",
+}
+
 SYSTEM_ADMIN_ONLY_KEYS: frozenset[str] = frozenset(
     {
         "ai_generation_enabled",

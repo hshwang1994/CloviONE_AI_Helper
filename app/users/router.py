@@ -479,7 +479,7 @@ def _queue_invite_mail(request: Request, db: Session, user, now) -> dict:
     남아 계정 하나가 그 메일함과 같은 수명을 갖게 된다.
     """
     from app.mail.renderers import KIND_INVITE
-    from app.mail.service import queue_mail
+    from app.mail.service import mail_subject, queue_mail
 
     try:
         row = queue_mail(
@@ -487,7 +487,7 @@ def _queue_invite_mail(request: Request, db: Session, user, now) -> dict:
             kind=KIND_INVITE,
             to_email=user.email,
             recipient_user_id=user.id,
-            subject="[ClovirAssist] 업무 포털 계정이 만들어졌습니다",
+            subject=mail_subject(db, "계정이 만들어졌습니다"),
             params={"user_id": user.id},
             now=now,
             secret_provider=getattr(request.app.state, "secret_provider", None),

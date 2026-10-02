@@ -448,13 +448,13 @@ def _mail_approvers(db: Session, row: Approval, requested_by: User, *, now: date
     """
     try:
         from app.mail.renderers import KIND_APPROVAL_REQUESTED
-        from app.mail.service import queue_mail_to_users
+        from app.mail.service import mail_subject, queue_mail_to_users
 
         queue_mail_to_users(
             db,
             deciders_for(db, row, now=now),
             kind=KIND_APPROVAL_REQUESTED,
-            subject=f"[ClovirAssist] 승인 요청: {_request_type_ko(row.request_type)}",
+            subject=mail_subject(db, f"승인 요청: {_request_type_ko(row.request_type)}"),
             params={
                 "request_type": row.request_type,
                 "requested_by": requested_by.display_name,

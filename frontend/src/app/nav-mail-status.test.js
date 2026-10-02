@@ -6,14 +6,17 @@ import { NAV } from "./navConfig.js";
 
 /* FN-01: GET /api/admin/mail/status·POST /test는 처음부터 있었는데 사이드바 항목이 없었다.
  * 형제(백업·진단)와 같은 CONSOLE_READ_ROLES 집합으로 넣는다. PA-RC-0017로 "시스템 인프라"는
- * 없어지고 "운영" 그룹이 그 형제들을 이어받았다. */
-describe("사이드바 운영 메뉴 — 메일 발송", () => {
+ * 없어지고 "운영" 그룹이 그 형제들을 이어받았다.
+ *
+ * qa-contract-change: 메뉴 이름이 「메일 발송」에서 「메일」이 됐다(D-548) — 그 화면이 설정 · 발송 기록 · 알림 메일을 다 담는다. 같은 항목 ·
+ * 같은 역할 집합을 새 이름으로 잰다. */
+describe("사이드바 운영 메뉴 — 메일", () => {
   const group = NAV.find((g) => g.group === "운영");
   const item = (group.items || []).find((i) => i.to === "/mail");
 
-  it("메일 발송 메뉴 항목이 존재하고 형제 항목(백업)과 같은 role 집합을 쓴다", () => {
+  it("메일 메뉴 항목이 존재하고 형제 항목(백업)과 같은 role 집합을 쓴다", () => {
     expect(item).toBeTruthy();
-    expect(item.label).toBe("메일 발송");
+    expect(item.label).toBe("메일");
     expect(item.roles).toEqual(["operator", "admin", "system_admin", "auditor"]);
   });
 

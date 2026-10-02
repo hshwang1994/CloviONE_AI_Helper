@@ -114,6 +114,19 @@ class FileSecretReferenceProvider:
             raise SecretMissingError()
         return value
 
+    def version(self, name: str) -> str:
+        """비밀 파일의 표지 — `{수정 시각 ns}:{크기}`. 값은 싣지 않는다. 없으면 `absent` 다.
+
+        상태 기록의 지문에 넣는다(메일 건강 D-546 · AI 연결과 같은 방식) - 비밀번호를 바꾸면 지문이 바뀌어 옛 「정상」 ·
+        「발송 실패」 기록이 지금 비밀번호를 말하지 않게 된다.
+        """
+        try:
+            path = self._path_for(name)
+            stat = path.stat() if path.is_file() else None
+        except (InvalidSecretRefError, OSError):
+            return "unknown"
+        return f"{stat.st_mtime_ns}:{stat.st_size}" if stat is not None else "absent"
+
     @property
     def directory(self) -> Path:
         """화면이 "어디에 놓으라" 고 말하려면 경로를 알아야 한다."""

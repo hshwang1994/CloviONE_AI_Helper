@@ -3,9 +3,11 @@
 관리 화면의 「연결 확인」이 이 잡을 넣고 결과를 폴링한다(`GET /api/admin/mail/verify/{job_id}`). 웹 요청 안에서
 메일 서버에 붙지 않는 이유는 발송과 같다 — 느린 서버는 수십 초를 문다.
 
-확인은 연결 · 보안 연결 · 로그인까지이고 **메일을 보내지 않는다**(`app/mail/transport.py::SmtpTransport.verify`).
-결과는 건강 상태에 적힌다(`app/mail/health.py`). 실패는 사람이 읽는 한 문장으로 잡의 오류에 남아 폴링 응답이
-그대로 보여 준다. 다시 시도하지 않는다(`max_attempts=1`) — 틀린 비밀번호는 몇 초 뒤에도 틀리다.
+확인은 DNS 조회 · 연결 · 보안 연결 · 로그인 · 봉투 시험(보내는 주소로 MAIL FROM, 확인을 시작한 사람의 주소로 RCPT TO,
+RSET)까지이고 **메일을 보내지 않는다**(`app/mail/transport.py::SmtpTransport.verify`). 결과와 단계 줄은 건강 상태에 적힌다
+(`app/mail/health.py`) - 화면의 상태 면이 「DNS 조회 정상 · 서버 연결 정상 · 인증 실패」처럼 그 줄을 그린다(D-546). 실패는
+사람이 읽는 한 문장으로 잡의 오류에도 남아 폴링 응답이 그대로 보여 준다. 다시 시도하지 않는다(`max_attempts=1`) — 틀린
+비밀번호는 몇 초 뒤에도 틀리다.
 """
 
 from __future__ import annotations
@@ -39,6 +41,21 @@ def _transport(ctx: WorkerContext):
     return SmtpTransport()
 
 
+def _probe_recipient(db: Session, job: Job) -> str | None:
+    """봉투 시험의 받는 사람 — 확인을 시작한 사람의 계정 주소. 사람이 없는 확인(설정 저장 직후의 자동 확인도 저장한 사람이
+    있다)이면 받는 사람 단계는 건너뛴다."""
+    from app.users.models import User
+
+    user = db.get(User, job.user_id) if job.user_id else None
+    email = (user.email or "").strip() if user is not None else ""
+    return email if email and email.isascii() and "@" in email else None
+
+
+def _with_detail(stages: list[dict], summary: str) -> list[dict]:
+    """실패한 단계 줄에 사람이 읽는 한 문장을 붙인다(서버 응답 원문은 붙이지 않는다)."""
+    return [{**row, "detail": summary} if row.get("state") == "failed" else row for row in stages]
+
+
 def handle_mail_verify(db: Session, job: Job, ctx: WorkerContext) -> None:
     config = config_from_db(db)
     secret_provider = (ctx.extras or {}).get("secret_provider")
@@ -48,18 +65,24 @@ def handle_mail_verify(db: Session, job: Job, ctx: WorkerContext) -> None:
     capped = dataclasses.replace(
         config, timeout_seconds=min(int(config.timeout_seconds or 20), VERIFY_TIMEOUT_SECONDS),
     )
+    probe = _probe_recipient(db, job)
     # 느린 바깥 호출 앞에서 스냅샷을 놓는다(워커의 DBTX 규율 - app/jobs/worker.py).
     db.commit()
     try:
-        _transport(ctx).verify(capped, secret_provider)
+        result = _transport(ctx).verify(capped, secret_provider, probe_recipient=probe)
     except Exception as exc:  # noqa: BLE001 - 어떤 실패든 상태와 잡에 사람의 말로 남긴다
         summary = summarize_failure(f"{type(exc).__name__}: {exc}") or "메일 서버 연결을 확인하지 못했습니다."
         health.record_result(
             db, config, ok=False, now=ctx.clock.now(), source="verify",
             failure_kind=getattr(exc, "kind", FAILURE_UNKNOWN), stage=getattr(exc, "stage", None),
-            summary=summary, counts_any_failure=True,
+            summary=summary, counts_any_failure=True, secret_provider=secret_provider,
+            stages=_with_detail(list(getattr(exc, "stages", None) or []), summary) or None,
         )
         db.commit()
         logger.warning("메일 연결 확인 실패: %s", exc)
         raise PermanentJobError(summary) from exc
-    health.record_result(db, config, ok=True, now=ctx.clock.now(), source="verify")
+    stages = (result or {}).get("stages") if isinstance(result, dict) else None
+    health.record_result(
+        db, config, ok=True, now=ctx.clock.now(), source="verify", secret_provider=secret_provider,
+        stages=stages if isinstance(stages, list) else None,
+    )

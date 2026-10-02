@@ -76,10 +76,32 @@ RETRY_DELAYS_BY_KIND: dict[str, tuple[int, ...]] = {
 # 사람이 다시 보낼 수 없는 종류. 재설정 메일은 보낼 때 새 토큰을 만들어 오래된 요청을 되살리고, 시험 메일은
 # 새로 보내면 된다.
 NOT_RESENDABLE_KINDS = frozenset({KIND_PASSWORD_RESET, KIND_TEST})
-# 설정 전에 쌓인 메일 중 설정 뒤에 다시 보낼 수 있는 종류와 기간. 사람이 누를 때만 보내고, 보내기 직전에 아직
-# 의미가 있는지와 받는 사람이 여전히 원하는지를 다시 본다(계획 3.4).
+# 설정 전에 쌓인 메일 중 설정 뒤에 다시 보낼 수 있는 종류. 사람이 누를 때만 보내고, 보내기 직전에 아직 의미가 있는지와
+# 받는 사람이 여전히 원하는지를 다시 본다(계획 3.4). 기간은 관리자가 정한 최대 나이다(D-546) - 예전에는 7일로 고정이라
+# 「오래된 메일 기준」을 30일로 늘려도 8일 된 메일은 다시 보낼 수 없었다.
 RESENDABLE_UNCONFIGURED_KINDS = frozenset({KIND_INVITE, KIND_NOTIFICATION})
-UNCONFIGURED_RESEND_WINDOW_DAYS = 7
+
+
+def backlog_window_days(db: Session) -> int:
+    """쌓인 메일 · 복구 재큐의 창 — 설정 `mail_notification_max_age_days`(기본 7일)."""
+    from app.mail.relevance import _max_age_days
+
+    return _max_age_days(db)
+
+
+def mail_subject(db: Session, summary: str) -> str:
+    """메일 제목 `[{제품 이름}] {요약}`(D-549). 제어 문자 · 줄바꿈을 걷고 공백을 접고 150자까지.
+
+    제품 이름은 브랜딩 설정(`ui_branding.product_name`)을 따른다 — 예전에는 부르는 곳 여섯이 「[ClovirAssist]」를 손으로
+    붙여, 이름을 바꾼 설치도 옛 이름으로 메일을 보냈다.
+    """
+    from app.mail.content import product_name
+
+    text = " ".join("".join(ch if ch.isprintable() else " " for ch in str(summary or "")).split())
+    return f"[{product_name(db)}] {text}".strip()[:SUBJECT_MAX]
+
+
+SUBJECT_MAX = 150
 
 
 def retry_delays(kind: str) -> tuple[int, ...]:
@@ -273,20 +295,25 @@ def queue_mail_to_users(
     )
 
 
-def record_sent(db: Session, row: MailDelivery, *, now: datetime, message_id: str | None = None) -> None:
+def record_sent(
+    db: Session, row: MailDelivery, *, now: datetime, message_id: str | None = None, response: str | None = None,
+) -> None:
+    """다음 서버가 본문을 받았다(D-555 — 「접수」이지 「도착」이 아니다). 그 서버의 응답 한 줄을 남긴다."""
     row.status = MAIL_SENT
     row.sent_at = now
     row.last_error = None
     row.failure_kind = None
+    row.failure_stage = None
     if message_id:
         row.message_id = message_id[:300]
+    row.relay_response = (response or "")[:300] or None
     row.updated_at = now
     db.flush()
 
 
 def record_failure(
     db: Session, row: MailDelivery, *, error: str, now: datetime,
-    terminal: bool = True, failure_kind: str | None = None,
+    terminal: bool = True, failure_kind: str | None = None, stage: str | None = None, response: str | None = None,
 ) -> None:
     """실패를 행에 적는다. **잡의 재시도와 별개로** 남는 기록이다.
 
@@ -300,6 +327,23 @@ def record_failure(
     row.attempt_count = (row.attempt_count or 0) + 1
     row.last_error = (error or "")[:2000]
     row.failure_kind = failure_kind
+    # 어느 단계에서 막혔는가와 서버가 준 응답(D-546). 상세 화면이 「어디서」를 말하고 응답 원문은 기술 정보 안에 둔다.
+    row.failure_stage = (stage or "")[:16] or None
+    row.relay_response = (response or "")[:300] or None
+    row.updated_at = now
+    db.flush()
+
+
+def record_unconfigured(db: Session, row: MailDelivery, *, problems: list[str], now: datetime) -> None:
+    """보내려는 순간 설정이 끝나 있지 않았다 — 큐에 넣을 때와 같은 `unconfigured` 다(D-546).
+
+    예전에는 이 경우를 `failed/config` 로 적어, 설정 전에 쌓인 메일과 섞이지 않았고 설정을 마친 뒤 「쌓인 메일 보내기」로도
+    다시 보낼 수 없었다. 시도 수는 세지 않는다 - 보내려는 시도조차 못 했다.
+    """
+    row.status = MAIL_UNCONFIGURED
+    row.last_error = " / ".join(problems)[:2000] or None
+    row.failure_kind = None
+    row.failure_stage = None
     row.updated_at = now
     db.flush()
 
@@ -352,16 +396,30 @@ def resend_delivery(
         raise ConflictError("메일 발송 설정이 끝나지 않아 다시 보낼 수 없습니다: " + " ".join(problems))
     row.status = MAIL_QUEUED
     row.failure_kind = None
+    row.failure_stage = None
     row.skip_reason = None
+    # 사람이 누른 재발송은 나이를 그 시각부터 센다(`relevance._age_origin`) - 열흘 된 메일을 다시 보내도 나이 규칙이 곧바로
+    # 「너무 오래됨」으로 버리지 않게(D-546). 예전에는 이 값을 읽기만 하고 아무도 쓰지 않았다.
+    params = _params_of(row)
+    params["manual_resend_at"] = now.isoformat()
+    row.params_json = json.dumps(params, ensure_ascii=False)
     row.updated_at = now
     _enqueue_job(db, row, now=now)
     return row
 
 
+def _params_of(row: MailDelivery) -> dict:
+    try:
+        value = json.loads(row.params_json or "{}")
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
 def resend_unconfigured(
     db: Session, *, now: datetime, config: MailConfig | None = None, secret_provider=None,
 ) -> int:
-    """설정 전에 쌓인 메일 중 아직 의미가 있을 만한 것(초대 · 알림, 최근 7일)을 다시 큐에 넣는다.
+    """설정 전에 쌓인 메일 중 아직 의미가 있을 만한 것(초대 · 알림, 최대 나이 안)을 다시 큐에 넣는다.
 
     오래된 알림을 예고 없이 뿌리지 않으려고 이 동작은 **사람이 누를 때만** 돈다(계획 3.4). 보내기 직전의
     유효성 재검사는 렌더러가 한다.
@@ -372,7 +430,7 @@ def resend_unconfigured(
     problems = configuration_problems(resolved, secret_provider)
     if problems:
         raise ConflictError("메일 발송 설정이 끝나지 않아 보낼 수 없습니다: " + " ".join(problems))
-    since = now - timedelta(days=UNCONFIGURED_RESEND_WINDOW_DAYS)
+    since = now - timedelta(days=backlog_window_days(db))
     rows = list(db.execute(
         select(MailDelivery).where(
             MailDelivery.status == MAIL_UNCONFIGURED,
@@ -392,7 +450,7 @@ def pending_unconfigured_count(db: Session, *, now: datetime) -> int:
     """`resend_unconfigured` 가 다시 보낼 메일의 수. 화면이 그 단추 옆에 건수를 말한다."""
     from datetime import timedelta
 
-    since = now - timedelta(days=UNCONFIGURED_RESEND_WINDOW_DAYS)
+    since = now - timedelta(days=backlog_window_days(db))
     return int(db.execute(
         select(func.count()).select_from(MailDelivery).where(
             MailDelivery.status == MAIL_UNCONFIGURED,
@@ -488,7 +546,19 @@ def _skip_label(reason: str | None) -> str | None:
     return REASON_LABELS.get(reason, "보내지 않았습니다.")
 
 
-def delivery_view(row: MailDelivery) -> dict:
+def _mode_of(row: MailDelivery) -> str:
+    """이 메일을 어느 방식으로 보냈는가. 로컬 릴레이 큐 id 가 있으면 로컬 릴레이다(M7), 아니면 외부 SMTP 다."""
+    from app.mail.labels import MODE_EXTERNAL, MODE_LOCAL_RELAY
+
+    return MODE_LOCAL_RELAY if getattr(row, "relay_queue_id", None) else MODE_EXTERNAL
+
+
+def delivery_view(row: MailDelivery, *, sending: bool = False) -> dict:
+    """발송 기록 한 줄. 상태 낱말은 확인한 단계까지만 말한다(D-555, `app/mail/labels.py`) — 「발송됨」 대신 어느 서버가
+    받았는지가 낱말에 든다. `sending` 은 그 메일의 잡이 지금 도는 중이라는 뜻이다(새 저장 상태를 만들지 않는다)."""
+    from app.mail.labels import STAGE_LABELS, delivery_kind, delivery_word
+
+    remote_status = getattr(row, "remote_status", None)
     return {
         "id": row.id,
         "kind": row.kind,
@@ -496,13 +566,21 @@ def delivery_view(row: MailDelivery) -> dict:
         "to_email": row.to_email,
         "subject": row.subject,
         "status": row.status,
-        "status_label": MAIL_STATUS_LABELS.get(row.status, row.status),
+        "status_label": delivery_word(row.status, mode=_mode_of(row), remote_status=remote_status, sending=sending),
+        "status_kind": delivery_kind(row.status, remote_status=remote_status),
+        "mode": _mode_of(row),
+        # 누적 실패 수다(재발송해도 이어진다). 이번 회차의 시도 수 · 상한은 상세의 `job` 이 말한다 - 예전에는 둘을 섞어
+        # 재발송 뒤 「10 / 8」이 보였다.
+        "failures": row.attempt_count,
         "attempt_count": row.attempt_count,
-        "max_attempts": max_attempts_for(row.kind),
         # error_summary 가 화면의 주된 내용이고 last_error 는 `기술 정보` 안에서만 쓴다.
         "error_summary": summarize_failure(row.last_error),
         "last_error": row.last_error,
         "failure_kind": row.failure_kind,
+        "failure_stage": row.failure_stage,
+        "failure_stage_label": STAGE_LABELS.get(row.failure_stage or "") if row.failure_stage else None,
+        # 다음 서버의 마지막 응답 한 줄(접수면 `250 … queued as …`, 거절이면 그 코드). 기술 정보 안에만 보인다.
+        "relay_response": row.relay_response,
         "skip_reason": row.skip_reason,
         "skip_reason_label": _skip_label(row.skip_reason),
         "message_id": row.message_id,
@@ -513,6 +591,20 @@ def delivery_view(row: MailDelivery) -> dict:
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         "sent_at": row.sent_at.isoformat() if row.sent_at else None,
     }
+
+
+def delivery_views(db: Session, rows: list[MailDelivery]) -> list[dict]:
+    """한 쪽의 행들. 대기 중인 행은 잡이 지금 도는지 한 번에 읽어 「보내는 중」을 가린다(행마다 질의하지 않는다)."""
+    from app.jobs.models import STATUS_RUNNING, Job
+
+    job_ids = [r.job_id for r in rows if r.status == MAIL_QUEUED and r.job_id]
+    running: set[str] = set()
+    if job_ids:
+        running = {
+            jid for jid, status in db.execute(select(Job.id, Job.status).where(Job.id.in_(job_ids))).all()
+            if status == STATUS_RUNNING
+        }
+    return [delivery_view(r, sending=bool(r.job_id and r.job_id in running)) for r in rows]
 
 
 def scope_clause(visible: frozenset[str] | None):
@@ -544,7 +636,7 @@ def delivery_detail(db: Session, delivery_id: str, *, visible: frozenset[str] | 
         stmt = stmt.where(clause)
     row = _require(db.execute(stmt).scalar_one_or_none())
     job = db.get(Job, row.job_id) if row.job_id else None
-    view = delivery_view(row)
+    view = delivery_view(row, sending=bool(job is not None and row.status == MAIL_QUEUED and job.status == "running"))
     view["job"] = None if job is None else {
         "id": job.id,
         "status": job.status,

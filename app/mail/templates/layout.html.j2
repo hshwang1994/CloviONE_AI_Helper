@@ -1,0 +1,80 @@
+{#- ClovirAssist 메일 틀 (HTML, D-549). 내용은 `app/mail/content.py::MailContent` 이고 이 틀은 모양만 정한다.
+
+    메일 앱의 규칙을 따른다: 표 배치(바깥 100% + 안 600px), 인라인 색, 원격 그림 · SVG · 그림자 · 그라데이션 없음,
+    시스템 · 한국어 글꼴 스택(메일 앱은 웹 글꼴을 받지 않는다 - 웹 화면의 Pretendard 규칙의 의도된 예외), keep-all.
+    보라(`colors.accent`)는 워드마크의 「Assist」와 주 단추 하나에만 쓴다. 상태색은 실제 실패의 한 줄 표지(`c.alert`)에만. -#}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{{ c.subject }}</title>
+<style>
+@media (max-width: 620px) {
+  .ca-outer { padding: 16px 8px !important; }
+  .ca-wrap { padding: 20px !important; }
+}
+</style>
+</head>
+<body style="margin:0;padding:0;background:{{ colors.canvas }};word-break:keep-all;">
+<div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;mso-hide:all;">{{ c.preheader }}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:{{ colors.canvas }};">
+<tr>
+<td align="center" class="ca-outer" style="padding:32px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:{{ colors.plate }};border:1px solid {{ colors.line }};border-radius:8px;">
+<tr>
+<td class="ca-wrap" style="padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;color:{{ colors.ink }};word-break:keep-all;">
+<div style="font-size:18px;font-weight:800;letter-spacing:-0.01em;color:{{ colors.ink }};">{{ wordmark_head }}{% if wordmark_tail %}<span style="color:{{ colors.accent }};">{{ wordmark_tail }}</span>{% endif %}</div>
+<div style="height:1px;line-height:1px;font-size:1px;background:{{ colors.line }};margin:16px 0 24px 0;">&nbsp;</div>
+{% if c.alert %}
+<div style="display:inline-block;margin:0 0 12px 0;padding:4px 8px;border-radius:4px;background:{{ colors.danger_bg }};color:{{ colors.danger }};font-size:13px;font-weight:700;">{{ c.alert }}</div>
+{% endif %}
+<h1 style="margin:0 0 12px 0;font-size:20px;line-height:1.4;font-weight:700;color:{{ colors.ink }};">{{ c.heading }}</h1>
+{% for paragraph in c.lead %}
+<p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;color:{{ colors.ink }};">{{ paragraph }}</p>
+{% endfor %}
+{% if c.facts %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px 0;background:{{ colors.inset }};border-radius:6px;">
+{% for label, value in c.facts %}
+<tr>
+<td style="padding:10px 16px;{% if not loop.first %}border-top:1px solid {{ colors.rule }};{% endif %}font-size:13px;line-height:1.5;color:{{ colors.muted }};width:96px;vertical-align:top;white-space:nowrap;">{{ label }}</td>
+<td style="padding:10px 16px 10px 0;{% if not loop.first %}border-top:1px solid {{ colors.rule }};{% endif %}font-size:14px;line-height:1.5;color:{{ colors.ink }};word-break:keep-all;overflow-wrap:break-word;">{{ value }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+{% if c.code %}
+<div style="margin:8px 0 20px 0;padding:16px;background:{{ colors.inset }};border-radius:6px;text-align:center;font-family:Consolas,'SFMono-Regular',Menlo,monospace;font-size:28px;font-weight:700;letter-spacing:0.3em;color:{{ colors.ink }};">{{ c.code }}</div>
+{% endif %}
+{% if c.action %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 16px 0;">
+<tr>
+<td style="border-radius:6px;background:{{ colors.accent }};"><a href="{{ c.action[1] }}" style="display:inline-block;padding:12px 20px;line-height:20px;font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:6px;">{{ c.action[0] }}</a></td>
+</tr>
+</table>
+{% endif %}
+{% if c.fallback_url %}
+<p style="margin:0 0 16px 0;font-size:12px;line-height:1.6;color:{{ colors.muted }};">단추가 열리지 않으면 이 주소를 브라우저에 붙여 넣으세요.<br><span style="word-break:break-all;">{{ c.fallback_url }}</span></p>
+{% endif %}
+{% for note in c.notes %}
+<p style="margin:0 0 8px 0;font-size:13px;line-height:1.6;color:{{ colors.muted }};">{{ note }}</p>
+{% endfor %}
+<div style="height:1px;line-height:1px;font-size:1px;background:{{ colors.line }};margin:24px 0 16px 0;">&nbsp;</div>
+<p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:{{ colors.muted }};">{{ c.footer_reason }}</p>
+{% for label, url in c.footer_links %}
+<p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;"><a href="{{ url }}" style="color:{{ colors.muted }};text-decoration:underline;">{{ label }}</a></p>
+{% endfor %}
+{% if c.support_email %}
+<p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:{{ colors.muted }};">문의: {{ c.support_email }}</p>
+{% endif %}
+<p style="margin:0;font-size:12px;line-height:1.6;color:{{ colors.muted }};">이 메일은 발신 전용입니다.</p>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</body>
+</html>

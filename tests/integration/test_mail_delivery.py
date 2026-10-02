@@ -12,6 +12,10 @@
   3. **실패가 남는다.** 메일 실패가 본 작업을 막지 않는 것은 이 저장소의 기존 규칙이지만
      (알림 실패와 같다), 조용히 삼키면 "왜 안 왔지" 에 아무도 답할 수 없다.
      남는 자리는 `mail_deliveries` 표다 - status/last_error/attempt_count.
+
+qa-contract-change: 본문은 이제 `render_mail` 이 평문 · HTML 두 부분으로 만든다(D-549) - 렌더 실패 시험은 그 함수를 바꿔 끼운다.
+종류마다의 렌더러 표는 내용 함수 표(`CONTENT_BUILDERS`)가 됐다. 상태 낱말은 확인한 단계까지만 말해(D-555) 다시 보낼 차례인 메일은
+「다시 보내는 중」이 아니라 「다시 보낼 차례」다 - 같은 사실(실패가 화면에 선다)을 새 낱말로 잰다.
 """
 
 from __future__ import annotations
@@ -305,7 +309,7 @@ def test_a_render_failure_is_recorded_not_left_queued_forever(app, settings, fak
     def broken_render(db, delivery, ctx):
         raise PermanentJobError("메일 파라미터가 비어 있습니다")
 
-    monkeypatch.setattr("app.jobs.handlers.mail_send.render_body", broken_render)
+    monkeypatch.setattr("app.jobs.handlers.mail_send.render_mail", broken_render)
     with app.state.session_factory() as db:
         queue_mail(
             db,
@@ -365,7 +369,7 @@ def test_failures_surface_on_the_admin_status_screen(
     # 재설정 메일은 재시도가 남아 아직 끝난 실패가 아니다. 그래도 실패 목록에는 선다.
     assert body["counts"]["retrying"] >= 1
     assert body["recent_failures"], "실패가 화면에 안 보이면 삼킨 것과 같다"
-    assert body["recent_failures"][0]["status_label"] == "다시 보내는 중"
+    assert body["recent_failures"][0]["status_label"] == "다시 보낼 차례"
 
 
 def test_the_screen_gets_a_summary_not_just_the_raw_exception(
@@ -395,10 +399,9 @@ def test_the_screen_gets_a_summary_not_just_the_raw_exception(
 
 def test_the_kind_column_is_a_name_not_an_internal_key(app, login_as, client):
     """`backup_failed` 는 종류의 이름이 아니다 (§1.3-② · 지시 40)."""
-    from app.mail.renderers import MAIL_KIND_LABELS, RENDERERS
-    from app.mail.service import delivery_view
+    from app.mail.renderers import CONTENT_BUILDERS, MAIL_KIND_LABELS
 
-    assert set(MAIL_KIND_LABELS) == set(RENDERERS), (
+    assert set(MAIL_KIND_LABELS) == set(CONTENT_BUILDERS), (
         "종류가 하나 늘었는데 이름을 안 붙였다 - 화면에 raw 키가 샌다"
     )
     csrf = login_as("admin")

@@ -1,0 +1,15 @@
+ClovirAssist
+
+결재할 승인 요청이 있습니다.
+
+이두리 님이 올린 요청을 검토하고 승인하거나 반려하세요.
+
+요청 유형: AI 문서 만들기
+요청한 사람: 이두리
+대상: 문서
+
+승인 화면에서 보기: https://clovirassist.gooddi.lab/admin#/approvals
+
+--
+ClovirAssist에서 이 요청을 결재할 수 있는 사람에게 보낸 메일입니다.
+이 메일은 발신 전용입니다.

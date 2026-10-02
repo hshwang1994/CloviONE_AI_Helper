@@ -20,6 +20,8 @@ import { MemoryRouter } from "react-router-dom";
  *   ④ **없는 화면으로 보내지 않는다.** 항목마다 붙는 링크는 실제로 라우팅되는 경로여야
  *      한다. 죽은 링크는 안내가 아니라 막다른 길이다.
  *
+ * qa-contract-change: 메일 항목의 링크가 설정 표의 메일 한 줄(`#/settings?setting=smtp`)에서 메일 화면의 설정 탭(`#/mail?tab=settings`)으로
+ * 옮겼다(D-548 — 메일 설정은 메일 화면에서만 바꾼다). 같은 링크 단언을 새 주소로 잰다.
  * qa-contract-change: 진행 문장이 필수 항목을 센다(D-520) — 설치가 끝났는지는 필수 항목이 정하므로 「6개 중 1개」가 「필수 항목 6개 중 1개」가 됐다(이
  * 시험의 픽스처는 required 를 적지 않아 모든 항목이 필수다). 필수 · 선택 구역과 「사용하지 않음」, 서버가 주는 링크를 따로 잰다.
  * 그 전 변경: 레일이 「지금 할 차례」 판이 됐다(D-501). 다음 항목의 이름 · 할 일 · 고치는 화면으로 가는 링크(이 화면의 주 동작)가 레일에
@@ -322,6 +324,8 @@ describe("링크", () => {
       // (ORG_CONSOLE_KEYS). registry 키 합산만 믿으면 살아 있는 이 경로들을
       // 죽은 링크로 오판한다.
       "organizations", "departments", "org-tree",
+      // 메일 화면(D-548) — 설정 · 발송 기록 · 알림 메일 탭을 AdminRoutes 가 직접 건다.
+      "mail",
     ];
     const known = new Set(explicit.concat(Object.keys(REGISTRY)));
     for (const [key, link] of Object.entries(SETUP_LINKS)) {
@@ -339,7 +343,7 @@ describe("링크", () => {
   });
 
   it("메일 항목은 설정 표의 메일 줄을 연다 — 메일 발송 화면의 「메일 설정 열기」와 같은 곳 · 같은 이름이다", () => {
-    expect(SETUP_LINKS.mail).toEqual({ href: "#/settings?setting=smtp", label: "메일 설정 열기" });
+    expect(SETUP_LINKS.mail).toEqual({ href: "#/mail?tab=settings", label: "메일 설정 열기" });
   });
 
   it("SYS-06: llm 항목은 AI 설정으로 보낸다 — probe_llm의 안내 문구가 실제로 말하는 곳과 같다", () => {
@@ -371,7 +375,7 @@ describe("필수와 선택", () => {
       item("admin_account", "관리자 계정", "done", { required: true }),
       item("mail", "메일(SMTP) 발송", "todo", {
         required: false, optional_choice: "mail", choice: "use", configured: false,
-        href: "#/settings?setting=smtp", link_label: "메일 설정 열기",
+        href: "#/mail?tab=settings", link_label: "메일 설정 열기",
       }),
       item("organization", "조직과 부서", "done", { required: true }),
       item("llm", "AI", "skipped", { required: false, optional_choice: "llm", choice: "unused", configured: false,

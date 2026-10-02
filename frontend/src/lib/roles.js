@@ -3,7 +3,7 @@
  * ## 왜 한 곳에 모으는가
  *
  * 같은 목록(`["admin", "system_admin"]`)이 이름만 달리해 다섯 파일에 따로 살아 있었다:
- * `MailStatus.jsx::WRITE_ROLES`, `ops/opsHelpers.js::WRITE_ROLES`,
+ * `mail/MailScreen.jsx`, `ops/opsHelpers.js::WRITE_ROLES`,
  * `registry/shared.js::WRITE_ROLES`, `settings/settingsRegistry.js::WRITE_ROLES`,
  * `navConfig.js::CONSOLE_WRITE`. 다섯이 같은 값이라 지금은 아무 문제가 없다 — 문제는
  * **하나가 바뀌는 날**이다. 그날 화면 넷은 새 규칙을, 하나는 옛 규칙을 말한다.

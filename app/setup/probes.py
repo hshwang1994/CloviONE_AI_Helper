@@ -51,8 +51,8 @@ STATE_SKIPPED = "skipped"
 
 LINK_USERS = ("#/users", "사용자 화면 열기")
 LINK_DEPARTMENTS = ("#/departments", "부서 화면 열기")
-LINK_MAIL_SETTING = ("#/settings?setting=smtp", "메일 설정 열기")
-LINK_MAIL_SCREEN = ("#/mail", "메일 발송 화면 열기")
+LINK_MAIL_SETTING = ("#/mail?tab=settings", "메일 설정 열기")
+LINK_MAIL_SCREEN = ("#/mail?tab=settings", "메일 화면 열기")
 LINK_AI = ("#/ai-connection", "AI 연결 열기")
 LINK_DIAGNOSTICS_INTEGRATIONS = ("#/diagnostics", "진단에서 연동 상태 보기")
 LINK_DIAGNOSTICS_TLS = ("#/diagnostics", "진단에서 인증서 확인")
@@ -162,6 +162,12 @@ def probe_mail(ctx: ProbeContext) -> Outcome:
     config = config_from_db(ctx.db)
     state = mail_health.health_state(ctx.db, config, ctx.secrets)
     checked_at = state.get("checked_at")
+    if state["state"] == mail_health.STATE_DISABLED:
+        return _todo(
+            "메일 발송이 꺼져 있습니다.",
+            "메일을 쓰려면 메일 화면에서 발송을 켜고 설정을 채우세요. 메일을 쓰지 않는다면 이 항목을 사용하지 않음으로 표시하세요.",
+            link=LINK_MAIL_SETTING, configured=False,
+        )
     if state["state"] == mail_health.STATE_UNCONFIGURED:
         return _todo(
             f"메일 발송 설정이 비어 있습니다. {state['message']}",
@@ -171,13 +177,13 @@ def probe_mail(ctx: ProbeContext) -> Outcome:
     if state["state"] == mail_health.STATE_UNVERIFIED:
         return _unknown(
             "메일 설정은 채워졌지만 아직 발송을 확인하지 않았습니다.",
-            "메일 발송 화면에서 연결 확인을 눌러 주세요.",
+            "메일 화면에서 연결 확인을 눌러 주세요.",
             link=LINK_MAIL_SCREEN, checked_at=checked_at,
         )
     if state["state"] == mail_health.STATE_FAILING:
         return _todo(
             f"메일 발송이 실패하고 있습니다. {state['message']}",
-            "메일 발송 화면에서 원인을 확인하고 설정을 고치세요.",
+            "메일 화면에서 원인을 확인하고 설정을 고치세요.",
             link=LINK_MAIL_SCREEN, checked_at=checked_at,
         )
     return _done(f"메일 발송이 확인됐습니다({config.host}:{config.port}).", link=LINK_MAIL_SCREEN,

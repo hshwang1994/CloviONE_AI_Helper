@@ -1,0 +1,306 @@
+import React from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import { api } from "../../lib/api.js";
+import { failureText } from "../../lib/failure.js";
+import {
+  ActionFooter, Button, Callout, Card, ErrorState, Field, FieldRow, FormSection, Skeleton, useConfirm, useToast,
+} from "../../ui/kit.jsx";
+import { SettingRow } from "../../ui/adminKit.jsx";
+import { ChoiceCards } from "../../ui/ChoiceCards.jsx";
+import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
+import { MailStatusCard } from "./MailStatusCard.jsx";
+
+/* 메일 · 설정 탭 (계획 M1, D-548) — 관리자의 작업 순서대로 읽힌다: 켜기 → 보내는 방법 → 보내는 사람 → 고른 방식의 설정 → 보안 → 저장.
+ *
+ * 카드는 맨 위의 짧은 상태 면 하나뿐이고, 설정은 한 판 위의 구획(머리 + 1px 선)이다(F7). SMTP 설정을 범용 JSON 설정 창으로
+ * 되돌리지 않는다. 저장 방식은 하나다: 비밀번호까지 한 번의 「저장」에 실린다 - 예전에는 비밀번호만 즉시 저장되고 나머지는 따로
+ * 저장해, 한쪽만 저장된 채 창을 닫는 일이 있었다. 그래서 이 폼의 켜고 끄는 칸(메일 발송 사용 · 서버 인증서 확인)은 스위치가 아니라
+ * 체크박스다 - 스위치는 누르는 즉시 저장되는 설정에만 쓴다(RULES §3).
+ *
+ * 저장하면 서버가 보낼 수 있는 설정일 때 연결 확인을 저절로 시작하고, 상태 면이 「확인하는 중」을 보인다(60초 상한). 설정 권한이
+ * 없는 역할은 같은 배치의 읽기 전용 값과 한 줄 안내를 본다.
+ */
+
+export const MAIL_SETTINGS_KEY = ["mail-settings"];
+const SECURITY = [["starttls", "STARTTLS"], ["ssl", "SSL"], ["none", "사용 안 함"]];
+const EMPTY = {
+  enabled: false, host: "", port: 587, security: "starttls", from_address: "", from_name: "", username: "",
+  timeout_seconds: 20, tls_verify: true, ca_pem: "",
+};
+
+function sameValue(a, b) {
+  return String(a ?? "") === String(b ?? "");
+}
+
+export function MailSettingsTab({ status, verify, onDirtyChange }) {
+  const caps = status.capabilities || {};
+  if (!caps.can_configure) return <ReadOnlySettings status={status} verify={verify} />;
+  return <EditableSettings status={status} verify={verify} onDirtyChange={onDirtyChange} />;
+}
+
+function EditableSettings({ status, verify, onDirtyChange }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const query = useQuery({ queryKey: MAIL_SETTINGS_KEY, queryFn: () => api("/api/admin/mail/settings") });
+  const [draft, setDraft] = React.useState({});
+  const [password, setPassword] = React.useState("");
+  const [clearPassword, setClearPassword] = React.useState(false);
+  const [advanced, setAdvanced] = React.useState(false);
+
+  const base = (query.data && query.data.settings) || EMPTY;
+  const values = { ...base, ...draft };
+  const presets = ((query.data && query.data.presets) || {}).ports || { starttls: 587, ssl: 465, none: 25 };
+  const stored = Boolean(query.data && query.data.password && query.data.password.stored);
+  const dirty = Object.keys(draft).some((k) => !sameValue(draft[k], base[k])) || Boolean(password) || clearPassword;
+  React.useEffect(() => { if (onDirtyChange) onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  React.useEffect(() => () => { if (onDirtyChange) onDirtyChange(false); }, [onDirtyChange]);
+
+  const save = useMutation({
+    mutationFn: (body) => api("/api/admin/mail/settings", { method: "PUT", body }),
+    onSuccess: (res) => {
+      qc.setQueryData(MAIL_SETTINGS_KEY, { settings: res.settings, password: res.password, presets: res.presets, limits: res.limits });
+      qc.invalidateQueries({ queryKey: ["mail-status"] });
+      setDraft({});
+      setPassword("");
+      setClearPassword(false);
+      toast("메일 설정을 저장했습니다.", "success");
+      if (res.verify && res.verify.job_id && verify) verify.watch(res.verify.job_id);
+    },
+  });
+
+  if (query.isLoading) return <Skeleton lines={8} />;
+  if (query.isError) return <ErrorState error={query.error} onRetry={query.refetch} />;
+
+  const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
+  function changeSecurity(next) {
+    const before = values.security;
+    const patch = { security: next };
+    // 포트가 이전 방식의 기본값이었으면 새 방식의 기본값으로 따라간다. 사람이 고친 포트는 그대로 둔다.
+    if (Number(values.port) === presets[before]) patch.port = presets[next];
+    set(patch);
+  }
+
+  async function submit() {
+    const body = { ...values, port: Number(values.port), timeout_seconds: Number(values.timeout_seconds) };
+    if (password) body.password = password;
+    if (clearPassword && !password) body.clear_password = true;
+    if (base.tls_verify !== false && body.tls_verify === false && body.security !== "none") {
+      const ok = await confirm(
+        "서버 인증서 확인을 끕니다. 중간에서 메일과 로그인 비밀번호를 가로챌 수 있게 됩니다. 사설 인증서라면 CA 인증서를 붙여 넣는 쪽이 안전합니다. 계속할까요?",
+        { danger: true, title: "인증서 확인 끄기", confirmLabel: "끄고 저장" },
+      );
+      if (!ok) return;
+    }
+    if (body.security === "none" && body.username && !(base.security === "none" && base.username)) {
+      const ok = await confirm(
+        "보안 연결 없이 로그인하면 비밀번호가 암호화되지 않은 채로 전송됩니다. 사내망 중계에서만 쓰세요. 계속할까요?",
+        { danger: true, title: "보안 연결 없이 로그인", confirmLabel: "그대로 저장" },
+      );
+      if (!ok) return;
+    }
+    save.mutate(body);
+  }
+
+  const saveError = failureText([save, "메일 설정을 저장하지 못했습니다."]);
+  const off = !values.enabled;
+  return (
+    <>
+      <MailStatusCard health={status.health} summary={status.summary} checking={verify && verify.waiting}
+        timedOut={verify && verify.timedOut} />
+      {status.base_url && status.base_url.problem ? <Callout tone="warn" compact>{status.base_url.problem}</Callout> : null}
+
+      {/* 발이 긴 폼에서 창 아래에 따라오도록(`ActionFooter sticky`) 판은 넘침을 자르지 않는다 - MUI Card 뿌리의 `overflow: hidden`
+          이 판을 스크롤 창으로 만들면 발이 판 안에서만 움직이고 끝까지 굴렸을 때 마지막 단추를 덮었다(P12 실측 4px). */}
+      <Card stack data-testid="mail-settings-form" sx={{ overflow: "visible" }}>
+        <FormSection titleAs="h2" title="메일 보내기">
+          <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 } }}>
+            <SettingRow
+              compact label="메일 발송 사용" controlId="mail-enabled"
+              description="끄면 ClovirAssist 가 메일을 보내지 않습니다. 저장해야 적용됩니다."
+              action={(
+                <Checkbox id="mail-enabled" checked={Boolean(values.enabled)} onChange={(e) => set({ enabled: e.target.checked })}
+                  slotProps={{ input: { "aria-label": "메일 발송 사용" } }} />
+              )}
+            />
+          </Box>
+        </FormSection>
+
+        <FormSection titleAs="h2" title="보내는 방법">
+          <ChoiceCards
+            name="mail-mode" ariaLabel="보내는 방법" value="external" onChange={() => {}}
+            options={[
+              { value: "external", label: "외부 SMTP 사용", description: "회사 SMTP 서버나 외부 메일 서비스로 보냅니다." },
+              {
+                value: "local_relay", label: "ClovirAssist 로컬 릴레이", disabled: true,
+                description: "이 서버에 설치된 발송 전용 구성 요소로 보냅니다.",
+                note: "이 서버에서는 아직 고를 수 없습니다.",
+              },
+            ]}
+          />
+        </FormSection>
+
+        <FormSection titleAs="h2" title="보내는 사람">
+          <FieldRow columns={["1fr", "1fr"]}>
+            <Field label="보내는 주소" htmlFor="mail-from" required={!off} help="받는 사람이 보는 주소입니다.">
+              <TextField id="mail-from" size="small" fullWidth value={values.from_address}
+                onChange={(e) => set({ from_address: e.target.value })} placeholder="noreply@example.com"
+                inputProps={{ spellCheck: false, autoComplete: "off" }} />
+            </Field>
+            <Field label="보내는 이름" htmlFor="mail-from-name" help="비우면 주소만 보입니다.">
+              <TextField id="mail-from-name" size="small" fullWidth value={values.from_name}
+                onChange={(e) => set({ from_name: e.target.value })} placeholder="ClovirAssist" />
+            </Field>
+          </FieldRow>
+        </FormSection>
+
+        <FormSection titleAs="h2" title="SMTP 서버">
+          <FieldRow columns={["2fr", "12rem", "8rem"]}>
+            <Field label="서버 주소" htmlFor="mail-host" required={!off}>
+              <TextField id="mail-host" size="small" fullWidth value={values.host}
+                onChange={(e) => set({ host: e.target.value })} placeholder="smtp.example.com"
+                inputProps={{ spellCheck: false, autoComplete: "off" }} />
+            </Field>
+            <Field label="보안 연결" labelId="mail-security-label">
+              <TextField id="mail-security" select size="small" fullWidth value={values.security}
+                SelectProps={{ labelId: "mail-security-label" }}
+                onChange={(e) => changeSecurity(e.target.value)}>
+                {SECURITY.map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
+              </TextField>
+            </Field>
+            <Field label="포트" htmlFor="mail-port">
+              <TextField id="mail-port" size="small" type="number" fullWidth value={values.port}
+                onChange={(e) => set({ port: e.target.value })} inputProps={{ min: 1, max: 65535 }} />
+            </Field>
+          </FieldRow>
+          <FieldRow columns={["1fr", "1fr"]}>
+            <Field label="계정" htmlFor="mail-username" help="계정이 없는 사내 중계라면 계정과 비밀번호를 비워 둡니다.">
+              <TextField id="mail-username" size="small" fullWidth value={values.username}
+                onChange={(e) => set({ username: e.target.value })} inputProps={{ spellCheck: false, autoComplete: "off" }} />
+            </Field>
+            <Field
+              label="비밀번호" htmlFor="mail-password"
+              help={clearPassword ? "저장하면 비밀번호를 삭제합니다."
+                : password ? "저장하면 이 비밀번호로 바꿉니다."
+                  : stored ? "비밀번호가 저장돼 있습니다. 바꿀 때만 새로 넣으세요." : "비밀번호가 저장돼 있지 않습니다."}
+              action={stored && !password ? (
+                <Button onClick={() => setClearPassword((v) => !v)}>{clearPassword ? "삭제 취소" : "삭제"}</Button>
+              ) : null}
+            >
+              <TextField id="mail-password" size="small" type="password" fullWidth value={password}
+                placeholder={stored ? "저장됨" : ""} disabled={!values.username && !password}
+                onChange={(e) => { setPassword(e.target.value); setClearPassword(false); }}
+                inputProps={{ autoComplete: "new-password" }} />
+            </Field>
+          </FieldRow>
+        </FormSection>
+
+        <FormSection titleAs="h2" title="보안">
+          <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 } }}>
+            <SettingRow
+              compact label="서버 인증서 확인" controlId="mail-tls-verify"
+              description={values.security === "none"
+                ? "보안 연결을 쓰지 않아 인증서를 확인하지 않습니다."
+                : "끄면 중간에서 메일과 로그인 비밀번호를 가로챌 수 있습니다. 사설 인증서는 아래 고급 설정에 CA 를 넣으세요."}
+              action={(
+                <Checkbox id="mail-tls-verify" checked={values.tls_verify !== false} disabled={values.security === "none"}
+                  onChange={(e) => set({ tls_verify: e.target.checked })}
+                  slotProps={{ input: { "aria-label": "서버 인증서 확인" } }} />
+              )}
+            />
+          </Box>
+          <Box>
+            <Button onClick={() => setAdvanced((v) => !v)} aria-expanded={advanced} aria-controls="mail-advanced">
+              {advanced ? "고급 설정 접기" : "고급 설정 펼치기"}
+            </Button>
+          </Box>
+          {advanced ? (
+            <Box id="mail-advanced" sx={{ display: "grid", gap: 2.5 }}>
+              <Field label="사설 CA 인증서" htmlFor="mail-ca" help="-----BEGIN CERTIFICATE----- 로 시작하는 PEM 원문을 붙여 넣습니다.">
+                <TextField id="mail-ca" size="small" fullWidth multiline minRows={4} value={values.ca_pem}
+                  onChange={(e) => set({ ca_pem: e.target.value })} disabled={values.security === "none"}
+                  inputProps={{ spellCheck: false }} />
+              </Field>
+              <FieldRow columns={["12rem"]}>
+                <Field label="응답 대기 시간(초)" htmlFor="mail-timeout" help="1초에서 300초 사이로 정합니다.">
+                  <TextField id="mail-timeout" size="small" type="number" fullWidth value={values.timeout_seconds}
+                    onChange={(e) => set({ timeout_seconds: e.target.value })} inputProps={{ min: 1, max: 300 }} />
+                </Field>
+              </FieldRow>
+            </Box>
+          ) : null}
+        </FormSection>
+
+        {saveError ? <Callout tone="danger" compact>{saveError}</Callout> : null}
+        <ActionFooter
+          placement="card" sticky
+          extra={dirty ? (
+            <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}>
+              저장하지 않은 수정 내용이 있습니다.
+            </Typography>
+          ) : null}
+        >
+          <Button disabled={!dirty || save.isPending}
+            onClick={() => { setDraft({}); setPassword(""); setClearPassword(false); }}>
+            되돌리기
+          </Button>
+          <Button variant="primary" disabled={!dirty} loading={save.isPending} onClick={submit}>저장</Button>
+        </ActionFooter>
+      </Card>
+    </>
+  );
+}
+
+function ReadOnlyValue({ label, value }) {
+  return (
+    <Field label={label}>
+      <Typography sx={{ minHeight: 34, display: "flex", alignItems: "center", ...KO_WORD_BREAK }}>{value || "-"}</Typography>
+    </Field>
+  );
+}
+
+function ReadOnlySettings({ status, verify }) {
+  const s = status.summary || {};
+  const securityLabel = Object.fromEntries(SECURITY)[s.security] || s.security;
+  return (
+    <>
+      <MailStatusCard health={status.health} summary={s} checking={verify && verify.waiting} timedOut={verify && verify.timedOut} />
+      <Card stack data-testid="mail-settings-readonly">
+        <Callout tone="info" compact>메일 서버 설정은 시스템 관리자만 바꿀 수 있습니다.</Callout>
+        <FormSection titleAs="h2" title="메일 보내기">
+          <ReadOnlyValue label="메일 발송" value={s.enabled ? "사용" : "사용 안 함"} />
+        </FormSection>
+        <FormSection titleAs="h2" title="보내는 방법">
+          <ReadOnlyValue label="보내는 방법" value="외부 SMTP 사용" />
+        </FormSection>
+        <FormSection titleAs="h2" title="보내는 사람">
+          <FieldRow columns={["1fr", "1fr"]}>
+            <ReadOnlyValue label="보내는 주소" value={s.from_address} />
+            <ReadOnlyValue label="보내는 이름" value={s.from_name} />
+          </FieldRow>
+        </FormSection>
+        <FormSection titleAs="h2" title="SMTP 서버">
+          <FieldRow columns={["2fr", "12rem", "8rem"]}>
+            <ReadOnlyValue label="서버 주소" value={s.host} />
+            <ReadOnlyValue label="보안 연결" value={securityLabel} />
+            <ReadOnlyValue label="포트" value={s.port != null ? String(s.port) : ""} />
+          </FieldRow>
+          <FieldRow columns={["1fr", "1fr"]}>
+            <ReadOnlyValue label="계정" value={s.username || "사용 안 함"} />
+            <ReadOnlyValue label="비밀번호" value={!s.username ? "사용 안 함" : (s.password && s.password.stored ? "저장됨" : "저장되지 않음")} />
+          </FieldRow>
+        </FormSection>
+        <FormSection titleAs="h2" title="보안">
+          <ReadOnlyValue label="서버 인증서 확인" value={s.security === "none" ? "보안 연결 없음" : (s.tls_verify === false ? "확인 안 함" : "확인함")} />
+        </FormSection>
+      </Card>
+    </>
+  );
+}
+
+export default MailSettingsTab;

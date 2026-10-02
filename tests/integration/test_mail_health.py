@@ -1,7 +1,11 @@
-"""메일 건강 상태 · 연결 확인 · 복구 재큐 · 발송 기록 (계획 3.3, D-512).
+"""메일 건강 상태 · 연결 확인 · 복구 재큐 · 발송 기록 (계획 3.3 · M2, D-512 · D-546).
+
+qa-contract-change: 상태가 넷에서 다섯이 됐다(D-546) — 꺼진 설치는 「설정 덜 됨」이 아니라 「사용 안 함」이다. 그래서 첫 단언은
+`disabled` 이고, 켰는데 채우지 않은 설정이 `unconfigured` 다. 지문에 비밀번호 파일의 표지가 들어가고, 복구 재큐는 「같은 지문의 발송
+실패 → 정상」이 아니라 「지금 지문으로 정상이 아니던 상태 → 성공」에서 돈다. 창은 최대 나이 설정을 따른다.
 
 못박는 것:
-  * 상태는 넷이다 — 미설정 · 확인 전 · 정상 · 발송 실패. 설정을 바꾸면 옛 기록은 「확인 전」이다.
+  * 상태는 다섯이다 — 사용 안 함 · 설정 덜 됨 · 확인 전 · 정상 · 발송 실패. 설정이나 비밀번호를 바꾸면 옛 기록은 「확인 전」이다.
   * 연결 확인은 잡이고 메일을 보내지 않으며, 결과가 상태에 적힌다. 받는 사람 거부는 상태를 바꾸지 않는다.
   * 「발송 실패」에서 「정상」이 되면 최근 7일의 서버 탓 실패 중 **아직 의미가 있는 것만** 다시 보낸다.
   * 보내기 직전에 의미를 잃은 메일(이미 처리된 승인 요청 등)은 보내지 않고 까닭과 함께 끝낸다.
@@ -37,17 +41,23 @@ class FakeServer(FakeSmtp):
         self.fail_with = fail_with
         self.verified = 0
 
-    def send(self, config, secret_provider, *, to_email, subject, body):
+    def send(self, config, secret_provider, *, to_email, subject, body, html=None):
         if self.fail_with is not None:
             raise self.fail_with
-        self.sent.append({"to": to_email, "subject": subject, "body": body})
+        self.sent.append({"to": to_email, "subject": subject, "body": body, "html": html})
         return "<test@example.com>"
 
-    def verify(self, config, secret_provider):
+    def verify(self, config, secret_provider, *, probe_recipient=None):
         self.verified += 1
+        self.probe_recipient = probe_recipient
         if self.fail_with is not None:
             raise self.fail_with
-        return {"ok": True, "stages": ["connect", "ehlo", "noop"]}
+        return {"ok": True, "stages": [
+            {"key": "dns", "state": "ok", "detail": None}, {"key": "connect", "state": "ok", "detail": None},
+            {"key": "tls", "state": "ok", "detail": None}, {"key": "auth", "state": "skipped", "detail": None},
+            {"key": "sender", "state": "ok", "detail": None},
+            {"key": "recipient", "state": "ok" if probe_recipient else "skipped", "detail": None},
+        ]}
 
 
 AUTH_FAIL = MailTransportError("SMTPAuthenticationError: (535, b'bad')", kind=FAILURE_AUTH, permanent=True, stage="auth")
@@ -87,15 +97,24 @@ def _row(app, delivery_id):
 # ── 상태 넷 ───────────────────────────────────────────────────────────────────
 
 
-def test_the_four_states(client, app, settings, fake_clock, login_as):
+def test_the_five_states(client, app, settings, fake_clock, login_as):
     csrf = login_as("system_admin")
-    assert _health(client, csrf)["state"] == "unconfigured"
+    assert _health(client, csrf)["state"] == "disabled", "꺼 둔 설치를 고장처럼 말했다"
+    # 켰는데 덜 채웠다 - 로그인 계정은 있는데 비밀번호가 저장되지 않았다(빈 주소는 저장 단계가 이미 거절한다).
+    configure_smtp(app, username="mailer")
+    health = _health(client, csrf)
+    assert health["state"] == "unconfigured" and health["problems"], "켰는데 덜 채운 설정의 문제를 말하지 않았다"
     configure_smtp(app)
     assert _health(client, csrf)["state"] == "unverified", "값이 있다는 것만으로 정상이라고 했다"
 
-    body = _verify(client, csrf, app, settings, fake_clock, FakeServer())
+    server = FakeServer()
+    body = _verify(client, csrf, app, settings, fake_clock, server)
     assert body["result"]["ok"] is True and body["pending"] is False
     assert body["health"]["state"] == "ok"
+    # 봉투 시험의 받는 사람은 확인을 누른 사람이고, 지난 단계가 상태 면에 줄로 선다(D-546).
+    assert server.probe_recipient and server.probe_recipient.endswith("@goodmit.co.kr")
+    stages = {row["key"]: (row["label"], row["state"]) for row in body["health"]["stages"]}
+    assert stages["dns"] == ("DNS 조회", "ok") and stages["recipient"][1] == "ok"
 
     body = _verify(client, csrf, app, settings, fake_clock, FakeServer(fail_with=AUTH_FAIL))
     assert body["result"]["ok"] is False
@@ -239,3 +258,112 @@ def test_an_auditor_reads_and_only_a_global_admin_verifies(client, app, db, logi
     db.commit()
     csrf = login_as("admin", email="verify-scoped@goodmit.co.kr")
     assert client.post("/api/admin/mail/verify", headers={"X-CSRF-Token": csrf}).status_code == 403
+
+
+# ── 지문의 비밀 표지 · 복구 · 수동 재발송 · 창 (D-546) ──────────────────────────
+
+
+def _write_password(settings, value: str) -> None:
+    from app.core.secret_refs import FileSecretReferenceProvider
+
+    FileSecretReferenceProvider(settings.secrets_dir).write("smtp.password", value)
+
+
+def test_changing_only_the_password_returns_to_unverified(client, app, settings, fake_clock, login_as):
+    """비밀번호 파일만 바꿔도 옛 「정상」이 지금 비밀번호를 말하지 않는다(지문에 표지가 들어간다)."""
+    import os
+    import time
+
+    csrf = login_as("system_admin")
+    configure_smtp(app, username="mailer")
+    _write_password(settings, "first-password")
+    _verify(client, csrf, app, settings, fake_clock, FakeServer())
+    assert _health(client, csrf)["state"] == "ok"
+    _write_password(settings, "second-password-longer")
+    path = os.path.join(str(settings.secrets_dir), "smtp.password")
+    later = time.time() + 5
+    os.utime(path, (later, later))
+    assert _health(client, csrf)["state"] == "unverified", "비밀번호를 바꿨는데 옛 확인이 정상이라고 했다"
+
+
+def test_fixing_the_setting_and_verifying_requeues_failed_mail(client, app, settings, fake_clock, login_as, make_user):
+    """실패 → 호스트를 고침 → 확인 성공이면 복구다(예전에는 같은 지문의 「발송 실패 → 정상」만 복구로 봐서 고친 뒤에도
+    실패한 메일이 다시 나가지 않았다). 옛 `failed/config` 행도 다시 보낸다."""
+    from app.mail.models import FAILURE_CONFIG
+
+    csrf = login_as("system_admin")
+    configure_smtp(app, host="smtp.wrong")
+    waiting = make_user("fixme@goodmit.co.kr")
+    first = _invite(app, "fixme@goodmit.co.kr", user_id=waiting.id)
+    drain_worker(app, settings, fake_clock, FakeServer(fail_with=AUTH_FAIL))
+    assert _row(app, first).status == MAIL_FAILED
+    legacy_user = make_user("legacy-config@goodmit.co.kr")
+    legacy = _invite(app, "legacy-config@goodmit.co.kr", user_id=legacy_user.id)
+    with app.state.session_factory() as db:
+        row = db.get(MailDelivery, legacy)
+        row.status, row.failure_kind = MAIL_FAILED, FAILURE_CONFIG
+        db.commit()
+    configure_smtp(app, host="smtp.right")
+    assert _health(client, csrf)["state"] == "unverified"
+    body = _verify(client, csrf, app, settings, fake_clock, FakeServer())
+    assert body["health"]["state"] == "ok"
+    assert _row(app, first).status == MAIL_SENT, "설정을 고치고 확인했는데 실패한 메일이 다시 나가지 않았다"
+    assert _row(app, legacy).status == MAIL_SENT, "옛 설정 실패 행을 다시 보내지 않았다"
+
+
+def test_a_manual_resend_of_an_old_mail_really_goes_out(client, app, settings, fake_clock, login_as, make_user):
+    """열흘 된 실패 메일을 사람이 다시 보내면 나이를 그 시각부터 센다 - 예전에는 나이 규칙이 곧바로 버렸다."""
+    csrf = login_as("system_admin")
+    configure_smtp(app)
+    old_user = make_user("ten-days@goodmit.co.kr")
+    delivery_id = _invite(app, "ten-days@goodmit.co.kr", user_id=old_user.id,
+                          created=fake_clock.now() - timedelta(days=10))
+    with app.state.session_factory() as db:
+        row = db.get(MailDelivery, delivery_id)
+        row.status, row.failure_kind = MAIL_FAILED, FAILURE_AUTH
+        db.commit()
+    r = client.post(f"/api/admin/mail/deliveries/{delivery_id}/resend", headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200, r.text
+    drain_worker(app, settings, fake_clock, FakeServer())
+    row = _row(app, delivery_id)
+    assert row.status == MAIL_SENT, (row.status, row.skip_reason)
+    assert '"manual_resend_at"' in row.params_json
+
+
+def test_the_backlog_window_follows_the_max_age_setting(client, app, settings, fake_clock, login_as, make_user):
+    """설정 전에 쌓인 메일의 창은 관리자가 정한 최대 나이다 - 7일 고정이 아니다."""
+    from app.mail.models import MAIL_UNCONFIGURED
+    from app.settings.service import apply_setting
+
+    csrf = login_as("system_admin")
+    configure_smtp(app, enabled=False)
+    user = make_user("window@goodmit.co.kr")
+    delivery_id = _invite(app, "window@goodmit.co.kr", user_id=user.id,
+                          created=fake_clock.now() - timedelta(days=10))
+    assert _row(app, delivery_id).status == MAIL_UNCONFIGURED
+    status = client.get("/api/admin/mail/status", headers={"X-CSRF-Token": csrf}).json()
+    assert status["backlog"] == {"count": 0, "window_days": 7}
+    with app.state.session_factory() as db:
+        apply_setting(db, app.state.settings_cache, key="mail_notification_max_age_days", value=14,
+                      updated_by=None, now=fake_clock.now())
+        db.commit()
+    status = client.get("/api/admin/mail/status", headers={"X-CSRF-Token": csrf}).json()
+    assert status["backlog"] == {"count": 1, "window_days": 14}
+
+
+def test_a_send_time_configuration_problem_is_unconfigured_not_failed(app, settings, fake_clock, make_user):
+    """큐에 넣은 뒤 발송을 껐으면 그 메일은 「설정이 끝나지 않아 보내지 못함」이다 - 쌓인 메일로 다시 보낼 수 있다."""
+    from app.jobs.models import Job
+    from app.mail.models import MAIL_UNCONFIGURED
+
+    configure_smtp(app)
+    user = make_user("turned-off@goodmit.co.kr")
+    delivery_id = _invite(app, "turned-off@goodmit.co.kr", user_id=user.id)
+    configure_smtp(app, enabled=False)
+    server = FakeServer()
+    drain_worker(app, settings, fake_clock, server)
+    row = _row(app, delivery_id)
+    assert server.sent == []
+    assert row.status == MAIL_UNCONFIGURED and row.failure_kind is None and row.last_error
+    with app.state.session_factory() as db:
+        assert db.get(Job, row.job_id).status != "failed", "설정 문제를 잡 실패로 적었다"

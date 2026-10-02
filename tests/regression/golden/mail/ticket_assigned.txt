@@ -1,0 +1,14 @@
+ClovirAssist
+
+새 티켓이 배정됐습니다.
+
+김하나 님, ABC-12 담당자로 지정: 이두리
+
+티켓 제목: 사내 메일 서버 인증서 갱신
+
+ClovirAssist에서 보기: https://clovirassist.gooddi.lab/#/tickets/ABC-12
+
+--
+이 메일은 ClovirAssist의 티켓 배정 알림 설정에 따라 보냈습니다.
+알림 메일 설정 바꾸기: https://clovirassist.gooddi.lab/#/profile
+이 메일은 발신 전용입니다.

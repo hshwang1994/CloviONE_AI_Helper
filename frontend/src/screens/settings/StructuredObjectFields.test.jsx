@@ -8,7 +8,10 @@ import "@testing-library/jest-dom/vitest";
  * 바뀌었다. 「비밀번호를 받는 칸이 없다」 단언을 「비밀번호 칸의 값은 설정 JSON 이 아니라 비밀 저장 API 로만 간다」로 옮기고,
  * 서버 인증서 확인과 사설 CA 칸의 단언을 더했다.
  * qa-contract-change: 비밀번호를 읽는 칸이 하나로 고정됐다(D-545). 「저장하면 옛 파일 이름을 비운다」 단언을
- * 「설정 JSON 에 칸 이름을 적지 않는다」로 옮긴다. */
+ * 「설정 JSON 에 칸 이름을 적지 않는다」로 옮긴다.
+ * qa-contract-change: 메일 서버 설정(`smtp`)은 이제 메일 화면의 설정 탭이 전용 API 로 다루고(D-548) 이 편집기에서 걷었다 - smtp 묶음의
+ * 단언(칸 이름 · 보안 연결 값 · 비밀번호는 비밀 저장 API 로만 · 인증서 확인)은 `screens/mail/mail-screen.test.jsx` 와
+ * `tests/integration/test_mail_settings_api.py` 로 옮겼다. */
 const apiMock = vi.fn();
 vi.mock("../../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
 
@@ -89,71 +92,6 @@ describe("StructuredObjectFields — 나머지 STRUCTURED_OBJECT_KEYS 3종 (스�
  *   1) 필드마다 사람이 읽는 이름이 있다.
  *   2) 값의 어휘(`starttls`)가 아니라 이름으로 고른다.
  *   3) **비밀번호는 설정 JSON 에 들어가지 않는다** — 비밀번호 칸은 비밀 저장 API 로만 간다(D-511).
- */
-describe("StructuredObjectFields — smtp (지시 32 · 36)", () => {
-  const SMTP = JSON.stringify({
-    enabled: true, host: "smtp.internal", port: 587, security: "starttls",
-    from_address: "portal@goodmit.co.kr", from_name: "ClovirAssist",
-    username: "mailer", timeout_seconds: 20,
-  });
-
-  it("필드마다 이름이 붙은 입력으로 렌더되고 저장된 값을 보여준다", () => {
-    renderField("smtp", SMTP);
-    expect(screen.getByLabelText("메일 서버 주소")).toHaveValue("smtp.internal");
-    expect(screen.getByLabelText("포트(1~65535)")).toHaveValue(587);
-    expect(screen.getByLabelText("보내는 사람 주소")).toHaveValue("portal@goodmit.co.kr");
-    expect(screen.getByLabelText("응답 대기 시간(초, 1~300)")).toHaveValue(20);
-  });
-
-  it("보안 연결은 값의 어휘가 아니라 이름으로 고른다", () => {
-    renderField("smtp", SMTP);
-    const select = screen.getByLabelText("보안 연결");
-    expect(select).toHaveValue("starttls");
-    const names = Array.from(select.options).map((o) => o.textContent);
-    expect(names.some((n) => n.startsWith("STARTTLS"))).toBe(true);
-    expect(names).toContain("사용 안 함(사내망에서만)");
-  });
-
-  it("비밀번호 칸의 값은 설정 JSON 이 아니라 비밀 저장 API 로만 간다", async () => {
-    const onChange = vi.fn();
-    renderField("smtp", SMTP, { onChange });
-    const input = await screen.findByLabelText("로그인 비밀번호");
-    expect(input).toHaveAttribute("type", "password");
-    expect(screen.queryByLabelText("비밀번호 파일 이름")).toBeNull();
-    fireEvent.change(input, { target: { value: "s3cret-value" } });
-    // 입력만으로는 설정 값이 바뀌지 않는다 - 평문이 설정 JSON 으로 들어가는 길이 없다.
-    expect(onChange.mock.calls.some(([v]) => String(v).includes("s3cret-value"))).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "로그인 비밀번호 저장" }));
-    await waitFor(() => expect(apiMock.mock.calls.some(([p, o]) =>
-      p === "/api/admin/secrets/smtp.password" && o && o.method === "PUT")).toBe(true));
-    // 비밀번호를 읽는 칸은 하나로 고정이다(D-545) - 저장해도 설정 JSON 에 칸 이름을 적지 않는다.
-    expect(onChange.mock.calls.some(([v]) => "password_ref" in JSON.parse(v))).toBe(false);
-  });
-
-  it("서버 인증서 확인은 기본으로 켜져 있고, 끄면 경고가 선다", () => {
-    const onChange = vi.fn();
-    const { rerender } = renderField("smtp", SMTP, { onChange });
-    expect(screen.getByLabelText("서버 인증서 확인")).toHaveValue("true");
-    expect(screen.getByLabelText("사설 CA 인증서(PEM, 선택)")).toBeInTheDocument();
-    const off = JSON.stringify({ ...JSON.parse(SMTP), tls_verify: false });
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    rerender(
-      <QueryClientProvider client={qc}>
-        <StructuredObjectFields settingKey="smtp" val={off} onChange={onChange} canWrite={true} invalid={false} />
-      </QueryClientProvider>,
-    );
-    expect(screen.getByText(/인증서를 확인하지 않으면/)).toBeInTheDocument();
-  });
-
-  it("잘못된 JSON 에도 크래시하지 않는다", () => {
-    renderField("smtp", "{ not valid json");
-    expect(screen.getByLabelText("메일 서버 주소")).toHaveValue("");
-  });
-});
-
-/* 지시 32 · 36 — 백업 일정에서 cron 문법이 화면의 주된 인터페이스일 이유는 없다.
- * `0 3 * * *` 를 읽을 줄 아는 사람만 백업 시각을 바꿀 수 있는 상태였다.
- * 표현력은 줄이지 않는다: 못 알아보는 표현식은 지우거나 근사하지 않고 원문 그대로 둔다.
  */
 describe("StructuredObjectFields — backup_schedule (지시 32 · 36)", () => {
   const daily = JSON.stringify({ enabled: true, cron: "0 3 * * *", timezone: "Asia/Seoul", keep: 14 });

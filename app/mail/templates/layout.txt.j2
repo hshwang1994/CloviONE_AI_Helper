@@ -1,0 +1,38 @@
+{#- ClovirAssist 메일 틀 (평문, D-549). HTML 틀과 같은 내용을 같은 순서로 쓴다. 이스케이프하지 않는다. -#}
+{{ c.product_name }}
+
+{{ c.heading }}
+
+{% for paragraph in c.lead %}
+{{ paragraph }}
+{% endfor %}
+{% if c.facts %}
+
+{% for label, value in c.facts %}
+{{ label }}: {{ value }}
+{% endfor %}
+{% endif %}
+{% if c.code %}
+
+확인 코드: {{ c.code }}
+{% endif %}
+{% if c.action %}
+
+{{ c.action[0] }}: {{ c.action[1] }}
+{% endif %}
+{% if c.notes %}
+
+{% for note in c.notes %}
+{{ note }}
+{% endfor %}
+{% endif %}
+
+--
+{{ c.footer_reason }}
+{% for label, url in c.footer_links %}
+{{ label }}: {{ url }}
+{% endfor %}
+{% if c.support_email %}
+문의: {{ c.support_email }}
+{% endif %}
+이 메일은 발신 전용입니다.

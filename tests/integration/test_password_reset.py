@@ -39,10 +39,11 @@ class FakeSmtp:
         self.sent: list[dict] = []
         self.fail = fail
 
-    def send(self, config, secret_provider, *, to_email, subject, body) -> None:
+    def send(self, config, secret_provider, *, to_email, subject, body, html=None) -> None:
         if self.fail:
             raise RuntimeError("SMTP 서버가 응답하지 않습니다")
-        self.sent.append({"to": to_email, "subject": subject, "body": body})
+        # `body` 는 평문 부분, `html` 은 HTML 부분이다(D-549). 본문 단언은 평문을 본다.
+        self.sent.append({"to": to_email, "subject": subject, "body": body, "html": html})
 
 
 def configure_smtp(app, **overrides):

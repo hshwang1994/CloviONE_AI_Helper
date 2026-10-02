@@ -443,12 +443,15 @@ def build_dashboard(
 
 
 
-def _mail_health(db, bundle_cache) -> dict:
+def _mail_health(db, bundle_cache, settings) -> dict:
+    """메일 건강 — 화면 · 워커와 **같은 지문**으로 읽는다(D-546). 지문에 비밀번호 파일의 표지가 들어가므로 비밀 제공자를 만든다
+    (값은 읽지 않는다 - 표지만 본다). 예전에는 제공자 없이 계산해 진단 번들만 늘 「확인 전」이었다."""
+    from app.core.secret_refs import FileSecretReferenceProvider
     from app.mail.config import config_from_cache
     from app.mail.health import health_state
 
     try:
-        return health_state(db, config_from_cache(bundle_cache))
+        return health_state(db, config_from_cache(bundle_cache), FileSecretReferenceProvider(settings.secrets_dir))
     except Exception:  # noqa: BLE001 - 진단 번들은 한 칸이 실패해도 나머지를 준다
         return {"state": "unknown"}
 
@@ -525,7 +528,7 @@ def build_diagnostic_bundle(
             "counts": mail_queue_counts(db),
             # 저장된 건강 상태(계획 3.3) — 「설정은 됐는데 실제로 나가는가」. 비밀 파일을 못 보므로 비밀번호 문제는
             # 위 `problems` 처럼 관리 화면이 말한다. 네트워크는 쓰지 않는다.
-            "health": _mail_health(db, bundle_cache),
+            "health": _mail_health(db, bundle_cache, settings),
         },
         "recent_job_errors": [
             {"job_type": jt, "error": err, "at": ts.isoformat()}

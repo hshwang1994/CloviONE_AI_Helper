@@ -10,6 +10,10 @@
   * 담당에서 빠진 사람, 다시 열린 티켓의 결과, 오래된 사건은 보내지 않는다. 재시도할 때마다 다시 본다.
   * 큐에 들어간 뒤 메일 알림을 끄거나 계정이 보관되면 보내지 않고(`cancelled`), 이메일을 바꿨으면 새 주소로 보낸다.
   * 방해금지는 메일에 영향을 주지 않는다. 관리자 알림 방송은 메일이 되지 않는다.
+
+qa-contract-change: 메일 본문이 내용 모델과 틀로 그려지며(D-549) 바닥글이 「내 프로필의 알림 설정에서 메일 알림을 끌 수 있습니다」에서
+「이 메일은 {제품}의 {유형} 알림 설정에 따라 보냈습니다」와 「알림 메일 설정 바꾸기」 링크로 바뀌었다 - 끄는 길이 메일에 있다는 성질을
+그 링크로 잰다. 메일 발송을 꺼 둔 설치의 상태는 「설정 덜 됨」이 아니라 「사용 안 함」이다(D-546).
 """
 
 from __future__ import annotations
@@ -140,7 +144,9 @@ def test_an_opted_in_watcher_gets_exactly_one_mail_per_event(client, app, settin
     assert [m["to"] for m in server.sent] == ["mail-wendy@goodmit.co.kr"]
     body = server.sent[0]["body"]
     assert f"/#/tickets/{PAGE}" in body, "메일이 그 티켓으로 바로 가는 주소를 싣지 않았다"
-    assert "메일 알림을 끌 수 있습니다" in body
+    assert "알림 설정에 따라 보냈습니다" in body
+    assert "알림 메일 설정 바꾸기: " in body and "/#/profile" in body, "메일 알림을 끄는 길이 메일에 없다"
+    assert server.sent[0]["html"] and "/#/profile" in server.sent[0]["html"], "HTML 부분이 없거나 끄는 길이 없다"
     assert _mails(app)[0].status == MAIL_SENT
 
 
@@ -450,8 +456,8 @@ def test_preferences_carry_the_mail_block_and_accept_changes(client, app, world)
     assert body["enabled"] is False, "메일 알림은 기본으로 꺼져 있어야 한다"
     assert body["types"] == ["ticket_assigned", "ticket_status_changed", "ticket_resolved"]
     assert [c["key"] for c in body["catalog"]] == body["types"]
-    assert body["delivery"]["state"] == "unconfigured"
-    assert "설정하지 않아" in body["delivery"]["message"]
+    assert body["delivery"]["state"] == "disabled"
+    assert "메일 발송을 켜면" in body["delivery"]["message"]
 
     r = client.patch("/api/me/preferences", json={"mail_enabled": True}, headers={"X-CSRF-Token": csrf})
     assert r.status_code == 200 and r.json()["mail"]["enabled"] is True

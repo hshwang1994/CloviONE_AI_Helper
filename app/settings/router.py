@@ -17,7 +17,7 @@ from app.core.deps import (
     require_csrf,
     require_roles,
 )
-from app.core.errors import ForbiddenError
+from app.core.errors import ForbiddenError, ValidationAppError
 from app.core.scope import Principal, require_global_management
 from app.core.versioning import list_versions, load_snapshot
 from app.settings.registry import REGISTRY
@@ -90,6 +90,18 @@ def _guard_system_admin_key(request: Request, key: str) -> None:
         raise ForbiddenError("이 설정은 시스템 관리자만 바꿀 수 있습니다.")
 
 
+def _guard_dedicated_key(key: str) -> None:
+    """전용 API 가 있는 키는 범용 설정 API 로 쓰지 않는다(D-545 · D-548).
+
+    메일 설정(`smtp`)은 메일 화면의 `PUT /api/admin/mail/settings` 가 형식(모르는 칸 거절)과 비밀번호 저장, 저장 직후 연결 확인을
+    한 번에 한다. 범용 경로로 쓰면 그 셋을 건너뛴다 - 시스템 관리자라도 같다.
+    """
+    from app.settings.registry import DEDICATED_API_KEYS
+
+    if key in DEDICATED_API_KEYS:
+        raise ValidationAppError(DEDICATED_API_KEYS[key])
+
+
 @router.get("", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def list_settings(request: Request, db: Session = Depends(get_db)):
     return {"settings": effective_settings(db, request.app.state.settings_cache)}
@@ -107,6 +119,7 @@ def dry_run_setting(
     # 안내한 뒤 저장에서 막는 막다른 길이 된다. `db` 는 거절을 감사에 남기려고 받는다.
     _guard_scope(request, db, principal)
     _guard_system_admin_key(request, key)
+    _guard_dedicated_key(key)
     return dry_run(key, payload.value)
 
 
@@ -120,6 +133,7 @@ def update_setting(
 ):
     _guard_scope(request, db, principal)
     _guard_system_admin_key(request, key)
+    _guard_dedicated_key(key)
     result = apply_setting(
         db,
         request.app.state.settings_cache,
@@ -179,6 +193,7 @@ def rollback(
     # (`app/settings/service.py::rollback_setting` 이 `apply_setting` 을 그대로 부른다).
     _guard_scope(request, db, principal)
     _guard_system_admin_key(request, key)
+    _guard_dedicated_key(key)
     version = payload.version
     result = rollback_setting(
         db, request.app.state.settings_cache, key=key, version=version,

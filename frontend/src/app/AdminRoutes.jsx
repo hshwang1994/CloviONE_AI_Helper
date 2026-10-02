@@ -38,7 +38,7 @@ const Offboarding = React.lazy(() => import("../screens/Offboarding.jsx"));
 // /settings?tab=* 로 보내는 리다이렉트만 남는다.
 const Settings = React.lazy(() => import("../screens/Settings.jsx").then((m) => ({ default: m.SettingsShell })));
 const Diagnostics = React.lazy(() => import("../screens/Ops.jsx").then((m) => ({ default: m.Diagnostics })));
-const MailStatus = React.lazy(() => import("../screens/MailStatus.jsx"));
+const MailScreen = React.lazy(() => import("../screens/mail/MailScreen.jsx"));
 const SetupWizard = React.lazy(() => import("../screens/SetupWizard.jsx"));
 const DevReport = React.lazy(() => import("../screens/DevReport.jsx").then((m) => ({ default: m.DevReport })));
 const DataScreen = React.lazy(() => import("../screens/DataScreen.jsx").then((m) => ({ default: m.DataScreen })));
@@ -261,7 +261,7 @@ function AdminRoutes() {
         <Route path="/maintenance" element={<Navigate to="/settings?tab=policy" replace />} />
         {/* FN-01: GET /status는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor) —
             navConfig.js의 /mail 항목과 같은 role 집합. */}
-        <Route path="/mail" element={<RequireRole roles={["operator", "admin", "system_admin", "auditor"]} help="이 화면은 운영자 이상만 사용할 수 있습니다."><MailStatus /></RequireRole>} />
+        <Route path="/mail" element={<RequireRole roles={["operator", "admin", "system_admin", "auditor"]} help="이 화면은 운영자 이상만 사용할 수 있습니다."><MailScreen /></RequireRole>} />
         {/* PA-RC-0026: GET /api/admin/diagnostics/bundle은 CONSOLE_OPS_ROLES(operator/admin/
             system_admin) — /jobs와 같은 role 집합("헬스체크"는 authz.py의 console.ops가
             명시한다). 예전엔 CONSOLE_WRITE_ROLES(admin+)라 발표된 권한표보다 더 좁았다. */}

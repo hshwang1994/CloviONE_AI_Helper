@@ -171,7 +171,8 @@ export const NAV = withRoles([
    *     한 자리에 모인다(지시 30 이 예로 든 재배치).
    *   · 자동화와 연동을 한 묶음으로. 실행 일정·문서 자동 생성이 타고 흐르는 배관이 외부 연동·
    *     러너·워크플로다 — 둘을 갈라 두면 "왜 안 돌지"를 두 묶음에서 찾아야 한다.
-   *   · 조직 정합성·백업·메일 발송은 운영에 남는다(장애·데이터 보호·전달 상태).
+   *   · 조직 정합성·백업·메일은 운영에 남는다(장애·데이터 보호·전달 상태). 메일은 설정 · 발송 기록 · 알림 메일을 다 담는
+   *     화면이라 이름이 「메일 발송」에서 「메일」이 됐다(D-548).
    */
   { group: "운영", icon: DashboardOutlinedIcon, items: [
     { to: "/dashboard", label: "대시보드" },
@@ -184,7 +185,7 @@ export const NAV = withRoles([
     // 백업 화면은 '복구 리허설' 탭을 함께 갖는다 — 백업이 있는가와 그것이 실제로 복구되는가는
     // 한 질문의 앞뒤다.
     { to: "/backup", label: "백업", badge: "backupFailed" },
-    { to: "/mail", label: "메일 발송" },
+    { to: "/mail", label: "메일" },
   ] },
   { group: "설정", icon: SettingsOutlinedIcon, items: [
     { to: "/settings", label: "설정" },

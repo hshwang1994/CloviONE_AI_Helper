@@ -352,10 +352,15 @@ ADMIN_ROUTES: tuple[Route, ...] = (
        ("admin", "system_admin", "auditor")),
     _a("admin_restore-drills", "/restore-drills", "복구 리허설", "operator",
        ("operator", "admin", "system_admin", "auditor")),
-    # QAH-06(2026-08-11): AdminRoutes.jsx의 실제 라우트(MailStatus.jsx)인데 이 목록에 없어서
+    # QAH-06(2026-08-11): AdminRoutes.jsx의 실제 라우트(mail/MailScreen.jsx)인데 이 목록에 없어서
     # 68라우트 QAH 하네스 1회차를 포함해 한 번도 캡처된 적이 없었다 — 아래 system_admin 전용
     # 4화면과 같은 부류의 결함(등록 누락). role 집합은 AdminRoutes.jsx:117의 RequireRole과 동일.
-    _a("admin_mail", "/mail", "메일 발송 현황", "operator",
+    _a("admin_mail", "/mail", "메일", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
+    # 메일 화면의 다른 두 탭(D-548). 대표 주소는 설정 탭이다.
+    _a("admin_mail-deliveries-tab", "/mail?tab=deliveries", "메일 — 발송 기록 탭", "operator",
+       ("operator", "admin", "system_admin", "auditor")),
+    _a("admin_mail-notifications-tab", "/mail?tab=notifications", "메일 — 알림 메일 탭", "operator",
        ("operator", "admin", "system_admin", "auditor")),
     _a("admin_scheduler-calendar", "/scheduler-calendar", "실행 달력", "operator",
        ("operator", "admin", "system_admin", "auditor")),

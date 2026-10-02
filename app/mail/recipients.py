@@ -53,6 +53,7 @@ REASON_ARCHIVED = "archived"
 REASON_INACTIVE = "inactive"
 REASON_ADDRESS_CHANGED = "address_changed"
 REASON_NO_LONGER_ADMIN = "no_longer_admin"
+REASON_SENDER_NOT_ALLOWED = "sender_not_allowed"
 REASON_NO_LONGER_DECIDER = "no_longer_decider"
 REASON_NO_ACCESS = "no_access"
 REASON_CHECK_FAILED = "check_failed"
@@ -61,6 +62,7 @@ REASON_CHECK_FAILED = "check_failed"
 RECIPIENT_CHECK_LABELS: dict[str, str] = {
     REASON_ADDRESS_CHANGED: "계정의 이메일 주소가 바뀌어 예전 주소로 보내지 않았습니다.",
     REASON_NO_LONGER_ADMIN: "받는 사람이 더 이상 관리자가 아니라 보내지 않았습니다.",
+    REASON_SENDER_NOT_ALLOWED: "시험 메일을 보낸 사람에게 더 이상 메일 설정 권한이 없어 보내지 않았습니다.",
     REASON_NO_LONGER_DECIDER: "받는 사람이 더 이상 이 승인을 결재할 수 없어 보내지 않았습니다.",
     REASON_CHECK_FAILED: "받는 사람을 확인하지 못해 보내지 않았습니다.",
 }
@@ -141,7 +143,25 @@ def _rule_backup_failed(db: Session, delivery: MailDelivery, params: dict, now: 
 
 
 def _rule_test(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
-    return _account_block(_recipient(db, delivery, params))
+    """시험 메일(D-554). 보낸 사람이 아직 활성이고, 다른 주소로 보낸 것이면 아직 메일 설정 권한(`SYSTEM_CONFIGURE`)이 있다.
+    받는 주소가 어떤 사용자의 계정 주소면 그 사람도 활성이다. 보낸 사람 기록이 없는 옛 행은 받는 사람 계정만 본다."""
+    from app.users.models import User
+
+    sender_id = params.get("sender_id")
+    if not sender_id:
+        return _account_block(_recipient(db, delivery, params))
+    blocked = _account_block(db.get(User, sender_id))
+    if blocked:
+        return blocked
+    if not params.get("own"):
+        from app.authz.permissions import SYSTEM_CONFIGURE
+        from app.authz.service import effective_permissions
+
+        if SYSTEM_CONFIGURE not in effective_permissions(db, db.get(User, sender_id)):
+            return REASON_SENDER_NOT_ALLOWED
+    if delivery.recipient_user_id:
+        return _account_block(db.get(User, delivery.recipient_user_id))
+    return None
 
 
 def _rule_notification(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:

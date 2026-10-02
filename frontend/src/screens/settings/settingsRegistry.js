@@ -69,7 +69,6 @@ export const OBJECT_SCHEMA_HELP = {
   ui_branding: 'JSON 예: {"product_name": "ClovirONE", "support_email": "help@example.com"}, 제품명, 지원 이메일 등 브랜딩 값.',
   // 비밀번호를 이 JSON 에 넣으면 설정 화면·감사·버전 스냅샷에 평문으로 남는다. 그래서
   // 비밀번호는 이 값에 들어가지 않는다 - 메일 설정 화면의 비밀번호 칸이 따로 저장한다(계획 2.3).
-  smtp: 'JSON 예: {"enabled": true, "host": "smtp.example.com", "port": 587, "security": "starttls", "from_address": "portal@example.com", "tls_verify": true}, 비밀번호는 여기 적지 않고 메일 설정의 비밀번호 칸에 저장합니다.',
   // 백엔드(_backup_schedule)가 **저장 시점에** cron·타임존을 검증한다 — 여기 예시는 그것과
   // 같은 모양이라야 한다(틀린 예시를 그대로 붙여 넣으면 저장이 거부된다).
   backup_schedule: 'JSON 예: {"enabled": true, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14, "keep_days": 7}, cron 은 분 시 일 월 요일(0 3 * * * = 매일 새벽 3시), keep 은 남길 백업 개수(1~365), keep_days 는 개수를 넘어도 남기는 기간(0~365일).',
@@ -97,20 +96,18 @@ export const DEDICATED_SCREEN_KEYS = [
   "ai_openai_access_ttl_fallback_seconds", "ai_openai_refresh_ttl_fallback_days", "ai_token_refresh_lead_seconds",
 ];
 // 알림을 메일로도 보내기(계획 3.4)의 두 값은 메일 발송 화면의 「메일로 보내는 알림」이 다룬다. 같은 이유로 이 표에서 숨긴다.
-export const MAIL_SCREEN_KEYS = ["mail_notification_types", "mail_notification_max_age_days"];
+// 메일 서버 설정(`smtp`)도 메일 화면(`#/mail?tab=settings`)이 전용 API 로 다룬다(D-548). 범용 API 는 그 키를 거절한다.
+export const MAIL_SCREEN_KEYS = ["smtp", "mail_notification_types", "mail_notification_max_age_days"];
 // 초기 설정 화면이 고치는 값(계획 3.5, D-520). 메일과 AI 를 쓰는지 고르는 자리는 그 화면의 항목 옆이다.
 export const SETUP_SCREEN_KEYS = ["setup_optional_choices"];
 // 이 표에 남아 있으면서 서버가 시스템 관리자만 쓰게 막는 키(registry.py::SYSTEM_ADMIN_ONLY_KEYS 중 이 표에 보이는 것).
-// 다른 역할에게는 편집기를 열람 전용으로 연다. 메일 서버 설정은 그 비밀번호로 남의 서버에 로그인하게 만들 수 있어
-// 시스템 관리자 전용이다(D-545).
-export const SYSTEM_ADMIN_ONLY_SETTING_KEYS = ["smtp"];
+// 다른 역할에게는 편집기를 열람 전용으로 연다. 메일 서버 설정(`smtp`)은 이제 메일 화면이 다뤄 이 표에 없다(D-548).
+export const SYSTEM_ADMIN_ONLY_SETTING_KEYS = [];
 // 이 object 설정들은 정해진 스키마가 있어 타입에 맞는 입력(숫자·분/시간·칩 목록)으로 편집할 수 있다.
 // 비개발자 관리자가 raw JSON을 손으로 추측하지 않게 하려는 목적(registry.py 주석과 동일 취지) —
 // 그 외 미지의 object 키는 여전히 JSON 텍스트로만 편집한다(스키마가 없으므로).
-// 보안 연결 값의 사람 이름. 편집 화면(StructuredObjectFields)과 목록 요약이 같은 표를 쓴다.
-export const SMTP_SECURITY_LABELS = { none: "사용 안 함", starttls: "STARTTLS", ssl: "SSL" };
 
-export const STRUCTURED_OBJECT_KEYS = ["password_policy", "session_policy", "lockout_policy", "allowed_email_domains", "ui_branding", "smtp", "backup_schedule"];
+export const STRUCTURED_OBJECT_KEYS = ["password_policy", "session_policy", "lockout_policy", "allowed_email_domains", "ui_branding", "backup_schedule"];
 // 평범한 int 설정도 상한이 있다(registry.py _positive_int(3650)) — object 설정들처럼 min/max와 범위
 // 힌트를 붙여, 값을 저장 왕복 없이도 눈치챌 수 있게 한다(이전엔 이 둘만 아무 제약 없는 숫자 입력이었다).
 export const INT_BOUNDS = { conversation_retention_days: [1, 3650], notification_retention_days: [1, 3650], trash_retention_days: [1, 365], document_trash_retention_days: [1, 365] };
@@ -189,34 +186,12 @@ export function summarizeSetting(key, v) {
     if (v.support_email) parts.push("지원: " + String(v.support_email));
     return parts.length ? parts.join(", ") : null;
   }
-  if (key === "smtp") {
-    // VIS-54: 이 case 가 없어서 backup_schedule 과 같은 object 설정인데도 요약이 없어
-    // displayValue()의 잘린 raw JSON({"enabled":false,"host":"",...)으로 새어 나갔다 -
-    // 다른 object 설정과 같은 "켜짐/꺼짐 + 핵심 정보" 관례로 맞춘다. 비밀번호는 이 값에 없다.
-    if (!v.enabled) return "비활성";
-    const parts = ["활성"];
-    if (v.host) parts.push(String(v.host) + ":" + (v.port != null ? v.port : "?"));
-    // `starttls` 는 설정 파일의 어휘다 - 편집 화면이 이름으로 고르게 한 뒤 목록만 원문을
-    // 보이면 같은 값이 두 이름을 갖는다(지시 36).
-    if (v.security) parts.push(SMTP_SECURITY_LABELS[v.security] || String(v.security));
-    if (v.from_address) parts.push("발신: " + String(v.from_address));
-    if (v.tls_verify === false && v.security !== "none") parts.push("인증서 확인 안 함");
-    return parts.join(", ");
-  }
   return null;
 }
 
 // 보안을 '약화'시키는 설정 변경을 감지해 확인 문구를 돌려준다(해당 없으면 null).
 // 검증만 통과하면 한 클릭으로 커밋되던 위험, 롤백, 유지보수 토글처럼 확인 단계를 둔다.
 export function securityDowngradeWarning(setting, value) {
-  /* 메일 서버 인증서 확인을 끄는 것도 같은 성격이다(계획 3.3) — 중간에서 메일과 로그인 비밀번호를 가로챌 수 있다. */
-  if (setting.key === "smtp") {
-    const cur = setting.value || {};
-    const turningOff = value && value.tls_verify === false && cur.tls_verify !== false && value.security !== "none";
-    return turningOff
-      ? "메일 서버 인증서 확인을 끕니다. 중간에서 메일과 로그인 비밀번호를 가로챌 수 있게 됩니다. 사설 인증서라면 CA 인증서를 붙여 넣는 쪽이 안전합니다. 계속할까요?"
-      : null;
-  }
   if (setting.key === "allowed_email_domains") {
     // 빈 목록([])은 백엔드에서 '모든 도메인 허용'이라 로그인 제한이 통째로 풀린다.
     if (Array.isArray(value) && value.length === 0)

@@ -125,7 +125,7 @@ def fan_out_mail(db: Session, row, *, now: datetime, context: dict | None = None
     재검사에 쓰는 참조다(티켓의 새 상태, 댓글 id 등). 본문에 넣지 않는다.
     """
     from app.mail.renderers import KIND_NOTIFICATION
-    from app.mail.service import queue_mail
+    from app.mail.service import mail_subject, queue_mail
     from app.notifications.destinations import destination_for
     from app.users.models import User
 
@@ -147,7 +147,7 @@ def fan_out_mail(db: Session, row, *, now: datetime, context: dict | None = None
         "route": destination_for(row.related_object_type, row.related_object_id, row.audience),
     }
     return queue_mail(
-        db, kind=KIND_NOTIFICATION, to_email=user.email, recipient_user_id=user.id, subject=row.title,
+        db, kind=KIND_NOTIFICATION, to_email=user.email, recipient_user_id=user.id, subject=mail_subject(db, row.title),
         params=params, now=now, idempotency_key=f"notification:{row.id}",
     )
 

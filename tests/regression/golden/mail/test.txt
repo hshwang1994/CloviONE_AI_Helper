@@ -1,0 +1,16 @@
+ClovirAssist
+
+시험 메일입니다.
+
+관리 화면에서 보낸 시험 메일입니다. 이 메일이 받은 편지함에 있다면 지금 설정으로 메일이 나갑니다.
+
+보낸 시각: 2026년 10월 1일 14:05
+보내는 방법: 외부 SMTP 사용
+메일 서버: smtp.example.com:587
+보안 연결: STARTTLS
+
+메일 설정 열기: https://clovirassist.gooddi.lab/admin#/mail?tab=settings
+
+--
+ClovirAssist 관리자가 메일 발송을 확인하려고 보낸 메일입니다.
+이 메일은 발신 전용입니다.

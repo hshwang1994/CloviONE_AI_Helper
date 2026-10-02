@@ -77,6 +77,8 @@ def clear_expired_dnd(db: Session, pref: UserPreference | None, state, *, now: d
 
 # 메일 발송 상태별로 내 설정 화면이 말하는 한 문장(계획 3.4). 정상이면 말하지 않는다.
 MAIL_DELIVERY_NOTICES: dict[str, str] = {
+    # 관리자가 메일 발송을 꺼 둔 설치(D-546 의 「사용 안 함」). 고장이 아니라 선택이다.
+    "disabled": "관리자가 메일 발송을 켜면 메일 알림을 받을 수 있습니다.",
     "unconfigured": "관리자가 메일 발송을 설정하지 않아 지금은 메일 알림이 나가지 않습니다.",
     "unverified": "관리자가 메일 발송을 아직 확인하지 않아 메일 알림이 도착하지 않을 수 있습니다.",
     "failing": "메일 발송이 지금 실패하고 있어 메일 알림이 늦게 도착할 수 있습니다. 복구되면 밀린 메일을 다시 보냅니다.",

@@ -23,7 +23,17 @@
 ## 본문은 여기서 만든다
 
 토큰과 초대 링크가 DB 에 평문으로 앉지 않게 하려는 것이다 - 이유는
-app/mail/renderers.py 모듈 docstring 에 적어 뒀다.
+app/mail/renderers.py 모듈 docstring 에 적어 뒀다. 평문과 HTML 두 부분을 함께 만든다(D-549).
+
+## 보내려는 순간 설정이 없으면 「설정이 끝나지 않아 보내지 못함」이다 (D-546)
+
+큐에 넣은 뒤 설정이 꺼졌거나 비밀번호 파일이 사라졌으면 큐에 넣을 때와 같은 `unconfigured` 로 적고 잡을 끝낸다.
+예전에는 `failed/config` 로 적어 「설정 전에 쌓인 메일」과 갈라졌고, 설정을 마친 뒤 한꺼번에 다시 보낼 수 없었다.
+
+## 다음 서버의 응답을 남긴다 (D-546 · D-555)
+
+발송이 끝나면 다음 서버가 본문을 받고 준 응답 한 줄(`250 … queued as …`)을 행에 남기고, 실패면 실패한 단계와 그 응답을
+남긴다. 접수는 「받은 편지함에 들어갔다」가 아니다 - 화면의 낱말이 그 차이를 지킨다(`app/mail/labels.py`).
 """
 
 from __future__ import annotations
@@ -38,7 +48,6 @@ from app.jobs.models import Job
 from app.jobs.worker import WorkerContext, parse_payload
 from app.mail.config import config_from_db, configuration_problems
 from app.mail.models import (
-    FAILURE_CONFIG,
     FAILURE_RENDER,
     FAILURE_UNKNOWN,
     MAIL_CANCELLED,
@@ -50,8 +59,15 @@ from app.mail.models import (
 from app.mail import health
 from app.mail.recipients import access_block, recipient_block
 from app.mail.relevance import still_relevant
-from app.mail.renderers import render_body
-from app.mail.service import record_failure, record_sent, record_skipped, retry_delay_for, summarize_failure
+from app.mail.renderers import render_mail
+from app.mail.service import (
+    record_failure,
+    record_sent,
+    record_skipped,
+    record_unconfigured,
+    retry_delay_for,
+    summarize_failure,
+)
 
 logger = logging.getLogger("app.handlers.mail_send")
 
@@ -113,26 +129,26 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
     secret_provider = (ctx.extras or {}).get("secret_provider")
     problems = configuration_problems(config, secret_provider)
     if problems:
-        # 큐에 넣은 뒤 설정이 지워졌거나 secret 파일이 사라진 경우다. 재시도해도 낫지
-        # 않으므로 영구 실패로 끊되, **왜인지는 아웃박스에 남긴다.**
-        record_failure(
-            db, delivery, error=" / ".join(problems), now=now, terminal=True, failure_kind=FAILURE_CONFIG,
-        )
-        db.commit()
-        raise PermanentJobError("메일 발송 설정이 없어 보낼 수 없습니다: " + "; ".join(problems))
+        # 큐에 넣은 뒤 설정이 꺼졌거나 지워졌거나 secret 파일이 사라진 경우다(머리말). 재시도해도 낫지 않으므로 잡은
+        # 여기서 끝내되, 행은 큐에 넣을 때와 같은 `unconfigured` 로 두고 **왜인지는 아웃박스에 남긴다** - 설정을 마친 뒤
+        # 「쌓인 메일 보내기」가 이 행을 다시 보낸다.
+        record_unconfigured(db, delivery, problems=problems, now=now)
+        logger.warning("메일 발송 설정이 끝나지 않아 보내지 않았다 (kind=%s): %s", delivery.kind, "; ".join(problems))
+        return
 
     try:
-        body = render_body(db, delivery, ctx)
-        sent_id = _transport(ctx).send(
+        rendered = render_mail(db, delivery, ctx)
+        receipt = _transport(ctx).send(
             config,
             secret_provider,
             to_email=delivery.to_email,
-            subject=delivery.subject,
-            body=body,
+            subject=rendered.subject,
+            body=rendered.text,
+            html=rendered.html,
         )
     except Exception as exc:
         # 렌더 실패도 발송 실패와 같은 자리에서 잡는다 - 렌더가 만든 토큰 행은 이 롤백과
-        # 함께 사라져야 한다. render_body 가 밖에서 raise 하면 아웃박스 기록 없이 잡만
+        # 함께 사라져야 한다. render_mail 이 밖에서 raise 하면 아웃박스 기록 없이 잡만
         # 영구 실패로 남는다 (파일 docstring 의 그 함정).
         db.rollback()
         fresh = db.get(MailDelivery, delivery_id)
@@ -145,11 +161,13 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
         terminal = permanent or job.attempt_count >= job.max_attempts
         record_failure(
             db, fresh, error=f"{type(exc).__name__}: {exc}", now=now, terminal=terminal, failure_kind=kind,
+            stage=getattr(exc, "stage", None), response=getattr(exc, "response", None),
         )
         # 메일 서버 탓인 실패만 건강 상태를 바꾼다(`app/mail/health.py`) - 받는 사람 거부는 서버가 멀쩡하다는 뜻이다.
         health.record_result(
             db, config, ok=False, now=now, source="send", failure_kind=kind,
             stage=getattr(exc, "stage", None), summary=summarize_failure(f"{type(exc).__name__}: {exc}"),
+            secret_provider=secret_provider,
         )
         db.commit()
         logger.warning("메일 발송 실패 (kind=%s, 종류=%s, 끝=%s): %s", fresh.kind, kind, terminal, exc)
@@ -158,9 +176,11 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
             raise PermanentJobError(f"{type(exc).__name__}: {exc}") from exc
         raise
 
-    # 진짜 전송기는 보낸 메일의 Message-ID 를 돌려준다. 시험의 가짜 전송기는 아무것도 안 돌려줄 수 있다.
-    record_sent(db, delivery, now=now, message_id=sent_id if isinstance(sent_id, str) else None)
-    health.record_result(db, config, ok=True, now=now, source="send")
+    # 진짜 전송기는 영수증(`SendReceipt`: Message-ID · 다음 서버의 응답)을 돌려준다. 시험의 가짜 전송기는 문자열 하나나
+    # 아무것도 안 돌려줄 수 있다.
+    message_id = getattr(receipt, "message_id", None) or (receipt if isinstance(receipt, str) else None)
+    record_sent(db, delivery, now=now, message_id=message_id, response=getattr(receipt, "response", None))
+    health.record_result(db, config, ok=True, now=now, source="send", secret_provider=secret_provider)
     logger.info("메일 발송 완료 (kind=%s, delivery=%s)", delivery.kind, delivery.id)
 
 

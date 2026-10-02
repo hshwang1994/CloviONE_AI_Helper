@@ -11,11 +11,17 @@
 
 `/reset-password` 는 app/auth/reset_router.py 가 서버 렌더로 내는 진짜 페이지다.
 없는 주소를 메일에 적는 것은 "없는 것을 있는 척 그리는" 것과 같다.
+
+## 내용과 모양 (D-549)
+
+여기서는 종류마다 **재료**(사람 이름 · 토큰 링크 · 시각)를 모아 `app/mail/content.py` 의 내용 함수에 넘기고, 틀 두 벌이
+평문과 HTML 을 그린다(`render_mail`). 미리 보기(`app/mail/samples.py`)도 같은 내용 함수를 쓴다.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -37,6 +43,8 @@ KIND_APPROVAL_REQUESTED = "approval_requested"
 KIND_TEST = "test"
 # 화면 알림을 메일로도 보낸 것(계획 3.4, D-514). 본문은 그 알림의 제목과 내용, 그리고 바로 가는 주소다.
 KIND_NOTIFICATION = "notification"
+# 알림 받을 주소의 확인 코드(M4 · D-550). 코드는 워커가 그릴 때 만든다 - DB · 잡 · params 에 평문이 없다.
+KIND_NOTIFY_EMAIL_VERIFICATION = "notify_email_verification"
 
 # 화면이 `backup_failed` 를 그대로 보여 주면 그건 메일 종류의 이름이 아니라 우리 내부
 # 코드다(지시 36 · 40). 상태값을 서버가 이름 지어 주는 것과 같은 이유로 종류도 여기서
@@ -80,20 +88,27 @@ def _require_user(db: Session, params: dict) -> User:
     return user
 
 
-def _render_password_reset(db: Session, delivery: MailDelivery, ctx) -> str:
+def _product(db: Session) -> str:
+    from app.mail.content import product_name
+
+    return product_name(db)
+
+
+def _content_password_reset(db: Session, delivery: MailDelivery, ctx):
+    from app.mail.content import password_reset_content
+
     user = _require_user(db, _params(delivery))
     now: datetime = ctx.clock.now()
     token = mint_token(db, user, now=now, purpose=RESET_PURPOSE_RESET)
-    return (
-        f"{user.display_name}님, 비밀번호 재설정을 요청하셨습니다.\n\n"
-        f"아래 주소에서 새 비밀번호를 설정하세요.\n"
-        f"{_reset_link(ctx, token)}\n\n"
-        f"이 링크는 {_hours(RESET_TOKEN_TTL_SECONDS)}시간 뒤에 만료되며 한 번만 사용할 수 있습니다.\n"
-        "본인이 요청하지 않았다면 이 메일을 무시하세요. 비밀번호는 바뀌지 않습니다.\n"
+    return password_reset_content(
+        product=_product(db), base_url=_base_url(ctx), subject=delivery.subject, name=user.display_name,
+        link=_reset_link(ctx, token), hours=_hours(RESET_TOKEN_TTL_SECONDS),
     )
 
 
-def _render_invite(db: Session, delivery: MailDelivery, ctx) -> str:
+def _content_invite(db: Session, delivery: MailDelivery, ctx):
+    from app.mail.content import invite_content
+
     user = _require_user(db, _params(delivery))
     now: datetime = ctx.clock.now()
     token = mint_token(
@@ -103,51 +118,69 @@ def _render_invite(db: Session, delivery: MailDelivery, ctx) -> str:
         purpose=RESET_PURPOSE_INVITE,
         ttl_seconds=INVITE_TOKEN_TTL_SECONDS,
     )
-    days = max(1, INVITE_TOKEN_TTL_SECONDS // 86400)
-    return (
-        f"{user.display_name}님, 업무 포털 계정이 만들어졌습니다.\n\n"
-        f"아래 주소에서 비밀번호를 직접 설정하신 뒤 로그인하세요.\n"
-        f"{_reset_link(ctx, token)}\n\n"
-        f"로그인 주소: {_base_url(ctx)}/login\n"
-        f"계정(이메일): {user.email}\n\n"
-        f"이 링크는 {days}일 뒤에 만료되며 한 번만 사용할 수 있습니다.\n"
-        # 임시 비밀번호를 메일로 보내지 않는다는 사실을 사용자에게도 알린다 -
-        # "비밀번호가 안 적혀 있다" 를 오류로 오해하지 않게.
-        "임시 비밀번호는 메일로 보내지 않습니다.\n"
+    return invite_content(
+        product=_product(db), base_url=_base_url(ctx), subject=delivery.subject, name=user.display_name,
+        email=user.email, link=_reset_link(ctx, token), days=max(1, INVITE_TOKEN_TTL_SECONDS // 86400),
     )
 
 
-def _render_backup_failed(db: Session, delivery: MailDelivery, ctx) -> str:
+def _content_backup_failed(db: Session, delivery: MailDelivery, ctx):
+    from app.mail.content import backup_failed_content
+
     params = _params(delivery)
-    reason = str(params.get("reason") or "원인이 기록되지 않았습니다.")
-    at = str(params.get("at") or "")
-    return (
-        "예약 백업이 실패했습니다.\n\n"
-        f"발생 시각(UTC): {at}\n"
-        f"내용: {reason}\n\n"
-        "관리 콘솔의 백업 화면에서 상태를 확인하고, 디스크 용량과 권한을 점검하세요.\n"
-        f"{_base_url(ctx)}/admin\n"
+    return backup_failed_content(
+        product=_product(db), base_url=_base_url(ctx), subject=delivery.subject, at=params.get("at"),
+        reason=params.get("reason"),
     )
 
 
-def _render_approval_requested(db: Session, delivery: MailDelivery, ctx) -> str:
+_KEY_SHAPE = re.compile(r"^[a-z_]+(\.[a-z_]+)+$")
+
+
+def approval_type_label(request_type: str | None) -> str:
+    """승인 요청 유형의 이름. 이름을 모르는 유형은 유형 키(`approval.ai_document` 같은)를 싣지 않고 「승인 요청」이다."""
+    from app.approvals.service import request_type_label
+
+    raw = str(request_type or "")
+    label = request_type_label(raw)
+    return "승인 요청" if not label or label == raw or _KEY_SHAPE.match(label) else label
+
+
+def _object_label(object_type: str | None) -> str:
+    from app.approvals.service import _object_type_ko
+
+    raw = str(object_type or "")
+    label = _object_type_ko(raw)
+    return "-" if not label or label == raw or _KEY_SHAPE.match(label) else label
+
+
+def _content_approval_requested(db: Session, delivery: MailDelivery, ctx):
+    from app.mail.content import approval_requested_content
+
     params = _params(delivery)
-    return (
-        "결재할 승인 요청이 도착했습니다.\n\n"
-        f"요청 유형: {params.get('request_type') or '알 수 없음'}\n"
-        f"요청자: {params.get('requested_by') or '알 수 없음'}\n"
-        f"대상: {params.get('object_type') or '알 수 없음'}\n\n"
-        "관리 콘솔의 승인 화면에서 검토하세요.\n"
-        f"{_base_url(ctx)}/admin\n"
+    return approval_requested_content(
+        product=_product(db), base_url=_base_url(ctx), subject=delivery.subject,
+        type_label=approval_type_label(params.get("request_type")),
+        requester=str(params.get("requested_by") or "알 수 없음"),
+        target=_object_label(params.get("object_type")),
+        approval_id=params.get("approval_id"),
     )
 
 
-def _render_test(db: Session, delivery: MailDelivery, ctx) -> str:
-    return (
-        "메일 발송 설정이 정상입니다.\n\n"
-        "이 메일은 관리 콘솔에서 보낸 시험 발송입니다. 받으셨다면 SMTP 설정이 "
-        "실제로 동작한다는 뜻입니다.\n"
-        f"{_base_url(ctx)}/admin\n"
+SECURITY_LABELS = {"none": "사용 안 함", "starttls": "STARTTLS", "ssl": "SSL"}
+MODE_LABELS = {"external": "외부 SMTP 사용", "local_relay": "ClovirAssist 로컬 릴레이"}
+
+
+def _content_test(db: Session, delivery: MailDelivery, ctx):
+    from app.mail.config import config_from_db
+    from app.mail.content import test_content
+
+    config = config_from_db(db)
+    return test_content(
+        product=_product(db), base_url=_base_url(ctx), subject=delivery.subject, sent_at=ctx.clock.now(),
+        server=f"{config.host}:{config.port}" if config.host else "-",
+        security_label=SECURITY_LABELS.get(config.security, config.security),
+        mode_label=MODE_LABELS.get(getattr(config, "mode", "external"), MODE_LABELS["external"]),
     )
 
 
@@ -159,41 +192,48 @@ def _notification_link(ctx, params: dict) -> str:
     return f"{base}/admin#{route}" if admin else f"{base}/#{route}"
 
 
-def _render_notification(db: Session, delivery: MailDelivery, ctx) -> str:
+def _content_notification(db: Session, delivery: MailDelivery, ctx):
     """알림 한 건을 메일로 옮긴다. 받는 사람 사정과 사건의 유효성은 보내기 전에 이미 다시 봤다(`mail_send`)."""
+    from app.mail.content import notification_content
+    from app.profiles.prefs import NOTIFICATION_TYPES
+
     params = _params(delivery)
     user = _require_user(db, params)
-    lines = [f"{user.display_name}님, {params.get('title') or '새 알림이 있습니다'}", ""]
-    if params.get("type") == "ticket_assigned" and params.get("first_assignment"):
-        lines += ["새 티켓이 배정되었습니다.", ""]
-    body = str(params.get("body") or "").strip()
-    if body:
-        lines += [body, ""]
-    lines += [
-        f"바로 가기: {_notification_link(ctx, params)}",
-        "",
-        "이 메일은 알림을 메일로도 받도록 설정하셔서 보냈습니다. "
-        "내 프로필의 알림 설정에서 메일 알림을 끌 수 있습니다.",
-    ]
-    return "\n".join(lines) + "\n"
+    type_ = str(params.get("type") or "")
+    return notification_content(
+        product=_product(db), base_url=_base_url(ctx), subject=delivery.subject, name=user.display_name,
+        type_=type_, title=str(params.get("title") or ""), body=str(params.get("body") or ""),
+        link=_notification_link(ctx, params), type_label=(NOTIFICATION_TYPES.get(type_) or ("알림",))[0],
+        first_assignment=bool(params.get("first_assignment")),
+    )
 
 
-# kind 하나에 렌더러 하나. 여기 없는 kind 는 발송 자체가 거부된다 - 오타 난 kind 가
+# kind 하나에 내용 함수 하나. 여기 없는 kind 는 발송 자체가 거부된다 - 오타 난 kind 가
 # 조용히 빈 메일로 나가는 것보다, 잡이 영구 실패로 남아 눈에 띄는 편이 낫다.
-RENDERERS = {
-    KIND_PASSWORD_RESET: _render_password_reset,
-    KIND_INVITE: _render_invite,
-    KIND_BACKUP_FAILED: _render_backup_failed,
-    KIND_APPROVAL_REQUESTED: _render_approval_requested,
-    KIND_TEST: _render_test,
-    KIND_NOTIFICATION: _render_notification,
+CONTENT_BUILDERS = {
+    KIND_PASSWORD_RESET: _content_password_reset,
+    KIND_INVITE: _content_invite,
+    KIND_BACKUP_FAILED: _content_backup_failed,
+    KIND_APPROVAL_REQUESTED: _content_approval_requested,
+    KIND_TEST: _content_test,
+    KIND_NOTIFICATION: _content_notification,
 }
 
-MAIL_KINDS = frozenset(RENDERERS)
+MAIL_KINDS = frozenset(CONTENT_BUILDERS)
+
+
+def render_mail(db: Session, delivery: MailDelivery, ctx):
+    """보낼 메일 한 통 — (제목, 평문, HTML). 토큰은 여기서 만들어져 이 트랜잭션 안에만 산다(머리말)."""
+    from app.mail.content import render, support_email
+
+    builder = CONTENT_BUILDERS.get(delivery.kind)
+    if builder is None:
+        raise PermanentJobError(f"등록되지 않은 메일 유형입니다: {delivery.kind}")
+    content = builder(db, delivery, ctx)
+    content.support_email = support_email(db)
+    return render(content)
 
 
 def render_body(db: Session, delivery: MailDelivery, ctx) -> str:
-    renderer = RENDERERS.get(delivery.kind)
-    if renderer is None:
-        raise PermanentJobError(f"등록되지 않은 메일 유형입니다: {delivery.kind}")
-    return renderer(db, delivery, ctx)
+    """평문 본문만(옛 호출부 · 시험용). 실제 발송은 `render_mail` 이 두 부분을 함께 만든다."""
+    return render_mail(db, delivery, ctx).text

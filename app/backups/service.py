@@ -657,12 +657,12 @@ def announce_backup_failure(db, *, reason: str, now, title: str = "예약 백업
     """
     try:
         from app.mail.renderers import KIND_BACKUP_FAILED
-        from app.mail.service import queue_mail_to_admins
+        from app.mail.service import mail_subject, queue_mail_to_admins
 
         queue_mail_to_admins(
             db,
             kind=KIND_BACKUP_FAILED,
-            subject=f"[ClovirAssist] {title}",
+            subject=mail_subject(db, title),
             params={"reason": reason[:500], "at": now.isoformat()},
             now=now,
         )

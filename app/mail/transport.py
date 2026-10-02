@@ -29,15 +29,26 @@ DB 에는 비밀번호도 그 이름도 없다. 값은 언제나 고정 칸 ``SE
 
 ## 연결 확인은 보내지 않는다
 
-`verify` 는 연결 · EHLO · 보안 연결 · 로그인 · NOOP · QUIT 까지만 한다. 메일을 한 통도 만들지 않는다 — 설정을
-확인하려고 누군가의 받은 편지함을 쓰지 않는다. 어느 단계에서 실패했는지(`stage`)를 함께 준다.
+`verify` 는 DNS 조회 · 연결 · EHLO · 보안 연결 · 로그인 · 봉투 시험(MAIL FROM · RCPT TO · RSET) · QUIT 까지만 한다. 본문(DATA)을
+보내지 않으므로 메일이 한 통도 만들어지지 않는다 — 설정을 확인하려고 누군가의 받은 편지함을 쓰지 않는다. 지난 단계와 실패한
+단계를 줄로 준다(D-546).
+
+## 단계를 나눈다 (D-546)
+
+발송도 단계로 간다: DNS 조회 → 서버 연결 → 인사 → 보안 연결 → 인증 → 보내는 사람(MAIL FROM) → 받는 사람(RCPT TO) → 본문(DATA).
+`smtplib.sendmail` 한 번으로 보내면 어느 단계에서 막혔는지와 본문을 받은 서버의 응답(`250 … queued as …`)을 잃는다. 응답 한 줄은
+발송 기록에 남고(`relay_response`), 그것은 「다음 서버가 받았다」이지 「받은 편지함에 들어갔다」가 아니다(D-555).
 """
 
 from __future__ import annotations
 
+import email.generator
+import io
 import logging
 import smtplib
+import socket
 import ssl
+from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, make_msgid
 
@@ -56,6 +67,23 @@ from app.mail.models import (
 
 logger = logging.getLogger("app.mail.transport")
 
+STAGE_DNS = "dns"
+STAGE_CONNECT = "connect"
+STAGE_GREETING = "greeting"
+STAGE_TLS = "tls"
+STAGE_AUTH = "auth"
+STAGE_SENDER = "sender"
+STAGE_RECIPIENT = "recipient"
+STAGE_DATA = "data"
+
+STAGE_OK = "ok"
+STAGE_FAILED = "failed"
+STAGE_SKIPPED = "skipped"
+STAGE_NOT_REACHED = "not_reached"
+
+# 서버 응답은 한 줄로 접어 이만큼만 남긴다(`mail_deliveries.relay_response`).
+RESPONSE_MAX = 300
+
 
 class MailTransportError(Exception):
     """발송 실패. 원인 문자열에 비밀이 섞이지 않게 호출부가 그대로 기록한다.
@@ -65,11 +93,16 @@ class MailTransportError(Exception):
 
     def __init__(
         self, message: str, *, kind: str = FAILURE_UNKNOWN, permanent: bool = False, stage: str | None = None,
+        response: str | None = None, stages: list[dict] | None = None,
     ) -> None:
         super().__init__(message)
         self.kind = kind
         self.permanent = permanent
         self.stage = stage
+        # 서버가 준 마지막 응답 한 줄(있을 때만). 화면에서는 기술 정보 안에만 보인다.
+        self.response = response
+        # 연결 확인의 단계 줄(`stage_rows`). 발송 실패에는 없다.
+        self.stages = stages or []
 
 
 def _by_code(code, kind: str) -> tuple[str, bool]:
@@ -125,13 +158,17 @@ def _domain_of(address: str) -> str | None:
     return address.rsplit("@", 1)[1] if "@" in (address or "") else None
 
 
-def build_message(config: MailConfig, *, to_email: str, subject: str, body: str) -> EmailMessage:
+def build_message(
+    config: MailConfig, *, to_email: str, subject: str, body: str, html: str | None = None,
+) -> EmailMessage:
     """보낼 메일 한 통. 받는 서버와 사람이 기대하는 머리를 갖춘다.
 
     - `From` 은 `formataddr` 가 만든다 - 이름에 한글이나 쉼표가 있어도 주소가 깨지지 않는다.
     - `Date` 와 `Message-ID` 가 없으면 받는 서버가 스팸 점수를 올리고, 반송이나 문의가 왔을 때 이 메일을 찾을
       단서가 없다. `Message-ID` 는 발송 기록에 남는다.
     - `Auto-Submitted` · `X-Auto-Response-Suppress` 는 자동 응답(부재 중 회신)이 이 발송함으로 돌아오지 않게 한다.
+    - `html` 이 있으면 평문 다음에 HTML 을 붙인 `multipart/alternative` 다(D-549). 메일 앱은 마지막(가장 풍부한) 부분을
+      고르고, HTML 을 못 그리는 앱과 사람이 읽는 원문은 평문을 본다. 둘 다 utf-8 이다.
     """
     message = EmailMessage()
     message["From"] = formataddr((config.from_name, config.from_address)) if config.from_name else config.from_address
@@ -142,32 +179,132 @@ def build_message(config: MailConfig, *, to_email: str, subject: str, body: str)
     message["Auto-Submitted"] = "auto-generated"
     message["X-Auto-Response-Suppress"] = "All"
     message.set_content(body)
+    if html:
+        message.add_alternative(html, subtype="html")
     return message
+
+
+def _resolve(host: str, port: int):
+    """DNS 조회 단계. 시험은 이 함수를 바꿔 끼운다(가짜 서버 주소로 바깥 DNS 를 묻지 않게)."""
+    return socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+
+
+def _response_text(code, message) -> str:
+    """다음 서버의 응답 한 줄 — `250 2.0.0 Ok: queued as 4ABC` 처럼 코드와 글. 300자까지만 남긴다."""
+    if isinstance(message, bytes):
+        message = message.decode("utf-8", "replace")
+    words = " ".join(str(message or "").split())
+    return (f"{code} {words}" if code is not None else words).strip()[:RESPONSE_MAX]
+
+
+def _exc_response(exc: BaseException) -> str | None:
+    """예외가 싣고 온 서버 응답(있을 때만). 받는 사람 거부는 첫 받는 사람의 응답이다."""
+    if isinstance(exc, smtplib.SMTPRecipientsRefused):
+        for code, message in (exc.recipients or {}).values():
+            return _response_text(code, message)
+        return None
+    code = getattr(exc, "smtp_code", None)
+    if code is None:
+        return None
+    return _response_text(code, getattr(exc, "smtp_error", b""))
+
+
+def _stage_of(trail: list[str], kind: str) -> str:
+    """실패한 단계. 마지막으로 들어간 단계가 실패 자리다 — 다만 보안 연결 오류는 연결 단계(SSL 은 연결과 함께 맺는다)에서
+    나도 「보안 연결」이고, 인사(EHLO) 실패는 화면에서 「서버 연결」이다."""
+    last = trail[-1] if trail else STAGE_CONNECT
+    if kind == FAILURE_TLS and last in (STAGE_CONNECT, STAGE_GREETING):
+        return STAGE_TLS
+    if last == STAGE_GREETING:
+        return STAGE_CONNECT
+    return last
+
+
+def stage_rows(trail: list[str], *, failed_at: str | None = None, detail: str | None = None,
+               skipped: frozenset[str] | set[str] = frozenset()) -> list[dict]:
+    """연결 확인이 지난 단계 → 화면의 줄(`app/mail/labels.py::VERIFY_STAGES` 순서). 상태는 ok · failed · skipped · not_reached.
+
+    보내는 방식이 지나지 않는 단계(보안 연결 없음, 로그인 없음, 받는 사람 확인 없음)는 `skipped` 다 — 「정상」이라고 말하지
+    않는다. 실패한 단계 뒤의 단계는 `not_reached` 다.
+    """
+    from app.mail.labels import VERIFY_STAGES
+
+    reached = {STAGE_CONNECT if key == STAGE_GREETING else key for key in trail}
+    failed_index = VERIFY_STAGES.index(failed_at) if failed_at in VERIFY_STAGES else None
+    rows: list[dict] = []
+    for index, key in enumerate(VERIFY_STAGES):
+        if key in skipped:
+            state, text = STAGE_SKIPPED, None
+        elif failed_index is not None and index == failed_index:
+            state, text = STAGE_FAILED, detail
+        elif failed_index is not None and index > failed_index:
+            state, text = STAGE_NOT_REACHED, None
+        elif key in reached:
+            state, text = STAGE_OK, None
+        else:
+            state, text = STAGE_NOT_REACHED, None
+        rows.append({"key": key, "state": state, "detail": text})
+    return rows
+
+
+def _reset_quietly(server, code) -> None:
+    """거절 뒤 연결을 정리한다(smtplib.sendmail 과 같은 규칙: 421 이면 닫고, 아니면 RSET)."""
+    try:
+        if code == 421:
+            server.close()
+        else:
+            server.rset()
+    except (smtplib.SMTPException, OSError):
+        pass
+
+
+def _flatten(message: EmailMessage, international: bool) -> bytes:
+    """`smtplib.SMTP.send_message` 와 같은 방식으로 메일을 바이트로 편다(줄 끝 CRLF, 비ASCII 주소면 utf8 정책)."""
+    buffer = io.BytesIO()
+    policy = message.policy.clone(utf8=True) if international else None
+    generator = email.generator.BytesGenerator(buffer, policy=policy) if policy else email.generator.BytesGenerator(buffer)
+    generator.flatten(message, linesep="\r\n")
+    return buffer.getvalue()
+
+
+@dataclass(frozen=True)
+class SendReceipt:
+    """보낸 결과. `response` 는 다음 서버가 본문을 받고 준 응답 한 줄이다(로컬 릴레이면 `queued as <큐 id>` 가 든다).
+
+    이것은 「다음 서버가 받았다」이지 「받은 편지함에 들어갔다」가 아니다(D-555).
+    """
+
+    message_id: str
+    response: str | None = None
 
 
 class SmtpTransport:
     """실제 발송기. 워커에서만 인스턴스가 만들어진다(app/worker_main.py).
 
-    테스트와 진단은 같은 모양의 다른 객체를 끼운다 - 그래서 ``send`` 시그니처가 계약이다.
+    테스트와 진단은 같은 모양의 다른 객체를 끼운다 - 그래서 ``send`` · ``verify`` 시그니처가 계약이다.
     """
 
-    def _open(self, config: MailConfig, secret_provider, stages: list[str]):
-        """연결하고 인사하고 보안 연결을 맺고 로그인한다. 지나간 단계를 `stages` 에 적는다."""
+    def _open(self, config: MailConfig, secret_provider, trail: list[str]):
+        """이름을 찾고 연결하고 인사하고 보안 연결을 맺고 로그인한다. 들어간 단계를 `trail` 에 적는다."""
         timeout = max(1, int(config.timeout_seconds or 20))
-        stages.append("connect")
+        trail.append(STAGE_DNS)
+        _resolve(config.host, config.port)
+        trail.append(STAGE_CONNECT)
         if config.security == SECURITY_SSL:
             server = smtplib.SMTP_SSL(config.host, config.port, timeout=timeout, context=tls_context(config))
+            # SSL 은 연결과 함께 보안 연결을 맺는다 - 여기까지 왔으면 그 단계도 지났다.
+            trail.append(STAGE_TLS)
         else:
             server = smtplib.SMTP(config.host, config.port, timeout=timeout)
         try:
-            stages.append("ehlo")
+            trail.append(STAGE_GREETING)
             server.ehlo()
             if config.security == SECURITY_STARTTLS:
-                stages.append("tls")
+                trail.append(STAGE_TLS)
                 server.starttls(context=tls_context(config))
                 server.ehlo()
             if config.username:
-                stages.append("auth")
+                trail.append(STAGE_AUTH)
                 secret = secret_provider.require(PASSWORD_SLOT)
                 # reveal() 은 여기 한 줄에서만. 위로도 아래로도 새지 않는다.
                 server.login(config.username, secret.reveal())
@@ -175,6 +312,20 @@ class SmtpTransport:
             server.close()
             raise
         return server
+
+    def _envelope(self, server, sender: str, recipient: str | None, trail: list[str], options=()) -> None:
+        """봉투 — 보내는 사람과 받는 사람을 서버에 묻는다. 거절이면 smtplib 의 같은 예외로 올린다."""
+        trail.append(STAGE_SENDER)
+        code, message = server.mail(sender, options)
+        if code != 250:
+            _reset_quietly(server, code)
+            raise smtplib.SMTPSenderRefused(code, message, sender)
+        if recipient:
+            trail.append(STAGE_RECIPIENT)
+            code, message = server.rcpt(recipient)
+            if code not in (250, 251):
+                _reset_quietly(server, code)
+                raise smtplib.SMTPRecipientsRefused({recipient: (code, message)})
 
     def send(
         self,
@@ -184,36 +335,64 @@ class SmtpTransport:
         to_email: str,
         subject: str,
         body: str,
-    ) -> str:
-        """보낸다. 보낸 메일의 `Message-ID` 를 돌려준다."""
-        message = build_message(config, to_email=to_email, subject=subject, body=body)
-        stages: list[str] = []
+        html: str | None = None,
+    ) -> SendReceipt:
+        """보낸다. 보낸 메일의 `Message-ID` 와 다음 서버의 응답 한 줄을 돌려준다."""
+        message = build_message(config, to_email=to_email, subject=subject, body=body, html=html)
+        trail: list[str] = []
         try:
-            server = self._open(config, secret_provider, stages)
+            server = self._open(config, secret_provider, trail)
             with server:
-                stages.append("send")
-                server.send_message(message)
+                international = not (config.from_address.isascii() and to_email.isascii())
+                flat = _flatten(message, international)
+                options: list[str] = []
+                if international:
+                    if not server.has_extn("smtputf8"):
+                        raise smtplib.SMTPNotSupportedError("이 서버는 ASCII 가 아닌 주소를 받지 않습니다.")
+                    options += ["SMTPUTF8", "BODY=8BITMIME"]
+                if getattr(server, "does_esmtp", False) and server.has_extn("size"):
+                    options.append(f"size={len(flat)}")
+                self._envelope(server, config.from_address, to_email, trail, options)
+                trail.append(STAGE_DATA)
+                code, reply = server.data(flat)
+                if code != 250:
+                    _reset_quietly(server, code)
+                    raise smtplib.SMTPDataError(code, reply)
+                response = _response_text(code, reply)
         except (smtplib.SMTPException, OSError) as exc:
             # 연결 거부, DNS 실패, 타임아웃, 인증서 오류는 SMTPException 이 아니라 OSError 로 온다.
             kind, permanent = classify(exc)
             raise MailTransportError(
                 f"{type(exc).__name__}: {exc}", kind=kind, permanent=permanent,
-                stage=stages[-1] if stages else None,
+                stage=_stage_of(trail, kind), response=_exc_response(exc),
             ) from exc
-        return str(message["Message-ID"])
+        return SendReceipt(message_id=str(message["Message-ID"]), response=response)
 
-    def verify(self, config: MailConfig, secret_provider) -> dict:
-        """연결을 확인한다 — **메일은 보내지 않는다**(모듈 머리말). 지나간 단계를 돌려준다."""
-        stages: list[str] = []
+    def verify(self, config: MailConfig, secret_provider, *, probe_recipient: str | None = None) -> dict:
+        """연결을 확인한다 — **메일은 보내지 않는다**(모듈 머리말). 단계 줄을 돌려준다.
+
+        로그인 뒤 봉투 시험을 한다: 보내는 주소로 MAIL FROM, 확인을 누른 사람의 주소로 RCPT TO, 그리고 RSET(본문 없음).
+        로그인은 되는데 보내는 주소를 쓸 권한이 없거나(M365 `SendAsDenied`) 중계가 막힌 설정은 여기서 드러난다.
+        """
+        trail: list[str] = []
+        skipped = set()
+        if config.security not in (SECURITY_STARTTLS, SECURITY_SSL):
+            skipped.add(STAGE_TLS)
+        if not config.username:
+            skipped.add(STAGE_AUTH)
+        if not probe_recipient:
+            skipped.add(STAGE_RECIPIENT)
         try:
-            server = self._open(config, secret_provider, stages)
+            server = self._open(config, secret_provider, trail)
             with server:
-                stages.append("noop")
-                server.noop()
+                self._envelope(server, config.from_address, probe_recipient, trail)
+                server.rset()
         except (smtplib.SMTPException, OSError) as exc:
             kind, permanent = classify(exc)
+            stage = _stage_of(trail, kind)
             raise MailTransportError(
-                f"{type(exc).__name__}: {exc}", kind=kind, permanent=permanent,
-                stage=stages[-1] if stages else None,
+                f"{type(exc).__name__}: {exc}", kind=kind, permanent=permanent, stage=stage,
+                response=_exc_response(exc),
+                stages=stage_rows(trail, failed_at=stage, skipped=skipped),
             ) from exc
-        return {"ok": True, "stages": stages}
+        return {"ok": True, "stages": stage_rows(trail, skipped=skipped)}

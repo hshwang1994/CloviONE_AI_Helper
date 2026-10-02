@@ -65,7 +65,7 @@ const CHOICES_SETTING = "/api/admin/settings/setup_optional_choices";
  * 같은 경로들이다. */
 export const SETUP_LINKS = {
   admin_account: { href: "#/users", label: "사용자 화면 열기" },
-  mail: { href: "#/settings?setting=smtp", label: "메일 설정 열기" },
+  mail: { href: "#/mail?tab=settings", label: "메일 설정 열기" },
   organization: { href: "#/departments", label: "부서 화면 열기" },
   llm: { href: "#/ai-connection", label: "AI 연결 열기" },
   integrations: { href: "#/diagnostics", label: "진단에서 연동 상태 보기" },

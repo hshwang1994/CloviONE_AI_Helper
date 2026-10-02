@@ -17,7 +17,11 @@
 - DB 를 억지로 옛 모양(`password_ref` = AI 키 칸 + 남의 서버)으로 바꿔도, 연결 확인과 시험 메일이 로그인에 쓰는 값은
   언제나 고정 칸 `smtp.password` 다 - 다른 비밀(SENTINEL)은 어떤 길로도 나가지 않는다.
 - 상태 응답에는 비밀 칸 이름도 값도 없다.
-반례: 시스템 관리자는 그대로 설정을 바꿀 수 있다.
+반례: 시스템 관리자는 그대로 설정을 바꿀 수 있다 — 메일 화면의 전용 API(`PUT /api/admin/mail/settings`)로.
+
+qa-contract-change: 범용 설정 API 는 이제 시스템 관리자의 `smtp` 저장도 422 로 거절한다(D-548 — 메일 설정은 메일 화면의 전용 API 로만
+쓴다). 그래서 「이름 없는 정상 설정은 시스템 관리자가 그대로 저장한다」 반례는 전용 API 로 옮겼고, 범용 경로의 거절을 따로 단언한다.
+가짜 서버는 새 단계(봉투 시험 · 본문)를 받고 DNS 단계는 바꿔 끼운다 - 로그인 비밀번호를 재는 성질은 그대로다.
 """
 
 from __future__ import annotations
@@ -56,6 +60,21 @@ class _RecordingSmtp:
     def noop(self):
         return (250, b"ok")
 
+    def mail(self, sender, options=()):
+        return (250, b"ok")
+
+    def rcpt(self, recipient, options=()):
+        return (250, b"ok")
+
+    def data(self, message):
+        return (250, b"2.0.0 Ok: queued as TEST")
+
+    def rset(self):
+        return (250, b"ok")
+
+    def has_extn(self, name):
+        return False
+
     def send_message(self, message):
         return {}
 
@@ -73,6 +92,8 @@ class _RecordingSmtp:
 def recording_smtp(monkeypatch):
     _RecordingSmtp.logins = []
     monkeypatch.setattr("app.mail.transport.smtplib.SMTP", _RecordingSmtp)
+    # 공격자 서버 이름을 바깥 DNS 에 묻지 않는다(DNS 단계는 이 함수 하나다).
+    monkeypatch.setattr("app.mail.transport._resolve", lambda host, port: [])
     return _RecordingSmtp
 
 
@@ -129,10 +150,17 @@ def test_even_a_system_admin_cannot_name_another_secret(client, app, make_user, 
     assert r.status_code == 422, r.text
     r = client.put("/api/admin/settings/smtp", json={"value": {**ATTACK, "relay_secret": "x"}}, headers=h)
     assert r.status_code == 422, r.text
-    # 반례: 이름 없는 정상 설정은 시스템 관리자가 그대로 저장한다.
+    # 범용 경로는 이름 없는 정상 설정도 받지 않는다 - 메일 설정은 메일 화면의 전용 API 로만 쓴다(D-548).
     ok = {**ATTACK, "host": "smtp.internal"}
     r = client.put("/api/admin/settings/smtp", json={"value": ok}, headers=h)
+    assert r.status_code == 422 and "메일 화면" in r.text, r.text
+    # 전용 API 도 비밀 칸 이름을 받지 않는다(모르는 칸 = 422).
+    r = client.put("/api/admin/mail/settings", json={**ok, "password_ref": "ai.openai.api_key"}, headers=h)
+    assert r.status_code == 422, r.text
+    # 반례: 이름 없는 정상 설정은 시스템 관리자가 전용 API 로 그대로 저장한다.
+    r = client.put("/api/admin/mail/settings", json=ok, headers=h)
     assert r.status_code == 200, r.text
+    assert _smtp_value(app)["host"] == "smtp.internal"
     assert "password_ref" not in _smtp_value(app)
 
 

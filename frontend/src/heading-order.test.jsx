@@ -70,23 +70,23 @@ describe("heading 순서 — 건너뛰지 않는다(PA-RC-0012)", () => {
     assertSequentialHeadings(container, "AiConnection");
   });
 
-  it("MailStatus: h1 다음이 h6이 아니라 h2다", async () => {
+  it("MailScreen: h1 다음이 h6이 아니라 h2다", async () => {
+    // qa-contract-change: 메일 화면이 「운영 › 메일」 세 탭(설정 · 발송 기록 · 알림 메일)이 됐다(D-548) - 기준점은 설정 탭의 구획 제목이다.
     apiMock.mockImplementation((path) => {
       if (String(path).startsWith("/api/admin/mail/status")) {
         return Promise.resolve({
-          mail: { configured: false, problems: ["x"], server: { enabled: false, host: "", port: null, security: null, from_address: "", from_name: "" }, password_secret: null },
-          counts: { queued: 0, sent: 0, failed: 0, unconfigured: 0 },
-          recent_failures: [],
+          health: { state: "disabled", label: "사용 안 함", kind: "neutral", message: "메일 발송을 사용하지 않습니다.", stages: [] },
+          summary: { enabled: false, host: "", port: 587, security: "starttls", from_address: "", from_name: "", username: "", password: { stored: false } },
+          counts: {}, recent_failures: [], backlog: { count: 0, window_days: 7 }, base_url: { value: "https://x", problem: null },
+          capabilities: { can_configure: false, can_operate: false }, notification_mail: { allowed: [], catalog: [], max_age_days: 7 },
         });
       }
       return Promise.resolve({});
     });
-    const { MailStatus } = await import("./screens/MailStatus.jsx");
-    const { container } = qcRender(<MailStatus />);
-    // 서버 설정은 이제 제목 딸린 카드가 아니라 속성 줄(MetaBar)이다 - 제목 위계를 재는
-    // 이 시험의 기준점은 남아 있는 구역 제목이다.
-    await screen.findByText("최근 실패");
-    assertSequentialHeadings(container, "MailStatus");
+    const { MailScreen } = await import("./screens/mail/MailScreen.jsx");
+    const { container } = qcRender(<MailScreen />);
+    await screen.findByText("보내는 사람");
+    assertSequentialHeadings(container, "MailScreen");
   });
 
   it("SystemOps: h1 다음이 h6이 아니라 h2다", async () => {
