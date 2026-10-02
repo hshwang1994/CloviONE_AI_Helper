@@ -386,7 +386,7 @@ def compute_health(data: HealthInput) -> HealthResult:
 TROUBLE_HEALTH_SCORE = 60
 
 # 사용자에게 보이는 문구다. 가운뎃점과 em 대시를 쓰지 않는다(scripts/check_user_text.py).
-REASON_LOW_HEALTH = "Health 점수 낮음"
+REASON_LOW_HEALTH = "건강도 낮음"
 
 
 def trouble_reasons(health_score: int | None, project_status: str | None = None) -> list[str]:

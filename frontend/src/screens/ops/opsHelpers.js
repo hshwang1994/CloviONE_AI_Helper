@@ -26,7 +26,7 @@ export const JOBS_BACKLOG_LINKS = {
 // 4종(worker_conversational은 그 레인을 켠 적이 있는 설치에만 백엔드가 보낸다, app/health/
 // service.py::build_dashboard)과 외부 연동 4종을 아래 serviceLabel()이 함께 조회한다.
 export const SERVICE_LABELS = {
-  web: "웹 서버", worker: "백그라운드 워커", scheduler: "스케줄러", worker_conversational: "대화형 워커",
+  web: "웹 서버", worker: "백그라운드 작업", scheduler: "스케줄러", worker_conversational: "대화형 작업",
   notion: "Notion",
 };
 // 연동(Integration)은 관리자가 자유 텍스트로 이름을 만들 수 있어(§ Integrations 화면) SERVICE_LABELS의

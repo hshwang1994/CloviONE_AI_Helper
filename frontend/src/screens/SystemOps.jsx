@@ -58,8 +58,8 @@ import { pairTracks } from "../ui/density.js";
    S4 가 slug 를 옮길 때 이 표만 옛 이름으로 남아 있었다. */
 const UNIT_LABELS = {
   "clovirassist-web.service": "웹 서버",
-  "clovirassist-worker.service": "백그라운드 워커",
-  "clovirassist-worker-conversational.service": "대화 워커",
+  "clovirassist-worker.service": "백그라운드 작업",
+  "clovirassist-worker-conversational.service": "대화형 작업",
   "clovirassist-scheduler.service": "예약 실행",
   "clovirassist-index.service": "검색 색인",
   "clovirassist-privhelper.service": "시스템 설정 도우미",
@@ -81,7 +81,7 @@ const UNIT_ROLES = {
 };
 
 /* 도우미가 없을 때 서비스 한 줄의 설명 — 그 자리가 무엇을 다루는지만 말한다. 읽지 못한다는 사실은 안내 상자가 말한다. */
-const SERVICES_ROLE = "웹 서버, 워커처럼 포털을 이루는 서비스가 실행 중인지 보고 재시작합니다.";
+const SERVICES_ROLE = "웹 서버와 백그라운드 작업처럼 포털을 이루는 서비스가 실행 중인지 보고 재시작합니다.";
 
 /* 이 탭의 `?` 도움말 — 그릇(`settings/SettingsShell.jsx`)이 제목 옆에 그린다(D-453).
    예전에는 어디에도 안 쓰이는 상수였다. */

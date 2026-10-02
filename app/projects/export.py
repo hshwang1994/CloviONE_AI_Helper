@@ -98,7 +98,7 @@ def build_project_workbook(project: Project, wbs, milestones, health, *, today: 
             f"작업 {basis.counted_tasks}건 가운데 {basis.done_tasks}건 완료"
             if basis.counted_tasks else "집계할 작업이 없습니다"
         )),
-        ("Health 점수", health.score),
+        ("건강도 점수", health.score),
         ("기한 넘긴 마일스톤", overdue_count),
         ("내보낸 날짜", today),
     ]

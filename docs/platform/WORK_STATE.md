@@ -33,7 +33,8 @@
 | P12 메일 화면 · 건강 · 진단 · 시험 메일 · 틀: 「운영 › 메일」 세 탭(설정 · 발송 기록 · 알림 메일) · 짧은 상태 면(다섯 상태 · 단계 줄) · 전용 설정 API(`GET`/`PUT /api/admin/mail/settings`, 비밀번호 같은 저장, 저장 뒤 자동 확인) · 범용 설정 API 의 `smtp` 거절 · 지문에 비밀 표지 · 복구 재큐(지금 지문으로 정상이 아니던 상태 → 성공) · 창은 최대 나이 · 수동 재발송 시각 · 발송 시점 설정 문제 = unconfigured · 전송기 단계(DNS ~ 본문) · 봉투 시험 · 영수증(다음 서버 응답) · 시험 메일 받는 주소(권한 · 속도 · 가린 감사) · 상태 낱말(접수 ≠ 도착) · 내용 모델 + HTML · 평문 틀 · 제품 이름 제목 · 미리 보기 열 종류(표본 · 빈 sandbox) | `dce340f8` | D-546 · D-548 · D-549 · D-554 · D-555 |
 | P13 개인 알림 메일: 받는 주소(계정 주소 기본 · 다른 주소는 6자리 코드 · 허용 도메인 · 보내는 순간 다시 풀기) · 코드는 워커가 그릴 때 만들고 HMAC 만 저장 · 다섯 번 잠김 · 15분에 3통 · API 넷(본인 · CSRF · 감사) · 확인 메일 종류 · 유형 목록은 실제로 받는 역할 · 발송 상태 셋(ok · delayed · off) · 프로필 「메일 알림」 · 「알림 배지」 카드 둘 · 0047 | `b9be86d7` | D-550 |
 | P14 ClovirAssist 로컬 릴레이: 보내는 방법 둘(외부 SMTP · 로컬 릴레이 - 상위 SMTP 이용 · 인터넷으로 직접 전달) · 설치기 기본 설치 · 기본 꺼짐(policy-rc.d · 다른 MTA · 기존 구성 보존 · 오프라인 debs · `--without-mail-relay` · `clovirassist mail-relay`) · 받는 문 127.0.0.1:2525 + 앱 클라이언트 인증서 · `sendmail` 길 닫기(authorized_submit_users · pickup 제거) · 헬퍼 `mailrelay.*` 일곱 · DNS 문 하나(dnspython) · 준비 점검 잡 · 바깥 전달 추적 틱 · 0048 · 메일 화면의 로컬 릴레이 구획 · 상태 면 두 줄 · 발송 기록 「바깥 전달」 · 실제 Postfix(컨테이너 17/17)와 실제 systemd · apt(설치 → 켜기 → 전송 → DKIM 도착 → 끄기) 실측 | `9c423127` | D-551 |
-| P15 초기 설정 체크리스트: 서버가 고르는 일곱 상태와 낱말 · 요약 두 문장(`headline` · `subline`) · 항목별 메모 · 복사할 명령 · 고를 값 · 선택 저장 API(`PUT /api/admin/setup/choices/{key}`, 행 잠금 뒤 그 키만 합침, `setting.update` 감사) · TLS 「외부 프록시가 맡음」 · 인증서 파싱 캐시 · 메일 방식별 판정(M6, 로컬 릴레이는 바깥 전달까지) · AI 공용 판정 · 안내 띠는 조직 판정 하나를 60초 동안 다시 씀 · 링크는 시스템 관리자만 · 화면은 요약 띠 + 한 판 위의 필수 · 선택 구획, 같은 격자의 줄(`screens/setup/ChecklistRow.jsx`), 지금 할 줄 저절로 펼침, 좁은 칸 접힘 | 이 커밋 | D-534 |
+| P15 초기 설정 체크리스트: 서버가 고르는 일곱 상태와 낱말 · 요약 두 문장(`headline` · `subline`) · 항목별 메모 · 복사할 명령 · 고를 값 · 선택 저장 API(`PUT /api/admin/setup/choices/{key}`, 행 잠금 뒤 그 키만 합침, `setting.update` 감사) · TLS 「외부 프록시가 맡음」 · 인증서 파싱 캐시 · 메일 방식별 판정(M6, 로컬 릴레이는 바깥 전달까지) · AI 공용 판정 · 안내 띠는 조직 판정 하나를 60초 동안 다시 씀 · 링크는 시스템 관리자만 · 화면은 요약 띠 + 한 판 위의 필수 · 선택 구획, 같은 격자의 줄(`screens/setup/ChecklistRow.jsx`), 지금 할 줄 저절로 펼침, 좁은 칸 접힘 | `8dc4ccf7` | D-534 |
+| P16 문구 · 추가 발견 · 프로브 · 문서: 승인 유형은 서버와 같은 낱말(`approvalTypeKo`) · 감사 동작은 「대상 동작」 명사구 · 「Health」 → 「건강도」 · 사용자에게 보이는 「워커」 → 「백그라운드 작업」 · 「대화형 작업」 · 개발자 월간 리포트 구획 빈 상태는 한 줄 띠 · 낡은 주석(열 배분 · 사용자 표) · 내부 용어 정적 검사(`check_user_text.py` + 자기 시험) · 프로브 `column_balance`(열 배분 표식 `col[data-col-*]` · `table[data-hidden-cols]`) · `control_row`(같은 줄 컨트롤, 겹치는 짝 무리) · 번역 열의 값 길이(`value`) · README · ACCEPTANCE(C1 · E8 · G3 · M) · RULES · LEDGER | 이 커밋 | — |
 
 - P3 ~ P6 묶음 끝 `verify.py --full`(HEAD `4096e98a`, 2026-10-01 21:49 ~ 23:11): 정적 전량 · 백엔드 단위 · 회귀 · 보안 · 통합 네 청크 통과, 프런트 전량 4,100 / 4,102. 남은 둘(`home.test.jsx` · `projects.test.jsx` 각 1건)은 메모리 여유 약 1GB 에서 20초 시간 초과였고 단독 재실행 86 / 86 통과다.
 - P7 실측: `workspace_e2e --target org`(큰 조직 시드) 46 / 46 · 견본 34 / 34 · 반례 시험 통과, 캡처 `dist/ui-qa/p7-org` · `dist/ui-qa/org-workspace-e2e`(1366 · 1920 을 눈으로 봤다).
@@ -44,7 +45,10 @@
   DKIM 서명 도착 → 로그 「전달함」 → 끄기). 증거 `EVIDENCE/mail/2026-10-02-relay-container.md`. 랩 실측(E2E-2 · E2E-3)은 P18 이다.
 - P15 표적: 백엔드 `test_setup_checklist_flow.py` · `test_setup_checklist.py` · `test_setup_required_optional.py` 66건, 프런트 `setup-wizard.test.jsx` 24건 ·
   `heading-order.test.jsx`. 캡처 `dist/ui-qa/p15-setup`(필수 남음 · 모두 정상 · 메일 문제 · AI 문제 · 사용하지 않음 × 1366 · 1920, 좁은 칸 1100)을 눈으로 봤다.
-- 다음: P16 문구 · 추가 발견 · 프로브 · 문서(5절 내부 용어 정적 검사 · 6절 남은 발견 · 8.2 프로브 · RULES · README · ACCEPTANCE · COMPONENT_LEDGER).
+- P16 표적: 프로브 자기 시험 `KIT_MEASURE_SELFTEST_OK`(조합 틀린 견본 14종, 맞는 견본 오탐 0), 실제 화면 16경로 × 1366 · 1920 —
+  `control_row` 89줄 0 실패(첫 구현의 위양성 3건은 두 줄로 접힌 필터 줄을 한 줄로 센 것이라 고쳤다), `column_balance` 24표 중 2표가 실제 결함
+  (감사 로그 「작업」 · 승인 「유형」 낱말 잘림 — 원문 코드로 값 길이를 쟀다)을 잡아 고쳤다. `check_user_text.py --self-test` 통과.
+- 다음: P17 전량 검증(`verify.py --full`) · 번들 · ux-after 캡처 네 폭 · 로컬 E2E, 그다음 P17V 시각 수용.
 
 ## 끝남 — 공통 스위치 개편 (2026-10-01)
 

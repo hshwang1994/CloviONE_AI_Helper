@@ -23,6 +23,13 @@
     page_fill            화면 아래까지 서야 하는 판이 화면 아래까지 서는가
     chat_composition     대화 로그가 위 정렬인가, 날짜선 폭 28rem 이하, 방 머리 두 줄, 입력 상자가 도킹 선 안에 있는가,
                          목록 시각이 긴 절대 형식이 아닌가
+    table_empty_band     빈 표가 머리 아래 한 줄 띠인가(높이 56 ~ 72, 그림 없음)
+    column_balance       열 배분(D-529) — 필수 열이 숨지 않았는가, 숨길 수 있는 열이 남았는데 표가 상자보다 넓지 않은가, 한 열이
+                         남는 폭을 혼자 먹지 않는가(다른 늘어나는 열이 상한 전인데 62% 초과), 늘어나는 열에 120px 넘게 여유가 있는데
+                         다른 칸이 말줄임되지 않는가, 값 길이로 폭을 정한 열(상태 · 종류 · 코드)이 말줄임되지 않는가
+    control_row          같은 줄에 선 컨트롤(단추 · 아이콘 단추 · 입력 · 선택 · 세그먼티드)의 높이와 윗선이 같은가(D-526 — 한 줄은 한
+                         밀도다). 깊이 제한이 없고 종류를 넘는다. 「줄」은 두 컨트롤의 가장 가까운 공통 조상이 가로 배치이고 그 높이가
+                         컨트롤 넷을 넘지 않는 상자다 — 화면 격자에서 우연히 같은 높이에 선 것은 같은 줄이 아니다
 
 ## 판정 규율
 
@@ -41,6 +48,7 @@ COMPOSITION_CHECKS = (
     "filter_composition", "filter_cell_anatomy", "list_surface", "list_wrapper",
     "primary_budget", "row_actions", "table_head_glyph", "footer_alignment",
     "editor_box", "page_fill", "chat_composition", "table_empty_band",
+    "column_balance", "control_row",
 )
 
 # 조합 계약의 값. 여기 숫자를 바꾸는 것은 계약을 바꾸는 일이다(`docs/DECISIONS.md` D-488 ~ D-494).
@@ -80,6 +88,12 @@ COMPOSITION_CONTRACT = {
     "editorTool": 30,
     "listFooterMin": 44,
     "chatDateMaxRem": 28,
+    # 열 배분(D-529): 한 열이 남는 폭에서 가져가도 되는 몫의 상한(비중 3 : 2 의 60% + 반올림 여유), 「여유 있는 열」의 문턱(px).
+    "monopolyShare": 0.62,
+    "slackPx": 120,
+    # 같은 줄 컨트롤(D-526): 높이 · 윗선 허용 오차(px), 「줄」 상자 높이 상한(컨트롤 높이의 배수).
+    "rowTol": 1.5,
+    "rowBoxFactor": 4,
     "tol": 1,
 }
 
@@ -597,6 +611,124 @@ COMPOSITION_JS = r"""
     check('chat_composition').checked++;
     if (longStamp) fail('chat_composition', { problem: '목록 시각이 긴 절대 형식', text: text(longStamp) });
   }
+
+  // ── 열 배분 (D-529) ──────────────────────────────────────────────────────
+  /* 열 배분을 쓰는 표(`col[data-col-key]` — `DataTable` 이 배분 근거를 표식으로 남긴다)만 잰다. 폭 · 바닥 · 상한은 px 다. */
+  for (const tbl of all('table')) {
+    if (inOverlay(tbl)) continue;
+    const cols = [...tbl.querySelectorAll(':scope > colgroup > col[data-col-key]')];
+    if (!cols.length) continue;
+    check('column_balance').checked++;
+    const problems = [];
+    const hidden = (tbl.getAttribute('data-hidden-cols') || '').split(',').filter(Boolean).map((s) => s.split(':'));
+    const hiddenEssential = hidden.filter((h) => h[1] === 'essential').map((h) => h[0]);
+    if (hiddenEssential.length) problems.push('필수 열 숨김 ' + hiddenEssential.join(','));
+    const heads = [...tbl.querySelectorAll(':scope > thead > tr:first-child > th')];
+    const info = cols.map((col, i) => ({
+      key: col.getAttribute('data-col-key'),
+      tier: col.getAttribute('data-col-tier') || 'essential',
+      kind: col.getAttribute('data-col-kind') || 'fixed',
+      content: col.hasAttribute('data-col-content'),
+      min: px(col.getAttribute('data-col-min')),
+      max: col.hasAttribute('data-col-max') ? px(col.getAttribute('data-col-max')) : null,
+      w: heads[i] ? rect(heads[i]).width : 0,
+    }));
+    const scrolls = tbl.getAttribute('data-plan-scroll') === 'true';
+    const box = tbl.parentElement;
+    const over = box ? rect(tbl).width - box.clientWidth : 0;
+    const hideable = info.filter((c) => c.tier !== 'essential');
+    if (over > 2 && hideable.length) problems.push('숨길 수 있는 열이 남았는데 표가 넓음 ' + Math.round(over) + 'px(' + hideable.map((c) => c.key).join(',') + ')');
+    const grows = info.filter((c) => c.kind === 'grow');
+    const leftover = rect(tbl).width - info.reduce((s, c) => s + c.min, 0);
+    if (!scrolls && leftover > 200 && grows.length >= 2) {
+      for (const c of grows) {
+        const share = (c.w - c.min) / leftover;
+        const othersOpen = grows.some((o) => o !== c && o.max != null && o.w < o.max - 2);
+        if (share > C.monopolyShare && othersOpen) problems.push('한 열이 남는 폭 독점 ' + c.key + ' ' + Math.round(share * 100) + '%');
+      }
+    }
+    // 말줄임 — 칸 안에서 `text-overflow: ellipsis` 이고 넘치는 자리. 내용 폭은 글자 범위(Range)로 잰다(잘려도 배치 폭은 그대로다).
+    const natural = (el) => { try { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect().width; } catch (e) { return 0; } };
+    const truncated = new Map();
+    const need = new Map();
+    for (const tr of [...tbl.querySelectorAll(':scope > tbody > tr')].slice(0, 40)) {
+      const tds = [...tr.children].filter((el) => el.tagName === 'TD');
+      if (tds.length !== info.length) continue;
+      tds.forEach((td, i) => {
+        const c = info[i];
+        const clipped = [td, ...td.querySelectorAll('*')].some((el) => getComputedStyle(el).textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth + 1);
+        if (clipped) truncated.set(c.key, (truncated.get(c.key) || 0) + 1);
+        const st = getComputedStyle(td);
+        const used = natural(td) + px(st.paddingLeft) + px(st.paddingRight);
+        need.set(c.key, Math.max(need.get(c.key) || 0, used));
+      });
+    }
+    if (!scrolls && truncated.size) {
+      const roomy = grows.filter((c) => need.has(c.key) && c.w - need.get(c.key) >= C.slackPx);
+      for (const [key, n] of truncated) {
+        const c = info.find((x) => x.key === key);
+        if (c && c.content) problems.push('값 길이 열 말줄임 ' + key + ' ' + n + '칸');
+        const other = roomy.filter((r) => r.key !== key);
+        if (other.length) problems.push('말줄임 ' + key + ' ' + n + '칸, 옆 열 여유 ' + other.map((r) => r.key + ' ' + Math.round(r.w - need.get(r.key)) + 'px').join(','));
+      }
+    }
+    if (problems.length) fail('column_balance', { ...where(tbl), problems: problems.slice(0, 6) });
+  }
+
+  // ── 같은 줄 컨트롤 (D-526) ────────────────────────────────────────────────
+  /* 한 줄은 한 밀도다 — 같은 줄의 컨트롤은 높이와 윗선이 같다. 표 칸(행 동작 검사가 잰다) · 떠 있는 층 · 셸 · 여러 줄 입력 · 대화
+     입력은 빼고, 다른 컨트롤 안의 것(입력 안 단추 · 세그먼티드 안 칸)은 바깥 상자로 잰다. */
+  {
+    const CTRL = '.MuiButton-root, .MuiIconButton-root, .MuiInputBase-root, .k-segmented';
+    const ctrls = all(CTRL).filter((el) => !inOverlay(el) && !inShell(el)
+      && !el.closest('td, th, [data-probe-skip], [data-chat-composer], .MuiChip-root')
+      && !(el.parentElement && el.parentElement.closest(CTRL))
+      && !el.classList.contains('MuiInputBase-multiline'));
+    const nca = (a, b) => { const s = new Set(); for (let q = a; q; q = q.parentElement) s.add(q); for (let q = b; q; q = q.parentElement) if (s.has(q)) return q; return null; };
+    const lines = new Map();
+    for (let i = 0; i < ctrls.length; i++) {
+      const a = ctrls[i], ra = rect(a);
+      for (let j = i + 1; j < ctrls.length; j++) {
+        const b = ctrls[j], rb = rect(b);
+        const overlap = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+        if (overlap < Math.min(ra.height, rb.height) * 0.5) continue;
+        if (ra.right > rb.left + 1 && rb.right > ra.left + 1) continue;
+        const n = nca(a, b);
+        if (!n || n === document.body || n === document.documentElement) continue;
+        const st = getComputedStyle(n);
+        const rowish = (/flex/.test(st.display) && !/column/.test(st.flexDirection)) || /grid/.test(st.display);
+        if (!rowish) continue;
+        if (rect(n).height > Math.max(ra.height, rb.height) * C.rowBoxFactor + 4) continue;
+        if (!lines.has(n)) lines.set(n, []);
+        lines.get(n).push([a, b]);
+      }
+    }
+    /* 한 상자 안에서도 줄은 「서로 겹치는 짝」으로 이어진 묶음이다 — 두 줄로 접힌 필터 줄의 위 줄과 아래 줄은 같은 상자지만 다른
+       줄이다(처음 구현은 둘을 한 묶음으로 세어 「윗선 46px」를 냈다: 감사 로그 · 내 티켓 필터 줄). */
+    const groups = [];
+    for (const [n, pairs] of lines) {
+      const parent = new Map();
+      const find = (x) => { while (parent.get(x) !== x) x = parent.get(x); return x; };
+      for (const [a, b] of pairs) {
+        if (!parent.has(a)) parent.set(a, a);
+        if (!parent.has(b)) parent.set(b, b);
+        parent.set(find(a), find(b));
+      }
+      const byRoot = new Map();
+      for (const el of parent.keys()) { const r = find(el); if (!byRoot.has(r)) byRoot.set(r, []); byRoot.get(r).push(el); }
+      for (const els of byRoot.values()) groups.push([n, els]);
+    }
+    for (const [n, els] of groups) {
+      check('control_row').checked++;
+      const items = els.map((el) => ({ el, r: rect(el) }));
+      const hs = items.map((x) => x.r.height);
+      const tops = items.map((x) => x.r.top);
+      const problems = [];
+      if (Math.max(...hs) - Math.min(...hs) > C.rowTol) problems.push('높이 ' + [...new Set(hs.map((h) => Math.round(h)))].join('/'));
+      if (Math.max(...tops) - Math.min(...tops) > C.rowTol) problems.push('윗선 ' + Math.round(Math.max(...tops) - Math.min(...tops)) + 'px');
+      if (problems.length) fail('control_row', { ...where(n), problems, controls: items.slice(0, 5).map((x) => text(x.el) + ' ' + Math.round(x.r.height)) });
+    }
+  }
   return out;
 }
 """
@@ -651,6 +783,15 @@ def selftest_html() -> str:
     <div role="row" style="display:flex;gap:8px;height:40px;align-items:center;background:#f5f6fb">
       <div role="columnheader" style="display:flex;align-items:center;justify-content:center;width:120px"><span>${label}</span><svg width="12" height="12" style="margin-left:${glyphGap}px"></svg></div>
     </div>`;
+  /* 열 배분 표식을 단 표(`DataTable` 이 내보내는 모양). cols = [키, 종류, 등급, 바닥, 상한, 폭, 값 길이 열]. clip 이 참인 칸은 말줄임으로 그린다. */
+  const planTable = ({ width, box, scroll, hidden, cols, cells, clip }) => `
+    <div style="width:${box || width}px;overflow-x:auto">
+      <table data-plan-scroll="${scroll ? 'true' : 'false'}"${hidden ? ` data-hidden-cols="${hidden}"` : ''} style="table-layout:fixed;width:${width}px;border-collapse:collapse">
+        <colgroup>${cols.map((c) => `<col data-col-key="${c[0]}" data-col-kind="${c[1]}" data-col-tier="${c[2]}" data-col-min="${c[3]}"${c[4] != null ? ` data-col-max="${c[4]}"` : ''}${c[6] ? ' data-col-content=""' : ''} style="width:${c[5]}px">`).join('')}</colgroup>
+        <thead><tr style="height:40px">${cols.map((c) => `<th style="padding:0 8px;text-align:start">${c[0]}</th>`).join('')}</tr></thead>
+        <tbody><tr style="height:48px">${cells.map((v, i) => `<td style="padding:0 8px${clip && clip[i] ? ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis' : ''}">${v}</td>`).join('')}</tr></tbody>
+      </table>
+    </div>`;
   box.innerHTML = `
     <div id="compose-good">
       <div data-filter-surface="" style="display:grid;gap:12px;padding-bottom:16px;border-bottom:1px solid #dcdfec">
@@ -686,6 +827,12 @@ def selftest_html() -> str:
       </div>
       <div data-chat-dock="" style="border-top:1px solid #dcdfec;padding-top:12px"><div data-chat-composer="" style="border:1px solid #ccc;border-radius:10px;height:48px"></div></div>
       <div data-page-fill="grow" style="height:120vh;border:1px solid #dcdfec">화면보다 긴 폼 판(바닥 판)</div>
+      ${planTable({ width: 900, cols: [['title', 'grow', 'essential', 224, 576, 480], ['name', 'grow', 'essential', 144, 288, 324], ['state', 'fixed', 'essential', 96, null, 96, true]], cells: ['배포 일정 정리', '황형섭', '진행'] })}
+      ${planTable({ width: 600, scroll: true, cols: [['title', 'grow', 'essential', 300, 576, 300], ['email', 'grow', 'essential', 400, 400, 400]], cells: ['제목', 'a@b.c'] })}
+      <div style="display:flex;align-items:center;gap:8px"><div class="MuiInputBase-root" style="height:34px;width:200px;box-shadow:inset 0 0 0 1px #ccc"></div><button class="MuiButton-root" style="height:34px">불러오기</button></div>
+      <div style="display:flex;align-items:center;gap:8px"><button class="MuiButton-root" style="height:30px">보기</button><button class="MuiIconButton-root" style="height:30px;width:30px"></button></div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;width:430px"><div class="MuiInputBase-root" style="height:34px;width:200px;box-shadow:inset 0 0 0 1px #ccc"></div><div class="MuiInputBase-root" style="height:34px;width:200px;box-shadow:inset 0 0 0 1px #ccc"></div><div class="MuiInputBase-root" style="height:34px;width:200px;box-shadow:inset 0 0 0 1px #ccc"></div><div class="MuiInputBase-root" style="height:34px;width:200px;box-shadow:inset 0 0 0 1px #ccc"></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;min-height:400px"><div><button class="MuiButton-root" style="height:34px">왼쪽 판 단추</button></div><div><button class="MuiButton-root" style="height:30px">오른쪽 판 단추</button></div></div>
     </div>
     <div id="compose-bad">
       <div data-filter-surface="" style="display:grid;gap:12px;padding-bottom:16px">
@@ -730,6 +877,12 @@ def selftest_html() -> str:
         </div>
       </div>
       <div data-table-placement="plain"><table class="MuiTable-root" style="width:100%;border-collapse:collapse"><thead><tr style="height:40px"><th style="background:#f5f6fb">이름</th></tr></thead><tbody><tr data-empty-band=""><td style="padding:0"><div class="k-empty" style="height:120px"><img alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" style="width:80px;height:80px"></div></td></tr></tbody></table></div>
+      ${planTable({ width: 900, hidden: 'email:essential', cols: [['title', 'grow', 'essential', 224, 576, 480], ['name', 'grow', 'essential', 144, 288, 324], ['state', 'fixed', 'essential', 96, null, 96, true]], cells: ['배포 일정 정리', '황형섭', '진행'] })}
+      ${planTable({ width: 800, box: 600, cols: [['title', 'grow', 'essential', 224, 576, 400], ['job', 'fixed', 'secondary', 104, null, 104], ['name', 'grow', 'essential', 144, 288, 296]], cells: ['제목', '직책', '이름'] })}
+      ${planTable({ width: 940, cols: [['title', 'grow', 'essential', 224, 900, 700], ['name', 'grow', 'essential', 144, 288, 144], ['state', 'fixed', 'essential', 96, null, 96, true]], cells: ['제목', '이름', '진행'] })}
+      ${planTable({ width: 900, cols: [['title', 'grow', 'essential', 224, 576, 500], ['email', 'grow', 'essential', 176, 352, 304], ['state', 'fixed', 'essential', 96, null, 96, true]], cells: ['짧음', 'a-very-long-mailbox-name-for-testing@goodmit.co.kr', '아주 긴 상태 낱말이 칸을 넘칩니다'], clip: [false, true, true] })}
+      <div style="display:flex;align-items:center;gap:8px"><div class="MuiInputBase-root" style="height:36px;width:200px;box-shadow:inset 0 0 0 1px #ccc"></div><button class="MuiButton-root" style="height:34px">불러오기</button></div>
+      <div style="display:flex;align-items:flex-start;gap:8px"><div class="MuiInputBase-root" style="height:34px;width:200px;box-shadow:inset 0 0 0 1px #ccc"></div><button class="MuiButton-root" style="height:34px;margin-top:6px">떠 있는 단추</button></div>
     </div>`;
   document.body.appendChild(box);
   return true;
@@ -743,6 +896,7 @@ SELFTEST_EXPECT_BAD = {
     "filter_composition": 1, "filter_cell_anatomy": 4, "list_surface": 3, "list_wrapper": 2,
     "primary_budget": 2, "row_actions": 1, "table_head_glyph": 2, "footer_alignment": 1,
     "editor_box": 1, "chat_composition": 1, "page_fill": 1, "table_empty_band": 1,
+    "column_balance": 4, "control_row": 2,
 }
 
 # 틀린 견본의 실패 사유 안에 반드시 나와야 하는 낱말 — 개수만 맞고 엉뚱한 이유로 걸리는 것을 막는다.
@@ -759,6 +913,8 @@ SELFTEST_EXPECT_REASONS = {
     "chat_composition": ["로그 아래 정렬", "날짜선 폭", "입력 도킹 영역 없음"],
     "page_fill": ["높이 고정 판이 화면을 넘음"],
     "table_empty_band": ["높이", "그림"],
+    "column_balance": ["필수 열 숨김", "숨길 수 있는 열이 남았는데", "독점", "옆 열 여유", "값 길이 열 말줄임"],
+    "control_row": ["높이 36/34", "윗선 6px"],
 }
 
 

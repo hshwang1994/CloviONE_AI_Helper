@@ -12,9 +12,9 @@
 import React from "react";
 import Typography from "@mui/material/Typography";
 export { badgeCol, boolCol, mapCol, dateCol, jsonField, objectField, readCol, linkCol, listField, previewField, activeCol, enabledCol, truncateCol } from "../DataScreen.jsx";
-export { objKo, actionKo, fmtDateTime, fmtDateTimeCompact, TYPE_KO } from "../../lib/format.js";
+export { objKo, actionKo, approvalTypeKo, fmtDateTime, fmtDateTimeCompact, TYPE_KO } from "../../lib/format.js";
 export { Badge } from "../../ui/kit.jsx";
-import { objKo, actionKo, fmtDateTime, TYPE_KO } from "../../lib/format.js";
+import { objKo, actionKo, approvalTypeKo, fmtDateTime, TYPE_KO } from "../../lib/format.js";
 import { CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES } from "../../lib/roles.js";
 
 // 바이트 크기를 사람이 읽을 수 있게(백업 크기 등). null이면 '-'.
@@ -160,11 +160,14 @@ export const JOB_TYPE = { chat_message: "채팅 메시지", schedule_run: "예�
 // 감사/승인 enum 한국어화는 공용 lib/format.js(objKo·actionKo)에서 온다.
 /* 감사 대상 종류. **닫힌 집합**이라 `enum` 이다 — 짧고 폭이 고정된 값이라 칸 가운데에
    서면 열이 하나의 띠로 읽힌다(`ui/columnTypes.js` 의 그 규칙). */
-export const objCol = (key, label, type = "enum") => ({ key, label, type, render: (r) => objTypeKo(r[key]) });
+/* `value` 는 열 배분(D-529)이 값 길이를 재는 글이다 — 원문 코드가 아니라 화면 낱말로 재야 칸이 낱말을 자르지 않는다. */
+export const objCol = (key, label, type = "enum") => ({ key, label, type, value: (r) => objTypeKo(r[key]), render: (r) => objTypeKo(r[key]) });
 // title 속성으로 원문 action 문자열을 마우스 오버 시 보여준다 — 감사 로그의 '작업' 필터는 이
 // 원문과 정확히 일치해야 하는데(정확 일치 필터), 열은 한국어 번역만 보여줘서 필터에 뭘 입력해야
 // 할지 목록만 보고는 알 방법이 없었다(truncateCol이 이미 쓰는 title 힌트 패턴과 동일).
-export const actionCol = (key, label, type = "enum") => ({ key, label, type, render: (r) => React.createElement("span", { title: r[key] }, actionKo(r[key])) });
+export const actionCol = (key, label, type = "enum") => ({ key, label, type, value: (r) => actionKo(r[key]), render: (r) => React.createElement("span", { title: r[key] }, actionKo(r[key])) });
+/* 승인 요청 유형 — 서버 알림 · 메일 제목과 같은 낱말(`approvalTypeKo`). 원문 코드는 hover 로만 보인다. */
+export const approvalTypeCol = (key, label, type = "enum") => ({ key, label, type, value: (r) => approvalTypeKo(r[key]), render: (r) => React.createElement("span", { title: r[key] }, approvalTypeKo(r[key])) });
 
 /* 열 하나. **`type` 은 선택이 아니다.**
  *

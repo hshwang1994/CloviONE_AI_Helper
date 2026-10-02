@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Link from "@mui/material/Link";
 import { api } from "../lib/api.js";
-import { actionKo, fmtDateTime } from "../lib/format.js";
+import { approvalTypeKo, fmtDateTime } from "../lib/format.js";
 import { failureText } from "../lib/failure.js";
 import {
   Badge, Button, Callout, DataTable, EmptyState, ErrorState, Modal, PageHeader, RowActions, useConfirm, useToast,
@@ -91,7 +91,7 @@ function decisionSummary(r) {
   const p = (r && r.request_payload) || {};
   const target = p.target_name || p.target_email
     || (r.object_type ? (r.object_type + " " + (r.object_id || "")).trim() : "");
-  const what = actionKo(r.request_type) || r.request_type;
+  const what = approvalTypeKo(r.request_type);
   const requester = r.requester_name || r.requester_email || r.requested_by;
   const who = requester ? requester + "님이 올린" : "요청자를 알 수 없는";
   return target
@@ -202,7 +202,8 @@ export function MyApprovals() {
        `identifier: true` 라 12.5rem 바닥을 받고 그 폭의 29% 만 채웠다(실측). */
     {
       key: "request_type", label: "요청", type: "enum", min: "9rem",
-      render: (r) => actionKo(r.request_type) || r.request_type,
+      value: (r) => approvalTypeKo(r.request_type),
+      render: (r) => approvalTypeKo(r.request_type),
     },
     {
       key: "requested_by", label: "요청자", type: "name", min: "13rem",

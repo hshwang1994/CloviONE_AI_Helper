@@ -79,7 +79,7 @@ describe("진단 — 서비스 중단 표시와 재시작 안내", () => {
     renderDiagnostics();
 
     // 문제가 하나뿐이면 상단 배너 메시지는 그 문제 자체를 그대로 말한다(healthVerdict).
-    expect(await screen.findByText("백그라운드 워커 중단")).toBeInTheDocument();
+    expect(await screen.findByText("백그라운드 작업 중단")).toBeInTheDocument();
     // 배지도 같은 사실을 "중단"이라는 같은 한국어로 말한다(Badge의 statusText).
     expect(screen.getByText("중단")).toBeInTheDocument();
   });

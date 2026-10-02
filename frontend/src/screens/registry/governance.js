@@ -12,14 +12,14 @@
 import React from "react";
 import Tooltip from "@mui/material/Tooltip";
 import { DetailRow } from "../../ui/kit.jsx";
-import { APPROVAL_PAYLOAD_KEY_KO, Badge, OBJTYPE_OPTS, OBJ_ID_PARAM, OBJ_ROUTE, OPS_ROLES, PEOPLE_ACTIVE_REF_LIST, PEOPLE_REF_LIST, ROLE_KO, WRITE_ROLES, actionCol, actionKo, badgeCol, canReachObjRoute, col, dateCol, field, fmtDateTimeCompact, mapCol, objCol, objRouteHref, objectField, opt, personField, truncateCol, writerEmptyHelp } from "./shared.js";
+import { APPROVAL_PAYLOAD_KEY_KO, Badge, OBJTYPE_OPTS, OBJ_ID_PARAM, OBJ_ROUTE, OPS_ROLES, PEOPLE_ACTIVE_REF_LIST, PEOPLE_REF_LIST, ROLE_KO, WRITE_ROLES, actionCol, actionKo, approvalTypeCol, approvalTypeKo, badgeCol, canReachObjRoute, col, dateCol, field, fmtDateTimeCompact, mapCol, objCol, objRouteHref, objectField, opt, personField, truncateCol, writerEmptyHelp } from "./shared.js";
 import { APPROVAL_DONE } from "./actions.js";
 
 // RG-05: 서버(app/approvals/router.py)가 request_type/requested_by 서버 필터를 지원하는데
 // 화면엔 status만 있었다 — 승인 큐는 서버 페이지네이션이라 clientFilter로는 "지금 페이지 안"까지가
 // 한계다(문서/스케줄 등 다른 서버-페이지네이션 화면과 같은 이유). 실제로 등록된 5개 요청 유형은
-// app/approvals/service.py의 _REQUEST_TYPE_KO(APPR-02)와 정본이 같다 — 라벨은 actionKo로 만들어
-// 목록 열(actionCol("request_type", ...))과 항상 같은 말을 쓰게 한다.
+// app/approvals/service.py의 _REQUEST_TYPE_KO(APPR-02)와 정본이 같다 — 라벨은 approvalTypeKo(서버와 같은 낱말)로 만들어
+// 목록 열(approvalTypeCol("request_type", ...))과 항상 같은 말을 쓰게 한다.
 const APPROVAL_REQUEST_TYPES = [
   "user.role_change", "integration.change_config", "schedule.enable", "ai.document_create",
 ];
@@ -65,7 +65,7 @@ export const GOVERNANCE_SCREENS = {
     // 기본값 없이는 매 방문마다 실제 처리 가능한 대기 건이 승인/거절/만료/취소 이력에 묻혀 보였다.
     filters: [
       { key: "status", type: "select", label: "상태", value: "pending", options: opt([["pending", "대기"], ["approved", "승인됨"], ["rejected", "거절됨"], ["expired", "만료"], ["cancelled", "취소됨"]]) },
-      { key: "request_type", type: "select", label: "유형", options: opt(APPROVAL_REQUEST_TYPES.map((t) => [t, actionKo(t)])) },
+      { key: "request_type", type: "select", label: "유형", options: opt(APPROVAL_REQUEST_TYPES.map((t) => [t, approvalTypeKo(t)])) },
       /* W5: 자유 텍스트 UUID 를 **이름으로 고르게** 바꾼다 (R-5 · 지시 0-2.17).
          "다른 화면도 그렇게 한다"가 근거였는데, 그 다른 화면들도 같은 결함이었다 —
          사람은 UUID 를 외우지 않는다. 후보는 이미 있는 사용자 목록에서 온다. */
@@ -81,7 +81,7 @@ export const GOVERNANCE_SCREENS = {
     /* 「상태」로 정렬하면 서버가 **유효 상태**로 센다(만료 시각이 지난 pending 은 만료로) —
        화면의 배지·필터와 같은 판정이다(`app/approvals/service.py::effective_status_rank`). */
     serverSort: { keys: ["requested_at", "due_at", "expires_at", "request_type", "requested_by", "status"], default: { key: "requested_at", dir: "desc" } },
-    columns: [{ ...actionCol("request_type", "유형"), sortable: true, rowName: (r) => actionKo(r.request_type) + " / " + (r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-") }, objCol("object_type", "대상"),
+    columns: [{ ...approvalTypeCol("request_type", "유형"), sortable: true, rowName: (r) => approvalTypeKo(r.request_type) + " / " + (r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-") }, objCol("object_type", "대상"),
       // 시스템이 자동 생성한 승인은 requested_by="system"이다(사람이 아니므로 resolve_names가
       // 못 찾는다) — 그 원시 영어 리터럴이 그대로 새지 않게 한국어로 특별 취급한다.
       { key: "requester_name", label: "요청자", identifier: true, render: (r) => r.requester_name || r.requester_email || (r.requested_by === "system" ? "시스템(자동)" : r.requested_by) || "-" },

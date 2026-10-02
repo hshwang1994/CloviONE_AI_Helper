@@ -181,7 +181,7 @@ const DASHBOARD = {
       items: [{
         project_id: "p-1", name: "배포 자동화", code: "DEP", status: "active",
         health_score: 45, progress_pct: 42.9, notion_status: "차질",
-        reasons: ["Health 점수 낮음"],
+        reasons: ["건강도 낮음"],
       }],
     },
   },
@@ -345,7 +345,7 @@ describe("프로젝트 목록 — 표", () => {
     expect(await screen.findByText("배포 자동화")).toBeInTheDocument();
 
     const table = screen.getByRole("table");
-    for (const label of ["이름", "상태", "부서", "기간", "진행률", "Health"]) {
+    for (const label of ["이름", "상태", "부서", "기간", "진행률", "건강도"]) {
       expect(within(table).getByRole("columnheader", { name: label })).toBeInTheDocument();
     }
     // 행이 두 개(머리행 제외)여야 한다. 예전 카드 격자는 role=table 자체가 없었다.
@@ -464,7 +464,7 @@ describe("프로젝트 목록 — 요약", () => {
 
     // 진행과 위험 — 숫자는 그림 옆에 그대로 있다.
     expect(within(panel("평균 진행률")).getByText("47.3%")).toBeInTheDocument();
-    expect(within(panel("Health 하위")).getByText("4")).toBeInTheDocument();
+    expect(within(panel("건강도 낮음")).getByText("4")).toBeInTheDocument();
     expect(within(panel("지연 마일스톤")).getByText("6")).toBeInTheDocument();
   });
 
@@ -475,7 +475,7 @@ describe("프로젝트 목록 — 요약", () => {
     /* 「63.3%」와 「97.6%」는 글자로만 보면 비슷한 길이지만 막대로 보면 다른 그림이다.
        그림은 `aria-hidden` 이고 숫자는 글자로 그대로 있다 — 정보량은 안 줄어든다. */
     expect(panel("평균 진행률").querySelector('[aria-hidden="true"]')).toBeTruthy();
-    expect(panel("Health 하위").querySelector("svg")).toBeTruthy();
+    expect(panel("건강도 낮음").querySelector("svg")).toBeTruthy();
   });
 
   it("🔴 요약 칸을 누르면 목록이 그 조건으로 좁아지고, 다시 누르면 풀린다", async () => {
@@ -504,7 +504,7 @@ describe("프로젝트 목록 — 요약", () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
 
-    await user.click(screen.getByRole("button", { name: "Health 하위 프로젝트만 보기" }));
+    await user.click(screen.getByRole("button", { name: "건강도가 낮은 프로젝트만 보기" }));
     await waitFor(() => {
       expect(apiMock.mock.calls.map(([p]) => String(p))
         .some((p) => p.startsWith("/api/projects?") && p.includes("trouble=true"))).toBe(true);
@@ -548,7 +548,7 @@ describe("프로젝트 목록 — 요약", () => {
     const avgTile = panel("평균 진행률");
     expect(within(avgTile).getByText(/프로젝트 14건의 평균입니다/)).toBeInTheDocument();
 
-    const healthTile = panel("Health 하위");
+    const healthTile = panel("건강도 낮음");
     expect(within(healthTile).getByText(/판정할 규칙이 없습니다/)).toBeInTheDocument();
 
     // Health 각주가 평균 진행률 타일 안에는 없다(서로 새지 않는다).
@@ -727,7 +727,7 @@ describe("프로젝트 상세 — 개요 판 폭 (C8·C9)", () => {
 
     const overviewCard = screen.getByRole("heading", { name: "개요" }).closest(".MuiCard-root");
     const progressCard = screen.getByRole("heading", { name: "진행률" }).closest(".MuiCard-root");
-    const healthCard = screen.getByRole("heading", { name: "Health" }).closest(".MuiCard-root");
+    const healthCard = screen.getByRole("heading", { name: "건강도" }).closest(".MuiCard-root");
     const trendCard = screen.getByRole("heading", { name: "티켓 발생 추이" }).closest(".MuiCard-root");
     const trendMax = getComputedStyle(trendCard).maxWidth;
     // 짧은 라벨-값 줄이라고 46rem 기둥에 가두면 추이 차트만 넓고 위 카드는 왼쪽에 붙는다.
@@ -1229,7 +1229,7 @@ describe("진행률/Health 다시 계산 + 주간 추세 (FN-06)", () => {
     renderAt("/projects/p-1");
     await screen.findByText("63점");
 
-    const healthCard = screen.getByRole("heading", { name: "Health" }).closest(".MuiCard-root");
+    const healthCard = screen.getByRole("heading", { name: "건강도" }).closest(".MuiCard-root");
     await user.click(within(healthCard).getByRole("button", { name: "다시 계산" }));
 
     await waitFor(() => expect(lastWrite("/api/projects/p-1/health/snapshot", "POST")).not.toBeNull());
@@ -1254,7 +1254,7 @@ describe("진행률/Health 다시 계산 + 주간 추세 (FN-06)", () => {
     renderAt("/projects/p-1");
     await screen.findByText("63점");
 
-    const healthCard = screen.getByRole("heading", { name: "Health" }).closest(".MuiCard-root");
+    const healthCard = screen.getByRole("heading", { name: "건강도" }).closest(".MuiCard-root");
     await user.click(within(healthCard).getByRole("button", { name: "다시 계산" }));
 
     expect(await screen.findByText(/이력에는 남기지 않았습니다/)).toBeInTheDocument();

@@ -209,7 +209,7 @@ def list_rehearsals(ok: str | None = None, db: Session = Depends(get_db)):
         "items": [rehearsal_view(r) for r in rows],
         "command": "python scripts/restore_rehearsal.py --record",
         "note": (
-            "복구 리허설은 앱을 한 번 더 띄워 실제 읽기 경로까지 확인하므로 워커가 아니라 "
+            "복구 리허설은 앱을 한 번 더 띄워 실제 읽기 경로까지 확인하므로 백그라운드 작업이 아니라 "
             "스크립트로 돌립니다. --record 를 붙이면 결과가 이 목록에 남습니다. "
             "리허설은 임시 데이터베이스에만 복원하므로 운영 데이터를 건드리지 않습니다."
         ),

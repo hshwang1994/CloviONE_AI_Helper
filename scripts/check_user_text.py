@@ -27,6 +27,17 @@
 이런 줄에는 같은 줄에 `clovi-allow-glyph` 를 적어 둔다. 지우는 대신 **왜 남겼는지**가
 코드에 남는다.
 
+## 개발 내부 용어 (계획 5절)
+
+사용자 지시: 개발 용어(Postfix, OpenDKIM, PKCE, OAuth transaction, password_ref, backend, worker, legacy, sync_status,
+ai_usage_records, pairing token)는 일반 화면에 쓰지 않고 「기술 정보」 안에만 둔다. 「워커」 · 「백엔드」 같은 소리 옮김도
+같은 말이다. 그래서 **한글이 든 사용자 문구**(프런트 문자열 · JSX 글, 서버 문자열, 메일 · HTML 틀)에 그 낱말이 있으면 실패다.
+
+- 영문만 든 식별자 문자열(`"sync_status"` 같은 키)은 대상이 아니다 — 한글이 함께 있어야 사람에게 보이는 문장이다.
+- 로그 호출의 인자(`logger.info(...)` 등)는 사람이 아니라 운영 기록이 읽으므로 뺀다. 시험 파일도 뺀다.
+- 기술 정보 안처럼 일부러 남기는 줄에는 같은 줄에 `clovi-allow-term: 까닭` 을 적는다.
+- `--self-test` 는 맞는 견본 · 틀린 견본으로 검사기 자신을 잰다(JSX 글 · 문자열 · 식별자 · 로그 · 표식).
+
 ## 관례
 
 scripts/check_css_vars.py, scripts/check_tracked_imports.py 와 같은 모양이다:
@@ -193,7 +204,194 @@ def _scan_stripped(path: Path, stripped: str) -> list[tuple[int, str, str]]:
     return hits
 
 
+# ── 개발 내부 용어 ────────────────────────────────────────────────────────────
+
+TERM_ALLOW_MARKER = "clovi-allow-term"
+HANGUL = re.compile(r"[가-힣]")
+INTERNAL_TERMS: tuple[tuple[re.Pattern, str], ...] = tuple(
+    (re.compile(pattern, re.IGNORECASE), name) for pattern, name in (
+        (r"\bpostfix\b", "Postfix"), (r"\bopendkim\b", "OpenDKIM"), (r"\bpkce\b", "PKCE"),
+        (r"oauth\s+transaction", "OAuth transaction"), (r"password_ref", "password_ref"),
+        (r"\bbackend\b", "backend"), (r"\bworker\b", "worker"), (r"\blegacy\b", "legacy"),
+        (r"\bsync_status\b", "sync_status"), (r"\bai_usage_records\b", "ai_usage_records"),
+        (r"pairing\s+token", "pairing token"), (r"워커", "워커(worker)"), (r"백엔드", "백엔드(backend)"),
+    )
+)
+LOG_METHODS = {"debug", "info", "warning", "warn", "error", "exception", "critical", "log"}
+
+
+def _term_of(text: str) -> str | None:
+    if not HANGUL.search(text):
+        return None
+    for rx, name in INTERNAL_TERMS:
+        if rx.search(text):
+            return name
+    return None
+
+
+def _js_text_spans(stripped: str) -> list[tuple[int, str]]:
+    """주석을 걷은 JS/JSX 에서 사람에게 보일 수 있는 글 — 문자열 리터럴의 내용과, 따옴표 밖의 한글 구간(JSX 글).
+
+    이 저장소는 식별자에 한글을 쓰지 않으므로 따옴표 밖의 한글은 JSX 글이다. 그 구간은 태그 · 중괄호 경계(`< > { }`)까지다.
+    """
+    spans: list[tuple[int, str]] = []
+    i, n, line = 0, len(stripped), 1
+    while i < n:
+        ch = stripped[i]
+        if ch == "\n":
+            line += 1
+            i += 1
+            continue
+        if ch in "\"'`":
+            start_line, j, buf = line, i + 1, []
+            while j < n and stripped[j] != ch:
+                if stripped[j] == "\\":
+                    buf.append(stripped[j:j + 2])
+                    j += 2
+                    continue
+                if stripped[j] == "\n":
+                    if ch != "`":
+                        break
+                    line += 1
+                buf.append(stripped[j])
+                j += 1
+            spans.append((start_line, "".join(buf)))
+            i = j + 1
+            continue
+        if HANGUL.match(ch):
+            k = i
+            while k > 0 and stripped[k - 1] not in "<>{}\n\"'`;(),=":
+                k -= 1
+            j = i
+            while j < n and stripped[j] not in "<>{}\n\"'`":
+                j += 1
+            spans.append((line, stripped[k:j]))
+            i = j
+            continue
+        i += 1
+    return spans
+
+
+def _js_term_hits(raw: str) -> list[tuple[int, str, str]]:
+    raw_lines = raw.splitlines()
+    hits: list[tuple[int, str, str]] = []
+    for line_no, span in _js_text_spans(_strip_js_comments(raw)):
+        name = _term_of(span)
+        if not name:
+            continue
+        line = raw_lines[line_no - 1] if line_no <= len(raw_lines) else span
+        if TERM_ALLOW_MARKER in line:
+            continue
+        hits.append((line_no, name, line.strip()))
+    return hits
+
+
+def _python_log_lines(source: str) -> set[int]:
+    """로그 호출(`logger.info(...)` · `log.warning(...)` · `logging.error(...)`)이 차지하는 줄 — 그 인자는 운영 기록이다."""
+    lines: set[int] = set()
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return lines
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in LOG_METHODS):
+            continue
+        owner = node.func.value
+        name = owner.id if isinstance(owner, ast.Name) else (owner.attr if isinstance(owner, ast.Attribute) else "")
+        if "log" in name.lower():
+            lines.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+    return lines
+
+
+def _python_term_hits(source: str) -> list[tuple[int, str, str]]:
+    doc_lines = _python_docstring_lines(source)
+    log_lines = _python_log_lines(source)
+    raw_lines = source.splitlines()
+    hits: list[tuple[int, str, str]] = []
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return hits
+    for tok in tokens:
+        if tok.type != tokenize.STRING or tok.start[0] in doc_lines or tok.start[0] in log_lines:
+            continue
+        name = _term_of(tok.string)
+        if not name:
+            continue
+        line = raw_lines[tok.start[0] - 1] if tok.start[0] <= len(raw_lines) else ""
+        if TERM_ALLOW_MARKER in line:
+            continue
+        hits.append((tok.start[0], name, line.strip()))
+    return hits
+
+
+def _template_term_hits(raw: str) -> list[tuple[int, str, str]]:
+    hits: list[tuple[int, str, str]] = []
+    raw_lines = raw.splitlines()
+    for idx, line in enumerate(_strip_jinja_comments(raw).splitlines(), start=1):
+        name = _term_of(line)
+        if name and TERM_ALLOW_MARKER not in raw_lines[idx - 1]:
+            hits.append((idx, name, raw_lines[idx - 1].strip()))
+    return hits
+
+
+def term_targets() -> list[tuple[Path, list[tuple[int, str, str]]]]:
+    out: list[tuple[Path, list[tuple[int, str, str]]]] = []
+    for path in _collect([("frontend/src", "*.jsx"), ("frontend/src", "*.js")]):
+        if path.name.endswith((".test.js", ".test.jsx")):
+            continue
+        out.append((path, _js_term_hits(path.read_text(encoding="utf-8", errors="replace"))))
+    for path in _collect([("app", "*.py")]):
+        out.append((path, _python_term_hits(path.read_text(encoding="utf-8", errors="replace"))))
+    for path in _collect([("app", "*.j2"), ("app/templates_html", "*.html")]):
+        out.append((path, _template_term_hits(path.read_text(encoding="utf-8", errors="replace"))))
+    return out
+
+
+def self_test() -> int:
+    """맞는 견본은 하나도 걸리면 안 되고 틀린 견본은 전부 걸려야 한다."""
+    bad_js = [
+        'const A = () => <Typography>워커가 응답하지 않습니다.</Typography>;',
+        'toast("백엔드 오류로 저장하지 못했습니다.");',
+        'const msg = `Postfix 를 다시 시작합니다.`;',
+        'const help = "legacy 정책은 숨겼습니다.";',
+    ]
+    good_js = [
+        'const workerStatus = "상태";',
+        'const key = "sync_status";',
+        'const A = () => <TechDetail>{raw}</TechDetail>;',
+        'const note = "기술 정보: worker 큐"; // clovi-allow-term: 기술 정보 접기 안의 원문',
+        '// 워커가 응답하지 않으면 다시 시도한다',
+    ]
+    bad_py = ['raise ValidationAppError("password_ref 는 고칠 수 없습니다.")\n', 'MESSAGE = "백그라운드 worker 가 멈췄습니다."\n']
+    good_py = ['logger.info("워커 리스를 잡았다: %s", owner)\n', 'logger.warning(\n    "다른 워커가 이미 돌고 있다"\n)\n', 'KEY = "ai_usage_records"\n']
+    problems: list[str] = []
+    for src in bad_js:
+        if not _js_term_hits(src):
+            problems.append(f"틀린 견본을 못 잡음(JS): {src}")
+    for src in good_js:
+        if _js_term_hits(src):
+            problems.append(f"맞는 견본을 잘못 잡음(JS): {src}")
+    for src in bad_py:
+        if not _python_term_hits(src):
+            problems.append(f"틀린 견본을 못 잡음(PY): {src.strip()}")
+    for src in good_py:
+        if _python_term_hits(src):
+            problems.append(f"맞는 견본을 잘못 잡음(PY): {src.strip()}")
+    if _template_term_hits("<p>{# 워커 #}메일 서버가 접수했습니다.</p>\n") or not _template_term_hits("<p>OpenDKIM 이 서명했습니다.</p>\n"):
+        problems.append("틀 견본 판정이 틀림")
+    if problems:
+        for p in problems:
+            print(f"  - {p}")
+        print("USER_TEXT_SELF_TEST_FAILED")
+        return 1
+    print(f"USER_TEXT_SELF_TEST_OK (틀린 견본 {len(bad_js) + len(bad_py) + 1}개 전부 잡음, 맞는 견본 {len(good_js) + len(good_py) + 1}개 오탐 0)")
+    return 0
+
+
 def main() -> int:
+    if "--self-test" in sys.argv[1:]:
+        return self_test()
     targets: list[tuple[Path, list[tuple[int, str, str]]]] = []
 
     for path in _collect([("frontend/src", "*.jsx"), ("frontend/src", "*.js")]):
@@ -216,6 +414,9 @@ def main() -> int:
 
     offenders = [(p, hits) for p, hits in targets if hits]
     total = sum(len(h) for _, h in offenders)
+    terms = term_targets()
+    term_offenders = [(p, hits) for p, hits in terms if hits]
+    term_total = sum(len(h) for _, h in term_offenders)
     if offenders:
         print("[FAIL] 사용자에게 보이는 문구에 쓰지 않기로 한 문자가 있다:")
         print(f"       (일부러 남겨야 하면 같은 줄에 {ALLOW_MARKER} 를 적어 둔다)")
@@ -225,9 +426,19 @@ def main() -> int:
                 print(f"  - {rel}:{line_no}  {label}  {snippet[:100]}")
             if len(hits) > 6:
                 print(f"    … 이 파일에 {len(hits) - 6}건 더")
-        print(f"USER_TEXT_FAILED ({total}건, {len(offenders)}개 파일)")
+    if term_offenders:
+        print("[FAIL] 사용자에게 보이는 문구에 개발 내부 용어가 있다(계획 5절 — 기술 정보 안에만 둔다):")
+        print(f"       (일부러 남겨야 하면 같은 줄에 {TERM_ALLOW_MARKER}: 까닭 을 적어 둔다)")
+        for path, hits in term_offenders:
+            rel = path.relative_to(ROOT).as_posix()
+            for line_no, label, snippet in hits[:6]:
+                print(f"  - {rel}:{line_no}  {label}  {snippet[:100]}")
+            if len(hits) > 6:
+                print(f"    … 이 파일에 {len(hits) - 6}건 더")
+    if offenders or term_offenders:
+        print(f"USER_TEXT_FAILED (글리프 {total}건 · 내부 용어 {term_total}건)")
         return 1
-    print(f"USER_TEXT_OK (검사 {len(targets)}개 파일)")
+    print(f"USER_TEXT_OK (검사 {len(targets)}개 파일 · 내부 용어 {len(terms)}개 파일)")
     return 0
 
 

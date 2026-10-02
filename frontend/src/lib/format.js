@@ -362,11 +362,22 @@ export const actionKo = (v) => {
     const obj = s.slice(0, i), verb = s.slice(i + 1);
     const objTxt = OBJECT_KO[obj] || obj, verbTxt = VERB_KO[verb] || verb;
     // 대상·동작이 같은 한국어로 번역되는 조합(예: approval.approve → "승인"·"승인")은
-    // "승인, 승인"처럼 중복 노출된다 — 하나만 남기고 완료를 뜻하는 "됨"을 붙인다.
-    out = objTxt === verbTxt ? objTxt + "됨" : objTxt + ", " + verbTxt;
+    // "승인 승인"처럼 중복 노출된다 — 하나만 남기고 완료를 뜻하는 "됨"을 붙인다.
+    // 나머지는 「대상 동작」 명사구다(「스케줄 활성화」). 예전에는 쉼표로 이어 「스케줄, 활성화」처럼 두 낱말이 따로 놀았다(계획 5절).
+    out = objTxt === verbTxt ? objTxt + "됨" : objTxt + " " + verbTxt;
   }
   return cli ? out + " (CLI)" : out;
 };
+
+/* 승인 요청 유형 → 한국어. 서버 `app/approvals/service.py::_REQUEST_TYPE_KO` 와 **같은 낱말**이다 — 알림 · 메일 제목과 승인 화면이
+ * 같은 요청을 다른 이름으로 부르지 않는다. 사전에 없는 유형은 감사 동작 번역(`actionKo`)으로 대신한다. */
+export const APPROVAL_TYPE_KO = {
+  "user.role_change": "역할 변경",
+  "integration.change_config": "연동 설정 변경",
+  "schedule.enable": "스케줄 활성화",
+  "ai.document_create": "AI 문서 만들기",
+};
+export const approvalTypeKo = (v) => (v == null || v === "" ? "-" : (APPROVAL_TYPE_KO[v] || actionKo(v)));
 
 /* 사람 한 명의 소속을 한 줄로 — 서버 `core/people.affiliation` 과 같은 규칙.
  *

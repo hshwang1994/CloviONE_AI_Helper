@@ -519,10 +519,9 @@ export function Users() {
   /* 고른 사용자에게 할 일 — 목록 판 발의 선택 묶음과, 선택을 비운 뒤에도 남는 실패 줄(`UsersBulk.jsx::useUserBulk`). */
   const bulk = useUserBulk({ selection, deptOptions: dept.options, titleOptions: title.options, onDone: refresh });
 
-  /* 열 폭은 브라우저 auto 레이아웃에 맡긴다 — 8개 열에 고정 폭(rem)을 주면 요청 폭 합이 1366px
-   * 사내 장비의 가용 폭을 넘겨, 이메일·이름·날짜가 단어 중간에서 꺾여 3줄로 접혔다(설정 표에서는
-   * 폭을 지정하지 않은 '설명' 열이 아예 한 줄에 한 자씩 세로로 무너졌다). 넓은 화면에서는 내용에
-   * 비례해 자연히 벌어지므로 4K에서도 손해가 없다. */
+  /* 열 폭은 화면이 정하지 않는다 — 타입과 열 등급(필수 · 보조 · 문맥)을 주면 `DataTable` 의 열 배분(`columnPlan.planColumns`,
+   * D-529)이 표가 받은 폭에서 나눈다. 예전에 8개 열에 고정 rem 을 주었을 때는 폭 합이 1366 의 판을 넘어 이메일 · 이름 · 날짜가
+   * 단어 중간에서 꺾였다. 좁으면 보조 열부터 숨기고 표가 그 사실을 말하며, 필수 열은 숨기지 않는다. */
   const columns = [
     // 대량 작업의 선택 열. 체크박스 클릭은 행 클릭(상세 열기)으로 번지지 않는다(bulkSelect.jsx).
     selectionColumn(selection, query.rows.map((r) => r.id)),

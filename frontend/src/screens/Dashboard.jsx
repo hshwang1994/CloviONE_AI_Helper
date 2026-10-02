@@ -82,7 +82,7 @@ function targetId(id) {
 export function actionOnly(action, objectType) {
   const full = actionKo(action);
   const obj = objKo(objectType);
-  const head = obj + ", ";
+  const head = obj + " "; // 감사 동작은 「대상 동작」 명사구다(`actionKo`) - 대상 칸과 겹치는 앞머리 낱말만 걷는다.
   return obj && obj !== "-" && full.startsWith(head) ? full.slice(head.length) : full;
 }
 function copyToClipboard(text) {
@@ -768,7 +768,7 @@ function DashboardBody({ d, nav, role, stale }) {
               value={d.last_backup_status ? <Badge value={d.last_backup_status} /> : "기록 없음"}
             />
             <Fact
-              label="마지막 성공"
+              label="최근 성공"
               value={d.last_backup_at ? fmtDateTime(d.last_backup_at) : "없음"}
               tone={!d.last_backup_at ? "warning" : undefined}
             />

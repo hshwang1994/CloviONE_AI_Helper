@@ -148,7 +148,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
           <EmptyState
             art="tickets"
             title="마일스톤이 없습니다"
-            help="마일스톤이 하나도 없으면 일정 준수 여부를 판정할 수 없어 Health 에서도 그 항목이 빠집니다."
+            help="마일스톤이 하나도 없으면 일정 준수 여부를 판정할 수 없어 건강도에서도 그 항목이 빠집니다."
             action={addButton}
           />
         </Card>
@@ -363,7 +363,7 @@ function Overview({
       <Card>
         <SectionTitle
           component="h2"
-          title="Health"
+          title="건강도"
           action={(
             <Stack direction="row" gap={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
               {canWrite ? (
@@ -488,8 +488,8 @@ export function Project() {
       const result = await snapshotHealth.mutateAsync();
       toast(
         result && result.snapshot
-          ? "Health를 다시 계산하고 이번 주 이력에 남겼습니다."
-          : "Health를 다시 계산했습니다. 판정할 지표가 없어 이력에는 남기지 않았습니다.",
+          ? "건강도를 다시 계산하고 이번 주 이력에 남겼습니다."
+          : "건강도를 다시 계산했습니다. 판정할 지표가 없어 이력에는 남기지 않았습니다.",
         "success",
       );
     } catch (e) {
@@ -513,7 +513,7 @@ export function Project() {
         assigningDept={update.isPending}
         deptFailure={deptFailure}
         progressFailure={failureText([recomputeProgress, "진행률을 다시 계산하지 못했습니다."])}
-        healthFailure={failureText([snapshotHealth, "Health를 다시 계산하지 못했습니다."])}
+        healthFailure={failureText([snapshotHealth, "건강도를 다시 계산하지 못했습니다."])}
       />
     ),
     wbs: () => (

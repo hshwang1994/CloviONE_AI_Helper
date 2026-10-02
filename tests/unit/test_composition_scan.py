@@ -245,7 +245,8 @@ def test_browser_composition_tables_agree():
     route_ids = {r.id for r in ALL_ROUTES}
     assert set(cc.SELFTEST_EXPECT_BAD) <= set(cc.COMPOSITION_CHECKS)
     assert set(cc.SELFTEST_EXPECT_REASONS) <= set(cc.COMPOSITION_CHECKS)
-    assert len(cc.COMPOSITION_CHECKS) == len(set(cc.COMPOSITION_CHECKS)) == 12
+    # 열 배분(`column_balance`)과 같은 줄 컨트롤(`control_row`)이 더해져 열넷이다(계획 8.2).
+    assert len(cc.COMPOSITION_CHECKS) == len(set(cc.COMPOSITION_CHECKS)) == 14
     unknown = sorted(set(cc.ROUTE_EXPECT) - route_ids)
     assert unknown == [], f"ROUTE_EXPECT 에 없는 경로 id: {unknown}"
     allowed = {"listSurface", "editorBox", "pageFill", "chat", "skipBudget", "callerWidths", "filterExempt", "footerExempt"}

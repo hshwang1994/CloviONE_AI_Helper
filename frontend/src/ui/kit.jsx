@@ -2415,14 +2415,27 @@ export function columnCellHint(col, row, ctx, { truncate, raw, plain } = {}) {
   return undefined;
 }
 
-export function TableColGroup({ columns, widths }) {
+export function TableColGroup({ columns, widths, meta }) {
   const cols = Array.isArray(columns) ? columns : [];
   return (
     <colgroup>
       {cols.map((c) => {
         /* 배분 폭(px, D-529)이 있으면 그것이 정본이고, 못 쟀으면(첫 그림) 옛 바닥 폭이다. */
         const w = widths && widths[c.key] != null ? `${widths[c.key]}px` : columnLayoutWidth(c);
-        return <col key={c.key} style={w ? { width: w } : undefined} />;
+        /* 배분의 근거(등급 · 종류 · 바닥 · 상한)를 표식으로 남긴다 — QA 프로브 `column_balance` 가 읽는다(값은 px). */
+        const m = meta && meta[c.key];
+        return (
+          <col
+            key={c.key}
+            style={w ? { width: w } : undefined}
+            data-col-key={m ? c.key : undefined}
+            data-col-tier={m ? m.tier : undefined}
+            data-col-kind={m ? m.kind : undefined}
+            data-col-content={m && m.content ? "" : undefined}
+            data-col-min={m ? m.min : undefined}
+            data-col-max={m && m.max != null ? m.max : undefined}
+          />
+        );
       })}
     </colgroup>
   );
@@ -3392,6 +3405,9 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
            (=지금까지 받은 행 수)이고, 이것은 「전체가 몇 건인가」다. 한 속성에 두 뜻을 실으면
            `ui/virtual-rows.test.jsx` 와 `scripts/ui_qa/assertions.py` 가 함께 깨진다. */
         data-list-total={total != null ? total : undefined}
+        /* 숨긴 열(「키:등급」)과 가로 굴림 여부 — QA 프로브 `column_balance` 가 「필수 열이 숨었나」를 읽는다. */
+        data-hidden-cols={fit.meta ? (fit.hidden || []).map((c) => c.key + ":" + ((fit.meta[c.key] || {}).tier || "")).join(",") : undefined}
+        data-plan-scroll={fit.meta ? (fit.scroll ? "true" : "false") : undefined}
         sx={{
           ...tableLayoutSx(wideCols, fit),
           "& td, & th": { borderInline: 0 },
@@ -3420,7 +3436,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
           } : null),
         }}
       >
-        <TableColGroup columns={wideCols} widths={fit.widths} />
+        <TableColGroup columns={wideCols} widths={fit.widths} meta={fit.meta} />
         <TableHead>
           <TableRow>
             {wideCols.map((c) => (

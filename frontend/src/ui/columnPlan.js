@@ -217,15 +217,25 @@ function roundToTotal(values, total) {
  *   widths      { 열 키: px } — 칸 폭을 못 쟀으면 null(첫 그림은 옛 배치)
  *   tableWidth  표 폭(px) — 굴리는 경우 보이는 열 바닥 합, 아니면 칸 폭
  *   scroll      필수 열 바닥 합이 칸보다 커서 표 상자 안에서 가로로 굴러가는가
+ *   meta        { 열 키: { tier, kind, content, min, max } } — 바닥 · 상한은 px(상한 없으면 null). 표가 `<col>` 과 `<table>` 의
+ *               표식으로 내보내 QA 프로브(`column_balance`)가 「필수 열이 숨었나 · 한 열이 남는 폭을 혼자 먹나」를 잰다
  */
 export function planColumns(columns, availPx, { rootPx = 16, sortKey, glyphsOf, rows } = {}) {
   const cols = (columns || []).filter(Boolean);
   /* 칸 폭을 아직 못 쟀으면(첫 그림) 아무 열도 숨기지 않고 옛 바닥 배치로 그린다 — 남는 폭은 제목 열이나 마지막 산문 열이
      받는다(`assignLeftoverWidth`). 한 프레임 넘치는 편이 열이 사라졌다 돌아오는 것보다 낫다. */
-  if (!(availPx > 0)) return { shown: assignLeftoverWidth(cols), hidden: [], widths: null, tableWidth: null, scroll: false };
+  if (!(availPx > 0)) return { shown: assignLeftoverWidth(cols), hidden: [], widths: null, tableWidth: null, scroll: false, meta: null };
   const root = rootPx > 0 ? rootPx : 16;
   const specs = new Map(cols.map((c) => [c, columnSpec(c, { rootPx: root, sortKey, rows, glyphs: glyphsOf ? glyphsOf(c) : 0 })]));
   const floorPx = (c) => specs.get(c).min * root;
+  const meta = {};
+  for (const [c, s] of specs) {
+    const typeSpec = s.type && COLUMN_TYPES[s.type];
+    meta[c.key] = {
+      tier: s.tier, kind: s.kind, content: !!(typeSpec && typeSpec.content),
+      min: Math.round(s.min * root), max: s.max != null ? Math.round(s.max * root) : null,
+    };
+  }
   const avail = Math.floor(availPx);
 
   let shown = cols.slice();
@@ -251,7 +261,7 @@ export function planColumns(columns, availPx, { rootPx = 16, sortKey, glyphsOf, 
     const widths = {};
     for (const c of shown) widths[c.key] = Math.ceil(widthPx.get(c) - 1e-9);
     const tableWidth = Object.values(widths).reduce((a, b) => a + b, 0);
-    return { shown, hidden, widths, tableWidth, scroll: true };
+    return { shown, hidden, widths, tableWidth, scroll: true, meta };
   }
 
   // 남는 폭 — 늘어나는 열에 비중대로, 상한까지(물 채우기).
@@ -278,5 +288,5 @@ export function planColumns(columns, availPx, { rootPx = 16, sortKey, glyphsOf, 
   const rounded = roundToTotal(shown.map((c) => widthPx.get(c)), avail);
   const widths = {};
   shown.forEach((c, i) => { widths[c.key] = rounded[i]; });
-  return { shown, hidden, widths, tableWidth: avail, scroll: false };
+  return { shown, hidden, widths, tableWidth: avail, scroll: false, meta };
 }

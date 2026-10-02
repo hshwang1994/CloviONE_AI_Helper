@@ -43,12 +43,12 @@ describe("ServiceStatusPanel — worker_conversational 유닛 안내 (D-118)", (
     const user = userEvent.setup();
     const nav = vi.fn();
     renderPanel({ web: "up", worker: "up", scheduler: "up", worker_conversational: "down" }, nav);
-    await user.click(screen.getByRole("button", { name: /대화형 워커/ }));
+    await user.click(screen.getByRole("button", { name: /대화형 작업/ }));
     expect(nav).toHaveBeenCalledWith("/jobs");
   });
 
   it("대화형 레인을 켠 적 없는 설치(comps에 키 자체가 없음)에서는 타일이 안 보인다", () => {
     renderPanel({ web: "up", worker: "up", scheduler: "up" });
-    expect(screen.queryByText("대화형 워커")).toBeNull();
+    expect(screen.queryByText("대화형 작업")).toBeNull();
   });
 });

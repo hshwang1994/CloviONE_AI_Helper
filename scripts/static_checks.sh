@@ -413,10 +413,16 @@ step "User-facing text avoids the banned glyphs"
 # 한 번 훑고 끝내면 다음 화면에서 다시 새어 나가므로 검사로 고정한다.
 # grep 을 쓰지 않는 이유는 검사기 docstring 에 적어 뒀다 — 저장소의 두 문자 5,985개 중
 # 86%가 한국어 주석·docstring 이라 단순 grep 은 오탐 5,157개를 낸다.
+# 같은 검사가 개발 내부 용어(Postfix · worker · password_ref …)도 본다(계획 5절) — 자기 시험으로 검사기부터 잰다.
+if UTEXTST="$("$PY" scripts/check_user_text.py --self-test 2>&1)"; then
+  ok "$(echo "$UTEXTST" | tail -1)"
+else
+  echo "$UTEXTST"; fail "문구 검사기가 자기 견본을 잘못 판정한다"
+fi
 if UTEXT="$("$PY" scripts/check_user_text.py 2>&1)"; then
   ok "$(echo "$UTEXT" | tail -1)"
 else
-  echo "$UTEXT"; fail "사용자에게 보이는 문구에 쓰지 않기로 한 문자가 있다"
+  echo "$UTEXT"; fail "사용자에게 보이는 문구에 쓰지 않기로 한 문자나 개발 내부 용어가 있다"
 fi
 
 step "subprocess text mode declares its encoding"

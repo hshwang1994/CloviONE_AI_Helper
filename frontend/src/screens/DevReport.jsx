@@ -338,9 +338,9 @@ export function DevReport() {
           <Section titleAs="h2" title={`개발자별 상세 (${data.period})`} rule
             action={devs.length ? <StatusLegend /> : null}>
             {devs.length === 0 ? (
-              <EmptyState art="tickets" title="이 달에 집계할 담당자가 없습니다"
-                help="선택한 달에 마감일이 있는 티켓이 없거나, 활성 사용자가 없습니다."
-                situation="기간을 바꾸거나, 사용자 화면에서 담당자 계정이 활성 상태인지 확인하세요." />
+              /* 구획 하나가 빈 것이라 한 줄 띠다(D-530) — 큰 그림은 화면 전체가 빈 자리에만 선다. */
+              <EmptyState layout="band" title="이 달에 집계할 담당자가 없습니다"
+                help="선택한 달에 마감일이 있는 티켓이 없거나 활성 사용자가 없습니다." />
             ) : (
               <TableWrap minWidth="60rem">
                 {/* 집계 표라 「받았다」는 건수를 말하지 않는다(`list={false}`) — 행은 받은 목록이 아니라 사람별 합이다. */}
@@ -372,7 +372,7 @@ export function DevReport() {
               </Callout>
             ) : null}
             {withCompleted.length === 0 ? (
-              <EmptyState art="tickets" title="이 달에 끝낸 일이 없습니다"
+              <EmptyState layout="band" title="이 달에 끝낸 일이 없습니다"
                 help="끝낸 날짜가 이 달인 완료 티켓이 생기면 여기에 담당자별로 보입니다." />
             ) : (
               <TableWrap minWidth="40rem">
@@ -383,7 +383,7 @@ export function DevReport() {
 
           <Section titleAs="h2" title="담당자별 상세 티켓" rule>
             {withTickets.length === 0 ? (
-              <EmptyState art="tickets" title="이 달에 담당한 티켓이 있는 사람이 없습니다"
+              <EmptyState layout="band" title="이 달에 담당한 티켓이 있는 사람이 없습니다"
                 help="선택한 달에 마감일이 있는 티켓이 배정되면 여기에 담당자별로 묶여 표시됩니다." />
             ) : (
               <TableWrap minWidth="56rem">

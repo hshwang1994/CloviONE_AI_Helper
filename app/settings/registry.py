@@ -539,7 +539,7 @@ REGISTRY: dict[str, SettingSpec] = {
         SettingSpec("ai_timeout_seconds", "int", 60, False,
                     "AI 호출 하나를 기다리는 시간(초)입니다", _ai_timeout),
         SettingSpec("ai_max_concurrency", "int", 2, False,
-                    "웹과 워커가 함께 나눠 쓰는 AI 동시 실행 수입니다", _ai_concurrency),
+                    "웹과 백그라운드 작업이 함께 나눠 쓰는 AI 동시 실행 수입니다", _ai_concurrency),
         # ChatGPT 계정 연결의 토큰 수명 기본값(계획 3.15, D-516). **정본은 제공자의 응답이다** - 응답의 `expires_in` ·
         # JWT `exp` · `refresh_token_expires_in` 이 없을 때만 이 값을 쓴다. 제공자가 수명을 바꿔도 코드를 고치지 않는다.
         SettingSpec("ai_openai_access_ttl_fallback_seconds", "int", 3600, False,

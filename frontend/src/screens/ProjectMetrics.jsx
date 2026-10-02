@@ -215,7 +215,7 @@ export function HealthHistory({ query }) {
         <Sparkline
           points={chrono.map((it) => it.score)}
           height="3.5rem"
-          question="Health 가 오르고 있는지 내리고 있는지 봅니다."
+          question="건강도가 오르고 있는지 내리고 있는지 봅니다."
           summary={`${first.week_of} 주 ${first.score}점에서 ${last.week_of} 주 ${last.score}점으로 왔습니다.`}
         />
       ) : null}

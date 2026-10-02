@@ -241,7 +241,7 @@ function Summary({ query, filters, onFilter }) {
         onSelect={(key) => onFilter({ status: filters.status === key ? "" : key, trouble: false, overdue: false })}
       />
       {/* 진행과 위험 — **숫자만 나열하지 않는다** (지시 15).
-          평균 진행률은 막대가, Health 는 원이 그 값을 그린다. 셋 다 성격이 달라서 한
+          평균 진행률은 막대가, 건강도는 원이 그 값을 그린다. 셋 다 성격이 달라서 한
           판독 줄에 밀어 넣으면 무엇이 조치를 요구하는 값인지 안 보인다. */}
       <Box
         sx={{
@@ -264,10 +264,10 @@ function Summary({ query, filters, onFilter }) {
         </SummaryPanel>
 
         <SummaryPanel
-          label="Health 하위"
+          label="건강도 낮음"
           active={filters.trouble}
           onClick={() => onFilter({ trouble: !filters.trouble, status: "", overdue: false })}
-          actionLabel="Health 하위 프로젝트만 보기"
+          actionLabel="건강도가 낮은 프로젝트만 보기"
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
             {/* 재 본 것 중 몇이 차질인가. **안 잰 것은 분모가 아니다** — 넣으면 아무것도
@@ -370,7 +370,7 @@ function columns(deptNames) {
       render: (p) => <StatCell cell={progressCell(p)} />,
     },
     {
-      key: "health_score", label: "Health", type: "score",
+      key: "health_score", label: "건강도", type: "score",
       render: (p) => <StatCell cell={healthCell(p)} />,
     },
     {
@@ -482,7 +482,7 @@ export function Projects() {
     filters.q ? { key: "q", label: `검색: ${filters.q}`, onDelete: () => setFilters({ q: "" }) } : null,
     filters.dept ? { key: "dept", label: `부서: ${names[filters.dept] || unmatchedLabel(filters.dept, !q.first)}`, onDelete: () => setFilters({ dept: "" }) } : null,
     filters.status ? { key: "status", label: `상태: ${PROJECT_STATUS_KO[filters.status] || filters.status}`, onDelete: () => setFilters({ status: "" }) } : null,
-    filters.trouble ? { key: "trouble", label: "Health 하위", onDelete: () => setFilters({ trouble: false }) } : null,
+    filters.trouble ? { key: "trouble", label: "건강도 낮음", onDelete: () => setFilters({ trouble: false }) } : null,
     filters.overdue ? { key: "overdue", label: "지연 마일스톤", onDelete: () => setFilters({ overdue: false }) } : null,
     /* 칩 낱말은 켬/끔 단추 낱말과 다르게 「이름: 값」이다 — 같은 이름의 누를 것이 둘이면 낭독기가 가르지 못한다. */
     filters.archived ? { key: "archived", label: "보관한 프로젝트: 포함", onDelete: () => setFilters({ archived: false }) } : null,
@@ -516,7 +516,7 @@ export function Projects() {
 
       {/* 탐색 줄은 **판이 아니다** (지시 80 · W5). 검색 · 부서 · 상태가 한 줄에 서고 「보관한 프로젝트 포함」은 결과를 바꾸는
           켬/끔 조건이라 조건 칸 바로 뒤에 서고 칩을 만든다(D-530). 예전에는 검색만 한 줄을 쓰고 부서 · 상태가 다음 줄로 내려갔고,
-          결과 수는 면 밖 한 줄이 말했다. 걸린 조건(요약 카드를 눌러 켠 「Health 하위」 · 「지연 마일스톤」 포함)은 모두 조건 줄의 칩이다. */}
+          결과 수는 면 밖 한 줄이 말했다. 걸린 조건(요약 카드를 눌러 켠 「건강도 낮음」 · 「지연 마일스톤」 포함)은 모두 조건 줄의 칩이다. */}
       <FilterBar
         search={(
           <SearchBox

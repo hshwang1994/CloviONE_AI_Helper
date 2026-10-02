@@ -75,7 +75,7 @@ describe("서비스 이름 어휘 일관성 — /dashboard vs /diagnostics (PA-R
        것을 집는다. */
     const first = (t) => within(dashboardRender.container).getAllByText(t)[0];
     const dashboardWeb = first("웹 서버");
-    const dashboardWorker = first("백그라운드 워커");
+    const dashboardWorker = first("백그라운드 작업");
     const dashboardNotion = first("Notion");
     dashboardRender.unmount();
 

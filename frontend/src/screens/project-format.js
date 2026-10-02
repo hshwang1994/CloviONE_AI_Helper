@@ -98,7 +98,7 @@ export const WBS_UNPLACED_KO = {
 export const NO_PROGRESS_CACHE = "아직 계산하지 않았습니다";
 export const NO_PROGRESS_SAMPLE = "작업이 아직 없습니다";
 export const NO_HEALTH_SCORE = "점수를 낼 수 없습니다";
-export const NO_HEALTH_CACHE = "Health 를 아직 계산하지 않았습니다";
+export const NO_HEALTH_CACHE = "건강도를 아직 계산하지 않았습니다";
 
 /* 목록 칸에 들어가는 **짧은 낱말** (계획 3.1).
  *
