@@ -106,14 +106,14 @@ export function headerNeedRem(label, glyphs = 0) {
   return stepUp(textRem(label, HEADER_FONT_REM, 600) + CELL_PAD_REM + GLYPH_REM * Math.max(0, glyphs));
 }
 
-/** 가장 긴 값이 한 줄로 서는 폭(rem). */
-export function valuesNeedRem(values) {
+/** 가장 긴 값이 한 줄로 서는 폭(rem). `lead` 는 글 앞에 서는 그림(표지 점 · 아바타)과 그 사이 폭(rem)이다. */
+export function valuesNeedRem(values, lead = 0) {
   let longest = 0;
   for (const v of values || []) {
     if (v == null || v === "") continue;
     longest = Math.max(longest, textRem(String(v), VALUE_FONT_REM));
   }
-  return longest ? stepUp(longest + CELL_PAD_REM) : 0;
+  return longest ? stepUp(longest + (Number(lead) || 0) + CELL_PAD_REM) : 0;
 }
 
 /** 칸에 그려지는 **화면 낱말** — `value(row)`(열의 글 값 정본) · `hint(row)`(그린 글자) · 글 · 수 원값 순서. 모르면 null. */
@@ -129,24 +129,32 @@ export function columnValueText(col, row) {
       const v = c.hint(row);
       if (v != null && v !== "") return String(v);
     }
-    /* 행 이름(`rowName`)은 이름 · 제목 열이 그리는 글이다 — 그리는 함수만 있는 이름 열도 값 폭으로 내용 몫을 받는다(P17V: 정책 이름
-       열이 값 폭을 몰라 비중 몫만 받고 잘렸다). 값 폭을 남에게 내주는 것(`trusted`)은 여전히 `value` 를 적은 열만이다. */
-    if (typeof c.rowName === "function") {
-      const v = c.rowName(row);
-      if (v != null && v !== "") return String(v);
-    }
   } catch (e) {
     return null;
   }
-  const raw = row[c.key];
-  if (typeof raw !== "string" && typeof raw !== "number") return null;
-  const text = String(raw);
   /* id 는 화면 글이 아니다 — 부서 열은 부서 id(UUID)를 들고 이름을 그린다. 그 길이로 재면 열 바닥이 20rem 을 넘어 1366 프로젝트 표가
      가로로 굴렀다(P5 캡처). 그리는 함수(`render`)가 있는 열은 원래 값이 화면 글이 아닐 수 있어, 서버가 준 화면 낱말(`*_label` ·
      `*_name` · `*_title`)만 잰다. 다른 화면 글은 `value(row)` · `hint` 로 말한다. */
-  if (OPAQUE_VALUE.test(text.trim())) return null;
-  if (typeof c.render === "function" && !DISPLAY_KEY.test(String(c.key || ""))) return null;
-  return text;
+  const raw = row[c.key];
+  const drawsRaw = typeof c.render !== "function" || DISPLAY_KEY.test(String(c.key || ""));
+  if (drawsRaw && (typeof raw === "string" || typeof raw === "number")) {
+    const text = String(raw);
+    return OPAQUE_VALUE.test(text.trim()) ? null : text;
+  }
+  /* 행 이름(`rowName`)은 **그리는 함수만 가진 이름 · 제목 열**이 그리는 글이다 — 그런 열도 값 폭으로 내용 몫을 받는다(P17V: 정책 이름
+     열이 값 폭을 몰라 비중 몫만 받고 잘렸다). 다른 열의 `rowName` 은 그 칸의 글이 아니다: 사용자 표는 이메일 열에 행 이름(표시 이름)을
+     달아, 이메일 열이 이메일 대신 이름 길이로 재여 랩 캡처에서 「donghyunkim@goodmit.co…」로 잘렸다. 값 폭을 남에게 내주는 것(`trusted`)은
+     여전히 `value` 를 적은 열만이다. */
+  const type = resolveColumn(c).type;
+  if (typeof c.render === "function" && typeof c.rowName === "function" && (type === "name" || type === "title")) {
+    try {
+      const v = c.rowName(row);
+      if (v != null && v !== "") return String(v);
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
 }
 
 const OPAQUE_VALUE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$|^[0-9a-f]{32}$/i;
@@ -210,10 +218,12 @@ export function columnSpec(col, { rootPx = 16, glyphs = 0, sortKey, rows } = {})
   }
   const floor = minOverride != null ? minOverride : (typeSpec ? remOf(typeSpec.minWidth) : (remOf(s.minWidth) || 4.5));
   let values = 0;
-  if (!typeSpec || typeSpec.content) {
+  /* 값 길이로 폭을 정하는 열은 내용 타입(상태 · 종류 · 코드)과 타입 없는 열이다. 날짜 · 수 같은 고정 타입도 호출부가 그리는 글을
+     `value` · `values` 로 말하면 그 글로 잰다 — 「시작 ~ 끝」 기간 열은 날짜 하나의 바닥으로는 모자랐다(랩 캡처의 프로젝트 표). */
+  if (!typeSpec || typeSpec.content || typeof c.value === "function" || Array.isArray(c.values)) {
     const list = Array.isArray(c.values) ? c.values
       : (rows || []).slice(0, VALUE_SAMPLE_ROWS).map((r) => columnValueText(c, r));
-    values = valuesNeedRem(list);
+    values = valuesNeedRem(list, c.lead != null ? c.lead : (typeSpec && typeSpec.lead));
   }
   const w = Math.max(floor, header, values);
   return { ...base, kind: "fixed", min: maxOverride != null ? Math.min(w, Math.max(maxOverride, floor)) : w, weight: 0, max: null };

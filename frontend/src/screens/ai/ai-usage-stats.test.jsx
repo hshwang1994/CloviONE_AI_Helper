@@ -79,6 +79,14 @@ describe("AI 사용 통계 화면", () => {
     expect(statsCalls()[0]).toContain("period=30d");
   });
 
+  it("최근 사용은 표의 날짜 · 시각 칸 규약(24시간제 압축)이다 — 긴 「오후」 형식은 11rem 칸 밖으로 넘쳤다(랩 1366)", async () => {
+    renderStats();
+    await screen.findByRole("columnheader", { name: /최근 사용/ });
+    const row = screen.getByRole("row", { name: /AI 도우미/ });
+    expect(within(row).getByText("2026-10-01 14:05")).toBeInTheDocument();
+    expect(row.textContent).not.toMatch(/오후|오전/);
+  });
+
   it("보기 기준은 조건이 아니다 — 첫 열 이름이 바뀌고 조건 칩이 생기지 않는다", async () => {
     const user = userEvent.setup();
     renderStats();

@@ -12,6 +12,7 @@ import { PageHeader, Card, DataTable, Badge, Section, Skeleton, EmptyState, Erro
 import { CARD_PADDING } from "../ui/density.js";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { StatusList, StatusTile, Note } from "../ui/adminKit.jsx";
+import { DateCell } from "../ui/cells.jsx";
 import {
   serviceLabel, daysSince, BACKUP_STALE_DAYS, fmtNum, fmtProcessingTime, fmtCertDays,
   failedOpenAgeLabel, componentState, integrationState, storageState, countStates,
@@ -859,7 +860,7 @@ function RecentChanges({ rows, role, nav, revealedId, onCopyId }) {
           rows={rows}
           rowKey={(a) => a.created_at + "|" + (a.object_id || "") + "|" + a.action}
           columns={[
-            { key: "created_at", label: "시각", type: "datetime", render: (a) => fmtDateTime(a.created_at) },
+            { key: "created_at", label: "시각", type: "datetime", render: (a) => <DateCell value={a.created_at} /> },
             {
               key: "action", label: "동작", type: "text", rowName: (a) => actionOnly(a.action, a.object_type),
               render: (a) => <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold }}>{actionOnly(a.action, a.object_type)}</Box>,

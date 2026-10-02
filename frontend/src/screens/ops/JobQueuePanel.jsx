@@ -7,6 +7,7 @@ import { StatusKpiStrip } from "../../ui/StatusKpi.jsx";
 import { Sparkline } from "../../ui/charts/Sparkline.jsx";
 import { STRIP_AS_META_MAX } from "../data-screen/SummaryView.jsx";
 import { fmtNum, fmtProcessingTime } from "./opsHelpers.js";
+import { DateCell } from "../../ui/cells.jsx";
 
 /* 최근 24시간에 잰 측정값 셋 — 처리 요청 · 성공률 · 평균 처리. 잴 수 없는 값(종료된 작업이 없어 성공률이 없거나,
  * 처리 이력이 없어 평균이 없을 때)은 `null` 이라 서지 않는다(D-501 · `StatusKpi.jsx`). 「-」 한 글자를 든 판은 값이
@@ -86,7 +87,7 @@ export function JobQueuePanel({ jobs24, jobErrors, errorDist, nav }) {
                 placement="surface"
                 list={false}
                 columns={[
-                  { key: "at", label: "시각", type: "datetime", render: (e) => fmtDateTime(e.at) },
+                  { key: "at", label: "시각", type: "datetime", render: (e) => <DateCell value={e.at} /> },
                   { key: "error", label: "오류", type: "title", render: (e) => e.error || "-" },
                   /* 원시 영어 enum(chat_message 등)이 한글 콘솔에 새지 않게 한국어로 변환(미매핑은 원값 폴백). */
                   { key: "job_type", label: "작업", type: "enum", render: (e) => jobTypeKo(e.job_type) },

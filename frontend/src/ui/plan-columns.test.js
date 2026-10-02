@@ -216,9 +216,42 @@ describe("머리글과 값 길이", () => {
     expect(spec.kind).toBe("fixed");
     expect(spec.min).toBe(8);
     const long = columnSpec({ key: "s", label: "상태", type: "status" }, { rows: [{ s: "수신측이 거부함" }] });
-    // 「수신측이 거부함」 한글 7 + 빈칸 1 = 7.25em × 14 = 101.5 + 32 = 133.5 → 8.5rem.
-    expect(long.min).toBe(8.5);
+    // 「수신측이 거부함」 한글 7 + 빈칸 1 = 7.25em × 14 = 101.5 + 표지 점과 사이 16 + 32 = 149.5 → 9.5rem.
+    expect(long.min).toBe(9.5);
     expect(valuesNeedRem(["가"])).toBe(3);
+    expect(valuesNeedRem(["가"], 1)).toBe(4);
+  });
+
+  it("반례 — 상태 낱말 앞의 표지 점을 빼고 재면 긴 낱말이 칸보다 길다(랩 캡처의 발송 기록)", () => {
+    // 칸에 서는 것은 점 6px + 사이 10px + 낱말이다(`kit.jsx::Badge`). 점을 뺀 값 폭(8.5rem)으로는 낱말 + 점이 칸 안쪽(8.5 − 2)에 들지 않는다.
+    const textOnly = valuesNeedRem(["수신측이 거부함"]);
+    expect(textOnly).toBe(8.5);
+    expect(7.25 * 0.875 + 1).toBeGreaterThan(textOnly - 2);
+    const spec = columnSpec({ key: "s", label: "상태", type: "status" }, { rows: [{ s: "수신측이 거부함" }] });
+    expect(spec.min - 2).toBeGreaterThanOrEqual(7.25 * 0.875 + 1);
+  });
+
+  it("고정 타입도 그리는 글을 `value` 로 말하면 그 글로 잰다 — 「시작 ~ 끝」 기간 열(랩 프로젝트 표)", () => {
+    const rows = [{ s: "2025-08-22", e: "2026-03-31" }];
+    const period = { key: "period", label: "기간", type: "date", min: "12.5rem", value: (r) => r.s + " ~ " + r.e };
+    // 숫자 · 붙임표 20 × 0.58 + 물결 0.58 + 빈칸 2 × 0.25 = 12.68em × 14 = 177.5 + 32 = 209.5 → 13.5rem.
+    expect(columnSpec(period, { rows }).min).toBe(13.5);
+    // 반례 — 그리는 함수만 있으면 글을 모르므로 바닥(12.5rem) 그대로다.
+    const renderOnly = { key: "period", label: "기간", type: "date", min: "12.5rem", render: (r) => r.s + " ~ " + r.e };
+    expect(columnSpec(renderOnly, { rows }).min).toBe(12.5);
+  });
+
+  it("행 이름(`rowName`)은 그리는 함수만 가진 이름 · 제목 열에서만 값 글이다 — 이메일 열의 행 이름은 이메일이 아니다", () => {
+    const rows = [{ email: "donghyunkim@goodmit.co.kr", display_name: "김동현" }];
+    // 사용자 표: 이메일 열이 행 이름(표시 이름)을 단다. 이메일 열의 값 글은 이메일이다.
+    const email = { key: "email", label: "이메일", identifier: true, rowName: (r) => r.display_name || r.email };
+    expect(columnValueText(email, rows[0])).toBe("donghyunkim@goodmit.co.kr");
+    // 그리는 함수만 가진 이름 열은 행 이름으로 잰다(P17V 정책 이름 열).
+    const named = { key: "name", label: "이름", type: "name", render: () => null, rowName: (r) => r.display_name };
+    expect(columnValueText(named, rows[0])).toBe("김동현");
+    // 그리는 함수만 가진 다른 열의 행 이름은 그 칸의 글이 아니다.
+    const other = { key: "created_at", label: "실행", type: "datetime", render: () => null, rowName: (r) => r.display_name };
+    expect(columnValueText(other, rows[0])).toBe(null);
   });
 
   it("값 길이는 열의 화면 낱말로 잰다 — value(row) · hint(row) · 글 값 순서", () => {

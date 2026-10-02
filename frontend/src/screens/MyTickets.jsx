@@ -247,7 +247,7 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, claimingId = null
         const people = Array.isArray(t.assignee_people) ? t.assignee_people : [];
         if (people.length) {
           return (
-            <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+            <Box sx={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle", gap: 0.75, minWidth: 0 }}>
               {people.slice(0, 2).map((p) => (
                 <PersonLine
                   key={p.user_id || p.name}

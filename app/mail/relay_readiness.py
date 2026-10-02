@@ -323,6 +323,72 @@ def recipient_mx_row(system, compare, probe_domain: str, overrides: dict[str, st
                need="받는 도메인별 전달 서버를 넣거나 이 서버의 DNS 를 고치세요.", where="메일 설정 또는 서버 DNS"), None, None
 
 
+def _knows(lookup, domain: str) -> bool:
+    return lookup.mx(domain).ok or lookup.txt(domain).ok
+
+
+def sender_view(system_dns, compare_dns: list, domain: str) -> tuple[object | None, str | None]:
+    """보내는 도메인의 레코드를 **받는 쪽처럼** 보는 조회기 — `(조회기, 갈래)`.
+
+    받는 메일 서버는 공개 DNS 로 SPF · DKIM · DMARC · 역방향 이름을 본다. 비교할 공개 DNS 서버가 이 도메인을 알면 그것으로
+    판정한다(「public」). 없으면 이 서버의 DNS 다(「system」). 둘 다 모르면 `(None, None)` 이다 — 그때 「레코드가 없습니다」는 사실이
+    아닐 수 있다. 랩의 내부 해석기는 goodmit.co.kr 의 공개 SPF · DMARC 를 몰라 「없습니다」라고 했고, 그 말대로 새 SPF 를 넣으면 공개
+    DNS 에 SPF 가 둘이 되어 레코드 오류가 된다(P18 랩 E2E)."""
+    for resolver in compare_dns:
+        if _knows(resolver, domain):
+            return resolver, "public"
+    if _knows(system_dns, domain):
+        return system_dns, "system"
+    return None, None
+
+
+_BLIND = {
+    "spf": "이 서버의 DNS 로는 보내는 도메인의 SPF 를 볼 수 없어 판정하지 않았습니다.",
+    "dkim": "이 서버의 DNS 로는 보내는 도메인의 DKIM 레코드를 볼 수 없어 판정하지 않았습니다.",
+    "dmarc": "이 서버의 DNS 로는 보내는 도메인의 DMARC 를 볼 수 없어 판정하지 않았습니다.",
+}
+
+
+def sender_rows(system_dns, compare_dns: list, *, domain: str, egress_ip: str | None, helo: str,
+                dkim_selector: str, dkim_public: str, dkim_enabled: bool) -> tuple[list[dict], str | None, bool]:
+    """보내는 도메인 · SPF · DKIM · DMARC · 역방향 이름 · 서버 이름 줄 — `(줄들, 지금 SPF, 보내는 도메인 레코드를 봤는가)`.
+
+    판정은 받는 쪽이 보는 DNS(`sender_view`)로 한다. 보내는 도메인을 어느 조회기도 모르면 SPF · DKIM · DMARC 는 「모름」이고,
+    무엇을 넣으면 판정할 수 있는지를 말한다. 역방향 이름과 서버 이름도 공개 DNS 가 답하면 그것으로 본다 — 내부 해석기는 사설
+    이름(`*.lab`)을 사설 IP 로 풀어 「다른 IP 로 풀립니다」라고 했지만, 받는 쪽에게 그 이름은 아예 없는 이름이다."""
+    view, kind = sender_view(system_dns, compare_dns, domain)
+    rows: list[dict] = []
+    if kind == "public" and not _knows(system_dns, domain):
+        rows.append(row("sender_domain_public", OK,
+                        f"보내는 도메인({domain})을 공개 DNS 에서 찾았습니다. 이 서버의 DNS 는 이 도메인을 모릅니다(분리 DNS)."))
+    elif kind is not None:
+        rows.append(row("sender_domain_public", OK, f"보내는 도메인({domain})을 DNS 에서 찾았습니다."))
+    else:
+        rows.append(row("sender_domain_public", WARN, f"보내는 도메인({domain})을 이 서버의 DNS 에서 찾지 못했습니다.",
+                        need=("받는 쪽이 보는 공개 DNS 에 이 도메인이 있어야 합니다." if compare_dns
+                              else "이 서버의 DNS 가 공개 레코드를 모르면 비교할 공개 DNS 서버를 넣으세요."),
+                        where="도메인 DNS" if compare_dns else "메일 설정의 비교할 공개 DNS 서버"))
+    current_spf = None
+    if view is None:
+        need = "비교할 공개 DNS 서버를 넣으면 받는 쪽이 보는 레코드로 판정합니다."
+        where = "메일 설정의 비교할 공개 DNS 서버"
+        rows.append(row("spf", UNKNOWN, _BLIND["spf"], need=need, where=where))
+        if dkim_enabled:
+            rows.append(row("dkim", UNKNOWN, _BLIND["dkim"], need=need, where=where))
+        else:
+            rows.append(dkim_row(system_dns, domain, dkim_selector, dkim_public, dkim_enabled))
+        rows.append(row("dmarc", UNKNOWN, _BLIND["dmarc"], need=need, where=where))
+    else:
+        spf, current_spf = spf_row(view, domain, egress_ip)
+        rows.append(spf)
+        rows.append(dkim_row(view, domain, dkim_selector, dkim_public, dkim_enabled))
+        rows.append(dmarc_row(view, domain)[0])
+    names = view if kind == "public" else system_dns
+    rows.append(ptr_row(names, egress_ip, helo))
+    rows.append(helo_row(names, helo, egress_ip))
+    return rows, current_spf, view is not None
+
+
 def outbound_row(probe: dict | None) -> dict:
     if probe is None:
         return row("outbound_25", UNKNOWN, "받는 쪽 메일 서버를 몰라 25번 연결을 시험하지 않았습니다.")
@@ -335,10 +401,13 @@ def outbound_row(probe: dict | None) -> dict:
 
 
 def records_for(*, domain: str, egress_ip: str | None, current_spf: str | None, dkim_selector: str, dkim_public: str,
-                dkim_enabled: bool, from_address: str, helo: str) -> list[dict]:
-    """복사할 DNS 레코드 — 이름 · 종류 · 값. 기존 SPF 가 있으면 그것과 합친 제안이다."""
+                dkim_enabled: bool, from_address: str, helo: str, sender_seen: bool = True) -> list[dict]:
+    """복사할 DNS 레코드 — 이름 · 종류 · 값. 기존 SPF 가 있으면 그것과 합친 제안이다.
+
+    보내는 도메인의 레코드를 보지 못했으면(`sender_seen=False`) SPF · DMARC 제안을 내지 않는다 — 기존 레코드를 모르는 채 새 SPF 를
+    제안하면 공개 DNS 에 SPF 가 둘이 되어 레코드 오류가 된다."""
     out: list[dict] = []
-    if egress_ip:
+    if egress_ip and sender_seen:
         if current_spf:
             terms = current_spf.split()[1:]
             all_terms = [t for t in terms if t.lstrip("+-~?").lower() == "all"]
@@ -351,7 +420,8 @@ def records_for(*, domain: str, egress_ip: str | None, current_spf: str | None, 
         txt = relay_certs.dkim_txt(dkim_public)
         out.append({"key": "dkim", "name": rf.dkim_record_name(domain, dkim_selector), "type": "TXT", "value": txt,
                     "chunks": relay_certs.txt_chunks(txt)})
-    out.append({"key": "dmarc", "name": f"_dmarc.{domain}", "type": "TXT", "value": f"v=DMARC1; p=none; rua=mailto:{from_address}"})
+    if sender_seen:
+        out.append({"key": "dmarc", "name": f"_dmarc.{domain}", "type": "TXT", "value": f"v=DMARC1; p=none; rua=mailto:{from_address}"})
     if helo and egress_ip:
         out.append({"key": "helo", "name": helo, "type": "A", "value": egress_ip})
         out.append({"key": "ptr", "name": egress_ip, "type": "PTR", "value": helo,
@@ -398,22 +468,14 @@ def run_checks(
                           where=None if egress_ip else "메일 설정"))
         checks.append(outbound_row(probe))
         checks.append(mx_line)
-        public_answer = system_dns.mx(domain)
-        if public_answer.ok or system_dns.txt(domain).ok:
-            checks.append(row("sender_domain_public", OK, f"보내는 도메인({domain})을 DNS 에서 찾았습니다."))
-        else:
-            checks.append(row("sender_domain_public", WARN, f"보내는 도메인({domain})을 이 서버의 DNS 에서 찾지 못했습니다.",
-                              need="받는 쪽이 보는 공개 DNS 에 이 도메인이 있어야 합니다.", where="도메인 DNS"))
-        spf, current_spf = spf_row(system_dns, domain, egress_ip)
-        checks.append(spf)
-        checks.append(dkim_row(system_dns, domain, relay.dkim_selector, relay.dkim_public, relay.dkim_enabled))
-        dmarc, _current = dmarc_row(system_dns, domain)
-        checks.append(dmarc)
-        checks.append(ptr_row(system_dns, egress_ip, relay.helo_name))
-        checks.append(helo_row(system_dns, relay.helo_name, egress_ip))
+        lines, current_spf, seen = sender_rows(system_dns, compare_dns, domain=domain, egress_ip=egress_ip,
+                                               helo=relay.helo_name, dkim_selector=relay.dkim_selector,
+                                               dkim_public=relay.dkim_public, dkim_enabled=relay.dkim_enabled)
+        checks.extend(lines)
         records = records_for(domain=domain, egress_ip=egress_ip, current_spf=current_spf,
                               dkim_selector=relay.dkim_selector, dkim_public=relay.dkim_public,
-                              dkim_enabled=relay.dkim_enabled, from_address=config.from_address, helo=relay.helo_name)
+                              dkim_enabled=relay.dkim_enabled, from_address=config.from_address, helo=relay.helo_name,
+                              sender_seen=seen)
         if suggest:
             records.insert(0, {"key": "override", "name": probe_domain, "type": "전달 서버", "value": suggest})
     worst = FAIL if any(c["state"] == FAIL for c in checks) else (

@@ -199,3 +199,65 @@ def test_records_merge_the_existing_spf():
     assert records["dmarc"]["value"] == "v=DMARC1; p=none; rua=mailto:noreply@x.com"
     assert records["helo"] == {"key": "helo", "name": "mail.x.com", "type": "A", "value": IP}
     assert IP in records["ptr"]["request"] and "mail.x.com" in records["ptr"]["request"]
+
+
+# ── 보내는 도메인은 받는 쪽이 보는 DNS 로 판정한다(P18 랩 E2E) ────────────────
+
+
+def _sender(system, compare):
+    rows, spf, seen = rr.sender_rows(system, compare, domain="goodmit.co.kr", egress_ip=IP, helo="clovirassist.gooddi.lab",
+                                     dkim_selector="ca1", dkim_public="", dkim_enabled=False)
+    return _by_key(rows), spf, seen
+
+
+# 랩 관찰: 내부 해석기는 goodmit.co.kr 의 공개 레코드를 모르고(오류), 사설 이름을 사설 IP 로 푼다. 공개 DNS 는 SPF · DMARC 를 갖고
+# 사설 이름은 모른다. SPF 의 셋째 include 는 도메인이 아니다.
+SPLIT_SYSTEM = FakeDns(a={"clovirassist.gooddi.lab": ["10.100.64.71"]})
+PUBLIC = FakeDns(
+    mx={"goodmit.co.kr": ["0 goodmit-co-kr.mail.protection.outlook.com"]},
+    txt={"goodmit.co.kr": ["v=spf1 include:spf.protection.outlook.com include:121.78.0.1 -all"],
+         "spf.protection.outlook.com": ["v=spf1 ip4:40.92.0.0/15 -all"],
+         "_dmarc.goodmit.co.kr": ["v=DMARC1; p=none"]},
+)
+
+
+def test_split_dns_sender_records_are_judged_by_the_public_view():
+    rows, spf, seen = _sender(SPLIT_SYSTEM, [PUBLIC])
+    assert seen is True and spf.startswith("v=spf1 include:spf.protection.outlook.com")
+    assert rows["sender_domain_public"]["state"] == rr.OK and "분리 DNS" in rows["sender_domain_public"]["message"]
+    # 공개 SPF 가 있다 — 「없습니다」가 아니라 레코드 오류(도메인이 아닌 include)다.
+    assert rows["spf"]["state"] == rr.FAIL and "오류" in rows["spf"]["message"]
+    assert rows["dmarc"]["state"] == rr.OK
+    # 받는 쪽에게 사설 이름은 없는 이름이다(내부 해석기의 「다른 IP 로 풀립니다」가 아니다).
+    assert rows["helo_dns"]["state"] == rr.FAIL and "없습니다" in rows["helo_dns"]["message"]
+    # 제안하는 SPF 는 공개 레코드와 합친 것이다(둘째 SPF 를 만들지 않는다).
+    records = {r["key"]: r for r in rr.records_for(
+        domain="goodmit.co.kr", egress_ip=IP, current_spf=spf, dkim_selector="ca1", dkim_public="", dkim_enabled=False,
+        from_address="noreply@goodmit.co.kr", helo="clovirassist.gooddi.lab", sender_seen=seen)}
+    assert records["spf"]["value"].startswith(f"v=spf1 ip4:{IP} include:spf.protection.outlook.com")
+
+
+def test_counterexample_without_a_public_view_the_rows_say_unknown_and_suggest_no_spf():
+    rows, spf, seen = _sender(SPLIT_SYSTEM, [])
+    assert seen is False and spf is None
+    assert rows["sender_domain_public"]["state"] == rr.WARN
+    assert rows["sender_domain_public"]["where"] == "메일 설정의 비교할 공개 DNS 서버"
+    for key in ("spf", "dmarc"):
+        assert rows[key]["state"] == rr.UNKNOWN, key
+        assert "없습니다" not in rows[key]["message"], "보지 못한 것을 없다고 말하지 않는다"
+        assert rows[key]["where"] == "메일 설정의 비교할 공개 DNS 서버"
+    assert rows["dkim"]["state"] == rr.WARN, "서명을 안 쓰는 것은 DNS 와 무관한 사실이다"
+    records = {r["key"] for r in rr.records_for(
+        domain="goodmit.co.kr", egress_ip=IP, current_spf=None, dkim_selector="ca1", dkim_public="", dkim_enabled=False,
+        from_address="noreply@goodmit.co.kr", helo="clovirassist.gooddi.lab", sender_seen=seen)}
+    assert "spf" not in records and "dmarc" not in records, "기존 레코드를 모르는 채 새 SPF · DMARC 를 제안하지 않는다"
+    assert {"helo", "ptr"} <= records
+
+
+def test_a_domain_the_system_resolver_knows_keeps_the_old_judgement():
+    system = FakeDns(mx={"goodmit.co.kr": ["0 mx.goodmit.co.kr"]}, txt={"goodmit.co.kr": [f"v=spf1 ip4:{IP} -all"]},
+                     a={"clovirassist.gooddi.lab": [IP]}, ptr={IP: ["clovirassist.gooddi.lab"]})
+    rows, spf, seen = _sender(system, [])
+    assert seen is True and rows["spf"]["state"] == rr.OK and rows["dmarc"]["state"] == rr.WARN
+    assert rows["sender_domain_public"]["message"] == "보내는 도메인(goodmit.co.kr)을 DNS 에서 찾았습니다."
+    assert rows["ptr_fcrdns"]["state"] == rr.OK and rows["helo_dns"]["state"] == rr.OK

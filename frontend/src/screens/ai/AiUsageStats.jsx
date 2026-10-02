@@ -4,10 +4,10 @@ import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
-import { fmtDateTime } from "../../lib/format.js";
 import { useQueryState } from "../../lib/useQueryState.js";
 import { Button, DataTable, EmptyState, ErrorState, Field, MetaBar, Segmented } from "../../ui/kit.jsx";
 import { FilterSelect, SearchBox } from "../../ui/filters.jsx";
+import { DateCell } from "../../ui/cells.jsx";
 import { FilterBar } from "../../ui/FilterBar.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 
@@ -140,7 +140,7 @@ export function AiUsageStats() {
     { key: "input_tokens", label: "입력 토큰", type: "count", render: (r) => tokens(r.input_tokens) },
     { key: "output_tokens", label: "출력 토큰", type: "count", render: (r) => tokens(r.output_tokens) },
     { key: "avg_latency_ms", label: "평균 응답", type: "number", render: (r) => seconds(r.avg_latency_ms) },
-    { key: "last_at", label: "최근 사용", type: "datetime", render: (r) => (r.last_at ? fmtDateTime(r.last_at) : "-") },
+    { key: "last_at", label: "최근 사용", type: "datetime", render: (r) => <DateCell value={r.last_at} /> },
   ];
   const empty = conditionCount
     ? <EmptyState title="조건에 맞는 기록이 없습니다" action={(

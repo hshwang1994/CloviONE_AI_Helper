@@ -28,7 +28,7 @@ export const AUTOMATION_SCREENS = {
     selectKey: "schedule",
     // 생성 권한이 없는 역할(operator/auditor)에게는 없는 버튼('+ 스케줄 추가')을 누르라고 안내하지 않는다(백업 화면과 동일 패턴).
     emptyHelp: (role) => (role === "admin" || role === "system_admin")
-      ? "‘+ 스케줄 추가’로 Cron 또는 1회 실행 일정을 추가해 시스템 작업을 자동 실행하세요."
+      ? "‘스케줄 추가’로 Cron 또는 1회 실행 일정을 추가해 시스템 작업을 자동 실행하세요."
       : "실행 일정은 관리자가 추가합니다. 추가되면 예약과 다음 실행 시각이 여기에 표시됩니다.",
     createLabel: "스케줄 추가",
     // list_schedules(app/schedules/router.py)는 쿼리 파라미터를 전혀 받지 않는다(항상 전체 목록) —

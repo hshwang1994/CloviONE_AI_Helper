@@ -110,6 +110,7 @@ def main() -> int:
     ap.add_argument("--compare-resolver", action="append", default=[], help="비교할 공개 DNS 서버(여러 번)")
     ap.add_argument("--wait-outer", type=float, default=300.0, help="바깥 전달 결과를 기다릴 초")
     ap.add_argument("--skip-send", action="store_true", help="시험 메일은 보내지 않는다(준비 점검까지만)")
+    ap.add_argument("--track", default="", help="이미 보낸 발송 기록 id 하나만 다시 추적한다(설정 · 켜기 · 점검 · 발송 없음)")
     args = ap.parse_args()
 
     import httpx
@@ -131,6 +132,14 @@ def main() -> int:
     if not run.check("로그인(시스템 관리자 QA 계정)", r.status_code == 200, f"HTTP {r.status_code}"):
         return _finish(run, 1)
     headers = {"X-CSRF-Token": r.json()["csrf_token"]}
+
+    def detail(did: str) -> dict:
+        # 상세 응답은 `{"delivery": {...}}` 로 감싸 온다.
+        body = client.get(f"/api/admin/mail/deliveries/{did}").json()
+        return body.get("delivery") or body
+
+    if args.track:
+        return _track(run, detail, args.track, args.wait_outer)
 
     # 1 구성 요소
     relay = client.get("/api/admin/mail/relay").json()
@@ -211,10 +220,13 @@ def main() -> int:
               {"http": r.status_code, "sentence": sent.get("sentence")})
     if not delivery.get("id"):
         return _finish(run, 1)
-    did = delivery["id"]
+    return _track(run, detail, delivery["id"], args.wait_outer)
 
+
+def _track(run: Run, detail, did: str, wait_outer: float) -> int:
+    """발송 기록 한 통의 단계 — ③ 로컬 릴레이 접수(250) → ④ 수신측 메일 서버 접수(바깥 전달). ⑤ · ⑥ 은 사람이 본다."""
     def accepted():
-        d = client.get(f"/api/admin/mail/deliveries/{did}").json()
+        d = detail(did)
         return d if d.get("status") in ("sent", "failed", "cancelled", "unconfigured") else None
     d = _poll(accepted, timeout=120, every=2) or {}
     run.check("로컬 릴레이가 접수했다(250)", d.get("status") == "sent",
@@ -222,14 +234,16 @@ def main() -> int:
                "response": d.get("relay_response"), "message_id": d.get("message_id")})
 
     def outer():
-        x = client.get(f"/api/admin/mail/deliveries/{did}").json()
+        x = detail(did)
         rel = x.get("relay") or {}
-        state = rel.get("remote_status") or rel.get("status")
-        return x if state in ("delivered", "bounced", "expired") else None
-    d2 = _poll(outer, timeout=args.wait_outer, every=10) or client.get(f"/api/admin/mail/deliveries/{did}").json()
+        return x if rel.get("remote_status") in ("delivered", "bounced", "expired") else None
+    d2 = _poll(outer, timeout=wait_outer, every=10) or detail(did)
     rel = d2.get("relay") or {}
-    state = rel.get("remote_status") or rel.get("status")
-    run.check("바깥 전달 결과가 나왔다", state in ("delivered", "bounced", "expired"), {"relay": rel})
+    state = rel.get("remote_status")
+    run.check("바깥 전달 결과가 나왔다", state in ("delivered", "bounced", "expired"),
+              {"remote_status": state, "label": rel.get("remote_label"), "stage": rel.get("remote_stage"),
+               "detail": rel.get("remote_detail"), "checked_at": rel.get("remote_checked_at"),
+               "screen_label": d2.get("status_label")})
     if state != "delivered":
         run.info("바깥 전달이 끝나지 않았거나 거부됐다 — 측정한 단계와 바깥 조건을 그대로 남긴다", {"relay": rel})
     return _finish(run, 0 if state == "delivered" else 1)

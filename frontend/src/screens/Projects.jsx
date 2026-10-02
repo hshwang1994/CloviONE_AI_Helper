@@ -258,7 +258,8 @@ function columns(deptNames) {
          모자랐다 — `render` 가 있는 nowrap 열에는 `overflow:hidden` 이 안 붙어서
          (`kit.jsx::colCellSx`), 모자란 폭이 잘림이 아니라 **옆 칸 침범**으로 나온다. */
       key: "period", label: "기간", type: "date", min: "12.5rem",
-      render: (p) => periodText(p.starts_on, p.ends_on),
+      /* 그리는 글을 `value` 로 말한다 — 열 배분이 그 글 폭으로 잰다(랩 1366: 12.5rem 바닥에서 「2025-08-22 ~ 2026-03-…」로 잘렸다). */
+      value: (p) => periodText(p.starts_on, p.ends_on),
     },
     {
       key: "progress_pct", label: "진행률", type: "percent",

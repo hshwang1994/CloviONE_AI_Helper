@@ -84,7 +84,6 @@ export function UserAvatar({ person, userId, name, size = "inline", label, sx })
   );
 }
 
-/** 아바타 + 이름 한 줄. 사람을 이름으로만 부르던 자리를 이것으로 바꾼다. */
 /** 사람 줄(`PersonLine`)에서 이름 앞에 서는 폭(rem) — 아바타 + 사이 0.3125rem. 표의 이름 열이 `lead` 로 적어 값 폭에 더한다
  *  (`columnPlan.columnSpec`). */
 export function personLineLead(size = "inline") {
@@ -92,9 +91,13 @@ export function personLineLead(size = "inline") {
   return (Number.isFinite(box) ? box : 1.25) + 0.3125;
 }
 
+/** 아바타 + 이름 한 줄. 사람을 이름으로만 부르던 자리를 이것으로 바꾼다.
+ *
+ * 글 줄 안에 서면(표 칸 · 문장) 세로 가운데에 선다(`verticalAlign: middle`). 인라인 flex 의 기준선은 첫 항목인 아바타의 **아래 변**이라,
+ * 그대로 두면 아바타 아래 변이 글 기준선에 앉아 이름이 옆 칸 글보다 3 ~ 4px 위에 섰다(랩 캡처의 조직 구성원 표, 이름 중심 −4.6px · 이메일 −1.3px). */
 export function PersonLine({ person, name, size = "inline", bold, suffix, sx }) {
   return (
-    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.625, minWidth: 0, maxWidth: "100%", lineHeight: 1.25, ...sx }}>
+    <Box sx={{ display: "inline-flex", alignItems: "center", verticalAlign: "middle", gap: 0.625, minWidth: 0, maxWidth: "100%", lineHeight: 1.25, ...sx }}>
       <UserAvatar person={person} name={name} size={size} />
       <Box
         component="span"

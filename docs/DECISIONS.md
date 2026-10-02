@@ -16090,6 +16090,9 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
   황금값을 다시 쟀다(조직 @1366 127 · 232 · 149 · 96 · 120, @1600 162 · 104 · 250 · 178 · 96 · 120, @1920 271 · 104 · 352 · 287 · 96 · 120,
   말단 부서 @1366 158 · 104 · 246 · 96 · 120). 같은 회차에 채움 표(작업 공간 판)의 숨긴 열 안내를 표 위 한 줄에서 판 아래 발로 옮겼다 —
   표 위 한 줄은 고정 도구 줄을 늘려 1366 판에서 표 행 하나를 먹었다.
+- **P18 보정(2026-10-02, 랩 캡처 — D-552)**: 행 이름(`rowName`)은 그리는 함수만 가진 이름 · 제목 열에서만 값 글이다(사용자 표의 이메일 열이 행 이름
+  길이로 재였다). 그리는 함수가 없는 열은 표가 `value(row)` 를 그린다. 상태 타입의 값 폭에 표지 점과 사이(1rem)를 더한다. 날짜 · 수 같은 고정 타입도
+  `value` · `values` 를 적으면 그 글로 잰다.
 
 ### D-530. 필터 칸 폭은 선택지로, 기간은 칸 하나로, 보기 기준은 조건이 아니며, 목록 상태는 일곱 갈래다 (UI/UX · AI · 메일 회차 P5)
 
@@ -16582,6 +16585,8 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
   `test_mail_transport_relay.py` · `test_mail_dns_containment.py`, `tests/integration/test_mail_relay_api.py`,
   `tests/security/test_mail_relay_secrets.py`, `tests/regression/test_installer_mail_relay.py` · `test_migration_0048_mail_relay_tracking.py`,
   프런트 `screens/mail/relay-section.test.jsx`. 증거 `docs/platform/EVIDENCE/mail/2026-10-02-relay-container.md`.
+- **P18 보정(2026-10-02, 랩 E2E — D-552)**: 보내는 도메인 · SPF · DKIM · DMARC · 역방향 이름 · 서버 이름은 받는 쪽이 보는 DNS 로 판정한다(비교할 공개
+  DNS 서버가 그 도메인을 알면 그것). 어느 조회기도 그 도메인을 모르면 SPF · DKIM · DMARC 는 「모름」이고 새 SPF · DMARC 를 제안하지 않는다.
 
 ### D-550. 알림 메일은 계정 주소가 기본이고, 다른 주소는 그 주소로 보낸 6자리 코드를 넣어야 쓰며, 내 프로필은 「메일 알림」 · 「알림 배지」 카드 둘이다 (UI/UX · AI · 메일 회차 P13)
 
@@ -16645,3 +16650,31 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
   M6 릴레이 줄 · 안내 띠가 판정 하나만 도는지 · 링크는 시스템 관리자만), `test_setup_checklist.py` · `test_setup_required_optional.py` 갱신, 프런트
   `setup-wizard.test.jsx`(다시 씀 — 구획과 순서 · 일곱 상태의 아이콘 모양과 낱말 · 지금 할 줄과 요약 띠 · 줄의 동작 · 선택 API · 링크 · 권한),
   `heading-order.test.jsx`. 표적 캡처 `dist/ui-qa/p15-setup/`(다섯 상태 × 1366 · 1920, 좁은 칸 1100).
+
+### D-552. 랩 E2E 결과 — 시험 메일은 수신측 서버까지 갔고 받은 편지함에는 들어가지 않았으며, 랩 데이터가 드러낸 열 배분 · 사람 줄 · 준비 점검 결함을 고쳤다 (UI/UX · AI · 메일 회차 P18)
+
+- **배포**: `c7777553` 을 `git archive` → `install.sh upgrade --source local --yes` 로 올렸다(`UPGRADE_OK` · `VERIFY_OK` · `DEPLOY_VERIFY_OK`
+  정적 자산 57/57, alembic 0048). 아래 결함을 고친 커밋을 같은 길로 다시 올렸다.
+- **메일 구성 요소 기본 꺼짐(E2E-2)**: postfix 3.8.6 · opendkim 2.11 이 깔렸고 두 유닛은 disabled · inactive, 25 · 2525 · 8891 을 듣는 것이
+  없고 main.cf 가 없으며 다른 MTA 가 없다. `postfix@-` 의 enabled-runtime 은 생성기 표시이고 inactive 다.
+- **보안 계약 넷(랩의 실제 Postfix)**: 바깥에서 25 · 2525 · 8891 닫힘, 앱 → 릴레이 정상, 인증서 없는 중계 554 5.7.1, 보안 연결 없이 530,
+  다른 OS 사용자의 `sendmail` 거절.
+- **실제 발송**: 시험 메일 창에 사용자의 회사 주소를 넣었다. 로컬 릴레이가 접수함(250 queued as …) → 수신측 메일 서버로 전달함(Exchange
+  Online 250 2.6.0). 사용자는 받은 편지함 · 정크에서 찾지 못했고 격리로 본다. 까닭은 바깥 조건이다 — 같은 도메인 발신인데 공개 SPF 가 랩의
+  공인 IP 를 허가하지 않고, DKIM 서명 · PTR 이 없으며, HELO 가 공개 이름이 아니다. 받은 편지함까지는 P-126 이 닫는다.
+- **랩 데이터가 드러낸 결함(로컬 시드에 없던 값 · 상태)과 고친 자리**: 표 칸의 사람 줄이 3 ~ 4px 위에 섰다(인라인 flex 기준선이 아바타 아래
+  변 → `PersonLine` `vertical-align: middle`, 이름 중심 −4.6 → −1.1px · 옆 칸 −1.3px). 발송 기록 상태 열이 긴 낱말을 3px 모자라 잘랐다(표지
+  점 폭 누락). 사용자 표 이메일 열이 행 이름 길이로 재였다(P17V 보정의 결함). 그리는 함수만 가진 열(사용자 부서 · 직책, 조직 정합성 역할 ·
+  번호 · 상태 · 코드)은 바닥 폭에서 잘렸다. 날짜 · 시각 열 셋이 긴 「오후」 형식이라 칸을 넘쳤다(→ `DateCell`). 프로젝트 「기간」이 날짜
+  바닥에서 잘렸다. 빈 상태 안내 열 곳이 없는 「+」 단추를 가리켰다. 준비 점검이 분리 DNS 에서 공개 SPF · DMARC 를 「없습니다」라고 하고 새
+  SPF 를 제안했다(그대로 넣으면 SPF 가 둘이 된다). 열 배분은 D-529, 준비 점검은 D-551 의 P18 보정이다.
+- **받아들인 것**: 메일 설정 첫 폼 칸 477px(로컬 릴레이를 켜면 상태 면이 「로컬 릴레이」 · 「바깥 전달」 두 줄을 더 말한다 — P17V 가 받아들인
+  갈래), 조직 정합성 1366 첫 데이터 427px(고른 문제 종류의 설명이 두 줄), 프로브 위양성(AI 연결의 두 칸 줄을 곁열로 읽음 · 승인의 빈 띠를 몸으로
+  읽음 · AI 미연결 상태의 브랜드 판정 · 작업 공간 판이 창 아래 끝까지 서는 것). 전체 페이지 캡처의 붙박이 발 위치 · 가상 목록의 빈 줄 · 빈
+  sandbox 미리 보기는 캡처의 모양이다(미리 보기는 화면에 띄워 그려지는 것을 확인했다).
+- **하지 않은 것**: AI 연결 · 채팅 E2E 는 사용자가 이번에는 건너뛰기로 정했다(P-116).
+- **랩 상태**: 시험 뒤 로컬 릴레이와 메일 발송을 껐다 — 랩의 사용자는 실제 동료 주소라 알림 메일이 나가지 않게 한다. 설정 값은 남아 메일
+  화면에서 다시 켤 수 있다. QA 계정은 보관했다.
+- **잰 것**: `docs/platform/EVIDENCE/mail/2026-10-02-lab-relay-e2e.md`(배포 · 기본 꺼짐 · 계약 · 준비 점검 · 발송 단계 · 다시 올린 뒤의 점검),
+  `docs/platform/EVIDENCE/ui/2026-10-02-visual-acceptance.md` 「랩 원격 캡처」 절, 시험 `tests/unit/test_mail_relay_parts.py` ·
+  `frontend/src/ui/{plan-columns,datatable-column-plan,person-line-align}.test.*` · `screens/ai/ai-usage-stats.test.jsx`.

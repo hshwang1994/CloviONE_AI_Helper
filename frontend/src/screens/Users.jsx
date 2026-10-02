@@ -584,8 +584,8 @@ export function Users() {
     // 상세 드로어(Row label="부서"/"직책")는 inactiveSuffix로 '(비활성)'을 붙이는데 목록 열은
     // render 없이 원시 텍스트만 보여줘 같은 화면 안에서 같은 사실이 다르게 보였다 — 같은 헬퍼로 맞춘다.
     /* 부서 · 직책은 보조 열이다 — 좁으면 최근 로그인 · 생성 일자 다음으로 숨는다. 이름 · 이메일 · 상태 · 역할은 필수다(D-529). */
-    { key: "department", label: "부서", type: "enum", tier: "secondary", render: (r) => r.department ? r.department + inactiveSuffix(dept, r.department_id) : "-" },
-    { key: "title", label: "직책", type: "enum", tier: "secondary", render: (r) => r.title ? r.title + inactiveSuffix(title, r.title_id) : "-" },
+    { key: "department", label: "부서", type: "enum", tier: "secondary", value: (r) => r.department ? r.department + inactiveSuffix(dept, r.department_id) : "-" },
+    { key: "title", label: "직책", type: "enum", tier: "secondary", value: (r) => r.title ? r.title + inactiveSuffix(title, r.title_id) : "-" },
     // RESP-01: 900~1200 구간(사이드바 아직 안 접힘)에서 열을 전부 채우면 TableContainer가
     // 가로 스크롤을 겪는다(실측, /users). 이메일·이름·역할·상태·부서·직책은 훑어보기의
     // 핵심이지만 아래 둘은 상세에서도 바로 확인되는 부가 정보라 그 구간에서만 뺀다.

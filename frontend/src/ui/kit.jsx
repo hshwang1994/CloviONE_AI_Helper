@@ -2266,7 +2266,8 @@ export function tableCellProps(col, opts) {
  * (열은 자기 옆 열들을 모른다). 기존 render 들은 인자를 하나만 받으므로 그대로 동작한다. */
 function cellValue(c, row, ctx) {
   if (c.render) return c.render(row, ctx);
-  const v = row[c.key];
+  /* 그리는 함수가 없으면 열의 글 값(`value(row)`)이 곧 그림이다 — 열 배분(D-529)이 잰 글과 칸에 선 글이 같은 함수에서 나온다. */
+  const v = typeof c.value === "function" ? c.value(row) : row[c.key];
   return v == null || v === "" ? "-" : String(v);
 }
 

@@ -95,3 +95,24 @@ describe("필수 열만으로도 칸이 모자라면", () => {
     expect(getComputedStyle(head).position).toBe("sticky");
   });
 });
+
+describe("그리는 함수가 없는 열은 글 값(`value`)을 그린다", () => {
+  beforeEach(() => { restore = pinBoxWidth(1068); });
+
+  it("열 배분이 잰 글과 칸에 선 글이 같다 — 사용자 표의 부서 · 직책은 비활성 꼬리까지 값으로 말한다", () => {
+    const cols = [
+      { key: "name", label: "이름", type: "name" },
+      { key: "dept", label: "부서", type: "enum", value: (r) => (r.dept ? r.dept + " (비활성)" : "-") },
+    ];
+    const rows = [{ id: "a", name: "김동현", dept: "CloviONE팀" }, { id: "b", name: "명성", dept: "" }];
+    render(
+      <ThemeModeProvider>
+        <DataTable placement="surface" columns={cols} rows={rows} rowKey={(r) => r.id} />
+      </ThemeModeProvider>,
+    );
+    expect(screen.getByText("CloviONE팀 (비활성)")).toBeInTheDocument();
+    // 반례 — 빈 값은 원래 값이 아니라 `value` 가 돌려준 글(「-」)이다.
+    expect(screen.getAllByRole("row")[2].textContent).toContain("-");
+  });
+});
+

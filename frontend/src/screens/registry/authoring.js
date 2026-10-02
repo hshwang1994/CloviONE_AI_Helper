@@ -185,7 +185,7 @@ export const AUTHORING_SCREENS = {
     // 규칙이 없는 종류도 머리와 한 줄로 선다 — 「승인 필요 규칙이 없다」를 화면이 말한다(D-542).
     groupSlots: ["approval", "data_protection", "content"].map((k) => ({ ...POLICY_GROUPS[k], emptyText: "이 종류의 규칙이 없습니다." })),
     emptyTitle: "조건에 맞는 정책이 없습니다",
-    emptyHelp: writerEmptyHelp("‘+ 정책 추가’로 종류와 적용할 기능을 고르고 초안에서 발행하세요. 발행한 정책이 없으면 AI 요청에 아무 규칙도 걸리지 않습니다.", "정책은 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
+    emptyHelp: writerEmptyHelp("‘정책 추가’로 종류와 적용할 기능을 고르고 초안에서 발행하세요. 발행한 정책이 없으면 AI 요청에 아무 규칙도 걸리지 않습니다.", "정책은 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
     createLabel: "정책 추가",
     onQuery: (p) => p.id ? { open: "select", id: p.id } : null,
     selectKey: "item",

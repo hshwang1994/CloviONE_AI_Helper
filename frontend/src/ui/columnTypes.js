@@ -227,8 +227,9 @@ export const COLUMN_TYPES = {
   text: { align: "left", numeric: false, minWidth: "12rem", weight: 3, maxWidth: "48rem", overflow: OVERFLOW.ellipsis, collapsible: true },
   /* 부서 경로 · 폴더 경로. 앞이 같고 뒤가 갈리는 값이라 왼쪽 모서리가 비교 수단이다. */
   path: { align: "left", numeric: false, minWidth: "10rem", weight: 2, maxWidth: "24rem", overflow: OVERFLOW.ellipsis },
-  /* 상태 배지. 폭은 바닥 · 머리글(「우선순위」 + 정렬 · 필터) · 가장 긴 상태 낱말 가운데 가장 긴 것이다. */
-  status: { align: "center", numeric: false, width: SHRINK, minWidth: "6rem", content: true, overflow: OVERFLOW.nowrap },
+  /* 상태 배지. 폭은 바닥 · 머리글(「우선순위」 + 정렬 · 필터) · 가장 긴 상태 낱말 가운데 가장 긴 것이다. `lead` 는 낱말 앞의 표지
+     점(6px)과 사이(0.625rem)다(`kit.jsx::Badge`) — 이것을 빼고 재면 긴 낱말(「설정이 끝나지 않아 보내지 못함」)이 몇 px 모자라 잘렸다(랩 캡처). */
+  status: { align: "center", numeric: false, width: SHRINK, minWidth: "6rem", content: true, lead: 1, overflow: OVERFLOW.nowrap },
   /* 짧은 닫힌 집합(종류·범위·대상·역할). 폭은 선택지 라벨(`values`)이나 받은 값의 가장 긴 낱말이 정한다. */
   enum: { align: "center", numeric: false, width: SHRINK, minWidth: "6.5rem", content: true, overflow: OVERFLOW.nowrap },
   /* 개수. **오른쪽 + 자릿수 고정.** */

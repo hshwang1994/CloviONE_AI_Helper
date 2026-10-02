@@ -74,18 +74,18 @@ const COLUMNS = {
   user: [
     { key: "display_name", label: "이름", type: "title", rowName: (r) => r.display_name || r.id },
     { key: "email", label: "이메일", type: "identifier" },
-    { key: "role", label: "역할", type: "enum", render: (r) => roleLabel(r.role) },
+    { key: "role", label: "역할", type: "enum", value: (r) => roleLabel(r.role) },
     REASON,
   ],
   ticket: [
-    { key: "key", label: "번호", type: "code", render: (r) => r.key || "-" },
+    { key: "key", label: "번호", type: "code", value: (r) => r.key || "-" },
     { key: "title", label: "제목", type: "title", rowName: (r) => r.title || r.id },
-    { key: "status", label: "상태", type: "status", render: (r) => r.status || "-" },
+    { key: "status", label: "상태", type: "status", value: (r) => r.status || "-" },
     REASON,
   ],
   project: [
     { key: "name", label: "이름", type: "title", rowName: (r) => r.name || r.id },
-    { key: "code", label: "코드", type: "code", render: (r) => r.code || "-" },
+    { key: "code", label: "코드", type: "code", value: (r) => r.code || "-" },
     REASON,
   ],
   space: [
@@ -95,7 +95,7 @@ const COLUMNS = {
   ],
   sprint: [
     { key: "name", label: "이름", type: "title", rowName: (r) => r.name || r.id },
-    { key: "state", label: "상태", type: "enum", render: (r) => SPRINT_STATE_LABEL[r.state] || r.state || "-" },
+    { key: "state", label: "상태", type: "enum", value: (r) => SPRINT_STATE_LABEL[r.state] || r.state || "-" },
     { key: "starts_on", label: "시작", type: "date" },
     { key: "ends_on", label: "종료", type: "date" },
     REASON,
