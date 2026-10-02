@@ -4,7 +4,11 @@
 1. 올리면 옛 `usage_events(event='ai.call')` 이 한 줄도 빠짐없이 호출 기록으로 옮겨진다. 기능 이름은 옛 종류에서
    액션으로 바뀌고(모르는 종류는 그대로), 결과는 성공이며, 토큰과 지연은 모른다(NULL). 다른 이벤트는 옮기지 않는다.
 2. 옮긴 행으로 이번 달의 한도 계산이 끊기지 않는다 - 업그레이드한 날 한도가 0 부터 다시 세지 않는다.
-3. 옛 행은 지우지 않는다. 내리면 표만 사라지고, 다시 올려도 된다.
+3. 0039 는 옛 행을 지우지 않는다. 내리면 표만 사라지고, 다시 올려도 된다.
+4. 머리까지 올리면 0046(옛 AI 데이터 정리, D-544)이 옮겨 둔 옛 `ai.call` 행을 지운다 — 옮긴 호출 기록과 한도 셈은 그대로다.
+
+qa-contract-change: 0046 이 옛 `usage_events(event='ai.call')` 를 지우게 됐다(D-544). 「옛 기록을 지우지 않는다」는 0039 의 성질이라
+0039 까지만 올려 그 단언을 그대로 재고, 머리에서는 지워졌는지와 옮긴 기록 · 한도 셈이 남았는지를 더 잰다.
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ pytestmark = pytest.mark.regression
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BEFORE = "0038_ai_oauth_transactions"
+AFTER = "0039_ai_usage_records"
 WHEN = datetime(2026, 7, 14, 1, 0, 0)
 
 
@@ -76,7 +81,7 @@ def test_old_calls_move_over_and_keep_counting_against_the_limit(db, db_url):
             _event(conn, event="ai.call", user_id=person, object_id="chat_message")  # 종류가 object_id 에만 있다
             _event(conn, event="ai.call", user_id=None, kind="weird_kind", object_id="weird_kind")
             _event(conn, event="login", user_id=person)
-        _alembic(db_url, "upgrade", "head")
+        _alembic(db_url, "upgrade", AFTER)
 
         with engine.connect() as conn:
             rows = conn.execute(sa.text(
@@ -96,6 +101,18 @@ def test_old_calls_move_over_and_keep_counting_against_the_limit(db, db_url):
             assert quotas.used(session, user_id=person, period="day", now=WHEN) == 5, (
                 "업그레이드한 날 한도가 처음부터 다시 셌다"
             )
+
+        # 머리(0046)는 옮겨 둔 옛 행을 지운다 — 옮긴 기록과 한도 셈은 그대로다(D-544).
+        _alembic(db_url, "upgrade", "head")
+        with engine.connect() as conn:
+            moved = conn.execute(sa.text("SELECT count(*) FROM ai_usage_records")).scalar_one()
+            left = conn.execute(sa.text("SELECT count(*) FROM usage_events WHERE event = 'ai.call'")).scalar_one()
+            other = conn.execute(sa.text("SELECT count(*) FROM usage_events WHERE event = 'login'")).scalar_one()
+        assert moved == 6, "0046 이 옮긴 호출 기록까지 지웠다"
+        assert left == 0, "0046 이 옛 ai.call 행을 남겼다"
+        assert other == 1, "0046 이 다른 이벤트까지 지웠다"
+        with Session(engine) as session:
+            assert quotas.used(session, user_id=person, period="day", now=WHEN) == 5, "정리 뒤 한도 셈이 끊겼다"
 
         _alembic(db_url, "downgrade", BEFORE)
         assert "ai_usage_records" not in sa.inspect(engine).get_table_names()

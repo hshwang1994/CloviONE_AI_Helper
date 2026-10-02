@@ -50,7 +50,7 @@ FOREIGN = "이 서버에는 기존 메일 발송 구성이 있습니다. ClovirA
 NOT_RUNNING = "메일 발송 구성 요소가 동작하지 않습니다."
 
 
-class _Rejected(ValueError):
+class _RelayRejected(ValueError):
     pass
 
 
@@ -176,7 +176,7 @@ def _guarded(normalize):
     def inner(params: Mapping) -> dict:
         try:
             return normalize(params)
-        except (_Rejected, rf.RelayParamsError) as exc:
+        except (_RelayRejected, rf.RelayParamsError) as exc:
             return {"_rejected": str(exc)}
     return inner
 
@@ -341,13 +341,13 @@ def _perform_disable(runner: Runner, params: dict) -> ActionOutcome:
 def _normalize_dkim(params: Mapping) -> dict:
     unknown = sorted(k for k in params if k not in ("domain", "selector"))
     if unknown:
-        raise _Rejected("알 수 없는 항목이 있습니다.")
+        raise _RelayRejected("알 수 없는 항목이 있습니다.")
     domain = str(params.get("domain") or "").strip().lower()
     selector = str(params.get("selector") or "").strip().lower()
     if not rf.DOMAIN_RE.match(domain):
-        raise _Rejected("보내는 주소의 도메인이 올바르지 않습니다.")
+        raise _RelayRejected("보내는 주소의 도메인이 올바르지 않습니다.")
     if not rf.SELECTOR_RE.match(selector):
-        raise _Rejected("DKIM 선택자는 영문 소문자와 숫자, 하이픈으로 씁니다.")
+        raise _RelayRejected("DKIM 선택자는 영문 소문자와 숫자, 하이픈으로 씁니다.")
     return {"domain": domain, "selector": selector}
 
 
@@ -393,13 +393,13 @@ def _perform_queue(runner: Runner, params: dict) -> ActionOutcome:
 def _normalize_log(params: Mapping) -> dict:
     ids = params.get("queue_ids")
     if not isinstance(ids, list) or not ids or len(ids) > LOG_MAX_IDS:
-        raise _Rejected(f"큐 id 는 1개에서 {LOG_MAX_IDS}개까지 줍니다.")
+        raise _RelayRejected(f"큐 id 는 1개에서 {LOG_MAX_IDS}개까지 줍니다.")
     if not all(isinstance(q, str) and QUEUE_ID_RE.match(q) for q in ids):
-        raise _Rejected("큐 id 모양이 올바르지 않습니다.")
+        raise _RelayRejected("큐 id 모양이 올바르지 않습니다.")
     since = params.get("since")
     now = int(time.time())
     if not isinstance(since, int) or isinstance(since, bool) or not (now - LOG_MAX_AGE_SECONDS <= since <= now + 60):
-        raise _Rejected("로그를 읽을 시작 시각이 올바르지 않습니다.")
+        raise _RelayRejected("로그를 읽을 시작 시각이 올바르지 않습니다.")
     return {"queue_ids": sorted(set(ids)), "since": since}
 
 
@@ -422,7 +422,7 @@ def _perform_flush(runner: Runner, params: dict) -> ActionOutcome:
 
 def _no_params(params: Mapping) -> dict:
     if params:
-        raise _Rejected("이 동작은 인자를 받지 않습니다.")
+        raise _RelayRejected("이 동작은 인자를 받지 않습니다.")
     return {}
 
 

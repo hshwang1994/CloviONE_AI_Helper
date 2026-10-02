@@ -279,9 +279,12 @@ TRIAGE: dict[str, Triage] = {
         defined_in="app/jobs/exceptions.py", kind=WORKER,
         raised_in=_fs(
             "app/jobs/handlers/chat_message.py", "app/jobs/handlers/llm_connection_test.py",
+            "app/jobs/handlers/mail_relay_check.py",
             "app/jobs/handlers/mail_send.py", "app/jobs/handlers/mail_verify.py",
             "app/jobs/handlers/project_weekly_summary.py",
             "app/jobs/handlers/schedule_run.py", "app/jobs/worker.py", "app/mail/renderers.py",
+            # 알림 받을 주소 확인 메일(D-550)을 그리는 함수 — 메일 발송 잡 안에서만 불린다.
+            "app/profiles/notify_email.py",
         ),
         caught_in=_fs("app/jobs/worker.py"),
         why="잡 처리기와 잡 루프만 던지고, 워커가 잡아 그 잡을 재시도 없이 실패로 끝낸다.",
@@ -312,11 +315,13 @@ TRIAGE: dict[str, Triage] = {
         defined_in="app/mail/transport.py", kind=WORKER,
         raised_in=_fs("app/mail/transport.py"),
         why=(
-            "SMTP 발송기(`SmtpTransport`)는 메일 발송 잡과 연결 확인 잡만 만든다. 관리자의 「시험 메일 보내기」와"
-            " 「연결 확인」은 잡을 큐에 넣고 돌아오며, 실패는 워커가 발송 기록과 건강 상태에 남긴다."
+            "SMTP 발송기(`SmtpTransport`)는 메일 발송 잡과 연결 확인 잡, 로컬 릴레이 준비 점검 잡만 만든다. 관리자의"
+            " 「시험 메일 보내기」 · 「연결 확인」 · 「점검 다시 하기」는 잡을 큐에 넣고 돌아오며, 실패는 워커가 발송 기록과 건강"
+            " 상태, 준비 점검 결과에 남긴다."
         ),
         reach={"SmtpTransport": _fs(
             "app/mail/transport.py", "app/jobs/handlers/mail_send.py", "app/jobs/handlers/mail_verify.py",
+            "app/jobs/handlers/mail_relay_check.py",
         )},
         proof=(
             "tests/security/test_global_scope_gate.py::test_global_admin_still_sends_test_mail",
@@ -333,6 +338,37 @@ TRIAGE: dict[str, Triage] = {
         proof=(
             "tests/unit/test_sysops_secret_actions.py::test_a_name_outside_the_table_is_refused_and_nothing_is_written",
             "tests/unit/test_sysops_secret_actions.py::test_a_text_slot_refuses_line_breaks",
+        ),
+    ),
+    "RelayParamsError": Triage(
+        defined_in="app/mail/relay_files.py", kind=CAUGHT,
+        raised_in=_fs("app/mail/relay_files.py"),
+        caught_in=_fs("app/mail/router.py", "app/settings/registry.py", "app/sysops/actions_mailrelay.py"),
+        why=(
+            "로컬 릴레이 인자(서버 이름 · 받는 도메인별 전달 서버 · 상위 SMTP 주소)의 검증 실패다. 메일 설정 API 와 범용 설정"
+            " 검증기는 잡아 422 문장으로, 특권 헬퍼는 문구만 든 실패 결과로 돌려준다."
+        ),
+        proof=(
+            "tests/unit/test_mail_relay_files.py::test_injection_shapes_are_refused",
+            "tests/integration/test_mail_relay_api.py::test_relay_settings_refuse_injection_and_unknown_fields",
+        ),
+    ),
+    "SpfPermError": Triage(
+        defined_in="app/mail/relay_readiness.py", kind=CAUGHT,
+        raised_in=_fs("app/mail/relay_readiness.py"), caught_in=_fs("app/mail/relay_readiness.py"),
+        why="SPF 평가가 permerror 에 닿았다는 신호다. 같은 파일의 SPF 점검이 잡아 「SPF 레코드 오류」 줄로 바꾼다.",
+        proof=("tests/unit/test_mail_relay_parts.py::test_spf_table",),
+    ),
+    "_RelayRejected": Triage(
+        defined_in="app/sysops/actions_mailrelay.py", kind=CAUGHT,
+        raised_in=_fs("app/sysops/actions_mailrelay.py"), caught_in=_fs("app/sysops/actions_mailrelay.py"),
+        why=(
+            "특권 헬퍼의 로컬 릴레이 동작 인자 검증 실패다. 같은 파일의 감싸개가 잡아 문구만 든 실패 결과로 돌려주고, 아무"
+            " 파일도 쓰지 않는다."
+        ),
+        proof=(
+            "tests/unit/test_sysops_mailrelay_actions.py::test_log_arguments_are_checked",
+            "tests/unit/test_sysops_mailrelay_actions.py::test_there_is_no_takeover_argument",
         ),
     ),
     "ConvertError": Triage(

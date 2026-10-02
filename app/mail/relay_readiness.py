@@ -22,6 +22,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.core.text import topic_particle
 from app.mail import relay_certs, relay_files as rf
 from app.mail.config import DELIVERY_SMARTHOST, MailConfig
 
@@ -303,7 +304,7 @@ def recipient_mx_row(system, compare, probe_domain: str, overrides: dict[str, st
     """받는 쪽 MX — `(줄, 쓸 MX 호스트, 제안할 전달 서버)`. 시스템 해석기가 모르는데 공개 답이 알면 분리 DNS 다."""
     if probe_domain in overrides:
         host = overrides[probe_domain]
-        return row("recipient_mx", OK, f"{probe_domain} 은(는) 받는 도메인별 전달 서버({host})로 보냅니다."), host, None
+        return row("recipient_mx", OK, f"{probe_domain}{topic_particle(probe_domain)} 받는 도메인별 전달 서버({host})로 보냅니다."), host, None
     mine = system.mx(probe_domain).values
     if mine:
         host = mine[0].split()[1]

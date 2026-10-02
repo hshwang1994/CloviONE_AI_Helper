@@ -2,6 +2,8 @@
 
 qa-contract-replaced-by: tests/unit/test_update_script_contract.py
 qa-contract-replaced-by: tests/unit/test_upgrade_script_contract.py
+qa-contract-change: 하위 명령 분기 목록은 문자열 한 덩어리가 아니라 목록의 원소로 본다. 로컬 릴레이(D-551)가 `mail-relay` 를 더하자
+`…|storage|ai)` 를 통째로 찾던 두 단언이 깨졌다 — 지키려던 성질(ai · storage 가 목록에 있다)은 그대로 단언한다.
 
 ## 옛 slug 스크립트 셋을 대신한다 (S14)
 
@@ -597,12 +599,20 @@ def test_the_ai_stage_is_ok_when_ai_is_deliberately_off():
     assert "return 0" in ai
 
 
+def _dispatch_commands(text: str) -> set[str]:
+    """`case "$CMD" in` 의 화이트리스트 줄(`install|upgrade|…) ;;`)에 적힌 하위 명령들."""
+    import re
+
+    match = re.search(r"^\s*(install\|upgrade\|[a-z|\-]+)\)\s*;;", text, re.MULTILINE)
+    assert match, "하위 명령 화이트리스트 줄을 찾지 못했다"
+    return set(match.group(1).split("|"))
+
+
 def test_ai_can_be_installed_later_without_a_full_reinstall():
     """모델 파일 465MB 를 나중에 넣는 것이 흔한 순서다. 전체 재설치를 시키면 사람이
     안 하고, 안 하면 AI 가 꺼진 채로 남는다(INSTALLATION.md §6.1 Installer 계약)."""
     text = _install_sh()
-    assert "install|upgrade|rollback|uninstall|verify|version|preflight|storage|ai)" in text, \
-        "ai 서브커맨드가 dispatch 화이트리스트에 없다"
+    assert "ai" in _dispatch_commands(text), "ai 서브커맨드가 dispatch 화이트리스트에 없다"
     assert "run_stage 12 AI stage_12_ai" in text
     assert "  ai          " in text, "usage 에 안 적혀 있으면 아무도 그 명령을 모른다"
     # 유닛을 다시 시작하지 않으면 색인 레인이 옛 설정을 든 채로 계속 돈다.
@@ -639,8 +649,7 @@ def test_storage_can_be_reinstalled_without_a_full_reinstall():
     그 설치는 재부팅 한 번에 마운트를 잃는다(INSTALLATION.md §6.1 Installer 계약).
     """
     text = _install_sh()
-    assert "|preflight|storage|ai)" in text, \
-        "storage 서브커맨드가 dispatch 화이트리스트에 없다"
+    assert "storage" in _dispatch_commands(text), "storage 서브커맨드가 dispatch 화이트리스트에 없다"
     assert "storage)   open_log; run_stage 11 STORAGE stage_11_storage" in text
     assert "  storage     " in text, "usage 에 안 적혀 있으면 아무도 그 명령을 모른다"
 

@@ -21,6 +21,15 @@ def _headers(csrf):
     return {"X-CSRF-Token": csrf}
 
 
+@pytest.fixture(autouse=True)
+def _ai_available(app):
+    """채팅은 AI 를 쓸 수 있을 때만 메시지를 받는다(D-538 — 아니면 409 `ai_unavailable`). 이 파일의 채팅 시험은 큐에 남는
+    내용을 재므로 AI 가 켜진 설치에서 돈다. 가짜 제공자는 부르지 않는다(메시지를 넣기만 하고 잡을 돌리지 않는다)."""
+    from tests.fakes.ai import install_runtime
+
+    install_runtime(app)
+
+
 def _post_private_message(client, login_as, *, email, content=SECRET_TEXT, msg_id=MSG_ID):
     """Have a regular user say something private, and return their conversation id."""
     csrf = login_as("user", email=email)

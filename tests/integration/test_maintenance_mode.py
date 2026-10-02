@@ -47,7 +47,7 @@ def test_maintenance_blocks_regular_user_messages(app, client, login_as, make_us
         assert r.json()["error"]["code"] == "maintenance_mode"
 
 
-def test_maintenance_allows_operator(app, client, login_as, make_user):
+def test_maintenance_allows_operator(app, client, login_as, make_user, ai_on):
     from fastapi.testclient import TestClient
 
     from tests.conftest import DEFAULT_TEST_PASSWORD
@@ -72,7 +72,7 @@ def test_maintenance_allows_operator(app, client, login_as, make_user):
         assert r.status_code == 202
 
 
-def test_turning_maintenance_off_restores_access(app, client, login_as, make_user):
+def test_turning_maintenance_off_restores_access(app, client, login_as, make_user, ai_on):
     from fastapi.testclient import TestClient
 
     from tests.conftest import DEFAULT_TEST_PASSWORD

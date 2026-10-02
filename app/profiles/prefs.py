@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+from app.core.authz import CONSOLE_WRITE_ROLES, SYSTEM_ADMIN_ONLY
+
 # ── 알림 유형 레지스트리 ──────────────────────────────────────────────────────
 # 뮤트할 수 있는 유형을 **여기서만** 정한다. 모르는 유형은 뮤트 대상이 아니다 —
 # 오타로 만든 키가 조용히 저장되면 사용자는 "껐는데 계속 온다"를 겪고, 새 유형이 생겼을 때
@@ -86,9 +88,11 @@ ADMIN_ONLY_TYPES = frozenset({"backup_failed", "ai_provider_state"})
 # 그 유형을 **실제로 받는** 역할(D-550). 여기 없는 유형은 모두가 받는다. 예전에는 「일반 사용자인가」만 봐서 운영자 · 감사자에게
 # 받지도 않는 백업 실패 · AI 연결 상태 스위치가 보였다(백업 실패는 `notify_admins` 의 관리자 · 시스템 관리자만, AI 연결 상태는
 # 시스템 관리자만 받는다).
+# 역할 목록은 `app/core/authz.py` 한 곳에서 온다(시험 `test_authz_single_source`) — 백업 실패는 `notify_admins` 의 수신자와 같은
+# 두 역할(관리자 · 시스템 관리자 = `CONSOLE_WRITE_ROLES`), AI 연결 상태는 시스템 관리자만이다.
 TYPE_RECEIVER_ROLES: dict[str, frozenset[str]] = {
-    "backup_failed": frozenset({"admin", "system_admin"}),
-    "ai_provider_state": frozenset({"system_admin"}),
+    "backup_failed": frozenset(CONSOLE_WRITE_ROLES),
+    "ai_provider_state": frozenset(SYSTEM_ADMIN_ONLY),
 }
 
 

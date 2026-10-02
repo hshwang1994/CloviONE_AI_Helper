@@ -236,6 +236,12 @@ class _AlwaysAnswers:
 
         return base.success("답변입니다.")
 
+    def converse(self, *, system, turns, tools, tool_choice, model, max_output_tokens, timeout):
+        # 채팅은 AI 도우미 한 차례다(D-535) — 런타임이 대화 계약으로 부른다. 도구 없이 바로 답한다.
+        from app.ai.providers import base
+
+        return base.finish("답변입니다.", (), (), stop_reason=base.STOP_END, input_tokens=10, output_tokens=5)
+
 
 @pytest.fixture()
 def chat_quota_world(client, app, login_as, db, settings, fake_clock):
@@ -273,7 +279,8 @@ def chat_quota_world(client, app, login_as, db, settings, fake_clock):
 
     ctx = WorkerContext(settings=settings, clock=fake_clock,
                         outbound_client=app.state.outbound_client,
-                        extras={"ai_gateway": gateway, "ai_runtime": runtime})
+                        extras={"ai_gateway": gateway, "ai_runtime": runtime,
+                                "session_factory": app.state.session_factory})
     worker = Worker(app.state.session_factory, fake_clock,
                     {"chat_message": handle_chat_message}, ctx, poll_interval=0.01)
     return worker

@@ -996,3 +996,15 @@ def make_knowledge_document(db):
         return document
 
     return _make
+
+
+@pytest.fixture()
+def ai_on(app):
+    """AI 를 쓸 수 있는 설치 — 채팅은 AI 사용 권한과 가용성을 먼저 보고, 쓸 수 없으면 409 `ai_unavailable` 이다(D-538).
+
+    채팅 메시지를 넣어 큐 · 한도 · 점검 같은 **다른** 성질을 재는 시험이 쓴다. 가짜 제공자(`tests/fakes/ai.py`)를 끼운
+    진짜 런타임을 둔다 — 잡을 돌리지 않는 시험에서는 제공자를 부르지 않는다.
+    """
+    from tests.fakes.ai import install_runtime
+
+    return install_runtime(app)

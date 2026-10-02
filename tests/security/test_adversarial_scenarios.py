@@ -86,8 +86,12 @@ def test_last_system_admin_cannot_be_removed(client, login_as, db):
     assert client.post(f"/api/admin/users/{me.id}/disable", headers=_headers(csrf)).status_code == 409
 
 
-def test_browser_refresh_does_not_duplicate_ticket(client, login_as):
+def test_browser_refresh_does_not_duplicate_ticket(client, login_as, app):
     # "Browser를 새로고침하면 중복 Ticket이 생성되는가?" → client_message_id idempotency.
+    # 채팅은 AI 를 쓸 수 있을 때만 메시지를 받는다(D-538) — AI 가 켜진 설치에서 같은 메시지 id 를 세 번 보낸다.
+    from tests.fakes.ai import install_runtime
+
+    install_runtime(app)
     csrf = login_as("user")
     conv = client.post("/api/conversations", json={}, headers=_headers(csrf)).json()["conversation"]
     mid = "refresh0123456789abcdef01234567"

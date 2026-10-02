@@ -1,0 +1,228 @@
+{
+ "_note": "상태별 캡처(state_capture.py)의 로컬 릴레이 장면 — 서버 GET /api/admin/mail/relay 응답 모양 그대로다. Windows 개발 PC 에는 특권 헬퍼가 없어 구성 요소 상태를 이 값으로 넣는다. 주소 · 키는 시험 값이다.",
+ "config": {
+  "delivery": "direct",
+  "smarthost": {
+   "host": "",
+   "port": 587,
+   "security": "starttls",
+   "username": ""
+  },
+  "helo_name": "mail.goodmit.co.kr",
+  "public_ip": "",
+  "ipv4_only": true,
+  "dkim_enabled": true,
+  "dkim_selector": "ca1",
+  "transport_overrides": [
+   {
+    "domain": "goodmit.co.kr",
+    "host": "goodmit-co-kr.mail.protection.outlook.com"
+   }
+  ],
+  "compare_resolvers": [
+   "8.8.8.8"
+  ]
+ },
+ "view": {
+  "mode": "local_relay",
+  "component": {
+   "state": "running",
+   "label": "동작 중",
+   "message": "로컬 릴레이가 메일을 받아 바깥으로 전달하고 있습니다.",
+   "help": null,
+   "stale": false,
+   "technical": {
+    "packages": {
+     "postfix": "3.8.6-1ubuntu0.1",
+     "opendkim": "2.11.0~beta2-9build4"
+    },
+    "services": {
+     "postfix": "active",
+     "postfix_enabled": "enabled"
+    },
+    "listeners": [
+     "127.0.0.1:2525",
+     "127.0.0.1:8891"
+    ],
+    "queue_count": 0
+   }
+  },
+  "config": {
+   "delivery": "direct",
+   "smarthost": {
+    "host": "",
+    "port": 587,
+    "security": "starttls",
+    "username": ""
+   },
+   "helo_name": "mail.goodmit.co.kr",
+   "public_ip": "",
+   "ipv4_only": true,
+   "dkim_enabled": true,
+   "dkim_selector": "ca1",
+   "transport_overrides": [
+    {
+     "domain": "goodmit.co.kr",
+     "host": "goodmit-co-kr.mail.protection.outlook.com"
+    }
+   ],
+   "compare_resolvers": [
+    "8.8.8.8"
+   ],
+   "dkim_public": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIDAQAB"
+  },
+  "password": {
+   "stored": false
+  },
+  "dkim": {
+   "selector": "ca1",
+   "record_name": "ca1._domainkey.goodmit.co.kr",
+   "public": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIDAQAB",
+   "key_exists": true
+  },
+  "readiness": {
+   "checked_at": "2026-10-02T02:10:00",
+   "delivery": "direct",
+   "state": "fail",
+   "egress_ip": "221.147.80.10",
+   "checks": [
+    {
+     "key": "relay_installed",
+     "label": "메일 발송 구성 요소",
+     "state": "ok",
+     "message": "구성 요소가 설치돼 있습니다."
+    },
+    {
+     "key": "relay_running",
+     "label": "로컬 릴레이 동작",
+     "state": "ok",
+     "message": "로컬 릴레이가 동작하고 있습니다."
+    },
+    {
+     "key": "relay_managed",
+     "label": "받는 문",
+     "state": "ok",
+     "message": "받는 문은 이 서버 안(127.0.0.1:2525) 하나이고 25번은 닫혀 있습니다."
+    },
+    {
+     "key": "app_to_relay",
+     "label": "앱에서 릴레이로",
+     "state": "ok",
+     "message": "앱이 인증서로 로컬 릴레이에 붙어 받는 사람까지 확인했습니다."
+    },
+    {
+     "key": "egress_ip",
+     "label": "바깥 IP",
+     "state": "ok",
+     "message": "받는 쪽은 이 서버를 221.147.80.10 로 봅니다."
+    },
+    {
+     "key": "outbound_25",
+     "label": "바깥 25번 연결",
+     "state": "ok",
+     "message": "받는 쪽 메일 서버(goodmit-co-kr.mail.protection.outlook.com)의 25번에 연결할 수 있습니다."
+    },
+    {
+     "key": "recipient_mx",
+     "label": "받는 쪽 메일 서버(MX)",
+     "state": "ok",
+     "message": "goodmit.co.kr 은(는) 받는 도메인별 전달 서버(goodmit-co-kr.mail.protection.outlook.com)로 보냅니다."
+    },
+    {
+     "key": "spf",
+     "label": "SPF",
+     "state": "fail",
+     "message": "보내는 도메인의 SPF 레코드에 오류가 있습니다.",
+     "need": "SPF 레코드를 고치세요.",
+     "where": "도메인 DNS(아래 레코드 복사)",
+     "technical": "include 대상이 도메인이 아닙니다: 121.78.0.1"
+    },
+    {
+     "key": "dkim",
+     "label": "DKIM",
+     "state": "fail",
+     "message": "DKIM 레코드가 DNS 에 없습니다.",
+     "need": "ca1._domainkey.goodmit.co.kr 에 아래 DKIM 레코드를 넣으세요.",
+     "where": "도메인 DNS(아래 레코드 복사)"
+    },
+    {
+     "key": "dmarc",
+     "label": "DMARC",
+     "state": "ok",
+     "message": "DMARC 레코드가 있습니다(정책 none)."
+    },
+    {
+     "key": "ptr_fcrdns",
+     "label": "역방향 이름(PTR)",
+     "state": "fail",
+     "message": "공인 IP 의 역방향 이름(PTR)이 없습니다.",
+     "need": "221.147.80.10 의 역방향 이름을 mail.goodmit.co.kr(으)로 등록해 달라고 요청하세요.",
+     "where": "회선이나 클라우드 업체"
+    },
+    {
+     "key": "helo_dns",
+     "label": "서버 이름(HELO)",
+     "state": "fail",
+     "message": "서버 이름(mail.goodmit.co.kr)이 DNS 에 없습니다.",
+     "need": "아래 A 레코드를 넣으세요.",
+     "where": "도메인 DNS(아래 레코드 복사)"
+    }
+   ],
+   "records": [
+    {
+     "key": "spf",
+     "name": "goodmit.co.kr",
+     "type": "TXT",
+     "value": "v=spf1 ip4:221.147.80.10 include:spf.protection.outlook.com -all"
+    },
+    {
+     "key": "dkim",
+     "name": "ca1._domainkey.goodmit.co.kr",
+     "type": "TXT",
+     "value": "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIDAQAB"
+    },
+    {
+     "key": "dmarc",
+     "name": "_dmarc.goodmit.co.kr",
+     "type": "TXT",
+     "value": "v=DMARC1; p=none; rua=mailto:noreply@goodmit.co.kr"
+    },
+    {
+     "key": "helo",
+     "name": "mail.goodmit.co.kr",
+     "type": "A",
+     "value": "221.147.80.10"
+    },
+    {
+     "key": "ptr",
+     "name": "221.147.80.10",
+     "type": "PTR",
+     "value": "mail.goodmit.co.kr",
+     "request": "공인 IP 221.147.80.10 의 역방향 이름(PTR)을 mail.goodmit.co.kr 로 등록해 주세요."
+    }
+   ]
+  },
+  "outer": {
+   "status": "delivered",
+   "label": "수신측 메일 서버로 전달함",
+   "sentence": null,
+   "at": "2026-10-02T02:05:00"
+  }
+ },
+ "status_relay": {
+  "delivery": "direct",
+  "component": {
+   "state": "running",
+   "label": "동작 중",
+   "message": "로컬 릴레이가 메일을 받아 바깥으로 전달하고 있습니다.",
+   "help": null,
+   "stale": false
+  },
+  "outer": {
+   "status": "delivered",
+   "label": "수신측 메일 서버로 전달함",
+   "sentence": null,
+   "at": "2026-10-02T02:05:00"
+  }
+ }
+}

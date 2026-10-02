@@ -69,8 +69,8 @@ def _recorded_ok(db) -> int:
 
 
 @pytest.fixture()
-def capped(db, make_user):
-    """하루 1회 상한이 걸린 사용자."""
+def capped(db, make_user, ai_on):
+    """하루 1회 상한이 걸린 사용자(AI 를 쓸 수 있는 설치 — 채팅이 가용성을 먼저 본다, D-538)."""
     from app.quotas.models import AiQuota
 
     user = make_user("toctou@goodmit.co.kr", role="user", display_name="상한사용자")
