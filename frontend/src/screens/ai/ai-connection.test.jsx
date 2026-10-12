@@ -19,7 +19,7 @@ import "@testing-library/jest-dom/vitest";
  *   4) 한 열 흐름이다 - 카드는 연결 상태 면 하나이고 구획은 카드가 아니다. 기술 값은 「기술 정보」 접기 안에만 있다.
  *   5) 고른 연결이 지금 연결과 다르면 「이 연결로 바꾸기」가 그 연결의 모델 목록을 받아 함께 저장한다.
  *   6) 상태 면은 서버가 준 사실(`facts`)과 다음 할 일(`next`)만 그린다(D-558). 자격이 없으면 모델 줄이 없고 「AI 사용」을 켤 수 없다.
- *   7) ChatGPT 계정 연결은 서버가 표에 실어 줄 때(개인 평가 설치)만 있다(D-559). 꺼진 설치에는 한 줄 안내뿐이다.
+ *   7) ChatGPT 계정 연결은 모든 설치에서 API 키와 함께 표에 선다(D-566). 고르면 요금제 공유 한 줄과 세 단계가 서고 바로 시작할 수 있다.
  */
 
 const apiMock = vi.fn();
@@ -42,7 +42,7 @@ const OPENAI = {
   auth_methods: [
     { key: "api_key", label: "API 키", secret_slot: "ai.openai.api_key", account: false, secret_set: true, help: "키", ready: true,
       issue_url: "https://platform.openai.com/api-keys" },
-    { key: "chatgpt", label: "ChatGPT 계정(개인 평가용)", secret_slot: "ai.openai.chatgpt", account: true, secret_set: false, help: "계정",
+    { key: "chatgpt", label: "ChatGPT 계정", secret_slot: "ai.openai.chatgpt", account: true, secret_set: false, help: "계정",
       ready: false },
   ],
 };
@@ -64,7 +64,6 @@ function overview(over = {}) {
     ],
     next: { label: "지금 확인을 눌러 실제 답을 받는지 확인하세요.", action: "verify" },
     login: { open: false, transaction_id: null, expires_at: null },
-    chatgpt_allowed: true,
     features: { chat_enabled: true, assistant_narrative_enabled: false, game_ai_enabled: false },
     limits: { timeout_seconds: [5, 300], max_concurrency: [1, 8] },
     chatgpt: { connected: false, disconnected: false, flow: "paste" },
@@ -262,14 +261,14 @@ describe("AI 연결 — 실행 옵션과 기능", () => {
   });
 });
 
-describe("AI 연결 — 서버가 준 사실과 다음 할 일 (D-558 · D-559)", () => {
+describe("AI 연결 — 서버가 준 사실과 다음 할 일 (D-558 · D-566)", () => {
   it("자격이 없으면 모델 줄이 없고 다음 할 일 한 문장과 단추가 선다 - 같은 문장을 두 번 쓰지 않는다", async () => {
     const message = "ChatGPT 계정을 아직 연결하지 않았습니다.";
     data = overview({
       config: { provider: "openai", auth_method: "chatgpt", model: "gpt-5" },
       state: { state: "unconfigured", display: { key: "unconfigured", label: "미설정", kind: "muted", message } },
       credentials: { ready: false, method: "chatgpt", account_label: null },
-      facts: [{ key: "provider", label: "제공자", value: "OpenAI" }, { key: "auth", label: "인증 방식", value: "ChatGPT 계정(개인 평가용)" }],
+      facts: [{ key: "provider", label: "제공자", value: "OpenAI" }, { key: "auth", label: "인증 방식", value: "ChatGPT 계정" }],
       next: { label: message, action: "login" },
     });
     const { container } = renderScreen();
@@ -299,23 +298,23 @@ describe("AI 연결 — 서버가 준 사실과 다음 할 일 (D-558 · D-559)"
     await waitFor(() => expect(calls("/api/admin/ai/config", "PUT").some(([, o]) => o.body.generation_enabled === true)).toBe(true));
   });
 
-  it("플래그가 꺼진 설치에는 ChatGPT 선택지가 없고 한 줄 안내만 있다", async () => {
+  it("OpenAI 는 모든 설치에서 API 키와 ChatGPT 계정 두 방식이 서고, API 키가 먼저다", async () => {
     const user = userEvent.setup();
-    data = overview({ providers: [ANTHROPIC, { ...OPENAI, auth_methods: [OPENAI.auth_methods[0]] }], chatgpt_allowed: false });
     renderScreen();
     await user.click(await screen.findByRole("tab", { name: "OpenAI" }));
-    expect(screen.queryByRole("tablist", { name: "인증 방식" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Continue with ChatGPT/ })).toBeNull();
-    expect(screen.getByTestId("chatgpt-disabled-note")).toHaveTextContent("이 설치에서는 API 키로 연결하세요.");
+    const methods = within(screen.getByRole("tablist", { name: "인증 방식" })).getAllByRole("tab");
+    expect(methods.map((t) => t.textContent)).toEqual(["API 키", "ChatGPT 계정"]);
+    expect(screen.queryByTestId("chatgpt-disabled-note")).toBeNull();
     expect(screen.getByRole("link", { name: "OpenAI 키 발급처 열기" })).toHaveAttribute("href", "https://platform.openai.com/api-keys");
   });
 
-  it("켜진 설치에서 ChatGPT 계정을 고르면 개인 평가 안내와 세 단계가 선다", async () => {
+  it("ChatGPT 계정을 고르면 요금제 공유 한 줄과 세 단계가 서고 바로 시작할 수 있다", async () => {
     const user = userEvent.setup();
     renderScreen();
     await user.click(await screen.findByRole("tab", { name: "OpenAI" }));
-    await user.click(screen.getByRole("tab", { name: "ChatGPT 계정(개인 평가용)" }));
+    await user.click(screen.getByRole("tab", { name: "ChatGPT 계정" }));
     expect(await screen.findByTestId("chatgpt-steps")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Continue with ChatGPT/ })).toBeDisabled();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.getByRole("button", { name: /Continue with ChatGPT/ })).not.toBeDisabled();
   });
 });

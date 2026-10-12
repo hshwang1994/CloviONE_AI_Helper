@@ -112,7 +112,6 @@ def _public_overview(body: dict) -> dict:
         "facts": [f.get("key") for f in body.get("facts") or []],
         "next": body.get("next"),
         "login_open": (body.get("login") or {}).get("open"),
-        "chatgpt_allowed": body.get("chatgpt_allowed"),
         "providers": providers,
         "capabilities": body.get("capabilities"),
         "index": body.get("index"),

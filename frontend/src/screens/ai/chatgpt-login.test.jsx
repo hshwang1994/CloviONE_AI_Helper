@@ -5,18 +5,18 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom/vitest";
 
-/* ChatGPT 계정 로그인 — 세 단계 카드 + 새 창 승인 + 주소 붙여 넣기 자동 완료 (계획 A3, D-540 · D-559 · P3 ②).
+/* ChatGPT 계정 로그인 — 세 단계 카드 + 새 창 승인 + 주소 붙여 넣기 자동 완료 (계획 A3, D-540 · D-566 · P3 ②).
  *
  * qa-contract-replaced-by: frontend/src/screens/settings/chatgpt-connect.test.jsx
  *
  * 옛 시험은 연결 도우미(명령 · 내려받기 · 단계 폴링)를 쟀다. 도우미는 걷었고 다시 들이지 않는다. 남는 약속 — 토큰 입력칸이
  * 없다, 공식 단추 문구를 쓴다, 처음 연결 안내를 한 번 보인다, 연결을 끊을 때 확인을 받는다 — 은 여기서 다시 잰다. 약속:
- *   1) 개인 평가 기능이라는 안내와 「연결한 사람(나)만 쓴다」 확인을 받은 뒤에만 시작할 수 있다. 토큰 입력칸은 없다.
+ *   1) 요금제 공유 안내 한 줄이 보이고 바로 시작할 수 있다(동의 체크 없음, D-566). 토큰 입력칸은 없다.
  *   2) 세 단계가 단추를 누르기 **전부터** 선다 — 둘째 단계가 「127.0.0.1 … 연결할 수 없습니다」 오류 화면이 정상이라고 먼저 말한다.
  *   3) 같은 클릭 안에서 새 창을 열고 opener 를 끊는다. 서버 응답이 오면 그 창을 승인 주소로 옮긴다. 막히면 링크를 준다.
  *   4) 맞는 주소를 붙여 넣는 순간 단추 없이 연결한다. 다른 시도의 주소 · 주소가 아닌 글은 한 문장으로 거절한다. 남은 시간을
  *      보이고, 만료되면 「다시 시작」이다.
- *   5) 연결되면 새 창을 닫고 단계 안내를 접어 「ChatGPT 계정으로 연결됨(개인 평가용)」 한 줄만 남긴다.
+ *   5) 연결되면 새 창을 닫고 단계 안내를 접어 「ChatGPT 계정으로 연결됨」 한 줄만 남긴다.
  *   6) 서버가 열린 시도를 알고 있으면(새로고침) 붙여 넣기 칸을 되찾는다. 서버가 `flow: "redirect"` 를 주면 같은 창이 승인으로 간다.
  */
 
@@ -24,7 +24,7 @@ const apiMock = vi.fn();
 vi.mock("../../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
 
 import {
-  ChatGptLogin, CONNECTED_LABEL, CONSENT_LABEL, EXPIRED_TEXT, NOT_A_CALLBACK, PASTE_STEPS, PERSONAL_NOTICE, WRONG_ATTEMPT,
+  ChatGptLogin, CONNECTED_LABEL, EXPIRED_TEXT, NOT_A_CALLBACK, PASTE_STEPS, PLAN_NOTICE, WRONG_ATTEMPT,
   matchAttempt,
 } from "./ChatGptLogin.jsx";
 import { ConfirmProvider, ToastProvider } from "../../ui/kit.jsx";
@@ -53,12 +53,7 @@ function renderLogin(props = {}) {
   );
 }
 
-async function agree(user) {
-  await user.click(screen.getByRole("checkbox", { name: CONSENT_LABEL }));
-}
-
 async function begin(user) {
-  await agree(user);
   await user.click(screen.getByRole("button", { name: /Continue with ChatGPT/ }));
   return screen.findByLabelText("주소 붙여 넣기");
 }
@@ -93,15 +88,12 @@ afterEach(() => {
 });
 
 describe("ChatGPT 로그인 — 시작 전", () => {
-  it("개인 평가 안내와 확인을 받은 뒤에만 시작할 수 있고 토큰 입력칸이 없다", async () => {
-    const user = userEvent.setup();
+  it("요금제 공유 안내 한 줄이 보이고 바로 시작할 수 있으며 토큰 입력칸이 없다", () => {
     renderLogin();
-    expect(screen.getByText(PERSONAL_NOTICE)).toBeInTheDocument();
-    const button = screen.getByRole("button", { name: /Continue with ChatGPT/ });
-    expect(button).toBeDisabled();
+    expect(screen.getByText(PLAN_NOTICE)).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.getByRole("button", { name: /Continue with ChatGPT/ })).not.toBeDisabled();
     expect(screen.queryByRole("textbox")).toBeNull();
-    await agree(user);
-    expect(button).not.toBeDisabled();
   });
 
   it("세 단계가 단추를 누르기 전부터 서고, 둘째 단계가 오류 화면이 정상이라고 먼저 말한다", () => {
@@ -122,7 +114,6 @@ describe("ChatGPT 로그인 — 새 창", () => {
     apiMock.mockImplementation((path) => (String(path).endsWith("/start")
       ? new Promise((resolve) => { release = () => resolve(startReply); }) : Promise.resolve({})));
     renderLogin();
-    await agree(user);
     await user.click(screen.getByRole("button", { name: /Continue with ChatGPT/ }));
     expect(window.open).toHaveBeenCalledWith("about:blank", "_blank");
     expect(win.opener).toBeNull();
@@ -145,7 +136,6 @@ describe("ChatGPT 로그인 — 새 창", () => {
     const redirect = vi.fn();
     startReply = { ...startReply, flow: "redirect" };
     renderLogin({ redirect });
-    await agree(user);
     await user.click(screen.getByRole("button", { name: /Continue with ChatGPT/ }));
     await waitFor(() => expect(redirect).toHaveBeenCalledWith(AUTHORIZE));
     expect(win.close).toHaveBeenCalled();

@@ -135,12 +135,13 @@ PROVIDERS: dict[str, ProviderSpec] = {
             AuthMethod(AUTH_API_KEY, "API 키", SLOT_OPENAI_API_KEY,
                        "OpenAI 플랫폼에서 발급한 API 키를 넣습니다. 조직 키를 권장하고, 쓴 만큼 그 키의 계정에 과금됩니다.",
                        "API 키를 아직 넣지 않았습니다.", issue_url="https://platform.openai.com/api-keys"),
-            # 개인 평가 모드(D-559) — 설치 플래그가 켜진 개인 · 로컬 개발 설치에서만 표에 선다(`providers_view`).
-            AuthMethod(AUTH_CHATGPT, "ChatGPT 계정(개인 평가용)", SLOT_OPENAI_CHATGPT,
-                       "개인용이나 로컬 개발 설치의 평가 기능입니다. 연결한 사람 본인만 AI 를 쓸 수 있습니다.",
+            # 공식 「Sign in with ChatGPT」(D-540 붙여 넣기 흐름). 사용자 결정으로 API 키와 같은 정식 방식이다(D-566) —
+            # 연결한 계정 하나의 요금제를 이 설치의 모든 사용자가 함께 쓴다.
+            AuthMethod(AUTH_CHATGPT, "ChatGPT 계정", SLOT_OPENAI_CHATGPT,
+                       "ChatGPT Plus 또는 Pro 계정으로 로그인해 그 요금제로 씁니다. 연결한 계정 하나의 사용량을 이 설치의 모든 사용자가 함께 씁니다.",
                        "ChatGPT 계정을 아직 연결하지 않았습니다.", account=True),
         ),
-        help="OpenAI 는 플랫폼에서 발급한 API 키로 연결합니다.",
+        help="OpenAI 는 플랫폼의 API 키 또는 ChatGPT 계정 로그인으로 연결합니다.",
     ),
 }
 

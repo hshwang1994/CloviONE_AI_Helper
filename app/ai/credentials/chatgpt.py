@@ -438,7 +438,7 @@ def new_bundle(*, payload: dict, claims: dict, client_id: str, host_id: str, exp
                scopes: list[str], owner_user_id: str | None = None) -> dict:
     """로그인 한 번 → 묶음. `login_id` 는 이 로그인에만 붙는다 - 연결 상태의 지문이 갱신이 아니라 새 로그인에만 바뀐다.
 
-    `owner_user_id` 는 연결한 관리자다(D-559 개인 평가 모드) — 이 요금제의 토큰은 그 사람의 것이라 AI 도 그 사람만 쓴다.
+    `owner_user_id` 는 연결한 관리자다 — 누가 연결했는지의 기록일 뿐, 쓰는 사람을 가르지 않는다(D-566: 모두가 함께 쓴다).
     """
     return {
         "version": 1,

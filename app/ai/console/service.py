@@ -166,16 +166,16 @@ def enqueue_verify(db: Session, *, user_id: str, now: datetime):
     return enqueue(db, job_type=JOB_TYPE_VERIFY, payload={}, now=now, user_id=user_id, max_attempts=1)
 
 
-def config_complete(config, secrets, *, chatgpt_allowed: bool = True) -> bool:
+def config_complete(config, secrets) -> bool:
     """제공자 · 인증 · 자격 · 모델이 다 있는가(연결 확인을 돌릴 수 있는가)."""
     from app.ai.runtime import problems
 
-    return not problems(config, secrets, chatgpt_allowed=chatgpt_allowed)
+    return not problems(config, secrets)
 
 
-def verify_needed(changed: dict, config_after, secrets, *, chatgpt_allowed: bool = True) -> bool:
+def verify_needed(changed: dict, config_after, secrets) -> bool:
     """저장한 바뀜이 연결 확인을 부르는가 — 인증 · 모델이 바뀌었거나 AI 사용을 켰고, 설정이 완결일 때."""
-    if not config_complete(config_after, secrets, chatgpt_allowed=chatgpt_allowed):
+    if not config_complete(config_after, secrets):
         return False
     if VERIFY_ON & set(changed):
         return True
@@ -196,10 +196,10 @@ def _hint(secrets, slot: str) -> str | None:
     return f"끝자리 {text[-4:]}" if len(text) >= 16 else None
 
 
-def providers_view(secrets, *, chatgpt_connected: bool = False, chatgpt_allowed: bool = True) -> list[dict]:
+def providers_view(secrets, *, chatgpt_connected: bool = False) -> list[dict]:
     """제공자와 인증 방식의 표. `ready` 는 그 방식의 자격이 지금 갖춰졌는가다(키가 있다, 계정이 연결됐다).
 
-    계정 연결(ChatGPT)은 설치 플래그가 켜진 개인 · 로컬 개발 설치에서만 표에 선다(D-559) — 꺼진 설치에는 그 방식이 없다.
+    표의 방식은 설치와 무관하게 전부 선다(D-566) — ChatGPT 계정 연결도 API 키와 같은 정식 방식이다.
     """
     from app.core.secret_refs import STATUS_CONFIGURED
 
@@ -207,8 +207,6 @@ def providers_view(secrets, *, chatgpt_connected: bool = False, chatgpt_allowed:
     for spec in base.PROVIDERS.values():
         methods = []
         for m in spec.auth_methods:
-            if m.account and not chatgpt_allowed:
-                continue
             secret_set = bool(secrets is not None and secrets.status(m.secret_slot) == STATUS_CONFIGURED)
             methods.append({
                 "key": m.key, "label": m.label, "help": m.help, "secret_slot": m.secret_slot,
@@ -281,15 +279,15 @@ TOOLS_FACT = {
 }
 
 
-def credentials_view(config, secrets, *, chatgpt: dict, chatgpt_allowed: bool) -> dict:
-    """지금 인증 방식의 자격이 갖춰졌는가(D-558). 키 방식은 비밀 칸, 계정 방식은 토큰이 든 묶음 — 그리고 설치 플래그."""
+def credentials_view(config, secrets, *, chatgpt: dict) -> dict:
+    """지금 인증 방식의 자격이 갖춰졌는가(D-558). 키 방식은 비밀 칸, 계정 방식은 토큰이 든 묶음이다."""
     from app.core.secret_refs import STATUS_CONFIGURED
 
     method = config.method()
     if method is None:
         return {"ready": False, "method": config.auth_method or None, "account_label": None}
     if method.account:
-        ready = bool(chatgpt_allowed and chatgpt.get("connected"))
+        ready = bool(chatgpt.get("connected"))
         return {"ready": ready, "method": method.key, "account_label": chatgpt.get("account_label") if ready else None}
     ready = bool(secrets is not None and secrets.status(method.secret_slot) == STATUS_CONFIGURED)
     return {"ready": ready, "method": method.key, "account_label": None}
@@ -326,7 +324,7 @@ def facts_view(config, status: dict, *, credentials: dict, caps: dict, index: di
     return facts
 
 
-def next_view(display: dict, config, status: dict, *, credentials: dict, chatgpt_allowed: bool) -> dict | None:
+def next_view(display: dict, config, status: dict, *, credentials: dict) -> dict | None:
     """「다음 할 일」 한 문장과 자리(D-558). 정상이면 None — 할 일이 없다."""
     key = display.get("key")
     method = config.method()
@@ -336,8 +334,6 @@ def next_view(display: dict, config, status: dict, *, credentials: dict, chatgpt
         label = problems[0] if problems else DISPLAY_MESSAGES["unconfigured"]
         if method is None:
             action = NEXT_CONFIGURE
-        elif account and not chatgpt_allowed:
-            action = NEXT_API_KEY
         elif not credentials.get("ready"):
             action = NEXT_LOGIN if account else NEXT_API_KEY
         elif not config.model:
@@ -377,11 +373,10 @@ def overview(db: Session, runtime, secrets, settings_cache, *, gateway=None, adm
     job = pending_verify(db)
     index = index_view(db, gateway)
     method = config.method()
-    chatgpt_allowed = bool(getattr(runtime, "chatgpt_allowed", True))
     chatgpt = chatgpt_view(runtime, db)
-    credentials = credentials_view(config, secrets, chatgpt=chatgpt, chatgpt_allowed=chatgpt_allowed)
+    credentials = credentials_view(config, secrets, chatgpt=chatgpt)
     login = {"open": False, "transaction_id": None, "expires_at": None}
-    if chatgpt_allowed and admin_user_id and now is not None:
+    if admin_user_id and now is not None:
         found = oauth.open_attempt(db, admin_user_id=admin_user_id, now=now)
         if found is not None:
             login = {"open": True, **found}
@@ -413,12 +408,9 @@ def overview(db: Session, runtime, secrets, settings_cache, *, gateway=None, adm
         # 상태 면은 이 셋만 그린다(D-558): 자격이 갖춰졌는가 · 그릴 줄 · 다음 할 일.
         "credentials": credentials,
         "facts": facts_view(config, status, credentials=credentials, caps=caps, index=index),
-        "next": next_view(display, config, status, credentials=credentials, chatgpt_allowed=chatgpt_allowed),
+        "next": next_view(display, config, status, credentials=credentials),
         "login": login,
-        # 계정 연결(ChatGPT)은 개인 평가 플래그가 켜진 설치에서만 표에 선다(D-559).
-        "chatgpt_allowed": chatgpt_allowed,
-        "providers": providers_view(secrets, chatgpt_connected=bool(chatgpt["connected"]),
-                                    chatgpt_allowed=chatgpt_allowed),
+        "providers": providers_view(secrets, chatgpt_connected=bool(chatgpt["connected"])),
         "features": {key: values.get(key) is True for key in FEATURE_KEYS},
         "limits": {
             "timeout_seconds": [concurrency.MIN_TIMEOUT_SECONDS, concurrency.MAX_TIMEOUT_SECONDS],
@@ -443,14 +435,8 @@ def overview(db: Session, runtime, secrets, settings_cache, *, gateway=None, adm
     }
 
 
-def validate_config(current, changes: dict, *, chatgpt_allowed: bool = True) -> dict:
-    """바꿀 값을 합친 뒤 **한 벌로** 검사한다. 저장할 `{설정 키: 값}` 을 돌려준다.
-
-    계정 연결(ChatGPT)을 **고르는** 저장은 플래그가 꺼진 설치에서 422 다(D-559) — 화면에 없는 선택지를 API 로도 못 고른다.
-    옛 저장값이 남아 있는 설치가 다른 칸을 고치는 것은 막지 않는다(그 상태는 「미설정 · API 키로 연결하세요」다).
-    """
-    from app.ai.runtime import CHATGPT_DISABLED_TEXT
-
+def validate_config(current, changes: dict) -> dict:
+    """바꿀 값을 합친 뒤 **한 벌로** 검사한다. 저장할 `{설정 키: 값}` 을 돌려준다."""
     merged = {
         "generation_enabled": current.generation_enabled, "provider": current.provider,
         "auth_method": current.auth_method, "model": current.model,
@@ -469,11 +455,6 @@ def validate_config(current, changes: dict, *, chatgpt_allowed: bool = True) -> 
             merged["auth_method"] = spec.auth_methods[0].key
         if merged["auth_method"] and spec.method(merged["auth_method"]) is None:
             raise ValidationAppError(f"{spec.label}에서 쓸 수 없는 인증 방식입니다.")
-        chosen = spec.method(merged["auth_method"]) if merged["auth_method"] else None
-        if chosen is not None and chosen.account and not chatgpt_allowed and (
-            changes.get("auth_method") or changes.get("provider")
-        ):
-            raise ValidationAppError(CHATGPT_DISABLED_TEXT)
     elif merged["auth_method"]:
         raise ValidationAppError("제공자를 먼저 고르세요.")
     if len(merged["model"]) > MODEL_MAX_CHARS:
@@ -491,12 +472,11 @@ def validate_config(current, changes: dict, *, chatgpt_allowed: bool = True) -> 
     return {CONFIG_KEYS[k]: v for k, v in merged.items()}
 
 
-def apply_config(db: Session, settings_cache, *, current, changes: dict, user_id: str, now: datetime,
-                 chatgpt_allowed: bool = True) -> dict:
+def apply_config(db: Session, settings_cache, *, current, changes: dict, user_id: str, now: datetime) -> dict:
     """바뀐 값만 저장한다(설정 버전 기록이 남는다). 바뀐 `{설정 키: 새 값}` 을 돌려준다."""
     from app.settings.service import apply_setting
 
-    target = validate_config(current, changes, chatgpt_allowed=chatgpt_allowed)
+    target = validate_config(current, changes)
     values = settings_cache.current() if settings_cache is not None else {}
     changed = {}
     for key, value in target.items():

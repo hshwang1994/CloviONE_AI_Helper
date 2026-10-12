@@ -119,16 +119,10 @@ def config_from_values(values: dict) -> RuntimeConfig:
     )
 
 
-#: 개인 평가 모드(D-559)가 꺼진 설치에서 ChatGPT 계정 연결이 저장돼 있을 때의 까닭 — 저장된 토큰이 있어도 쓰지 않는다.
-CHATGPT_DISABLED_TEXT = "이 설치에서는 ChatGPT 계정 연결을 쓸 수 없습니다. API 키로 연결하세요."
-#: 개인 평가 모드에서 연결한 본인이 아닌 사람의 호출(사용 기록에는 남지 않는다 — 아무것도 시도하지 않았다).
-PERSONAL_ONLY = "personal_only"
-
-
-def problems(config: RuntimeConfig, secrets, *, chatgpt_allowed: bool = True) -> list[str]:
+def problems(config: RuntimeConfig, secrets) -> list[str]:
     """미설정의 까닭. 비어 있으면 설정은 다 됐다(동작하는지는 연결 상태가 말한다).
 
-    ``chatgpt_allowed`` 는 설치 플래그(`AI_CHATGPT_PERSONAL_EVAL`, D-559)다 — 꺼진 설치에서 ChatGPT 계정 연결은 미설정과 같다.
+    제공자 표(`providers.base.PROVIDERS`)에 있는 인증 방식은 설치와 무관하게 전부 쓸 수 있다(D-566) — API 키도 ChatGPT 계정도.
     """
     spec = base.provider_spec(config.provider)
     if spec is None:
@@ -136,8 +130,6 @@ def problems(config: RuntimeConfig, secrets, *, chatgpt_allowed: bool = True) ->
     method = spec.method(config.auth_method)
     if method is None:
         return [f"{spec.label}의 인증 방식을 아직 고르지 않았습니다."]
-    if method.account and not chatgpt_allowed:
-        return [CHATGPT_DISABLED_TEXT]
     found: list[str] = []
     if not config.model:
         found.append("모델을 아직 고르지 않았습니다.")
@@ -298,12 +290,7 @@ class _AssistantMixin:
         """도우미 한 차례. 예외를 올리지 않는다(도구 실행의 예외도 결과 칸의 `unavailable` 로 접는다)."""
         config = self.config(db)
         started = time.monotonic()
-        if self.personal_only_for(config, actor):
-            # 개인 평가 모드(D-559)의 남 — 아무것도 시도하지 않았으므로 미설정과 같고 사용 기록에도 남지 않는다.
-            outcome = ConverseOutcome(status=contract.STATUS_UNCONFIGURED, error_code=PERSONAL_ONLY,
-                                      model=config.model, provider=config.provider)
-        else:
-            outcome = self._converse(db, config, action_key=action_key, turn=turn, started=started)
+        outcome = self._converse(db, config, action_key=action_key, turn=turn, started=started)
         outcome = _with_latency(outcome, started)
         self._record_turn_usage(config, outcome, action_key=action_key, actor=actor, job_id=job_id,
                                 request_id=request_id)
@@ -638,32 +625,9 @@ class AiRuntime(_AssistantMixin):
     def secrets(self):
         return self._secrets
 
-    @property
-    def chatgpt_allowed(self) -> bool:
-        """이 설치가 ChatGPT 계정 연결(개인 평가 모드, D-559)을 허용하는가 — `AI_CHATGPT_PERSONAL_EVAL`. 기본 꺼짐."""
-        return bool(getattr(self._settings, "ai_chatgpt_personal_eval", False))
-
     def problems(self, config: RuntimeConfig) -> list[str]:
-        """이 설치의 미설정 까닭 — 모듈 `problems` 에 설치 플래그를 더한 것. 화면 · 호출 · 연결 확인이 같은 판정을 쓴다."""
-        return problems(config, self._secrets, chatgpt_allowed=self.chatgpt_allowed)
-
-    def chatgpt_owner_id(self) -> str | None:
-        """ChatGPT 계정을 연결한 관리자의 id. 묶음이 없거나 주인을 적지 않은 옛 묶음이면 None(아무의 것도 아니다)."""
-        bundle = self.chatgpt_tokens().bundle()
-        owner = bundle.get("owner_user_id") if bundle else None
-        return str(owner) if owner else None
-
-    def personal_only_for(self, config: RuntimeConfig, actor) -> bool:
-        """개인 평가 모드에서 이 사람이 연결한 본인이 아닌가(D-559). 계정 방식이 아니거나 플래그가 꺼져 있으면 언제나 False.
-
-        본인이 아닌 사용자 · 시스템 호출(주간 요약 · 홈 요약 · 퀴즈 같은 배치)은 미설정 취급이다 — 요금제는 연결한 사람의 것이다.
-        """
-        method = config.method()
-        if method is None or not method.account or not self.chatgpt_allowed:
-            return False
-        owner = self.chatgpt_owner_id()
-        actor_id = getattr(actor, "id", None) if actor is not None else None
-        return owner is None or actor_id is None or str(actor_id) != owner
+        """이 설치의 미설정 까닭 — 모듈 `problems` 그대로. 화면 · 호출 · 연결 확인이 같은 판정을 쓴다."""
+        return problems(config, self._secrets)
 
     @property
     def outbound(self):
@@ -761,11 +725,10 @@ class AiRuntime(_AssistantMixin):
         if db is None and self._session_factory is not None:
             with self._session_factory() as session:
                 config = self.config(session)
-                result = self._generate_for(session, config, actor=actor, action_key=action_key, data=data,
-                                            verify=verify)
+                result = self._generate(session, config, action_key=action_key, data=data, verify=verify)
         else:
             config = self.config(db)
-            result = self._generate_for(db, config, actor=actor, action_key=action_key, data=data, verify=verify)
+            result = self._generate(db, config, action_key=action_key, data=data, verify=verify)
         self._record_usage(config, result, action_key=action_key, actor=None if verify else actor, job_id=job_id,
                            request_id=request_id, extra_policy_ids=extra_policy_ids)
         return result
@@ -799,14 +762,6 @@ class AiRuntime(_AssistantMixin):
             prompt_slot=result.prompt_slot, prompt_version=result.prompt_version, prompt_source=result.prompt_source,
             prompt_id=result.prompt_id, policy_ids=policy_ids, request_id=request_id, job_id=job_id,
         )
-
-    def _generate_for(self, db: Session, config: RuntimeConfig, *, actor, action_key: str, data: str,
-                      verify: bool) -> contract.GenerateResult:
-        """개인 평가 모드의 주인 검사(D-559)를 앞에 둔 `_generate`. 연결 확인(`verify`)은 관리자의 점검이라 검사하지 않는다."""
-        if not verify and self.personal_only_for(config, actor):
-            return contract.GenerateResult(status=contract.STATUS_UNCONFIGURED, model=config.model,
-                                           error_code=PERSONAL_ONLY)
-        return self._generate(db, config, action_key=action_key, data=data, verify=verify)
 
     def _generate(self, db: Session, config: RuntimeConfig, *, action_key: str, data: str,
                   verify: bool) -> contract.GenerateResult:

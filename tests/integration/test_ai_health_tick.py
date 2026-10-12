@@ -34,12 +34,6 @@ from tests.fakes.ai import FreeLock, ScriptedAdapter, configure_ai
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(autouse=True)
-def _personal_eval(settings):
-    """ChatGPT 계정 연결은 개인 평가 플래그가 켜진 설치에만 있다(D-559) - 이 파일은 그 설치를 잰다."""
-    settings.ai_chatgpt_personal_eval = True
-
-
 class CheckAdapter(ScriptedAdapter):
     """모델 목록 답을 시험이 정한다."""
 

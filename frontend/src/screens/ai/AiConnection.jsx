@@ -30,15 +30,14 @@ import { MODELS_KEY, ModelPicker } from "./ModelPicker.jsx";
  * - 고른 제공자 · 인증 방식이 지금 연결과 다르면 「이 연결로 바꾸기」가 이 화면의 주 동작이다. 처음 설정(지금 연결이 없다)은
  *   인증이 끝나는 순간 그 연결을 쓴다.
  *
- * ## 인증 방식의 자리 (D-559)
+ * ## 인증 방식의 자리 (D-566)
  *
- * API 키가 먼저다(발급처 링크 · 조직 키 권장 · 과금 한 줄은 서버의 방식 설명이다). ChatGPT 계정 연결은 설치 플래그
- * (`AI_CHATGPT_PERSONAL_EVAL`)가 켜진 개인 · 로컬 개발 설치에서만 서버가 표에 실어 주고, 꺼진 설치에서는 선택지 자체가 없고 한 줄
- * 안내만 있다. 「AI 사용」은 서버의 `credentials.ready` 와 모델이 갖춰진 뒤에만 켤 수 있다(D-558) — 화면이 자격을 짐작하지 않는다.
+ * API 키가 먼저다(발급처 링크 · 조직 키 권장 · 과금 한 줄은 서버의 방식 설명이다). ChatGPT 계정 연결은 API 키와 같은 정식 방식이라
+ * 모든 설치에서 서버가 표에 실어 준다(사용자 결정, D-559 대체). 「AI 사용」은 서버의 `credentials.ready` 와 모델이 갖춰진 뒤에만
+ * 켤 수 있다(D-558) — 화면이 자격을 짐작하지 않는다.
  */
 
 export const AI_ADMIN_KEY = ["ai-admin"];
-export const CHATGPT_DISABLED_NOTE = "ChatGPT 계정 연결은 개인용이나 로컬 개발 설치의 평가 기능입니다. 이 설치에서는 API 키로 연결하세요.";
 const POLL_MS = 1500;
 const VERIFY_LIMIT_MS = 90_000;
 
@@ -161,7 +160,6 @@ export function AiConnection() {
   /* 자격은 서버가 판정한다(D-558). 켤 수 있는 것은 자격과 모델이 다 있을 때뿐이다. */
   const credentialsReady = Boolean(data.credentials && data.credentials.ready);
   const configured = credentialsReady && Boolean(config.model);
-  const chatgptAllowed = data.chatgpt_allowed !== false;
   const saveFailure = failureText([saveConfig, "설정을 저장하지 못했습니다."])
     || failureText([verify, "연결 확인을 시작하지 못했습니다."]);
 
@@ -292,11 +290,6 @@ export function AiConnection() {
                   <Link href={chosenMethod.issue_url} target="_blank" rel="noopener noreferrer">
                     {`${chosenProvider.label} 키 발급처 열기`}
                   </Link>
-                </Typography>
-              ) : null}
-              {chosenProvider.key === "openai" && !chatgptAllowed ? (
-                <Typography variant="body2" color="text.secondary" data-testid="chatgpt-disabled-note">
-                  {CHATGPT_DISABLED_NOTE}
                 </Typography>
               ) : null}
             </>

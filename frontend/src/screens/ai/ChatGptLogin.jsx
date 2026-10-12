@@ -1,8 +1,6 @@
 import React from "react";
 import { useMutation } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
@@ -11,7 +9,7 @@ import { failureText } from "../../lib/failure.js";
 import { Button, Callout, DotLabel, Field, Modal, useConfirm, useToast } from "../../ui/kit.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 
-/* ChatGPT 계정 로그인 — 개인 평가 모드 (계획 A3, D-540 · D-559 · P3 ②).
+/* ChatGPT 계정 로그인 — 붙여 넣기 흐름 (계획 A3, D-540 · D-566 · P3 ②).
  *
  * 공식 「Sign in with ChatGPT」는 로그인 결과를 http://127.0.0.1:<포트>/auth/callback 으로만 돌려준다. 그 주소는 이 브라우저가
  * 도는 PC 라 원격 서버가 받을 수 없다(서버의 `login_flow.py` 머리말). 그래서 순서가 셋이고, **단추를 누르기 전에** 세 단계가
@@ -21,8 +19,8 @@ import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
  * 붙여 넣는 순간 모양 · 이번 시도의 포트 · state 를 맞춰 보고 맞으면 **단추 없이** 바로 완료를 부른다. 틀리면 한 문장이다.
  * 창이 막히면 링크를, 시도가 만료되면 다시 시작을 준다. 새로고침 뒤에도 서버의 `login.open` 으로 붙여 넣기 칸을 되찾는다.
  *
- * 이 방식은 설치 플래그(`AI_CHATGPT_PERSONAL_EVAL`)가 켜진 개인 · 로컬 개발 설치에만 보인다. 연결한 사람 본인만 AI 를 쓰므로
- * 그 사실을 확인한 뒤에만 시작할 수 있다. 일반 화면에 PKCE · client id · OAuth · localhost 같은 낱말을 쓰지 않는다(5절). 단추와
+ * 이 방식은 API 키와 같은 정식 방식이라 모든 설치에 보인다(D-566). 연결한 계정 하나의 요금제를 이 설치의 모든 사용자가 함께 쓰므로
+ * 그 사실을 시작 전에 한 줄로 말한다. 일반 화면에 PKCE · client id · OAuth · localhost 같은 낱말을 쓰지 않는다(5절). 단추와
  * 첫 연결 안내는 공식 화면 지침의 문구를 그대로 쓴다(「Continue with ChatGPT」, 「You're using your ChatGPT plan」).
  *
  * 응답의 `flow` 가 모양을 정한다. 지금은 `paste` 뿐이고, 공식 지원이 생기면 서버가 `redirect` 를 줄 수 있다 - 그때는 같은
@@ -35,14 +33,13 @@ export const PASTE_STEPS = [
   + "그 창의 주소창에서 전체 주소를 복사하세요(Ctrl+L, Ctrl+C).",
   "이 탭으로 돌아와 아래 칸에 붙여 넣으면 바로 연결됩니다.",
 ];
-export const PERSONAL_NOTICE = "ChatGPT 계정 연결은 개인용이나 로컬 개발 설치의 평가 기능입니다. "
-  + "연결한 사람(나)만 AI 를 쓸 수 있고 다른 사용자는 쓸 수 없습니다.";
-export const CONSENT_LABEL = "연결한 사람(나)만 AI 를 쓸 수 있다는 것을 확인했습니다.";
+export const PLAN_NOTICE = "연결한 ChatGPT 계정 하나의 요금제를 이 설치의 모든 사용자가 함께 씁니다. "
+  + "사용량은 ChatGPT 설정에서 확인합니다.";
 export const WRONG_ATTEMPT = "이번 시도의 주소가 아닙니다. 1부터 다시 하세요.";
 export const NOT_A_CALLBACK = "주소가 아닙니다. 주소창의 전체 주소를 복사하세요.";
 export const EXPIRED_TEXT = "시도가 만료됐습니다. 다시 시작하세요.";
 export const BLOCKED_TEXT = "창이 열리지 않았습니다. 팝업을 허용하거나 이 링크로 여세요.";
-export const CONNECTED_LABEL = "ChatGPT 계정으로 연결됨(개인 평가용)";
+export const CONNECTED_LABEL = "ChatGPT 계정으로 연결됨";
 const CALLBACK_RE = /^http:\/\/127\.0\.0\.1:\d{2,5}\/auth\/callback\?/;
 const NOTICE_KEY = "clovirassist.chatgpt-plan-notice";
 /* 글자를 치는 중에 「주소가 아닙니다」가 깜빡이지 않게 - 이만큼은 있어야 주소를 넣으려 했다고 본다. */
@@ -240,14 +237,13 @@ function sameWindowRedirect(url) {
   window.location.assign(url);
 }
 
-/* 인증 칸 — 연결했으면 「ChatGPT 계정으로 연결됨」 한 줄과 [다시 로그인] · [연결 끊기], 아니면 세 단계 카드와 동의 확인과
+/* 인증 칸 — 연결했으면 「ChatGPT 계정으로 연결됨」 한 줄과 [다시 로그인] · [연결 끊기], 아니면 요금제 공유 한 줄과 세 단계 카드와
    「Continue with ChatGPT」. `login` 은 서버가 본 이 관리자의 열린 시도다(새로고침 뒤 붙여 넣기 칸을 되찾는다).
    `redirect` 는 서버가 `flow: "redirect"` 를 줄 때 같은 창을 옮기는 길이다(공식 지원 뒤, 시험은 이것을 바꿔 잰다). */
 export function ChatGptLogin({ chatgpt, login, onConnected, onLoggedOut, redirect = sameWindowRedirect }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [attempt, setAttempt] = React.useState(null);
-  const [consent, setConsent] = React.useState(false);
   const [notice, setNotice] = React.useState(false);
   const windowRef = React.useRef(null);
   const dismissedRef = React.useRef(null);
@@ -311,7 +307,6 @@ export function ChatGptLogin({ chatgpt, login, onConnected, onLoggedOut, redirec
   }
 
   const startFailure = failureText([start, "연결을 시작하지 못했습니다."]);
-  const canStart = consent || info.connected || info.disconnected;
   return (
     <Box data-testid="chatgpt-login" sx={{ display: "grid", gap: 1.5, minWidth: 0 }}>
       {info.connected && !attempt ? (
@@ -327,22 +322,14 @@ export function ChatGptLogin({ chatgpt, login, onConnected, onLoggedOut, redirec
             <Callout tone="warn" compact>ChatGPT 계정 연결이 끊겼습니다. 다시 로그인하세요.</Callout>
           ) : null}
           {!info.connected && !info.disconnected ? (
-            <Callout tone="warn" compact>
-              {PERSONAL_NOTICE}
-              <FormControlLabel
-                sx={{ display: "flex", mt: 0.5, ml: 0, mr: 0, alignItems: "flex-start",
-                  "& .MuiFormControlLabel-label": { fontSize: FONT_SIZE.body, ...KO_WORD_BREAK } }}
-                control={<Checkbox size="small" checked={consent} onChange={(e) => setConsent(e.target.checked)} sx={{ py: 0 }} />}
-                label={CONSENT_LABEL}
-              />
-            </Callout>
+            <Callout tone="info" compact>{PLAN_NOTICE}</Callout>
           ) : null}
           <Steps current={attempt ? 3 : 1} />
           {attempt ? (
             <PasteBox attempt={attempt} onCancel={cancel} onRestart={() => { cancel(); begin(); }} onConnected={connected} />
           ) : (
             <Box>
-              <ContinueWithChatGpt onClick={begin} loading={start.isPending} disabled={!canStart} />
+              <ContinueWithChatGpt onClick={begin} loading={start.isPending} />
             </Box>
           )}
         </>
