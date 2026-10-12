@@ -18,12 +18,15 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 
 from app.core.errors import AppError
 from app.sysops.runner import BinaryNotAllowedError, Runner
+
+logger = logging.getLogger("app.sysops.actions")
 
 
 class UnknownActionError(AppError):
@@ -140,6 +143,10 @@ def execute(
         # 빠져나가 아래 롤백 블록을 건너뛰고, 호출자(helper.handle_request)의 최상위
         # except 까지 올라가 `rolled_back=False` 로 보고된다 — 백업은 이미 떠 놨는데도 쓰이지
         # 않는다.
+        # 호출자에게는 **종류만** 알리지만(예외 문자열에 인자가 섞일 수 있다), 헬퍼의 로그(journal, root 전용)에는
+        # 전체 traceback 을 남긴다 — 랩에서 「처리 중 오류가 발생했습니다(OSError)」 만 남고 어느 줄인지 아무 데도
+        # 없어 원인을 찾을 수 없었다(2026-10-12). `params` 는 싣지 않는다(인증서 개인키가 들어 있다).
+        logger.exception("특권 동작 실패: %s (%s)", action.name, exc.__class__.__name__)
         outcome = ActionOutcome(ok=False, detail=f"처리 중 오류가 발생했습니다({exc.__class__.__name__}).")
 
     rolled_back = False

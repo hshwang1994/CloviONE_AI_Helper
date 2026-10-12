@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import subprocess  # noqa: S404 - argv 전용, shell=False 고정
@@ -127,7 +128,21 @@ class RealRunner:
         tmp = p.with_name(p.name + ".new")
         tmp.write_text(text, encoding="utf-8")
         os.chmod(tmp, mode)
-        os.replace(tmp, p)
+        try:
+            os.replace(tmp, p)
+        except OSError as exc:
+            # 대상이 **마운트 지점**이면(systemd `ReadWritePaths=` 에 파일 하나를 적으면 그 파일이 자기 위에 bind mount 된다)
+            # rename 이 `EBUSY` 로 거절된다 — 랩의 `/etc/opendkim.conf` 가 그랬다(2026-10-12). 유닛에서 그 항목은 걷었지만,
+            # 옛 유닛으로 도는 설치에서도 적용이 죽지 않게 그때는 **제자리에서** 덮어쓴다(이 경우만 원자적이지 않다).
+            if exc.errno != errno.EBUSY:
+                tmp.unlink(missing_ok=True)
+                raise
+            try:
+                with open(p, "w", encoding="utf-8") as fh:
+                    fh.write(text)
+                os.chmod(p, mode)
+            finally:
+                tmp.unlink(missing_ok=True)
 
     def remove(self, path: str) -> None:
         Path(path).unlink(missing_ok=True)
