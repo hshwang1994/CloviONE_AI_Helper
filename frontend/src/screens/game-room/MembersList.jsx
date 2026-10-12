@@ -4,6 +4,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { Badge, FlatBadgeSurface, Card } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
+import { UserAvatar } from "../../ui/UserAvatar.jsx";
 import { ROLE_LABELS } from "./constants.js";
 
 /* 오른쪽 레일 위쪽 — 참여자 목록. GameRoom.jsx 구조 분리(2026-08)로 값 변경 없이 이 파일로
@@ -28,14 +29,11 @@ export function MembersList({ members, room, you, submissionActive, submittedSet
               border: 1, borderColor: isMe ? "primary.light" : "transparent",
               bgcolor: (t) => (isMe ? alpha(t.palette.primary.main, 0.1) : "transparent"),
             }}>
-              <Box component="span" aria-hidden="true" sx={{
-                flexShrink: 0, width: "2.25rem", height: "2.25rem", borderRadius: "50%",
-                display: "grid", placeItems: "center", fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body,
-                bgcolor: isHostRow ? "primary.main" : "action.hover",
-                color: isHostRow ? "primary.contrastText" : "text.primary",
-              }}>
-                {(m.name || "?").slice(0, 1)}
-              </Box>
+              {/* 얼굴은 제품의 한 부품이다(D-556) — 머리글자 원을 그리던 자리. 방장은 강조색 테두리 한 겹으로 알아본다. */}
+              <UserAvatar
+                person={m} name={m.name} size="md"
+                sx={isHostRow ? { boxShadow: (t) => `0 0 0 2px ${t.palette.primary.main}` } : undefined}
+              />
               <Box sx={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
                 <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: FONT_WEIGHT.semibold }}>
                   {m.name}{isMe ? <Box component="span" sx={{ color: "text.secondary", fontWeight: FONT_WEIGHT.regular, fontSize: FONT_SIZE.bodySm }}> (나)</Box> : null}

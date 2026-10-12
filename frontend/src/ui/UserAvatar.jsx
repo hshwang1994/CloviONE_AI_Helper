@@ -48,7 +48,12 @@ export function UserAvatar({ person, userId, name, size = "inline", label, sx })
      프로필 API 에 id 가 없던 동안 큰 원이 표시 이름으로, 상단바는 UUID 로 그려진 것이
      그 결함이다. id 를 아직 모르는 자리는 빈 씨앗의 색 원이 선다(지어내지 않는다). */
   const seed = p.user_id || p.id || userId || "";
-  const url = p.avatar_url || null;
+  const given = p.avatar_url || null;
+  /* 사진 주소가 있어도 서버가 404 · 오류를 주면(범위 밖 · 파일 없음 · 캐시가 낡은 주소) 깨진 그림 아이콘이
+     아니라 **그 사람의 기본 그림**으로 조용히 물러난다(D-556). 주소가 바뀌면(새 사진 업로드 → `?v=` 가
+     바뀜) 다시 시도한다 — 한 주소에 한 번만 실패를 기억한다. */
+  const [brokenUrl, setBrokenUrl] = React.useState(null);
+  const url = given && given !== brokenUrl ? given : null;
   const box = AVATAR_SIZE[size] || size;
 
   /* 이름이 바로 옆에 있으면 그림은 장식이다 — 스크린리더가 같은 사람을 두 번 읽지 않게
@@ -75,6 +80,7 @@ export function UserAvatar({ person, userId, name, size = "inline", label, sx })
           alt={alt}
           loading="lazy"
           decoding="async"
+          onError={() => setBrokenUrl(url)}
           sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       ) : (

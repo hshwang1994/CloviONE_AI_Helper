@@ -96,6 +96,31 @@ def _user_row(user: User, now) -> dict:
     }
 
 
+def _attach_avatars(db, rows: list[dict]) -> list[dict]:
+    """행마다 `avatar_url` · `avatar_default_key` 를 싣는다 — 사람 그림의 정본은 하나다(D-556).
+
+    조직 관리 · 사용자 관리 표는 이 행으로 사람을 그리는데, 두 칸이 없으면 화면이 사용자 id 로 기본
+    그림을 배정해 **본인이 올린 사진 · 고른 그림과 다른 얼굴**이 섰다(프로필 화면과 어긋남). 한 번의
+    질의(`avatar_map`)로 전부 싣는다 — 행마다 조회하면 1,000명 목록이 N+1 이다.
+    """
+    from app.core.people import avatar_map
+
+    amap = avatar_map(db, [r["id"] for r in rows])
+    for r in rows:
+        a = amap.get(r["id"]) or {}
+        r["avatar_url"] = a.get("url")
+        r["avatar_default_key"] = a.get("default_key")
+    return rows
+
+
+def _user_rows(db, users, now) -> list[dict]:
+    return _attach_avatars(db, [_user_row(u, now) for u in users])
+
+
+def _user_row_with_avatar(db, user: User, now) -> dict:
+    return _user_rows(db, [user], now)[0]
+
+
 def _ensure_known_filter(db, scope, model, item_id: str, label: str) -> None:
     """이 필터 값이 **이 관리자에게** 실재하는 항목인가.
 
@@ -269,7 +294,7 @@ def list_users(
         .all()
     )
     return {
-        "items": [_user_row(u, now) for u in rows],
+        "items": _user_rows(db, rows, now),
         "total": total,
         "page": page.page,
         "page_size": page.page_size,
@@ -459,7 +484,7 @@ def create_user_endpoint(
     )
 
     now = request.app.state.clock.now()
-    body = {"user": _user_row(user, now)}
+    body = {"user": _user_row_with_avatar(db, user, now)}
     if generated:
         # Shown exactly once (spec §11.1) — never logged or audited.
         body["temp_password"] = password
@@ -515,7 +540,7 @@ def get_user_detail(
 
     user = get_scoped_user_or_404(db, user_id, principal.management)
     now = request.app.state.clock.now()
-    row = _user_row(user, now)
+    row = _user_row_with_avatar(db, user, now)
     # 세션 '개수'도 세션 목록(/sessions)과 같은 권한 경계 안에서만 보여야 한다 — /sessions는
     # 이미 막는데 여기 count만 새면 상위 권한 계정 정찰 차단이 반만 지켜진다. 상세 자체는
     # 볼 수 있게 두되(프런트가 canManage로 처리) count만 뺀다.
@@ -555,7 +580,7 @@ def patch_user(
         # 행을 남기면(before==after) '무엇이 바뀌었나'를 추적하는 감사 로그에 아무 의미
         # 없는 이벤트가 계속 쌓인다. 조기 반환한다.
         now = request.app.state.clock.now()
-        return {"user": _user_row(user, now)}
+        return {"user": _user_row_with_avatar(db, user, now)}
 
     from app.core.errors import ForbiddenError
 
@@ -645,7 +670,7 @@ def patch_user(
         after=user_snapshot(user),
     )
     now = request.app.state.clock.now()
-    return {"user": _user_row(user, now)}
+    return {"user": _user_row_with_avatar(db, user, now)}
 
 
 @router.post("/{user_id}/enable")

@@ -89,6 +89,7 @@ export const PERSON_FACE_KEYS = [
   ["team-chat-msgs"],
   ["team-chat-directory"],
   ["users"],
+  ["people"],
   ["search"],
   ["games-rooms"],
   ["game-room"],

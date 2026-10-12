@@ -298,7 +298,19 @@ def get_scoped_avatar_owner_or_404(db: Session, actor: User, user_id: str) -> Us
     직접 URL로 계속 나가면, 목록에서 가린 것이 URL로 뚫리는 이 저장소의 익숙한 실패 모양이다.
     """
     target = db.get(User, user_id)
-    if target is None or target.archived_at is not None or not target.active:
+    if target is None:
+        raise NotFoundError("프로필 사진을 찾을 수 없습니다.")
+    # **관리 범위가 그 사람을 담으면 보관 · 비활성이어도 사진을 준다(D-556).** 사용자 관리 · 조직 관리
+    # 목록은 보관 · 비활성 사람도 보여 주고(상태 필터) 전역 관리자는 다른 조직 사람도 본다 — 목록이
+    # 보여 주는 사람의 얼굴만 빠지면 「같은 사람은 어디서나 같은 그림」이 깨진다. 판정은 목록이 쓰는
+    # 그 함수 하나(`scope_allows_user`)다: 목록에 없는 사람은 여기서도 404 다. 일반 사용자의 관리
+    # 범위는 `NONE` 이라 이 갈래를 지나지 않고 아래 조직 규칙 그대로다.
+    from app.core.scope import management_scope, scope_allows_user
+
+    mgmt = management_scope(db, actor)
+    if not mgmt.is_none and scope_allows_user(mgmt, target):
+        return target
+    if target.archived_at is not None or not target.active:
         raise NotFoundError("프로필 사진을 찾을 수 없습니다.")
     my_org = getattr(actor, "org_id", None)
     their_org = getattr(target, "org_id", None)

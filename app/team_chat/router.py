@@ -506,7 +506,16 @@ def serve_image(
 
 @router.get("/directory")
 def directory(request: Request, db: Session = Depends(get_db), me: User = Depends(get_current_user)):
-    """1:1 상대 고르기용 사용자 목록 — 이름·부서·직책만(이메일·역할·비밀은 절대 안 나감)."""
+    """1:1 상대 고르기용 사용자 목록 — 이름·부서·직책과 얼굴 두 칸만(이메일·역할·비밀은 절대 안 나감).
+
+    얼굴 두 칸(`avatar_url` · `avatar_default_key`)은 사람 그림의 정본 하나(D-556)다 — 없으면 고르기 줄이
+    id 로 배정한 기본 그림을 그려 같은 사람이 프로필 화면과 다른 얼굴을 갖는다.
+    """
+    from app.core.people import avatar_map
+
     users = repository.directory(db, me.id, org_id=getattr(me, "org_id", None))
+    amap = avatar_map(db, [u.id for u in users])
     return {"users": [{"user_id": u.id, "display_name": u.display_name,
-                       "dept": u.department or "", "title": u.title or ""} for u in users]}
+                       "dept": u.department or "", "title": u.title or "",
+                       "avatar_url": (amap.get(u.id) or {}).get("url"),
+                       "avatar_default_key": (amap.get(u.id) or {}).get("default_key")} for u in users]}

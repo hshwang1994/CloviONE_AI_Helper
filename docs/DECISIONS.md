@@ -16681,3 +16681,20 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
 - **잰 것**: `docs/platform/EVIDENCE/mail/2026-10-02-lab-relay-e2e.md`(배포 · 기본 꺼짐 · 계약 · 준비 점검 · 발송 단계 · 다시 올린 뒤의 점검),
   `docs/platform/EVIDENCE/ui/2026-10-02-visual-acceptance.md` 「랩 원격 캡처」 절, 시험 `tests/unit/test_mail_relay_parts.py` ·
   `frontend/src/ui/{plan-columns,datatable-column-plan,person-line-align}.test.*` · `screens/ai/ai-usage-stats.test.jsx`.
+
+### D-556. 사람 그림의 정본은 하나다 — 사람을 보여 주는 모든 행이 얼굴 두 칸을 싣고, 깨진 사진은 기본 그림으로 물러나며, 관리자의 얼굴 범위는 목록과 같은 규칙이다 (기능 개선 회차 P1, 2026-10-12)
+
+- **원인**: 조직 관리의 구성원 표는 `/api/admin/users` 행으로 사람을 그리는데 그 행에 `avatar_url` · `avatar_default_key` 가 없었다. 그래서 공용
+  `UserAvatar` 가 사용자 id 해시로 배정한 DiceBear 그림을 그렸고, 같은 사람이 프로필 화면(본인이 올린 사진 · 고른 그림)과 조직 관리에서 다른 얼굴을
+  가졌다. 같은 결함이 관리 콘솔의 사람 후보(`/api/admin/people`) · 팀 채팅 디렉터리 · 놀이방 참여자(머리글자만)에 있었다. 사진 서빙의 범위 판정은
+  raw `org_id` 비교라 전역 관리자가 다른 조직 · 보관 사용자의 사진을 못 받았고, `UserAvatar` 의 `<img>` 에 오류 대체가 없어 404 가 깨진 그림이 됐다.
+- **결정**: 사람을 보여 주는 행은 전부 `app/core/people.py::avatar_map`(한 번의 질의)으로 두 칸을 싣는다 — `users/router.py::_user_rows`,
+  `people_router.py::_person_rows`, `team_chat/router.py::directory`, `games/router.py::_member_view`. 화면은 `UserAvatar` 하나로 그리고, 사진이 오류를
+  내면 그 주소에 한 번만 실패를 기억하고 그 사람의 기본 그림으로 **조용히** 물러난다(새 주소가 오면 다시 시도). 사진 서빙의 범위
+  (`profiles/service.py::get_scoped_avatar_owner_or_404`)는 「관리 범위가 그 사람을 담으면 보관 · 비활성이어도 준다(`scope_allows_user` — 목록과 같은
+  함수)」 를 앞에 두고, 그 밖은 예전 조직 규칙 그대로다(일반 사용자의 관리 범위는 없다). 목록에 없는 사람은 여기서도 404 다.
+- **바뀐 것**: 사용자 관리 표의 이름 칸이 `PersonLine`(조직 관리와 같은 부품)이고 상세에 「사진」 줄이 섰다. 놀이방 참여자 목록이 머리글자 원 대신
+  `UserAvatar`(방장은 강조색 테두리)다. 디렉터리 응답에 얼굴 두 칸이 더 실린다(이메일 · 역할 · 비밀은 여전히 없다).
+- **잰 것**: `tests/integration/test_admin_users_avatar_fields.py`(네 경로의 두 칸 · 고른 그림 · 보관 사용자 사진은 전역 관리자 200 · 일반 사용자 404),
+  `tests/security/test_avatar_admin_scope.py`(전역 관리자의 다른 조직 200 · 부서 범위 관리자의 범위 밖 보관 사진 404 · 일반 사용자 규칙 불변),
+  `test_team_chat_api.py` 디렉터리 계약 갱신, 프런트 `ui/user-avatar-fallback.test.jsx` · `org/org-members-avatar.test.jsx`. 랩 확인은 P7.

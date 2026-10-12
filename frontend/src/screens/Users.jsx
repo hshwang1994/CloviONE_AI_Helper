@@ -23,6 +23,7 @@ import { buildViewQuery, hashQuery, withHashQuery } from "./datascreen-view.js";
 import { DateCell } from "../ui/cells.jsx";
 import { toggleSort } from "../ui/TableHeaderCell.jsx";
 import { EntityCombobox, FilterSelect, SearchBox, unmatchedLabel } from "../ui/filters.jsx";
+import { PersonLine, UserAvatar, personLineLead } from "../ui/UserAvatar.jsx";
 
 // PA-RC-0013: /users만 검색·필터·페이지를 URL에 안 실어서 새로고침·공유에 견디지 못했다
 // (대조군 /team-docs·/board·/team-tickets·/audit은 이미 견딘다). DataScreen.jsx가 이미 쓰는
@@ -532,7 +533,13 @@ export function Users() {
     // 198px) — 같은 표의 '역할'(295px)·'최근 로그인'(287px)이 내용량과 무관하게 더 넓었다.
     // identifier:true 가 식별자 바닥(11rem)과 남는 폭의 몫(비중 2, 상한 22rem)을 준다(D-529).
     { key: "email", label: "이메일", identifier: true, sortable: true, rowName: (r) => r.display_name || r.email },
-    { key: "display_name", label: "이름", type: "name", sortable: true },
+    {
+      // 사람은 얼굴과 함께 선다(D-556) — 조직 관리의 구성원 표와 같은 `PersonLine` 이라 같은 사람이 같은 그림이다.
+      key: "display_name", label: "이름", type: "name", sortable: true,
+      value: (r) => r.display_name || "알 수 없음",
+      lead: personLineLead("xs"),
+      render: (r) => <PersonLine person={r} name={r.display_name} size="xs" />,
+    },
     {
       // 역할은 이 표에서 가장 민감한(권한 상승 가능성이 있는) 열인데, '활성'·'잠김'과
       // 달리 유일하게 색 없는 맨 텍스트였다 — 같은 Badge 관례로 등급을 색으로도 구분한다.
@@ -1124,6 +1131,10 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
         </Box>
       ) : null}
       <DetailGrid>
+        <DetailRow label="사진">
+          {/* 본인이 올린 사진 · 고른 그림 그대로(D-556). 없으면 프로필 화면과 같은 규칙의 기본 그림. */}
+          <UserAvatar person={d} size="lg" label={d.display_name || d.email} />
+        </DetailRow>
         <DetailRow label="이메일">{d.email}</DetailRow>
         <DetailRow label="ID">
           {/* user-select:all — id는 하이픈이 섞인 UUID라 더블클릭만으로는 한 토막만 선택된다. */}

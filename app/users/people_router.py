@@ -79,6 +79,23 @@ def _person_row(user: User) -> dict:
     }
 
 
+def _person_rows(db, users) -> list[dict]:
+    """후보 줄마다 얼굴 두 칸(`avatar_url` · `avatar_default_key`)을 한 번의 질의로 싣는다(D-556).
+
+    선택 상자의 줄이 `UserAvatar` 로 그려지는데 두 칸이 없으면 id 로 배정한 기본 그림이 서서
+    같은 사람이 프로필 화면과 다른 얼굴을 갖는다.
+    """
+    from app.core.people import avatar_map
+
+    rows = [_person_row(u) for u in users]
+    amap = avatar_map(db, [r["id"] for r in rows])
+    for r in rows:
+        a = amap.get(r["id"]) or {}
+        r["avatar_url"] = a.get("url")
+        r["avatar_default_key"] = a.get("default_key")
+    return rows
+
+
 @router.get("")
 def list_people(
     db: Session = Depends(get_db),
@@ -126,7 +143,7 @@ def list_people(
         else len(rows)
     )
     return {
-        "items": [_person_row(u) for u in rows],
+        "items": _person_rows(db, rows),
         # 화면은 이 셋으로 「이름을 더 적어 좁혀 주세요」를 말한다. 없으면 없는 사람과
         # 못 실은 사람이 화면에서 똑같아진다.
         "truncated": truncated,
