@@ -108,6 +108,8 @@ def main() -> int:
     ap.add_argument("--helo", default="", help="서버 이름(HELO). 비우면 저장된 값을 쓴다")
     ap.add_argument("--from-address", default="", help="보내는 주소. 비우면 저장된 값을 쓴다")
     ap.add_argument("--compare-resolver", action="append", default=[], help="비교할 공개 DNS 서버(여러 번)")
+    ap.add_argument("--dkim", action="store_true",
+                    help="DKIM 키가 없으면 서버에서 만들고(개인키는 서버 밖으로 안 나온다) 서명을 켠 채 저장한다")
     ap.add_argument("--wait-outer", type=float, default=300.0, help="바깥 전달 결과를 기다릴 초")
     ap.add_argument("--skip-send", action="store_true", help="시험 메일은 보내지 않는다(준비 점검까지만)")
     ap.add_argument("--track", default="", help="이미 보낸 발송 기록 id 하나만 다시 추적한다(설정 · 켜기 · 점검 · 발송 없음)")
@@ -179,6 +181,23 @@ def main() -> int:
               f"HTTP {r.status_code} {r.text[:200] if r.status_code != 200 else ''}".strip())
     if r.status_code != 200:
         return _finish(run, 1)
+
+    # 2b DKIM — 키는 서버가 만들고 공개키(TXT 레코드 값)만 돌아온다. 서명을 켠 채 다시 저장한다.
+    if args.dkim:
+        r = client.post("/api/admin/mail/relay/dkim", json={}, headers=headers)
+        run.check("DKIM 키 준비(없으면 만들기)", r.status_code == 200,
+                  f"HTTP {r.status_code} {r.text[:200] if r.status_code != 200 else ''}".strip())
+        if r.status_code == 200:
+            saved = client.get("/api/admin/mail/settings").json()["settings"]
+            saved_relay = dict(saved.get("relay") or {})
+            relay_body["dkim_enabled"] = True
+            relay_body["dkim_selector"] = saved_relay.get("dkim_selector") or relay_body.get("dkim_selector") or ""
+            body["relay"] = relay_body
+            r = client.put("/api/admin/mail/settings", json=body, headers=headers)
+            run.check("DKIM 서명을 켠 채 저장", r.status_code == 200,
+                      f"HTTP {r.status_code} {r.text[:200] if r.status_code != 200 else ''}".strip())
+            run.info("DKIM 공개키 레코드(도메인 DNS 에 넣을 값)",
+                     {"selector": relay_body["dkim_selector"], "public": saved_relay.get("dkim_public") or ""})
 
     # 3 켜기
     r = client.post("/api/admin/mail/relay/apply", headers=headers)
