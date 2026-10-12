@@ -65,8 +65,14 @@ def _gateway(request: Request):
 
 
 def _overview(request: Request, db: Session) -> dict:
+    user = getattr(request.state, "user", None)
     return service.overview(db, _runtime(request), _secrets(request), request.app.state.settings_cache,
-                            gateway=_gateway(request))
+                            gateway=_gateway(request), admin_user_id=getattr(user, "id", None),
+                            now=request.app.state.clock.now())
+
+
+def _chatgpt_allowed(request: Request) -> bool:
+    return bool(getattr(_runtime(request), "chatgpt_allowed", True))
 
 
 def _session_secret(request: Request) -> str:
@@ -115,6 +121,7 @@ def update_config(payload: AiConfigChange, request: Request, db: Session = Depen
     changed = service.apply_config(
         db, request.app.state.settings_cache, current=runtime.config(db),
         changes=changes, user_id=request.state.user.id, now=request.app.state.clock.now(),
+        chatgpt_allowed=_chatgpt_allowed(request),
     )
     if changed:
         after = dict(changed)
@@ -125,7 +132,8 @@ def update_config(payload: AiConfigChange, request: Request, db: Session = Depen
             after=after,
         )
     job = None
-    if changed and service.verify_needed(changed, runtime.config(db), _secrets(request)):
+    if changed and service.verify_needed(changed, runtime.config(db), _secrets(request),
+                                         chatgpt_allowed=_chatgpt_allowed(request)):
         job = _start_verify(request, db, reason="config")
     db.commit()
     return {**_overview(request, db), "verify_job_id": job.id if job is not None else None}
@@ -205,7 +213,15 @@ class PastedCallback(BaseModel):
 
 @router.post("/oauth/openai/start")
 def oauth_start(request: Request, db: Session = Depends(get_db)) -> dict:
-    """연결 시도를 시작한다. 응답의 `flow` 가 화면의 모양을 정한다(지금은 `paste`). 감사에는 시도 id 만 적는다."""
+    """연결 시도를 시작한다. 응답의 `flow` 가 화면의 모양을 정한다(지금은 `paste`). 감사에는 시도 id 만 적는다.
+
+    개인 평가 플래그가 꺼진 설치(운영)에서는 시작하지 않는다(409, D-559) — 화면에 없는 흐름을 API 로도 열지 않는다.
+    """
+    if not _chatgpt_allowed(request):
+        from app.ai.runtime import CHATGPT_DISABLED_TEXT
+        from app.core.errors import ConflictError
+
+        raise ConflictError(CHATGPT_DISABLED_TEXT)
     admin_id, session_id = _actor_and_session(request)
     flow = login_flow.chatgpt_flow()
     started = flow.start(db, admin_user_id=admin_id, session_id=session_id,
@@ -242,7 +258,7 @@ def oauth_complete(transaction_id: str, payload: PastedCallback, request: Reques
     config = runtime.config(db)
     job = None
     chatgpt_now = (config.provider, config.auth_method) == (base.PROVIDER_OPENAI, base.AUTH_CHATGPT)
-    if chatgpt_now and service.config_complete(config, _secrets(request)):
+    if chatgpt_now and service.config_complete(config, _secrets(request), chatgpt_allowed=_chatgpt_allowed(request)):
         job = _start_verify(request, db, reason="login")
     db.commit()
     return {"ok": True, "account_label": done["account_label"], "verify_job_id": job.id if job else None}

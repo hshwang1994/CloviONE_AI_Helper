@@ -45,7 +45,9 @@ def run_ai_health(runtime, session_factory, *, now: datetime) -> dict:
             db.commit()
             config = runtime.config(db)
             method = config.method()
-            if method is None or problems(config, runtime.secrets):
+            if method is None or problems(config, runtime.secrets,
+                                          chatgpt_allowed=getattr(runtime, "chatgpt_allowed", True)):
+                # 개인 평가 모드가 꺼진 설치의 옛 ChatGPT 설정은 미설정이다(D-559) — 저장된 토큰을 갱신하지도 않는다.
                 return done
             if method.account:
                 status = runtime.chatgpt_tokens().ensure_fresh(lead=REFRESH_AHEAD)

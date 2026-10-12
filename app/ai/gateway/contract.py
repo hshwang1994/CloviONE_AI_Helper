@@ -88,11 +88,27 @@ NOTICES: dict[str, str] = {
 
 FALLBACK_NOTICE = "AI 기능을 쓸 수 없습니다."
 
+#: 실패의 기계 코드가 상태보다 더 정확히 말해 주는 경우(P3 ④). 같은 「미설정」 · 「일시 장애」 · 「시간 초과」라도 까닭이 다르면 다음 행동이
+#: 다르다 — 본인만 쓰는 설치(D-559), 요금제 한도, 차단기가 열린 30초, 차례 예산. 코드는 런타임 · 제공자 어댑터가 적는 값이다.
+ERROR_CODE_NOTICES: dict[str, str] = {
+    "personal_only": "이 설치의 AI 는 연결한 사람 본인만 쓸 수 있습니다. 관리자가 API 키로 연결하면 모두 쓸 수 있습니다.",
+    "plan_usage_limit": "ChatGPT 요금제 사용 한도에 닿았습니다. 잠시 뒤 다시 시도하거나 ChatGPT 설정의 사용량을 확인하세요.",
+    "plan_usage_unavailable": "ChatGPT 요금제 사용량을 지금 확인할 수 없습니다. 잠시 뒤 다시 시도해 주세요.",
+    "plan_not_eligible": "연결한 ChatGPT 계정은 이 기능을 쓸 수 없는 요금제입니다. 관리자에게 알려 주세요.",
+    "insufficient_quota": "AI 제공자의 사용 한도나 잔액이 바닥났습니다. 관리자에게 알려 주세요.",
+    "account_not_connected": "ChatGPT 계정 연결이 끊겨 있습니다. 관리자가 다시 로그인해야 합니다.",
+    "breaker_open": "AI 연결이 잠시 불안정해 쉬고 있습니다. 30초 뒤 다시 시도해 주세요.",
+    "turn_budget": "답을 만드는 데 시간이 너무 걸려 멈췄습니다. 질문을 조금 좁혀 다시 시도해 주세요.",
+    "slot_unavailable": "다른 AI 작업이 진행 중입니다. 잠시 뒤 다시 시도해 주세요.",
+}
 
-def notice_for(status: str) -> str | None:
-    """성공이면 None, 실패면 **왜 못 쓰는지** 한 줄. 목록에 없는 상태도 안 숨긴다."""
+
+def notice_for(status: str, error_code: str | None = None) -> str | None:
+    """성공이면 None, 실패면 **왜 못 쓰는지** 한 줄. 목록에 없는 상태도 안 숨긴다. 기계 코드가 더 정확히 말하면 그 문장이다."""
     if status == STATUS_OK:
         return None
+    if error_code and error_code in ERROR_CODE_NOTICES:
+        return ERROR_CODE_NOTICES[error_code]
     return NOTICES.get(status, FALLBACK_NOTICE)
 
 
@@ -217,7 +233,7 @@ class GenerateResult:
 
     @property
     def notice(self) -> str | None:
-        return None if self.ok else notice_for(self.status)
+        return None if self.ok else notice_for(self.status, self.error_code)
 
 
 # ── Adapter 계약 ─────────────────────────────────────────────────────────────

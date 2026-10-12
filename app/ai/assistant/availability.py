@@ -21,6 +21,8 @@ NOTICES = {
     "off": "AI 사용이 꺼져 있어 지금은 답할 수 없습니다.",
     "unconfigured": "AI 가 아직 연결되지 않았습니다.",
     "blocked": "AI 연결에 문제가 있어 지금은 답할 수 없습니다.",
+    # 개인 평가 모드(D-559) — ChatGPT 계정 연결은 연결한 사람 본인의 요금제라 그 사람만 쓴다.
+    "personal_only": "이 설치의 AI 는 연결한 사람 본인만 쓸 수 있습니다. 관리자가 API 키로 연결하면 모두 쓸 수 있습니다.",
 }
 
 MODE_TOOLS = "tools"
@@ -47,6 +49,8 @@ def assistant_status(db: Session, *, runtime, user, settings_cache) -> dict:
         reason = "unconfigured"
     elif info["blocking"]:
         reason = "blocked"
+    elif runtime.personal_only_for(runtime.config(db), user):
+        reason = "personal_only"
     else:
         reason = None
     tools = runtime.tools_capability(db)

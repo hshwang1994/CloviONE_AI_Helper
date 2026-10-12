@@ -172,6 +172,11 @@ class Settings(BaseSettings):
     ai_embed_batch_size: int = 0
     # ONNX Runtime intra-op 스레드. 0 이면 런타임 기본값(코어 수)이다.
     ai_embed_threads: int = 0
+    # ChatGPT 계정 연결(요금제 공유) — **개인 · 로컬 개발 설치 전용 평가 기능**이다(D-559). OpenAI 의 자체 등록 흐름은
+    # 「오픈소스 · 로컬 · 개인 프로젝트」용이고, 여러 사람이 접속하는 중앙 호스팅 서비스에서 지원되는지는 확인할 수 없다.
+    # 그래서 기본 **꺼짐**이고, 꺼진 설치에서는 그 인증 방식이 화면에 서지 않으며 저장된 토큰도 쓰지 않는다. 켜진 설치에서도
+    # 연결한 사람 본인만 AI 를 쓴다. 운영 설치의 경로는 API 키다.
+    ai_chatgpt_personal_eval: bool = False
 
     # 색인 레인(D-203). 배치·대화형과 분리하는 이유는 하나다 — **임베딩이 배치 틱을
     # 굶기지 않게.** 기본 켬이고, 그래서 `clovirassist-index.service` 는 재부팅 뒤

@@ -198,9 +198,10 @@ def view(db: Session, config, secrets, *, secret_slot: str | None, problems: lis
         "problems": [],
         "reason_code": None if stale else row.reason_code,
         "reason": None if stale else row.reason_text,
-        # 옛 설정의 기록이라도 마지막으로 확인한 시각과 성공 시각은 보인다 - 화면이 「언제 마지막으로 됐나」를 말한다.
-        "checked_at": row.last_verified_at.isoformat() if row is not None and row.last_verified_at else None,
-        "last_success_at": row.last_success_at.isoformat() if row is not None and row.last_success_at else None,
+        # 지금 설정 지문의 기록만 보인다(D-558). 지문이 바뀌었으면(키 · 로그인 · 모델이 바뀜) 옛 설정의 「최근 성공」이
+        # 새 설정의 성공으로 읽히므로 비운다 — 「미설정」인데 「최근 성공 14:05」가 서던 자리다.
+        "checked_at": None if stale else (row.last_verified_at.isoformat() if row.last_verified_at else None),
+        "last_success_at": None if stale else (row.last_success_at.isoformat() if row.last_success_at else None),
         "consecutive_failures": 0 if stale else int(row.consecutive_failures or 0),
         "blocking": state in BLOCKING_STATES,
         "account": account_view(row),

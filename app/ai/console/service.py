@@ -56,8 +56,11 @@ TOKEN_SETTING_KEYS = (
 # 꺼짐 > 나머지 연결 상태다 - 막힘은 AI 사용을 켜기 전에 고칠 일이라 꺼짐에 가리지 않는다.
 DISPLAY_OFF = "off"
 DISPLAY_VERIFYING = "verifying"
+#: 자격은 아직 없는데 이 관리자의 로그인 시도가 열려 있다(ChatGPT 창에서 승인 → 주소 붙여 넣기 사이, D-558).
+DISPLAY_AUTHENTICATING = "authenticating"
 DISPLAY: dict[str, tuple[str, str]] = {
     "unconfigured": ("미설정", "muted"),
+    DISPLAY_AUTHENTICATING: ("로그인 진행 중", "info"),
     DISPLAY_VERIFYING: ("확인 중", "info"),
     DISPLAY_OFF: ("꺼짐", "muted"),
     "unverified": ("확인 전", "info"),
@@ -68,6 +71,7 @@ DISPLAY: dict[str, tuple[str, str]] = {
 }
 DISPLAY_MESSAGES: dict[str, str] = {
     "unconfigured": "AI 제공자, 인증, 모델 중 아직 정하지 않은 것이 있습니다.",
+    DISPLAY_AUTHENTICATING: "ChatGPT 창에서 승인한 뒤 주소를 붙여 넣으면 연결됩니다.",
     DISPLAY_VERIFYING: "연결을 확인하고 있습니다.",
     DISPLAY_OFF: "AI 사용이 꺼져 있어 AI 기능이 답을 만들지 않습니다.",
     "unverified": "아직 연결을 확인하지 않았습니다.",
@@ -80,16 +84,17 @@ SETUP_DONE, SETUP_TODO, SETUP_UNKNOWN = "done", "todo", "unknown"
 SEMANTIC_NOTE = "의미 검색 모델은 선택이며 지금은 낱말로 찾습니다."
 
 
-def state_display(info: dict, *, verifying: bool = False, embed_available: bool | None = None) -> dict:
+def state_display(info: dict, *, verifying: bool = False, embed_available: bool | None = None,
+                  login_open: bool = False) -> dict:
     """연결 상태 한 벌(`runtime.status`) → 화면 낱말 · 한 문장 · 초기 설정 판정.
 
     초기 설정(A8): 정상이면 완료(도구 지원을 알든 모르든). 의미 검색 모델이 없으면 완료에 메모를 단다 - 낱말 검색이
     자연어 질문을 덮으므로 막는 항목이 아니다. AI 사용 꺼짐 · 미설정 · 막힘은 할 일, 확인 전 · 확인 중 · 일시 장애는
-    확인할 일이다.
+    확인할 일이다. ``login_open`` 은 미설정인데 로그인 시도가 열려 있는 순간이다 — 「로그인 진행 중」(D-558).
     """
     state = info.get("state") or "unconfigured"
     if state == "unconfigured":
-        key = "unconfigured"
+        key = DISPLAY_AUTHENTICATING if login_open else "unconfigured"
     elif verifying:
         key = DISPLAY_VERIFYING
     elif state in ("error", "reauth_required"):
@@ -121,6 +126,9 @@ def state_display(info: dict, *, verifying: bool = False, embed_available: bool 
     elif key == DISPLAY_VERIFYING:
         setup = {"state": SETUP_UNKNOWN, "detail": "연결을 확인하고 있습니다.",
                  "question": "잠시 뒤 다시 확인하세요.", "note": note}
+    elif key == DISPLAY_AUTHENTICATING:
+        setup = {"state": SETUP_TODO, "detail": "ChatGPT 계정 로그인이 진행 중입니다.",
+                 "action": "AI 연결 화면에서 승인 뒤의 주소를 붙여 넣어 연결을 끝내세요.", "note": note}
     elif key in ("unverified", "degraded"):
         setup = {"state": SETUP_UNKNOWN, "detail": message,
                  "question": "AI 연결 화면에서 지금 확인을 누르세요.", "note": note}
@@ -158,16 +166,16 @@ def enqueue_verify(db: Session, *, user_id: str, now: datetime):
     return enqueue(db, job_type=JOB_TYPE_VERIFY, payload={}, now=now, user_id=user_id, max_attempts=1)
 
 
-def config_complete(config, secrets) -> bool:
+def config_complete(config, secrets, *, chatgpt_allowed: bool = True) -> bool:
     """제공자 · 인증 · 자격 · 모델이 다 있는가(연결 확인을 돌릴 수 있는가)."""
     from app.ai.runtime import problems
 
-    return not problems(config, secrets)
+    return not problems(config, secrets, chatgpt_allowed=chatgpt_allowed)
 
 
-def verify_needed(changed: dict, config_after, secrets) -> bool:
+def verify_needed(changed: dict, config_after, secrets, *, chatgpt_allowed: bool = True) -> bool:
     """저장한 바뀜이 연결 확인을 부르는가 — 인증 · 모델이 바뀌었거나 AI 사용을 켰고, 설정이 완결일 때."""
-    if not config_complete(config_after, secrets):
+    if not config_complete(config_after, secrets, chatgpt_allowed=chatgpt_allowed):
         return False
     if VERIFY_ON & set(changed):
         return True
@@ -188,18 +196,23 @@ def _hint(secrets, slot: str) -> str | None:
     return f"끝자리 {text[-4:]}" if len(text) >= 16 else None
 
 
-def providers_view(secrets, *, chatgpt_connected: bool = False) -> list[dict]:
-    """제공자와 인증 방식의 표. `ready` 는 그 방식의 자격이 지금 갖춰졌는가다(키가 있다, 계정이 연결됐다)."""
+def providers_view(secrets, *, chatgpt_connected: bool = False, chatgpt_allowed: bool = True) -> list[dict]:
+    """제공자와 인증 방식의 표. `ready` 는 그 방식의 자격이 지금 갖춰졌는가다(키가 있다, 계정이 연결됐다).
+
+    계정 연결(ChatGPT)은 설치 플래그가 켜진 개인 · 로컬 개발 설치에서만 표에 선다(D-559) — 꺼진 설치에는 그 방식이 없다.
+    """
     from app.core.secret_refs import STATUS_CONFIGURED
 
     out = []
     for spec in base.PROVIDERS.values():
         methods = []
         for m in spec.auth_methods:
+            if m.account and not chatgpt_allowed:
+                continue
             secret_set = bool(secrets is not None and secrets.status(m.secret_slot) == STATUS_CONFIGURED)
             methods.append({
                 "key": m.key, "label": m.label, "help": m.help, "secret_slot": m.secret_slot,
-                "account": m.account, "secret_set": secret_set,
+                "account": m.account, "secret_set": secret_set, "issue_url": m.issue_url,
                 "secret_hint": _hint(secrets, m.secret_slot),
                 "ready": chatgpt_connected if m.account else secret_set,
             })
@@ -221,7 +234,8 @@ def chatgpt_view(runtime, db: Session) -> dict:
         "connected": tokens.connected(bundle),
         # 묶음은 있는데 토큰이 지워졌다 - 갱신이 거절돼 끊긴 연결이다. 다시 로그인해야 한다.
         "disconnected": bundle is not None and not tokens.connected(bundle),
-        "account_label": account.get("label"),
+        # 계정 이름은 연결 상태 행이 정본이고, 행이 비었으면(옮겨 온 묶음) 묶음의 주소다. 토큰은 어디에도 싣지 않는다.
+        "account_label": account.get("label") or (bundle.get("email") if bundle else None),
         "access_expires_at": account.get("access_expires_at"),
         "refresh_expires_at": account.get("refresh_expires_at"),
         "expiry_source": account.get("expiry_source"),
@@ -250,7 +264,110 @@ def index_view(db: Session, gateway) -> dict | None:
     }
 
 
-def overview(db: Session, runtime, secrets, settings_cache, *, gateway=None) -> dict:
+#: 상태 면의 「다음 할 일」이 가리키는 자리(화면이 그 구획으로 옮긴다). 서버는 문장과 자리만 주고 모양은 화면이 정한다.
+NEXT_CONFIGURE = "configure"
+NEXT_API_KEY = "api_key"
+NEXT_LOGIN = "login"
+NEXT_PASTE = "paste"
+NEXT_MODEL = "model"
+NEXT_ENABLE = "enable"
+NEXT_VERIFY = "verify"
+NEXT_WAIT = "wait"
+
+#: 사실 띠의 값은 낱말이다(문장은 상태 문장 · 다음 할 일의 몫이다).
+TOOLS_FACT = {
+    "ok": "사용 가능",
+    "unsupported": "대체 모드(모델이 도구를 거절함)",
+}
+
+
+def credentials_view(config, secrets, *, chatgpt: dict, chatgpt_allowed: bool) -> dict:
+    """지금 인증 방식의 자격이 갖춰졌는가(D-558). 키 방식은 비밀 칸, 계정 방식은 토큰이 든 묶음 — 그리고 설치 플래그."""
+    from app.core.secret_refs import STATUS_CONFIGURED
+
+    method = config.method()
+    if method is None:
+        return {"ready": False, "method": config.auth_method or None, "account_label": None}
+    if method.account:
+        ready = bool(chatgpt_allowed and chatgpt.get("connected"))
+        return {"ready": ready, "method": method.key, "account_label": chatgpt.get("account_label") if ready else None}
+    ready = bool(secrets is not None and secrets.status(method.secret_slot) == STATUS_CONFIGURED)
+    return {"ready": ready, "method": method.key, "account_label": None}
+
+
+def facts_view(config, status: dict, *, credentials: dict, caps: dict, index: dict | None) -> list[dict]:
+    """상태 면이 그릴 줄만(D-558). 자격이 없으면 제공자 · 인증 방식(저장된 것만)이고 모델 · 최근 성공 · 능력 줄은 없다."""
+    from app.ai.credentials import state as state_mod
+
+    spec = base.provider_spec(config.provider)
+    method = config.method()
+    facts: list[dict] = []
+    if spec is not None:
+        facts.append({"key": "provider", "label": "제공자", "value": spec.label})
+    if method is not None:
+        value = method.label
+        if method.account and credentials.get("account_label"):
+            value = f"{method.label} · {credentials['account_label']}"
+        facts.append({"key": "auth", "label": "인증 방식", "value": value})
+    if not credentials.get("ready") or status.get("state") == state_mod.STATE_UNCONFIGURED:
+        return facts
+    if config.model:
+        facts.append({"key": "model", "label": "모델", "value": config.model})
+    if status.get("last_success_at"):
+        facts.append({"key": "last_success", "label": "최근 성공", "value": status["last_success_at"], "kind": "time"})
+    elif status.get("checked_at"):
+        facts.append({"key": "checked", "label": "최근 확인", "value": status["checked_at"], "kind": "time"})
+    tools = (caps or {}).get("tools")
+    if tools in TOOLS_FACT:
+        facts.append({"key": "tools", "label": "도구 호출", "value": TOOLS_FACT[tools]})
+    if index and index.get("semantic") is not None:
+        facts.append({"key": "search", "label": "문서 검색",
+                      "value": "의미 검색" if index["semantic"] else "낱말 검색(의미 검색 모델 없음)"})
+    return facts
+
+
+def next_view(display: dict, config, status: dict, *, credentials: dict, chatgpt_allowed: bool) -> dict | None:
+    """「다음 할 일」 한 문장과 자리(D-558). 정상이면 None — 할 일이 없다."""
+    key = display.get("key")
+    method = config.method()
+    account = bool(method is not None and method.account)
+    if key == "unconfigured":
+        problems = [p for p in status.get("problems") or [] if p]
+        label = problems[0] if problems else DISPLAY_MESSAGES["unconfigured"]
+        if method is None:
+            action = NEXT_CONFIGURE
+        elif account and not chatgpt_allowed:
+            action = NEXT_API_KEY
+        elif not credentials.get("ready"):
+            action = NEXT_LOGIN if account else NEXT_API_KEY
+        elif not config.model:
+            action = NEXT_MODEL
+        else:
+            action = NEXT_CONFIGURE
+        return {"label": label, "action": action}
+    if key == DISPLAY_AUTHENTICATING:
+        return {"label": "ChatGPT 창에서 승인한 뒤 그 창의 주소를 붙여 넣으세요.", "action": NEXT_PASTE}
+    if key == DISPLAY_VERIFYING:
+        return {"label": "연결을 확인하고 있습니다. 끝나면 상태가 바뀝니다.", "action": NEXT_WAIT}
+    if key == DISPLAY_OFF:
+        return {"label": "AI 사용을 켜면 도우미와 요약이 답을 만듭니다.", "action": NEXT_ENABLE}
+    if key == "unverified":
+        return {"label": "지금 확인을 눌러 실제 답을 받는지 확인하세요.", "action": NEXT_VERIFY}
+    if key == "degraded":
+        return {"label": "잠시 뒤 지금 확인을 다시 누르세요.", "action": NEXT_VERIFY}
+    if key == "reauth_required":
+        return {"label": "ChatGPT 계정에 다시 로그인하세요.", "action": NEXT_LOGIN}
+    if key == "error":
+        if account:
+            return {"label": "ChatGPT 계정에 다시 로그인한 뒤 지금 확인을 누르세요.", "action": NEXT_LOGIN}
+        return {"label": "API 키를 확인해 다시 저장한 뒤 지금 확인을 누르세요.", "action": NEXT_API_KEY}
+    return None
+
+
+def overview(db: Session, runtime, secrets, settings_cache, *, gateway=None, admin_user_id: str | None = None,
+             now: datetime | None = None) -> dict:
+    """화면이 한 번에 받는 값. ``admin_user_id`` · ``now`` 가 있으면 그 관리자의 열린 로그인 시도를 「로그인 진행 중」으로 본다."""
+    from app.ai.credentials import oauth
     from app.ai.credentials import state as state_mod
 
     config = runtime.config(db)
@@ -259,16 +376,25 @@ def overview(db: Session, runtime, secrets, settings_cache, *, gateway=None) -> 
     status = runtime.status(db)
     job = pending_verify(db)
     index = index_view(db, gateway)
-    display = state_display(status, verifying=job is not None,
-                            embed_available=(index or {}).get("semantic") if index else None)
     method = config.method()
+    chatgpt_allowed = bool(getattr(runtime, "chatgpt_allowed", True))
+    chatgpt = chatgpt_view(runtime, db)
+    credentials = credentials_view(config, secrets, chatgpt=chatgpt, chatgpt_allowed=chatgpt_allowed)
+    login = {"open": False, "transaction_id": None, "expires_at": None}
+    if chatgpt_allowed and admin_user_id and now is not None:
+        found = oauth.open_attempt(db, admin_user_id=admin_user_id, now=now)
+        if found is not None:
+            login = {"open": True, **found}
+    login_open = bool(login["open"] and method is not None and method.account and not credentials["ready"])
+    display = state_display(status, verifying=job is not None,
+                            embed_available=(index or {}).get("semantic") if index else None,
+                            login_open=login_open)
     caps = {"tools": state_mod.TOOLS_UNKNOWN, "checked_at": None, "model": None}
     if method is not None and not status.get("problems"):
         try:
             caps = state_mod.capabilities(db, config, secrets, secret_slot=method.secret_slot)
         except Exception:  # noqa: BLE001 - 모르면 모른다고 한다
             pass
-    chatgpt = chatgpt_view(runtime, db)
     return {
         "config": {
             "generation_enabled": config.generation_enabled,
@@ -284,7 +410,15 @@ def overview(db: Session, runtime, secrets, settings_cache, *, gateway=None) -> 
             "verify_job_id": job.id if job is not None else None,
             "display": display,
         },
-        "providers": providers_view(secrets, chatgpt_connected=bool(chatgpt["connected"])),
+        # 상태 면은 이 셋만 그린다(D-558): 자격이 갖춰졌는가 · 그릴 줄 · 다음 할 일.
+        "credentials": credentials,
+        "facts": facts_view(config, status, credentials=credentials, caps=caps, index=index),
+        "next": next_view(display, config, status, credentials=credentials, chatgpt_allowed=chatgpt_allowed),
+        "login": login,
+        # 계정 연결(ChatGPT)은 개인 평가 플래그가 켜진 설치에서만 표에 선다(D-559).
+        "chatgpt_allowed": chatgpt_allowed,
+        "providers": providers_view(secrets, chatgpt_connected=bool(chatgpt["connected"]),
+                                    chatgpt_allowed=chatgpt_allowed),
         "features": {key: values.get(key) is True for key in FEATURE_KEYS},
         "limits": {
             "timeout_seconds": [concurrency.MIN_TIMEOUT_SECONDS, concurrency.MAX_TIMEOUT_SECONDS],
@@ -309,8 +443,14 @@ def overview(db: Session, runtime, secrets, settings_cache, *, gateway=None) -> 
     }
 
 
-def validate_config(current, changes: dict) -> dict:
-    """바꿀 값을 합친 뒤 **한 벌로** 검사한다. 저장할 `{설정 키: 값}` 을 돌려준다."""
+def validate_config(current, changes: dict, *, chatgpt_allowed: bool = True) -> dict:
+    """바꿀 값을 합친 뒤 **한 벌로** 검사한다. 저장할 `{설정 키: 값}` 을 돌려준다.
+
+    계정 연결(ChatGPT)을 **고르는** 저장은 플래그가 꺼진 설치에서 422 다(D-559) — 화면에 없는 선택지를 API 로도 못 고른다.
+    옛 저장값이 남아 있는 설치가 다른 칸을 고치는 것은 막지 않는다(그 상태는 「미설정 · API 키로 연결하세요」다).
+    """
+    from app.ai.runtime import CHATGPT_DISABLED_TEXT
+
     merged = {
         "generation_enabled": current.generation_enabled, "provider": current.provider,
         "auth_method": current.auth_method, "model": current.model,
@@ -329,6 +469,11 @@ def validate_config(current, changes: dict) -> dict:
             merged["auth_method"] = spec.auth_methods[0].key
         if merged["auth_method"] and spec.method(merged["auth_method"]) is None:
             raise ValidationAppError(f"{spec.label}에서 쓸 수 없는 인증 방식입니다.")
+        chosen = spec.method(merged["auth_method"]) if merged["auth_method"] else None
+        if chosen is not None and chosen.account and not chatgpt_allowed and (
+            changes.get("auth_method") or changes.get("provider")
+        ):
+            raise ValidationAppError(CHATGPT_DISABLED_TEXT)
     elif merged["auth_method"]:
         raise ValidationAppError("제공자를 먼저 고르세요.")
     if len(merged["model"]) > MODEL_MAX_CHARS:
@@ -346,11 +491,12 @@ def validate_config(current, changes: dict) -> dict:
     return {CONFIG_KEYS[k]: v for k, v in merged.items()}
 
 
-def apply_config(db: Session, settings_cache, *, current, changes: dict, user_id: str, now: datetime) -> dict:
+def apply_config(db: Session, settings_cache, *, current, changes: dict, user_id: str, now: datetime,
+                 chatgpt_allowed: bool = True) -> dict:
     """바뀐 값만 저장한다(설정 버전 기록이 남는다). 바뀐 `{설정 키: 새 값}` 을 돌려준다."""
     from app.settings.service import apply_setting
 
-    target = validate_config(current, changes)
+    target = validate_config(current, changes, chatgpt_allowed=chatgpt_allowed)
     values = settings_cache.current() if settings_cache is not None else {}
     changed = {}
     for key, value in target.items():

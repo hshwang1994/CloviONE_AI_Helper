@@ -1,8 +1,10 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
+import Link from "@mui/material/Link";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { failureText } from "../../lib/failure.js";
 import { useInstantSave } from "../../lib/useInstantSave.js";
@@ -27,9 +29,16 @@ import { MODELS_KEY, ModelPicker } from "./ModelPicker.jsx";
  * - 모델을 바꾸면 곧바로 저장하고 다시 확인한다(그동안 「확인 중」). AI 기능 스위치는 모두 누르는 즉시 저장된다(P-118).
  * - 고른 제공자 · 인증 방식이 지금 연결과 다르면 「이 연결로 바꾸기」가 이 화면의 주 동작이다. 처음 설정(지금 연결이 없다)은
  *   인증이 끝나는 순간 그 연결을 쓴다.
+ *
+ * ## 인증 방식의 자리 (D-559)
+ *
+ * API 키가 먼저다(발급처 링크 · 조직 키 권장 · 과금 한 줄은 서버의 방식 설명이다). ChatGPT 계정 연결은 설치 플래그
+ * (`AI_CHATGPT_PERSONAL_EVAL`)가 켜진 개인 · 로컬 개발 설치에서만 서버가 표에 실어 주고, 꺼진 설치에서는 선택지 자체가 없고 한 줄
+ * 안내만 있다. 「AI 사용」은 서버의 `credentials.ready` 와 모델이 갖춰진 뒤에만 켤 수 있다(D-558) — 화면이 자격을 짐작하지 않는다.
  */
 
 export const AI_ADMIN_KEY = ["ai-admin"];
+export const CHATGPT_DISABLED_NOTE = "ChatGPT 계정 연결은 개인용이나 로컬 개발 설치의 평가 기능입니다. 이 설치에서는 API 키로 연결하세요.";
 const POLL_MS = 1500;
 const VERIFY_LIMIT_MS = 90_000;
 
@@ -93,6 +102,10 @@ export function AiConnection() {
   const [runDraft, setRunDraft] = React.useState(null);
   const [switchError, setSwitchError] = React.useState(null);
   const [switching, setSwitching] = React.useState(false);
+  /* 「다음 할 일」이 가리키는 구획. 감싸는 상자는 `display: contents` 라 판의 줄 간격을 바꾸지 않는다. */
+  const providerSection = React.useRef(null);
+  const modelSection = React.useRef(null);
+  const featureSection = React.useRef(null);
 
   const saveConfig = useMutation({
     mutationFn: (body) => api("/api/admin/ai/config", { method: "PUT", body }),
@@ -145,7 +158,10 @@ export function AiConnection() {
   const run = { timeout_seconds: config.timeout_seconds, max_concurrency: config.max_concurrency, ...(runDraft || {}) };
   const runDirty = Boolean(runDraft) && Object.keys(runDraft).some((k) => runDraft[k] !== config[k]);
   const features = data.features || {};
-  const configured = Boolean(config.provider && config.auth_method && config.model);
+  /* 자격은 서버가 판정한다(D-558). 켤 수 있는 것은 자격과 모델이 다 있을 때뿐이다. */
+  const credentialsReady = Boolean(data.credentials && data.credentials.ready);
+  const configured = credentialsReady && Boolean(config.model);
+  const chatgptAllowed = data.chatgpt_allowed !== false;
   const saveFailure = failureText([saveConfig, "설정을 저장하지 못했습니다."])
     || failureText([verify, "연결 확인을 시작하지 못했습니다."]);
 
@@ -155,6 +171,30 @@ export function AiConnection() {
     if (!target) return;
     const method = target.auth_methods.find((m) => m.key === authMethod) || target.auth_methods[0];
     setChoice({ provider: target.key, auth_method: method.key });
+  }
+
+  function scrollTo(ref) {
+    const box = ref.current;
+    const el = box && (box.firstElementChild || box);
+    if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+
+  /* 상태 면의 「다음 할 일」 — 서버가 준 자리(`next.action`)로 간다. 동작이 하나뿐인 자리(확인 · 켜기)는 바로 한다. */
+  function goNext(action) {
+    if (action === "verify") { verify.mutate(); return; }
+    if (action === "enable") { if (!config.generation_enabled) generation.mutate({ value: true }); return; }
+    if (action === "api_key") {
+      const target = chosenProvider || currentProvider || providers[0];
+      if (target) pick(target.key, "api_key");
+      scrollTo(providerSection);
+      return;
+    }
+    if (action === "login" || action === "paste") {
+      pick("openai", "chatgpt");
+      scrollTo(providerSection);
+      return;
+    }
+    scrollTo(action === "model" ? modelSection : providerSection);
   }
 
   /* 고른 연결을 지금 연결로 — 그 연결의 모델 목록을 받아, 지금 모델이 그 목록에 있으면 두고 없으면 추천을 쓴다. */
@@ -203,12 +243,13 @@ export function AiConnection() {
       <PageHeader area="AI" title="AI 연결" help="AI 제공자에 연결하고 AI 기능을 켜고 끕니다." />
 
       <AiStatusCard
-        data={data} onVerify={() => verify.mutate()} verifying={verify.isPending || watch.verifying}
+        data={data} onVerify={() => verify.mutate()} onNext={goNext} verifying={verify.isPending || watch.verifying}
         timedOut={watch.timedOut}
       />
 
       {/* 설정은 한 판 위의 구획 넷이다 - 머리와 선으로만 나뉘고 카드를 두르지 않는다(F7 카드 규율, D-527). */}
       <Card stack data-testid="ai-connection-form">
+        <Box ref={providerSection} sx={{ display: "contents" }}>
         <FormSection titleAs="h2" title="제공자와 인증">
           {chosenProvider ? (
             <FieldRow columns={["auto", "auto"]}>
@@ -232,19 +273,33 @@ export function AiConnection() {
           ) : null}
           {chosenMethod && chosenMethod.account ? (
             <ChatGptLogin
-              chatgpt={data.chatgpt}
+              chatgpt={data.chatgpt} login={data.login}
               onConnected={(res) => afterAuth(Boolean(res && res.verify_job_id))}
               onLoggedOut={(res) => qc.setQueryData(AI_ADMIN_KEY, (res && res.overview) || data)}
             />
           ) : chosenMethod ? (
-            /* 키는 저장하면 되읽지 않는다. 끝 네 글자로 어느 키인지만 알아본다. */
-            <SecretField
-              key={chosenMethod.secret_slot}
-              slot={chosenMethod.secret_slot} label="API 키" saveLabel="저장하고 확인"
-              help={[chosenMethod.help, chosenMethod.secret_hint ? `저장된 키의 ${chosenMethod.secret_hint}입니다.` : null]
-                .filter(Boolean).join(" ")}
-              onChanged={() => afterAuth(false)}
-            />
+            <>
+              {/* 키는 저장하면 되읽지 않는다. 끝 네 글자로 어느 키인지만 알아본다. */}
+              <SecretField
+                key={chosenMethod.secret_slot}
+                slot={chosenMethod.secret_slot} label="API 키" saveLabel="저장하고 확인"
+                help={[chosenMethod.help, chosenMethod.secret_hint ? `저장된 키의 ${chosenMethod.secret_hint}입니다.` : null]
+                  .filter(Boolean).join(" ")}
+                onChanged={() => afterAuth(false)}
+              />
+              {chosenMethod.issue_url ? (
+                <Typography variant="body2" color="text.secondary">
+                  <Link href={chosenMethod.issue_url} target="_blank" rel="noopener noreferrer">
+                    {`${chosenProvider.label} 키 발급처 열기`}
+                  </Link>
+                </Typography>
+              ) : null}
+              {chosenProvider.key === "openai" && !chatgptAllowed ? (
+                <Typography variant="body2" color="text.secondary" data-testid="chatgpt-disabled-note">
+                  {CHATGPT_DISABLED_NOTE}
+                </Typography>
+              ) : null}
+            </>
           ) : null}
           {!isCurrent && currentName && chosenProvider && chosenMethod ? (
             <Callout
@@ -263,13 +318,16 @@ export function AiConnection() {
           ) : null}
           {switchError ? <Callout tone="danger" compact>{switchError}</Callout> : null}
         </FormSection>
+        </Box>
 
+        <Box ref={modelSection} sx={{ display: "contents" }}>
         <FormSection titleAs="h2" title="모델">
           <ModelPicker
             config={config} method={currentMethod} saving={saveConfig.isPending}
             onSave={saveModel} onAutoPicked={announcePick}
           />
         </FormSection>
+        </Box>
 
         <FormSection titleAs="h2" title="실행 옵션">
           <FieldRow
@@ -305,6 +363,7 @@ export function AiConnection() {
           </FieldRow>
         </FormSection>
 
+        <Box ref={featureSection} sx={{ display: "contents" }}>
         <FormSection titleAs="h2" title="AI 기능">
           {/* 설정 줄은 괘선 목록이다 - 구획 머리 선 바로 아래 첫 줄은 윗선을 두 번 긋지 않는다. 모두 누르는 즉시 저장된다. */}
           <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 } }}>
@@ -312,7 +371,7 @@ export function AiConnection() {
               compact label="AI 사용" controlId="ai-generation"
               description={configured
                 ? "끄면 모든 AI 기능이 답을 만들지 않습니다."
-                : "제공자, 인증, 모델을 정하면 켤 수 있습니다."}
+                : (credentialsReady ? "모델을 고르면 켤 수 있습니다." : "제공자를 연결하면 켤 수 있습니다.")}
               action={(
                 <Switch
                   id="ai-generation" checked={Boolean(config.generation_enabled)}
@@ -337,6 +396,7 @@ export function AiConnection() {
             ))}
           </Box>
         </FormSection>
+        </Box>
 
         {saveFailure ? <Callout tone="danger" compact>{saveFailure}</Callout> : null}
       </Card>

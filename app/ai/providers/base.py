@@ -105,6 +105,8 @@ class AuthMethod:
     missing: str
     #: 사람이 값을 붙여 넣는 칸이 아니라 계정 로그인으로 채우는 칸인가. 화면이 키 입력칸 대신 로그인 단추를 그린다.
     account: bool = False
+    #: 자격을 발급받는 곳(키 방식). 화면이 「발급처 열기」 링크로 그린다.
+    issue_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -122,20 +124,23 @@ PROVIDERS: dict[str, ProviderSpec] = {
     PROVIDER_ANTHROPIC: ProviderSpec(
         PROVIDER_ANTHROPIC, "Anthropic",
         (AuthMethod(AUTH_API_KEY, "API 키", SLOT_ANTHROPIC_API_KEY,
-                    "Claude 구독 계정으로는 연결할 수 없습니다. Anthropic 콘솔에서 발급한 API 키를 넣으세요.",
-                    "API 키를 아직 넣지 않았습니다."),),
+                    "Claude 구독 계정으로는 연결할 수 없습니다. Anthropic 콘솔에서 발급한 API 키를 넣으세요. "
+                    "쓴 만큼 그 키의 계정에 과금됩니다.",
+                    "API 키를 아직 넣지 않았습니다.", issue_url="https://console.anthropic.com/settings/keys"),),
         help="Anthropic 은 콘솔에서 발급한 API 키로만 연결할 수 있습니다.",
     ),
     PROVIDER_OPENAI: ProviderSpec(
         PROVIDER_OPENAI, "OpenAI",
         (
             AuthMethod(AUTH_API_KEY, "API 키", SLOT_OPENAI_API_KEY,
-                       "OpenAI 플랫폼에서 발급한 API 키를 넣습니다.", "API 키를 아직 넣지 않았습니다."),
-            AuthMethod(AUTH_CHATGPT, "ChatGPT 계정", SLOT_OPENAI_CHATGPT,
-                       "연결한 사람의 ChatGPT 요금제로 답을 만듭니다. 여러 사람이 함께 쓰는 설치라면 API 키 연결이 알맞습니다.",
+                       "OpenAI 플랫폼에서 발급한 API 키를 넣습니다. 조직 키를 권장하고, 쓴 만큼 그 키의 계정에 과금됩니다.",
+                       "API 키를 아직 넣지 않았습니다.", issue_url="https://platform.openai.com/api-keys"),
+            # 개인 평가 모드(D-559) — 설치 플래그가 켜진 개인 · 로컬 개발 설치에서만 표에 선다(`providers_view`).
+            AuthMethod(AUTH_CHATGPT, "ChatGPT 계정(개인 평가용)", SLOT_OPENAI_CHATGPT,
+                       "개인용이나 로컬 개발 설치의 평가 기능입니다. 연결한 사람 본인만 AI 를 쓸 수 있습니다.",
                        "ChatGPT 계정을 아직 연결하지 않았습니다.", account=True),
         ),
-        help="OpenAI 는 API 키나 ChatGPT 계정으로 연결할 수 있습니다.",
+        help="OpenAI 는 플랫폼에서 발급한 API 키로 연결합니다.",
     ),
 }
 

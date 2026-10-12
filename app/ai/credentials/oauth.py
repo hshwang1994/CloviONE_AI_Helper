@@ -193,6 +193,19 @@ def poll(db: Session, *, transaction_id: str, admin_user_id: str, session_id: st
     return view(_own(db, transaction_id, admin_user_id=admin_user_id, session_id=session_id, now=now))
 
 
+def open_attempt(db: Session, *, admin_user_id: str, now: datetime) -> dict | None:
+    """이 관리자의 열린(만료 전) 시도 하나 — 화면의 「로그인 진행 중」(D-558). 없으면 None. 비밀은 싣지 않는다."""
+    model = _model()
+    row = db.execute(
+        select(model)
+        .where(model.admin_user_id == admin_user_id, model.phase.in_(OPEN_PHASES), model.expires_at > now)
+        .order_by(model.created_at.desc()).limit(1)
+    ).scalars().first()
+    if row is None:
+        return None
+    return {"transaction_id": row.id, "expires_at": row.expires_at.isoformat()}
+
+
 def parse_callback_url(raw, *, port: int | None) -> dict:
     """붙여 넣은 콜백 주소 → 콜백 값. 루프백 주소와 정해진 경로와 이 시도의 포트만 받는다."""
     if not isinstance(raw, str) or len(raw) > 8192:
@@ -293,7 +306,7 @@ def _complete(db: Session, row, *, callback: dict, context: CompleteContext) -> 
                                     refresh_fallback_days=refresh_fallback)
     host = state_mod.host_id(db, base.PROVIDER_OPENAI, base.AUTH_CHATGPT, now=now)
     bundle = chatgpt.new_bundle(payload=payload, claims=claims, client_id=client_id, host_id=host, expiry=expiry,
-                                now=now, scopes=scopes)
+                                now=now, scopes=scopes, owner_user_id=row.admin_user_id)
     try:
         context.tokens.save_login(bundle)
     except Exception:  # noqa: BLE001 - 값은 싣지 않는다

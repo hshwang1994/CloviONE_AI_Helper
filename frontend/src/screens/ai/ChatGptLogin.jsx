@@ -1,6 +1,9 @@
 import React from "react";
 import { useMutation } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
@@ -8,32 +11,68 @@ import { failureText } from "../../lib/failure.js";
 import { Button, Callout, DotLabel, Field, Modal, useConfirm, useToast } from "../../ui/kit.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 
-/* ChatGPT 계정 로그인 (계획 A3, D-540) — 새 창에서 승인하고, 멈춘 주소를 붙여 넣는다.
+/* ChatGPT 계정 로그인 — 개인 평가 모드 (계획 A3, D-540 · D-559 · P3 ②).
  *
  * 공식 「Sign in with ChatGPT」는 로그인 결과를 http://127.0.0.1:<포트>/auth/callback 으로만 돌려준다. 그 주소는 이 브라우저가
- * 도는 PC 라 원격 서버가 받을 수 없다(서버의 `login_flow.py` 머리말). 그래서 순서가 셋이다: ① 같은 클릭 안에서 새 창을 열어
- * 승인으로 보낸다 ② 승인 뒤 새 창의 주소창 주소를 복사한다 ③ 여기에 붙여 넣는다. 서버가 제 PKCE verifier 로 코드를 바꾸므로
- * 주소에 든 코드만으로는 쓸모가 없다. 설치할 것도 실행할 명령도 없다.
+ * 도는 PC 라 원격 서버가 받을 수 없다(서버의 `login_flow.py` 머리말). 그래서 순서가 셋이고, **단추를 누르기 전에** 세 단계가
+ * 먼저 선다 — 특히 둘째 단계: 승인 뒤 새 창이 「127.0.0.1 … 연결할 수 없습니다」 오류 화면으로 바뀌는 것이 흐름의 일부라는 것.
+ * 사용자가 그 화면을 보고 「연결할 수 없음」으로 읽은 것이 이 화면을 다시 만든 까닭이다.
+ *
+ * 붙여 넣는 순간 모양 · 이번 시도의 포트 · state 를 맞춰 보고 맞으면 **단추 없이** 바로 완료를 부른다. 틀리면 한 문장이다.
+ * 창이 막히면 링크를, 시도가 만료되면 다시 시작을 준다. 새로고침 뒤에도 서버의 `login.open` 으로 붙여 넣기 칸을 되찾는다.
+ *
+ * 이 방식은 설치 플래그(`AI_CHATGPT_PERSONAL_EVAL`)가 켜진 개인 · 로컬 개발 설치에만 보인다. 연결한 사람 본인만 AI 를 쓰므로
+ * 그 사실을 확인한 뒤에만 시작할 수 있다. 일반 화면에 PKCE · client id · OAuth · localhost 같은 낱말을 쓰지 않는다(5절). 단추와
+ * 첫 연결 안내는 공식 화면 지침의 문구를 그대로 쓴다(「Continue with ChatGPT」, 「You're using your ChatGPT plan」).
  *
  * 응답의 `flow` 가 모양을 정한다. 지금은 `paste` 뿐이고, 공식 지원이 생기면 서버가 `redirect` 를 줄 수 있다 - 그때는 같은
  * 창에서 승인으로 간다(화면을 다시 만들지 않는다).
- *
- * 일반 화면에 PKCE · client id · OAuth · localhost 같은 낱말을 쓰지 않는다(5절). 단추와 첫 연결 안내는 공식 화면 지침의 문구를
- * 그대로 쓴다(「Continue with ChatGPT」, 「You're using your ChatGPT plan」).
  */
 
 export const PASTE_STEPS = [
-  "ChatGPT에서 로그인하고 승인하세요.",
-  "승인이 끝나면 주소창의 주소를 복사하세요.",
-  "아래에 붙여 넣으면 연결됩니다.",
+  "「Continue with ChatGPT」를 누르면 새 창(또는 탭)에서 ChatGPT 가 열립니다. 로그인하고 「허용」을 누르세요.",
+  "허용하면 그 창이 「127.0.0.1 … 서버에 연결할 수 없습니다」 오류 화면으로 바뀝니다. 승인이 끝났다는 뜻이라 정상입니다. "
+  + "그 창의 주소창에서 전체 주소를 복사하세요(Ctrl+L, Ctrl+C).",
+  "이 탭으로 돌아와 아래 칸에 붙여 넣으면 바로 연결됩니다.",
 ];
-export const SHARED_PLAN_NOTICE = "ChatGPT 계정으로 연결하면 이 설치의 모든 사용자가 연결한 한 사람의 ChatGPT 요금제를 함께 씁니다. "
-  + "여러 사람이 쓰는 설치에는 API 키가 알맞습니다.";
+export const PERSONAL_NOTICE = "ChatGPT 계정 연결은 개인용이나 로컬 개발 설치의 평가 기능입니다. "
+  + "연결한 사람(나)만 AI 를 쓸 수 있고 다른 사용자는 쓸 수 없습니다.";
+export const CONSENT_LABEL = "연결한 사람(나)만 AI 를 쓸 수 있다는 것을 확인했습니다.";
+export const WRONG_ATTEMPT = "이번 시도의 주소가 아닙니다. 1부터 다시 하세요.";
+export const NOT_A_CALLBACK = "주소가 아닙니다. 주소창의 전체 주소를 복사하세요.";
+export const EXPIRED_TEXT = "시도가 만료됐습니다. 다시 시작하세요.";
+export const BLOCKED_TEXT = "창이 열리지 않았습니다. 팝업을 허용하거나 이 링크로 여세요.";
+export const CONNECTED_LABEL = "ChatGPT 계정으로 연결됨(개인 평가용)";
 const CALLBACK_RE = /^http:\/\/127\.0\.0\.1:\d{2,5}\/auth\/callback\?/;
 const NOTICE_KEY = "clovirassist.chatgpt-plan-notice";
+/* 글자를 치는 중에 「주소가 아닙니다」가 깜빡이지 않게 - 이만큼은 있어야 주소를 넣으려 했다고 본다. */
+const MIN_PASTE_CHARS = 16;
 
 export function looksLikeCallback(text) {
   return CALLBACK_RE.test(String(text || "").trim());
+}
+
+function stateOf(url) {
+  try {
+    return new URL(String(url)).searchParams.get("state") || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/* 붙여 넣은 글을 이번 시도와 맞춰 본다. `{ok, url}` 또는 `{ok:false, note}` (note 가 null 이면 아직 아무 말도 안 한다). */
+export function matchAttempt(text, attempt) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return { ok: false, note: null };
+  if (!looksLikeCallback(trimmed)) {
+    return { ok: false, note: trimmed.length >= MIN_PASTE_CHARS ? NOT_A_CALLBACK : null };
+  }
+  const expected = attempt && attempt.redirect_uri;
+  if (expected && !trimmed.startsWith(`${expected}?`)) return { ok: false, note: WRONG_ATTEMPT };
+  const want = attempt ? stateOf(attempt.authorize_url) : null;
+  const got = stateOf(trimmed);
+  if (want && got && want !== got) return { ok: false, note: WRONG_ATTEMPT };
+  return { ok: true, url: trimmed };
 }
 
 function noticeSeen() {
@@ -59,6 +98,30 @@ export function openBlankWindow() {
   return win;
 }
 
+/* 남은 시간(초). 만료 시각이 없으면 null. 1초마다 다시 센다. */
+export function useCountdown(expiresAt) {
+  const compute = React.useCallback(() => {
+    if (!expiresAt) return null;
+    const end = Date.parse(expiresAt);
+    if (Number.isNaN(end)) return null;
+    return Math.max(0, Math.floor((end - Date.now()) / 1000));
+  }, [expiresAt]);
+  const [left, setLeft] = React.useState(compute);
+  React.useEffect(() => {
+    setLeft(compute());
+    if (!expiresAt) return undefined;
+    const timer = setInterval(() => setLeft(compute()), 1000);
+    return () => clearInterval(timer);
+  }, [expiresAt, compute]);
+  return left;
+}
+
+export function fmtLeft(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 /* 공식 로고. 공식 파일(chatgpt-logo-white.svg)의 모양을 그대로 두고 색만 글자색을 따른다. */
 export function ChatGptLogo({ size = 18 }) {
   return (
@@ -77,71 +140,96 @@ export function ContinueWithChatGpt({ onClick, disabled, loading }) {
   );
 }
 
-/* 붙여 넣는 단계. 주소 칸 + [붙여넣기] · [연결]. 새 창에 오류 화면이 보여도 정상이라는 한 줄이 도움말이다. */
-function PasteSteps({ attempt, onCancel, onConnected }) {
-  const toast = useToast();
+/* 세 단계. 단추를 누르기 전부터 선다 — 둘째 단계의 오류 화면이 정상이라는 것을 미리 안다. */
+function Steps({ current }) {
+  return (
+    <Box component="ol" data-testid="chatgpt-steps" sx={{ m: 0, pl: 2.5, display: "grid", gap: 0.5 }}>
+      {PASTE_STEPS.map((step, index) => (
+        <Typography
+          component="li" key={step} variant="body2"
+          aria-current={current === index + 1 ? "step" : undefined}
+          sx={{ ...KO_WORD_BREAK, fontWeight: current === index + 1 ? 600 : 400,
+            color: current === index + 1 ? "text.primary" : "text.secondary" }}
+        >
+          {step}
+        </Typography>
+      ))}
+    </Box>
+  );
+}
+
+/* 붙여 넣는 칸. 맞는 주소가 들어오는 순간 완료를 부른다 - 누를 단추가 없다. */
+function PasteBox({ attempt, onCancel, onRestart, onConnected }) {
   const [url, setUrl] = React.useState("");
   const [note, setNote] = React.useState(null);
+  const sentRef = React.useRef(null);
+  const left = useCountdown(attempt.expires_at);
+  const expired = left === 0;
   const finish = useMutation({
     mutationFn: (callbackUrl) => api(`/api/admin/ai/oauth/openai/transactions/${attempt.transaction_id}/complete`, {
       method: "POST", body: { callback_url: callbackUrl },
     }),
     onSuccess: (res) => onConnected(res),
+    onError: () => { sentRef.current = null; },
   });
+
+  function take(text) {
+    setUrl(text);
+    const check = matchAttempt(text, attempt);
+    setNote(check.note || null);
+    if (check.ok && !finish.isPending && sentRef.current !== check.url && !expired) {
+      sentRef.current = check.url;
+      finish.mutate(check.url);
+    }
+  }
 
   async function pasteFromClipboard() {
     setNote(null);
     try {
       const text = await navigator.clipboard.readText();
-      if (looksLikeCallback(text)) {
-        setUrl(text.trim());
-      } else {
-        setNote("복사한 내용이 승인 뒤의 주소가 아닙니다. 새 창의 주소창 주소를 다시 복사하세요.");
-      }
+      take(String(text || "").trim());
     } catch (e) {
       setNote("붙여넣기 단추를 쓸 수 없습니다. 칸을 누르고 Ctrl+V 를 누르세요.");
     }
   }
 
   const failure = failureText([finish, "붙여 넣은 주소로 연결하지 못했습니다."]);
-  const ready = looksLikeCallback(url);
+  const help = expired ? EXPIRED_TEXT
+    : (finish.isPending ? "연결하고 있습니다."
+      : (note || (left != null ? `남은 시간 ${fmtLeft(left)}` : "맞는 주소가 들어오면 바로 연결됩니다.")));
   return (
     <Box data-testid="chatgpt-paste-steps" sx={{ display: "grid", gap: 1.5, minWidth: 0 }}>
-      <Box component="ol" sx={{ m: 0, pl: 2.5, display: "grid", gap: 0.5 }}>
-        {PASTE_STEPS.map((step) => (
-          <Typography component="li" key={step} variant="body2" sx={KO_WORD_BREAK}>{step}</Typography>
-        ))}
-      </Box>
       <Field
         label="주소 붙여 넣기" htmlFor="chatgpt-callback-url" width="full"
-        help={note || "승인 뒤 새 창에 오류 화면이 보여도 정상입니다."}
+        help={help}
         error={failure}
         action={(
           <>
-            <Button onClick={pasteFromClipboard}>붙여넣기</Button>
-            <Button variant="primary" disabled={!ready} loading={finish.isPending} onClick={() => finish.mutate(url.trim())}>
-              연결
-            </Button>
+            {expired ? (
+              <Button variant="primary" onClick={onRestart}>다시 시작</Button>
+            ) : (
+              <Button onClick={pasteFromClipboard} disabled={finish.isPending}>붙여넣기</Button>
+            )}
             <Button variant="ghost" onClick={onCancel}>취소</Button>
           </>
         )}
       >
         <TextField
-          id="chatgpt-callback-url" size="small" fullWidth value={url}
-          onChange={(e) => { setUrl(e.target.value); setNote(null); }}
-          onKeyDown={(e) => { if (e.key === "Enter" && ready) { e.preventDefault(); finish.mutate(url.trim()); } }}
+          id="chatgpt-callback-url" size="small" fullWidth value={url} disabled={expired}
+          onChange={(e) => take(e.target.value)}
           placeholder="http://127.0.0.1:…/auth/callback?code=…"
           inputProps={{ spellCheck: false, autoComplete: "off" }}
         />
       </Field>
-      {attempt.blocked ? (
-        <Callout tone="info" compact action={(
-          <Button size="sm" onClick={() => { window.open(attempt.authorize_url, "_blank", "noopener"); toast("승인 창을 열었습니다.", "info"); }}>
-            승인 창 열기
-          </Button>
-        )}
-        >
-          브라우저가 새 창을 막았습니다. 승인 창을 직접 여세요.
+      {attempt.blocked && attempt.authorize_url ? (
+        <Callout tone="info" compact>
+          {BLOCKED_TEXT}{" "}
+          <Link href={attempt.authorize_url} target="_blank" rel="noopener">ChatGPT 승인 창 열기</Link>
+        </Callout>
+      ) : null}
+      {attempt.resumed ? (
+        <Callout tone="info" compact action={<Button size="sm" onClick={onRestart}>처음부터 다시</Button>}>
+          앞서 시작한 로그인이 아직 열려 있습니다. 새 창에서 승인했다면 그 주소를 붙여 넣으세요.
         </Callout>
       ) : null}
     </Box>
@@ -152,14 +240,17 @@ function sameWindowRedirect(url) {
   window.location.assign(url);
 }
 
-/* 인증 칸 — 연결했으면 「ChatGPT 계정으로 연결됨」 한 줄과 [다시 로그인] · [연결 끊기], 아니면 「Continue with ChatGPT」.
+/* 인증 칸 — 연결했으면 「ChatGPT 계정으로 연결됨」 한 줄과 [다시 로그인] · [연결 끊기], 아니면 세 단계 카드와 동의 확인과
+   「Continue with ChatGPT」. `login` 은 서버가 본 이 관리자의 열린 시도다(새로고침 뒤 붙여 넣기 칸을 되찾는다).
    `redirect` 는 서버가 `flow: "redirect"` 를 줄 때 같은 창을 옮기는 길이다(공식 지원 뒤, 시험은 이것을 바꿔 잰다). */
-export function ChatGptLogin({ chatgpt, onConnected, onLoggedOut, redirect = sameWindowRedirect }) {
+export function ChatGptLogin({ chatgpt, login, onConnected, onLoggedOut, redirect = sameWindowRedirect }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [attempt, setAttempt] = React.useState(null);
+  const [consent, setConsent] = React.useState(false);
   const [notice, setNotice] = React.useState(false);
   const windowRef = React.useRef(null);
+  const dismissedRef = React.useRef(null);
   const start = useMutation({ mutationFn: () => api("/api/admin/ai/oauth/openai/start", { method: "POST" }) });
   const logout = useMutation({
     mutationFn: () => api("/api/admin/ai/oauth/openai/logout", { method: "POST" }),
@@ -168,6 +259,14 @@ export function ChatGptLogin({ chatgpt, onConnected, onLoggedOut, redirect = sam
       toast((res && res.message) || "ChatGPT 계정 연결을 끊었습니다.", res && res.revoked === false && res.removed ? "info" : "success");
     },
   });
+
+  const info = chatgpt || {};
+  /* 서버가 열린 시도를 알고 있고(새로고침 · 다른 탭) 이 화면에는 없다 - 붙여 넣기 칸을 되찾는다. 취소한 시도는 다시 열지 않는다. */
+  React.useEffect(() => {
+    if (attempt || info.connected || !login || !login.open || !login.transaction_id) return;
+    if (dismissedRef.current === login.transaction_id) return;
+    setAttempt({ transaction_id: login.transaction_id, expires_at: login.expires_at, resumed: true, blocked: false });
+  }, [attempt, info.connected, login]);
 
   function begin() {
     const win = openBlankWindow();
@@ -189,6 +288,11 @@ export function ChatGptLogin({ chatgpt, onConnected, onLoggedOut, redirect = sam
     });
   }
 
+  function cancel() {
+    if (attempt) dismissedRef.current = attempt.transaction_id;
+    setAttempt(null);
+  }
+
   function connected(res) {
     const win = windowRef.current;
     if (win && !win.closed) {
@@ -196,7 +300,7 @@ export function ChatGptLogin({ chatgpt, onConnected, onLoggedOut, redirect = sam
     }
     setAttempt(null);
     if (onConnected) onConnected(res);
-    if (noticeSeen()) toast("ChatGPT 계정을 연결했습니다.", "success");
+    if (noticeSeen()) toast("ChatGPT 계정을 연결했습니다. 모델 목록을 가져옵니다.", "success");
     else setNotice(true);
   }
 
@@ -206,15 +310,13 @@ export function ChatGptLogin({ chatgpt, onConnected, onLoggedOut, redirect = sam
     if (ok) logout.mutate();
   }
 
-  const info = chatgpt || {};
   const startFailure = failureText([start, "연결을 시작하지 못했습니다."]);
+  const canStart = consent || info.connected || info.disconnected;
   return (
     <Box data-testid="chatgpt-login" sx={{ display: "grid", gap: 1.5, minWidth: 0 }}>
-      {attempt ? (
-        <PasteSteps attempt={attempt} onCancel={() => setAttempt(null)} onConnected={connected} />
-      ) : info.connected ? (
+      {info.connected && !attempt ? (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minHeight: "2.125rem" }}>
-          <DotLabel label="ChatGPT 계정으로 연결됨" tone="ok" strong />
+          <DotLabel label={CONNECTED_LABEL} tone="ok" strong />
           <Box sx={{ flex: 1 }} />
           <Button onClick={begin} loading={start.isPending}>다시 로그인</Button>
           <Button variant="ghost" onClick={askLogout} loading={logout.isPending}>연결 끊기</Button>
@@ -223,12 +325,26 @@ export function ChatGptLogin({ chatgpt, onConnected, onLoggedOut, redirect = sam
         <>
           {info.disconnected ? (
             <Callout tone="warn" compact>ChatGPT 계정 연결이 끊겼습니다. 다시 로그인하세요.</Callout>
+          ) : null}
+          {!info.connected && !info.disconnected ? (
+            <Callout tone="warn" compact>
+              {PERSONAL_NOTICE}
+              <FormControlLabel
+                sx={{ display: "flex", mt: 0.5, ml: 0, mr: 0, alignItems: "flex-start",
+                  "& .MuiFormControlLabel-label": { fontSize: FONT_SIZE.body, ...KO_WORD_BREAK } }}
+                control={<Checkbox size="small" checked={consent} onChange={(e) => setConsent(e.target.checked)} sx={{ py: 0 }} />}
+                label={CONSENT_LABEL}
+              />
+            </Callout>
+          ) : null}
+          <Steps current={attempt ? 3 : 1} />
+          {attempt ? (
+            <PasteBox attempt={attempt} onCancel={cancel} onRestart={() => { cancel(); begin(); }} onConnected={connected} />
           ) : (
-            <Callout tone="warn" compact>{SHARED_PLAN_NOTICE}</Callout>
+            <Box>
+              <ContinueWithChatGpt onClick={begin} loading={start.isPending} disabled={!canStart} />
+            </Box>
           )}
-          <Box>
-            <ContinueWithChatGpt onClick={begin} loading={start.isPending} />
-          </Box>
         </>
       )}
       {startFailure ? <Callout tone="danger" compact>{startFailure}</Callout> : null}

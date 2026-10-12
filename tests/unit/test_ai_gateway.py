@@ -324,3 +324,16 @@ def test_query_and_passage_get_different_prefixes():
     assert catalog.E5_SMALL.prefix_for(catalog.KIND_QUERY) == "query: "
     assert catalog.E5_SMALL.prefix_for(catalog.KIND_PASSAGE) == "passage: "
     assert catalog.E5_SMALL.query_prefix != catalog.E5_SMALL.passage_prefix
+
+
+def test_a_failure_code_says_the_cause_more_precisely_than_the_status():
+    """같은 「미설정」 · 「일시 장애」 · 「시간 초과」라도 까닭이 다르면 다음 행동이 다르다(P3 ④, D-559) — 코드가 있으면 그 문장이다."""
+    assert contract.notice_for(contract.STATUS_OK, "anything") is None
+    assert contract.notice_for(contract.STATUS_UNCONFIGURED) == contract.NOTICES[contract.STATUS_UNCONFIGURED]
+    assert "본인만" in contract.notice_for(contract.STATUS_UNCONFIGURED, "personal_only")
+    assert "30초" in contract.notice_for(contract.STATUS_DEGRADED, "breaker_open")
+    assert "한도" in contract.notice_for(contract.STATUS_DEGRADED, "plan_usage_limit")
+    assert "좁혀" in contract.notice_for(contract.STATUS_TIMEOUT, "turn_budget")
+    assert contract.notice_for(contract.STATUS_FAILED, "http_500") == contract.NOTICES[contract.STATUS_FAILED], "모르는 코드는 상태 문장이다"
+    failed = contract.GenerateResult(status=contract.STATUS_UNCONFIGURED, error_code="personal_only")
+    assert failed.notice == contract.ERROR_CODE_NOTICES["personal_only"]

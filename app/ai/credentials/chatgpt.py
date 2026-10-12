@@ -435,11 +435,15 @@ def scopes_of(payload: dict, fallback: str | None = None) -> list[str]:
 
 
 def new_bundle(*, payload: dict, claims: dict, client_id: str, host_id: str, expiry: Expiry, now: datetime,
-               scopes: list[str]) -> dict:
-    """로그인 한 번 → 묶음. `login_id` 는 이 로그인에만 붙는다 - 연결 상태의 지문이 갱신이 아니라 새 로그인에만 바뀐다."""
+               scopes: list[str], owner_user_id: str | None = None) -> dict:
+    """로그인 한 번 → 묶음. `login_id` 는 이 로그인에만 붙는다 - 연결 상태의 지문이 갱신이 아니라 새 로그인에만 바뀐다.
+
+    `owner_user_id` 는 연결한 관리자다(D-559 개인 평가 모드) — 이 요금제의 토큰은 그 사람의 것이라 AI 도 그 사람만 쓴다.
+    """
     return {
         "version": 1,
         "login_id": uuid.uuid4().hex,
+        "owner_user_id": owner_user_id,
         "issuer": ISSUER,
         "subject": str(claims.get("sub") or ""),
         "email": claims.get("email") if isinstance(claims.get("email"), str) else None,

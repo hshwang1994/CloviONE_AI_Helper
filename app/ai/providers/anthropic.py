@@ -32,6 +32,8 @@ logger = logging.getLogger("app.ai.providers.anthropic")
 
 MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 MODELS_URL = "https://api.anthropic.com/v1/models"
+#: 모델 목록 쪽 넘김의 상한(쪽마다 100개). 제공자가 끝없이 `has_more` 를 주어도 여기서 멈춘다.
+MODELS_MAX_PAGES = 10
 ANTHROPIC_VERSION = "2023-06-01"
 ALLOWLIST = "services"
 
@@ -180,30 +182,41 @@ class AnthropicAdapter:
         return read_turn(data)
 
     def list_models(self, *, timeout: float) -> base.ModelList:
+        """`GET /v1/models` 를 끝까지 넘긴다 — 응답은 `data[]` · `has_more` · `last_id` 이고 다음 쪽은 `after_id` 로 받는다."""
         if self._outbound is None:
             return base.ModelList(ok=False, error_kind=base.ERROR_CONFIG, error_code="no_outbound")
-        try:
-            response = self._outbound.request(
-                "GET", MODELS_URL + "?limit=100", allowlist=ALLOWLIST, headers=self._headers(),
-                timeout=float(timeout), auth_type=AUTH_API_KEY_HEADER, secret_ref=self._secret_ref,
+        models: list[dict] = []
+        after_id: str | None = None
+        for _ in range(MODELS_MAX_PAGES):
+            url = MODELS_URL + "?limit=100" + (f"&after_id={after_id}" if after_id else "")
+            try:
+                response = self._outbound.request(
+                    "GET", url, allowlist=ALLOWLIST, headers=self._headers(),
+                    timeout=float(timeout), auth_type=AUTH_API_KEY_HEADER, secret_ref=self._secret_ref,
+                )
+            except Exception as exc:  # noqa: BLE001
+                failed = _exception_result(exc, proxied=bool(getattr(self._outbound, "proxy_display", None)))
+                return base.ModelList(ok=False, error_kind=failed.error_kind, error_code=failed.error_code)
+            if response.status_code >= 400:
+                failed = classify_status(response)
+                return base.ModelList(ok=False, error_kind=failed.error_kind, error_code=failed.error_code)
+            try:
+                data = response.json()
+            except ValueError:
+                return base.ModelList(ok=False, error_kind=base.ERROR_TRANSIENT, error_code="bad_json")
+            rows = data.get("data") if isinstance(data, dict) else None
+            models.extend(
+                {"id": row["id"], "label": str(row.get("display_name") or row["id"])}
+                for row in (rows or [])
+                if isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"]
             )
-        except Exception as exc:  # noqa: BLE001
-            failed = _exception_result(exc, proxied=bool(getattr(self._outbound, "proxy_display", None)))
-            return base.ModelList(ok=False, error_kind=failed.error_kind, error_code=failed.error_code)
-        if response.status_code >= 400:
-            failed = classify_status(response)
-            return base.ModelList(ok=False, error_kind=failed.error_kind, error_code=failed.error_code)
-        try:
-            data = response.json()
-        except ValueError:
-            return base.ModelList(ok=False, error_kind=base.ERROR_TRANSIENT, error_code="bad_json")
-        rows = data.get("data") if isinstance(data, dict) else None
-        models = tuple(
-            {"id": row["id"], "label": str(row.get("display_name") or row["id"])}
-            for row in (rows or [])
-            if isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"]
-        )
-        return base.ModelList(ok=True, models=models)
+            last_id = data.get("last_id") if isinstance(data, dict) else None
+            if not (isinstance(data, dict) and data.get("has_more") is True and isinstance(last_id, str) and last_id):
+                break
+            if last_id == after_id:
+                break  # 같은 쪽을 다시 주면 멈춘다 — 끝없이 돌지 않는다
+            after_id = last_id
+        return base.ModelList(ok=True, models=tuple(models))
 
 
 # ── 대화 — 도구를 쓰는 차례 (D-535) ───────────────────────────────────────────
