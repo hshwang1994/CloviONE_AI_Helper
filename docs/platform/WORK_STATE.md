@@ -13,8 +13,9 @@
   검증, 사용자 인증이나 받은 편지함 확인이 필요한 경우에만 요청」). 결정은 D-556 ~ D-565, 마이그레이션은 0049. 관찰 · 검증 환경은 랩 서버
   `clovirassist.gooddi.lab`.
 - 사용자 결정(2026-10-12): 메일은 계정 · 앱 비밀번호 없이 **기존 로컬 릴레이**로 바깥 전달까지 서버에서 구성 · 실측하고 받은 편지함은 사용자가
-  확인한다(받는 주소 둘). AI 는 ChatGPT 개인 계정뿐(API 키 없음) → 운영 설치의 인증은 API 키뿐이고 ChatGPT 계정 연결은 개인 · 로컬 평가
-  플래그(D-559). 검증 뒤 랩은 켠 채로 둔다.
+  확인한다(받는 주소 둘). AI 는 ChatGPT 개인 계정뿐(API 키 없음). 검증 뒤 랩은 켠 채로 둔다.
+- 사용자 결정(2026-10-13): 「gpt 로그인 방식 지원하게 해라, API 만 하지 말고(혼자 결정하지 마라)」 — D-559(운영 설치는 API 키뿐, ChatGPT 는
+  개인 평가 플래그 · 본인만)를 **D-566** 으로 대체했다. ChatGPT 계정 연결은 모든 설치의 정식 인증 방식이고 연결한 계정 하나를 모두가 함께 쓴다.
 - 끝난 묶음:
 
 | 묶음 | 커밋 | 결정 |
@@ -25,7 +26,8 @@
 | P3 운영 설치의 AI 인증은 API 키뿐(`AI_CHATGPT_PERSONAL_EVAL`, 본인만) · 상태 면은 서버 사실만(facts · next · credentials · login) · 세 단계 로그인 카드 · 오류 까닭 문장 · `ai_lab_e2e.py` | `5b311208` | D-558 · D-559 |
 | P4 메일 일곱 단계 안내 흐름(`progress` · 다음 할 일 · 받은 편지함 확인) · 로컬 릴레이 먼저 · 제공자 프리셋 · 담당자 요청문 · 진단 접기 · 제품 머리 하나의 메일 틀(CID 로고) · 메일 가능 알림 17종 + 보안 메일 둘 | `c21f9b44` | D-560 ~ D-562 |
 | P5 공통 결과 판(`ResultPanel`, 발표 전환 → 공개 순간 축포 한 번, 늦은 입장은 결과만) · 기존 게임 결함(방장 단독 이탈 종결 · 초기화 멱등 · id 승자 · 폴링 커서) · 「축하 효과」 스위치(0049) · 구슬 레이스(planck 워커 · fdlibm 결정적 수학 · 논리 시간 · 상호 대조 확정 넷 · 판 팔레트 · 전체 화면 · 출처 고지) · `games_e2e.py`(두 브라우저 지문 일치 · 성능 · 캡처) · P6 공통 UI 프로브(다섯 화면 × 4폭, 메일 「다음 할 일」 상자 계약 수정) | `ffa45b02` | D-563 ~ D-565 |
-| P7 전량 검증 · 번들 · 랩 배포 · 실측 · 문서 | `1b0f6638 (배포) · 이 커밋(문서)` | — |
+| P7 전량 검증 · 번들 · 랩 배포 · 실측 · 문서 | `1b0f6638` (배포) · `85b1c1b5` (문서) | — |
+| D-566 ChatGPT 계정 연결 정식 방식 복귀(플래그 · 본인만 · 꺼진 설치 안내 걷음, 요금제 공유 한 줄, 시험 `test_ai_chatgpt_shared.py`) · 랩 배포 | `6b848630` | D-566(D-559 대체) |
 
 - 잰 것(P5 · P6): 백엔드 게임 56건(구슬 레이스 7 · 범위 1 · 회귀 3 포함) · 프로필 33건, 프런트 게임방 묶음 90여 건(엔진 7 · 무대 8 · 결과 판 7 ·
   게임방 6 · 열쇠 11 · 축포 24), 정적 검사(dev) 통과. 실브라우저 `games_e2e --digest`(Chromium 방장 + Firefox 참가자 12명 두 경주 → `confirmed`,
@@ -33,7 +35,7 @@
   `EVIDENCE/ui/2026-10-12-games-visual.md` · `2026-10-12-marble-perf.md`). P6 `kit_measure --fail-on control_row column_balance switch_geometry
   callout` 실패 0(`dist/ui-qa/p6-local-r3`), F7 보고 항목에서 남긴 것은 증거 문서에 적었다.
 - 사람이 해야 하는 것(끝에 한 번에 요청): ① 회사 주소 시험 메일(2026-10-12 14:18 KST, Message-ID `<179178228943.769435.3239957479575557108@goodmit.co.kr>`)과
-  P7 2차 실측 메일의 받은 편지함 · 정크 · 격리 확인 ② 로컬 개인 평가 설치에서 ChatGPT 로그인(본인 브라우저) ③ 도메인 DNS 담당자 · 회선 업체 ·
+  P7 2차 실측 메일의 받은 편지함 · 정크 · 격리 확인 ② 랩 AI 연결 화면에서 ChatGPT 계정 로그인(본인 브라우저, D-566) — 배포 뒤 랩 상태는 「미설정 · ChatGPT 계정을 아직 연결하지 않았습니다 · 다음 할 일 로그인」(`dist/ui-qa/ai-lab-e2e/lab-d566-pre.md`), 로그인 뒤 `ai_lab_e2e.py` 로 모델 조회 · 채팅 열한 가지를 잰다 ③ 도메인 DNS 담당자 · 회선 업체 ·
   M365 관리자에게 보낼 요청문 전달(화면의 「담당자에게 요청하기」 상자).
 
 ## 끝남 — UI/UX · AI · 조직 · 초기 설정 · 메일 회차 (2026-10-01 ~ 10-02)
@@ -163,10 +165,11 @@
 - session: 사용자가 지시서(열 절)와 계획 승인으로 P0 ~ P7 을 끝까지 지시했다(구현 → 표적 검증 → 문서 → 커밋 → 랩 배포 → 실측). 사람이 필요한 것만 남겨 한 번에 요청한다(맨 위 절).
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`1b0f6638`** (2026-10-12, 기능 개선 회차 최종) — 마이그레이션 0049 적용(alembic head `0049_celebration_pref`), Stage 18 VERIFY_OK, 밖에서 본
-  `verify_deploy.sh` DEPLOY_VERIFY_OK. 스냅샷 `C:/Program Files/Git/var/backups/clovirassist/20261012-232932`, 설치 로그 `C:/Program Files/Git/var/log/clovirassist/install-20261012-232932.log`. 되돌리려면 `sudo clovirassist rollback`(D-524).
-  그 전 배포는 `5aadfbb6`(2026-10-01, 공통 스위치 개편). 랩의 메일은 사용자 결정대로 **발송 켬 · 로컬 릴레이 동작 · 인터넷으로 직접 전달 · DKIM 서명**을 켠 채 두었고,
-  AI 는 「미설정」(옛 chatgpt 값은 D-559 로 쓰이지 않는다)이다.
+- deployed: **`6b848630`** (2026-10-13, D-566 ChatGPT 계정 연결 정식 방식) — 마이그레이션 없음(alembic head `0049_celebration_pref` 그대로), Stage 18
+  VERIFY_OK, 밖에서 본 `verify_deploy.sh` DEPLOY_VERIFY_OK. 스냅샷 `C:/Program Files/Git/var/backups/clovirassist/20261013-080213`, 설치 로그 `C:/Program Files/Git/var/log/clovirassist/install-20261013-080213.log`. 되돌리려면 `sudo clovirassist rollback`(D-524).
+  그 전 배포는 `1b0f6638`(2026-10-12, 기능 개선 회차 최종). 랩의 메일은 사용자 결정대로 **발송 켬 · 로컬 릴레이 동작 · 인터넷으로 직접 전달 · DKIM 서명**을
+  켠 채 두었다. AI 는 옛 `openai · chatgpt` 설정이 그대로 살아 「미설정 · ChatGPT 계정을 아직 연결하지 않았습니다」이고, 사용자가 랩 화면에서
+  로그인하면 그 자격을 모두가 쓴다.
 - verification: 맨 위 절의 「잰 것」과 `EVIDENCE/ui/2026-10-12-*.md` · `EVIDENCE/mail/2026-10-12-lab-relay-e2e-2.md` · `EVIDENCE/ai/2026-10-12-lab-ai.md`.
 - capture: 전량 정본은 **`s22-final`** 그대로다(D-306). 이번 회차의 부분 캡처는 랩 `dist/ui-qa-lab/r19-before` → `r19-after`(+ `-room` · `-mail`), 로컬 `dist/ui-qa/games-e2e/r2 ~ r5` ·
   `p6-local*` · `p6-shots` 이고 Acceptance 정본을 옮기지 않는다. 뼈대 기준 라벨은 **`p8-geo`** 다 — 작업 보드는 D-497 이 상단을
