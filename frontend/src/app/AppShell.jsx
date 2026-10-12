@@ -29,7 +29,7 @@ import { useAuth } from "./auth.jsx";
 import { NotificationBell } from "./NotificationBell.jsx";
 import { UserMenu } from "./UserMenu.jsx";
 import { CommandPalette, useCommandPaletteHotkey } from "./CommandPalette.jsx";
-import { AssistantDrawer, useAssistantHotkey } from "./AssistantDrawer.jsx";
+import { AssistantPanel, useAssistantHotkey } from "./AssistantPanel.jsx";
 import { ScopeBar } from "./ScopeBar.jsx";
 import { Tour } from "./Tour.jsx";
 import { activeNavPath, filterGroupsByQuery, groupForPath, NAV_BREAKPOINT_PX } from "./navConfig.js";
@@ -1170,7 +1170,7 @@ export function AppShell({
           모두 `/chat` 으로 이동해서, 물어볼 대상이 화면에 있는데 그 화면을 떠나야 했다.
           세션 만료(minimal) 상태에서는 띄우지 않는다 — 대화 API 도 401 이다. */}
       {!minimal && assistantAllowed ? (
-        <AssistantDrawer open={assistantOpen} onClose={() => setAssistantOpen(false)} />
+        <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
       ) : null}
 
       {/* 첫 로그인 둘러보기 — 홈(/me)에서만 스스로 열리고, 건너뛰면 서버에 기록돼 다시 안 뜬다.

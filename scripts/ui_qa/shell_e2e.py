@@ -466,19 +466,41 @@ def ff_1190_account(page, rec: Recorder, out: Path, base: str) -> dict:
 
 
 def ff_1191_clovi(page, rec: Recorder, out: Path) -> dict:
-    f = flow("FF-1191", "modal_action", "Clovi 버튼이 AI 도우미 서랍을 연다")
+    f = flow("FF-1191", "modal_action", "Clovi 버튼이 AI 도우미 패널을 연다 — 본문은 밀리지도 잠기지도 않는다(D-557)")
     rec.reset()
     button = page.locator(CLOVI).first
     f["observed"]["in_ai_anchor"] = page.locator(f"{AI_ANCHOR} {CLOVI}").count() > 0
     f["chain"]["ui_action"] = "상단바 클로비 버튼 클릭"
+    # 패널은 모달이 아니다 — 열기 전후로 `main` 의 자리 · 폭과 `body` 의 인라인 스타일(스크롤 잠금의 padding-right 가
+    # 들어오던 자리)이 그대로여야 한다. 예전 MUI Drawer 는 body 에 overflow:hidden + padding-right 를 넣어 화면이 밀렸다.
+    probe_js = """() => {
+      const m = document.querySelector('main');
+      const r = m ? m.getBoundingClientRect() : null;
+      return { main: r ? [Math.round(r.left), Math.round(r.width)] : null,
+               body_style: document.body.getAttribute('style') || '',
+               body_overflow: getComputedStyle(document.body).overflow,
+               doc_scroll_w: document.documentElement.scrollWidth, vw: window.innerWidth };
+    }"""
+    before = page.evaluate(probe_js)
     button.click()
     page.wait_for_timeout(2000)
-    drawer = page.locator(".MuiDrawer-root .MuiDrawer-paper").last
-    f["chain"]["frontend_state"] = "AssistantDrawer open=true"
+    after = page.evaluate(probe_js)
+    panel = page.locator('aside[data-assistant-panel="open"]').last
+    f["chain"]["frontend_state"] = "AssistantPanel open=true"
+    f["observed"]["layout_before"] = before
+    f["observed"]["layout_after"] = after
+    f["observed"]["layout_unchanged"] = (
+        before["main"] == after["main"] and before["body_style"] == after["body_style"]
+        and after["doc_scroll_w"] <= after["vw"] and after["body_overflow"] == before["body_overflow"]
+    )
+    f["observed"]["panel_count"] = panel.count()
+    f["observed"]["backdrop_count"] = page.locator(".MuiBackdrop-root:visible").count()
+    if not f["observed"]["layout_unchanged"]:
+        f["notes"].append("패널을 열자 본문 자리나 body 스타일이 바뀌었다 — 모달 잠금이 돌아왔다")
     try:
-        f["chain"]["rendered"] = "서랍 본문 «%s»" % drawer.inner_text()[:120].replace("\n", " ")
+        f["chain"]["rendered"] = "패널 본문 «%s»" % panel.inner_text()[:120].replace("\n", " ")
     except Exception:  # noqa: BLE001
-        f["notes"].append("서랍 본문을 읽지 못했다")
+        f["notes"].append("패널 본문을 읽지 못했다")
     calls = [c for c in rec.calls if c["status"] < 400]
     f["observed"]["drawer_calls"] = calls[:6]
     if calls:

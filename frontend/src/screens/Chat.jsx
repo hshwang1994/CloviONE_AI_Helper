@@ -2,30 +2,29 @@ import React from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
-import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { alpha, useTheme } from "@mui/material/styles";
-import ArrowDownwardRoundedIcon from "@mui/icons-material/ArrowDownwardRounded";
-import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
+import { useTheme } from "@mui/material/styles";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
-import SendRoundedIcon from "@mui/icons-material/SendRounded";
-import { Button, Callout, Card, ErrorState, PageHeader, Skeleton, useConfirm } from "../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT, ICON, RADIUS, remPx } from "../ui/theme.js";
-import { CHAT } from "../ui/chat.js";
+import { Button, Card, ErrorState, PageHeader, Skeleton, useConfirm } from "../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT } from "../ui/theme.js";
 import { PAGE_FILL_HEIGHT } from "../ui/density.js";
+import { MascotPose } from "../ui/Mascot.jsx";
+import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { useChat } from "./useChat.js";
-import { copyText, dayKeyKST, formatConversationText, mascotMode, mascotStatusText } from "./chat-helpers.js";
+import { copyText, formatConversationText, mascotMode, mascotStatusText } from "./chat-helpers.js";
 import { COLUMNS, THREAD_MAX } from "./chat/layout.js";
 import { ConversationSidebar } from "./chat/ConversationSidebar.jsx";
-import { DaySeparator, Message, TypingBubble } from "./chat/MessageThread.jsx";
-import { AssistantUnavailable, MascotStatus, Welcome, unavailableHelp } from "./chat/WelcomeStatus.jsx";
+import { Composer } from "./chat/Composer.jsx";
+import { MessageList } from "./chat/MessageList.jsx";
+import { AssistantUnavailable, MascotStatus, Welcome } from "./chat/WelcomeStatus.jsx";
 import { ResultsRail } from "./chat/ResultsRail.jsx";
 import { messageSources } from "./chat/SourceList.jsx";
 import { assistantOf, useAiStatus } from "../lib/useAiStatus.js";
+import { useAuth } from "../app/auth.jsx";
 import { setItemTitle } from "../app/documentTitle.js";
 
 /* AI 채팅(§6.5) — 대화 목록 + 메시지 스레드 + 입력창 + (초광폭에서) 결과 레일.
@@ -99,6 +98,9 @@ export function Chat() {
   const aiStatus = useAiStatus();
   const assistant = assistantOf(aiStatus);
   const unavailable = !!assistant && !assistant.available;
+  /* 내 말풍선 옆 얼굴(D-557)은 `/api/me` 의 아바타다 — 앱 셸이 이미 들고 있다. */
+  const auth = useAuth();
+  const me = (auth && auth.data) || null;
 
   /* `/ai` 의 「AI 도우미에게 묻기」는 `?ask=` 로 온다 — 한 번만 읽어 새 대화로 보내고 주소에서 지운다. */
   const [params, setParams] = useSearchParams();
@@ -160,6 +162,23 @@ export function Chat() {
     hasResult: !!lastMsg && messageSources(lastMsg.structured).length > 0,
     composerFocused,
   });
+
+  /* 스레드가 비었을 때 목록이 그릴 것 — 대화 목록 · 스레드의 읽기 상태와 가용 상태가 정한다(공용 목록은 그 사정을 모른다). */
+  const emptyNode = !cid
+    ? (convs.isLoading ? <Skeleton lines={3} />
+      : convs.isError ? <ErrorState layout="region" error={convs.error} onRetry={() => convs.refetch()} />
+      : unavailable ? <AssistantUnavailable assistant={assistant} />
+      : <Welcome mode={mascot} title="무엇을 도와드릴까요?" busy={starting} onPick={prefillFromPrompt}
+          help="내 업무와 사내 자료를 내 권한 안에서 찾아 답합니다." />)
+    : thread.isLoading ? <Skeleton lines={3} />
+    : thread.isError && !items.length ? <ErrorState layout="region" error={thread.error} onRetry={() => thread.refetch()} />
+    : unavailable ? <AssistantUnavailable assistant={assistant} />
+    : <Welcome mode={mascot} title="새 대화" busy={starting} onPick={prefillFromPrompt} help="아래에 질문을 입력하거나, 예시를 눌러 시작하세요." />;
+  /* 말풍선 옆 얼굴(D-557) — 클로비는 마스코트, 나는 내 아바타. 클로비 패널과 같은 규칙이다. */
+  const faces = {
+    assistant: <MascotPose mode={busy ? "thinking" : "listening"} place="chatBubble" decorative />,
+    user: <UserAvatar person={me} name={me && me.display_name} size="md" />,
+  };
 
   /* AI 도우미도 다른 화면과 **같은 언어**로 그린다 (사용자 지적 S3, "지금은 너무 안이쁘다").
    *
@@ -268,205 +287,28 @@ export function Chat() {
         <div className="sr-only" role="status" aria-live="polite">{busy ? "답변을 처리하고 있습니다." : ""}</div>
         <div className="sr-only" role="status" aria-live="polite">{answerAnnounce}</div>
 
-        <Box ref={bodyRef} onScroll={onScroll} sx={{ position: "relative", flex: 1, minHeight: 0, overflowY: "auto", px: { xs: 2, sm: 3 }, py: 3, display: "flex", flexDirection: "column" }}>
-          {/* flex:1 0 auto — 내용이 짧아도 열이 스크롤 높이를 꽉 채워 환영 화면의 margin:auto가
-              실제로 세로 가운데를 잡는다. shrink는 0이라 길어지면 그대로 스크롤된다. */}
-          <Box sx={{ width: "100%", maxWidth: THREAD_MAX, mx: "auto", flex: "1 0 auto", display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-            {!cid ? (
-              // 대화 목록 조회가 실패/로딩 중이면 환영 화면 대신 그 상태를 보여준다, 좁은 폭에선 목록이
-              // 닫힌 서랍 안에 있어 그 안의 오류/재시도가 안 보이므로, 여기(본문)에도 같은 신호가 있어야 한다.
-              convs.isLoading ? <Skeleton lines={3} />
-              : convs.isError ? <ErrorState layout="region" error={convs.error} onRetry={() => convs.refetch()} />
-              : (
-                unavailable ? <AssistantUnavailable assistant={assistant} /> : (
-                  <Welcome mode={mascot} title="무엇을 도와드릴까요?" busy={starting} onPick={prefillFromPrompt}
-                    help="내 업무와 사내 자료를 내 권한 안에서 찾아 답합니다." />
-                )
-              )
-            ) : thread.isLoading ? <Skeleton lines={3} />
-              : thread.isError && !items.length ? <ErrorState layout="region" error={thread.error} onRetry={() => thread.refetch()} />
-              : items.length === 0 ? (
-                unavailable ? <AssistantUnavailable assistant={assistant} /> : (
-                  <Welcome mode={mascot} title="새 대화" busy={starting} onPick={prefillFromPrompt}
-                    help="아래에 질문을 입력하거나, 예시를 눌러 시작하세요." />
-                )
-              )
-              : (<>
-                  {/* 폴링이 일시 실패해도 읽던 메시지를 지우지 않는다, 작은 안내만 띄우고 스레드는 유지. */}
-                  {thread.isError ? (
-                    <Callout tone="warn" compact sx={{ alignSelf: "center" }}
-                      action={<Button size="sm" onClick={() => thread.refetch()}>새로고침</Button>}>
-                      연결이 잠시 끊겼습니다.
-                    </Callout>
-                  ) : null}
-                  {items.map((m, i) => {
-                    // 앞 메시지와 KST 기준 날짜가 다르면(또는 첫 메시지면) 그 앞에 날짜 구분선을 끼운다.
-                    const prev = i > 0 ? items[i - 1] : null;
-                    const dk = dayKeyKST(m.created_at);
-                    const showSep = !!dk && (!prev || dayKeyKST(prev.created_at) !== dk);
-                    return (
-                      <React.Fragment key={m.id}>
-                        {showSep ? <DaySeparator at={m.created_at} /> : null}
-                        {/* retrying은 이 메시지가 지금 재시도 중인지만 본다 — 뮤테이션의 전역 isPending을
-                            그대로 쓰면 스레드의 다른 실패 메시지의 '다시 시도'까지 함께 잠긴다(과잉 제한).
-                            레일이 이 답의 출처를 들고 있으면 말풍선 안 출처는 숨긴다(같은 목록이 두 벌 서지 않는다). */}
-                        <Message m={m} onRetry={doRetry}
-                          retrying={retryingRef.current === m.id} isLast={i === items.length - 1}
-                          showSources={!(railMsg && railMsg.id === m.id)}
-                          onRegenerate={doRegenerate} regenerating={regenerating}
-                          onDelete={doDeleteMessage} onFeedback={doFeedback} />
-                      </React.Fragment>
-                    );
-                  })}
-                  {/* 답변 대기 중이면 왼쪽에 어시스턴트 타이핑 말풍선(사용자 말풍선 안이 아니라). awaitingReply
-                      자체가 이미 stalled를 제외하므로 별도 조건이 필요 없다. */}
-                  {awaitingReply ? <TypingBubble since={lastMsg && lastMsg.created_at} label={progressLabel} /> : null}
-                  {/* 응답이 임계 시간을 넘겨 지연되면 무한 대기 대신 수동 새로고침을 제공한다. 새로고침은 단순
-                      재조회가 아니라 폴링 재시작 기준선(resumedAt)도 지금 시각으로 옮긴다, 안 그러면 created_at이
-                      그대로라 재조회 직후 다시 즉시 stalled로 재계산돼 자동 폴링이 재개되지 않는 막다른 길이 된다. */}
-                  {stalled ? (
-                    <Callout tone="warn" compact sx={{ alignSelf: "flex-start" }}
-                      action={<Button size="sm" onClick={() => { setResumedAt(Date.now()); thread.refetch(); }}>새로고침</Button>}>
-                      응답이 지연되고 있습니다.
-                    </Callout>
-                  ) : null}
-                  {ch.threadFailure ? (
-                    <Callout tone="danger" compact sx={{ alignSelf: "flex-start" }}>{ch.threadFailure}</Callout>
-                  ) : null}
-                </>)}
-            {/* 스크롤 컨테이너 안에서 sticky로 띄운다, 예전엔 열 기준(컴포저 바로 위 고정 거리)이라,
-                여러 줄 초안+첨부 미리보기+글자 수로 컴포저가 커지면 이 버튼이 컴포저 안/뒤로 파묻혔다.
-                스크롤 영역에 붙이면 컴포저 높이와 무관하게 항상 그 위에 뜬다. */}
-            {!stick ? (
-              <Box sx={{ position: "sticky", bottom: 0, alignSelf: "flex-end", mt: "auto", pt: 1, zIndex: 5 }}>
-                {/* 떠 있는 보조 단추다(조합 계약 C-4) — 채움 · 알약 모서리였을 때 보내기보다 먼저 읽혔다. 떠 있는 것의 그림자(overlay)만 든다. */}
-                <Button size="sm" onClick={() => setStick(true)} sx={{ boxShadow: 6 }}>
-                  <ArrowDownwardRoundedIcon aria-hidden="true" sx={{ fontSize: "1rem", mr: 0.5 }} />맨 아래로
-                </Button>
-              </Box>
-            ) : null}
-          </Box>
-        </Box>
+        <MessageList
+          chat={ch} variant="page" progressLabel={progressLabel} faces={faces}
+          showSourcesFor={(m) => !(railMsg && railMsg.id === m.id)}
+          empty={emptyNode}
+        />
 
         {/* 전폭 배경 띠 — 초광폭에서 상단 헤더는 전폭 구분선인데 컴포저만 카드 폭으로 떠 좌우에
             페이지 배경 여백이 생겨 미완성처럼 보였다. 띠로 감싸고 안쪽 내용만 스레드와 같은 폭으로
-            가운데 정렬해 헤더가 콘텐츠를 감싸는 방식과 맞춘다. */}
+            가운데 정렬해 헤더가 콘텐츠를 감싸는 방식과 맞춘다. 입력창 자체는 클로비 패널과 같은 부품이다(D-557). */}
         <Box sx={{ borderTop: 1, borderColor: "divider", flexShrink: 0, bgcolor: "background.paper" }}>
-          <Box sx={{ width: "100%", maxWidth: THREAD_MAX, mx: "auto", px: { xs: 2, sm: 3 }, py: 1.5, display: "grid", gap: 1 }}>
-            {pending.length ? (
-              <>
-                {/* Chip의 onDelete는 쓰지 않는다 — MUI가 삭제 아이콘을 tabIndex=-1로 만들어 키보드
-                    사용자가 첨부를 뺄 방법이 사라진다. 이름이 붙은 진짜 버튼을 직접 둔다. */}
-                <Stack direction="row" flexWrap="wrap" gap={0.75}>
-                  {pending.map((a, i) => (
-                    <Box key={i}
-                      sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, pl: 0.5, pr: 0.25, py: 0.25, borderRadius: RADIUS.full, maxWidth: "18rem", border: 1, borderColor: "divider", bgcolor: "background.paper" }}>
-                      {/* 보낼 이미지를 텍스트 칩이 아니라 실제 썸네일로 확인시킨다(로컬 data URL). */}
-                      <Box component="img" src={"data:" + (a.media_type || "image/png") + ";base64," + a.data} alt=""
-                        sx={{ width: "1.75rem", height: "1.75rem", objectFit: "cover", borderRadius: "50%", flexShrink: 0 }} />
-                      <Typography sx={{ fontSize: FONT_SIZE.caption, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</Typography>
-                      <IconButton size="small" aria-label={"첨부 제거: " + a.filename}
-                        onClick={() => setPending((p) => p.filter((_, j) => j !== i))}
-                        sx={{ flexShrink: 0 }}>
-                        <CloseRoundedIcon sx={{ fontSize: "0.9375rem" }} />
-                      </IconButton>
-                    </Box>
-                  ))}
-                </Stack>
-                {/* hover-only 툴팁은 모바일/터치에서 아예 안 보인다, 전송 전에 눈에 보이는 문장으로도 알린다. */}
-                <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>전송 후에는 이미지 원본이 저장되지 않습니다. 파일 이름만 남습니다.</Typography>
-              </>
-            ) : null}
-            {/* 글자 수는 입력이 있으면 늘 옅게 보여준다 — 상한이 갑자기 닥치지 않게(바닐라도 항상 표시).
-                textarea의 maxLength=5000은 UTF-16 코드 유닛 기준이라, 서로게이트 쌍(이모지 등)이 섞이면
-                Array.from(코드 포인트) 기준 길이는 실제 입력 가능 한도보다 작게 세어져 두 숫자가 어긋난다 —
-                text.length(코드 유닛)로 맞춘다. */}
-            {text.length > 0 ? (
-              <Typography sx={{ textAlign: "right", fontSize: FONT_SIZE.caption, color: "text.secondary", fontVariantNumeric: "tabular-nums" }}>{text.length}/5000</Typography>
-            ) : null}
-            {/* 유지보수 모드 차단 안내 — 폴링 경고와 같은 지속 배너 패턴(사라지는 토스트 하나에만
-                기대지 않는다). '다시 시도'를 눌러야 컴포저 잠금이 풀린다. */}
-            {maintenanceNotice ? (
-              <Callout tone="warn" compact
-                action={<Button size="sm" onClick={() => setMaintenanceNotice(null)}>다시 시도</Button>}>
-                {maintenanceNotice}
-              </Callout>
-            ) : null}
-            {rateLimitNotice ? (
-              <Callout tone="warn" compact
-                action={<Button size="sm" onClick={() => setRateLimitNotice(null)}>닫기</Button>}>
-                {rateLimitNotice}
-              </Callout>
-            ) : null}
-            {ch.composerFailure ? <Callout tone="danger" compact>{ch.composerFailure}</Callout> : null}
-            {/* 지난 대화를 보는 중에 AI 를 쓸 수 없게 되면 스레드는 그대로 두고 입력 칸 위에서 까닭을 말한다. */}
-            {unavailable && cid && items.length ? (
-              <Callout tone="warn" compact
-                action={assistant.can_configure ? <Button size="sm" href="#/ai-connection">AI 연결 열기</Button> : null}>
-                {assistant.notice} {unavailableHelp(assistant)}
-              </Callout>
-            ) : null}
-            {/* 답변을 기다리는 동안 textarea는 계속 활성이라(placeholder는 'Enter 전송'을 약속) 입력이
-                막혔다는 신호가 없어, Enter를 쳐도 사라지는 토스트로만 알렸다, 유지보수·속도제한 배너처럼
-                지속되는 수동 힌트를 컴포저 위에 둔다. */}
-            {(busy || awaitingReply) && !composerLocked ? (
-              <Typography role="status" sx={{ textAlign: "center", fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
-                답변을 기다리는 중입니다. 답변이 도착하면 다시 입력할 수 있습니다.
-              </Typography>
-            ) : null}
-            {aiQuotaDay && aiQuotaDay.limit != null ? (
-              <Typography sx={{ textAlign: "right", fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
-                오늘 AI 사용량 {aiQuotaDay.used}/{aiQuotaDay.limit}
-              </Typography>
-            ) : null}
-            <Box component="footer" sx={{ display: "flex", gap: 1, alignItems: "flex-end" }}>
-              <Box component="input" ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" multiple
-                aria-hidden="true" tabIndex={-1} onChange={(e) => pickFiles(e.target.files)} sx={{ display: "none" }} />
-              {/* 전송과 같은 '어시스턴트가 아직 작업 중' 가드를 쓴다, 이전엔 이 버튼만 그 상태에서도
-                  눌려, 첨부를 골라도 어차피 이번 턴엔 보낼 수 없는데 활성으로 보였다. */}
-              {/* 첨부는 입력창 도구라 30 이다(계획 P-26 — AI 도우미가 채팅방과 나누는 규격 셋 중 「도구」).
-                  입력창 한 줄 높이 안에서 가운데에 선다 — 입력이 여러 줄로 자라도 첫 줄이 아니라 보내기와 같은 아래 줄에 남는다. */}
-              <Tooltip title="이미지 첨부(PNG, JPEG, WebP)">
-                <Box component="span" sx={{ flexShrink: 0, height: COMPOSER_LINE, display: "flex", alignItems: "center" }}>
-                  <IconButton size="small" aria-label="이미지 첨부" disabled={inputDisabled || unavailable}
-                    onClick={() => fileRef.current && fileRef.current.click()}
-                    sx={{ width: remPx(CHAT.tool), height: remPx(CHAT.tool), border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px` }}>
-                    {/* 도구 30 의 글리프는 채팅방 입력 도구와 같은 크기다(예전 1.75rem 글리프 · 모서리 20 은 `CHAT` 토큰 밖이었다). */}
-                    <AttachFileRoundedIcon sx={{ fontSize: remPx(ICON.action) }} />
-                  </IconButton>
-                </Box>
-              </Tooltip>
-              {/* 네이티브 textarea를 유지한다 — 자동 높이(useChat의 useLayoutEffect)가 이 노드의
-                  style.height를 직접 만진다. MUI의 다중행 입력은 자기 나름의 리사이즈를 또 하므로
-                  둘이 겹치면 첫 글자에서 높이가 튄다. */}
-              <Box
-                component="textarea" ref={textareaRef} rows={1} value={text} maxLength={5000}
-                aria-label="메시지 입력" disabled={composerLocked || unavailable}
-                placeholder="메시지를 입력하세요 (Enter 전송, Shift+Enter 줄바꿈)"
-                onChange={(e) => setText(e.target.value)}
-                onFocus={() => setComposerFocused(true)}
-                onBlur={() => setComposerFocused(false)}
-                onKeyDown={(e) => { if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); doSend(); } }}
-                sx={{
-                  flex: 1, minWidth: 0, resize: "none", minHeight: COMPOSER_LINE, maxHeight: "10rem", boxSizing: "border-box",
-                  font: "inherit", fontSize: "0.9375rem", lineHeight: 1.5, px: 1.75, py: 1.25,
-                  /* 입력 모서리는 채팅 입력 토큰(10)이다 — 채팅방 입력 상자와 같다(예전 `borderRadius: 2.5` 는 테마 배율로 20px 이었다). */
-                  border: 1, borderColor: "divider", borderRadius: `${CHAT.composerRadius}px`,
-                  bgcolor: "background.default", color: "text.primary",
-                  transition: "border-color .15s ease, box-shadow .15s ease",
-                  "&:focus": { outline: "none", borderColor: "primary.main", boxShadow: (t) => `0 0 0 3px ${alpha(t.palette.primary.main, 0.16)}` },
-                  "&:disabled": { opacity: 0.6 },
-                }}
-              />
-              {/* 보내기도 입력창 도구와 같은 작은 단추(30)다 — 핸드오프 RULES §9 「도구 30px, 보내기 30px 채움」.
-                  한 줄에 선 단추의 높이는 하나라서, 첨부 도구만 30 으로 내리고 보내기를 44 로 두면 두 단추가
-                  14px 어긋났다(control_baseline_mismatch). 입력창 한 줄 높이 안에서 가운데에 선다. */}
-              <Box component="span" sx={{ flexShrink: 0, height: COMPOSER_LINE, display: "flex", alignItems: "center" }}>
-                <Button variant="primary" size="sm" onClick={() => doSend()} disabled={inputDisabled || unavailable || (!text.trim() && !pending.length)}>
-                  <SendRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem", mr: 0.5 }} />전송
-                </Button>
-              </Box>
-            </Box>
+          <Box sx={{ width: "100%", maxWidth: THREAD_MAX, mx: "auto", px: { xs: 2, sm: 3 }, py: 1.5 }}>
+            <Composer
+              chat={ch} unavailable={unavailable} assistant={assistant}
+              ariaLabel="메시지 입력" placeholder="메시지를 입력하세요"
+              showUnavailableNotice={!!(cid && items.length)}
+              quotaLine={aiQuotaDay && aiQuotaDay.limit != null ? (
+                /* AI-44: 하루 상한이 걸려 있을 때만 보인다 — 상한 행이 없는(fail-open) 설치에서는 의미 없는 숫자로 입력창을 어지럽히지 않는다. */
+                <Typography sx={{ textAlign: "right", fontSize: FONT_SIZE.caption, color: "text.secondary" }}>
+                  오늘 AI 사용량 {aiQuotaDay.used}/{aiQuotaDay.limit}
+                </Typography>
+              ) : null}
+            />
           </Box>
         </Box>
       </Box>

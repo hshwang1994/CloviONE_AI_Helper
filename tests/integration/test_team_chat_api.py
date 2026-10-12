@@ -148,10 +148,7 @@ def test_directory_excludes_self_and_secrets(app, client, login_as, make_user):
     assert "dir1@goodmit.co.kr" not in emails  # 본인 제외 + 이메일 미노출
     # 얼굴 두 칸(`avatar_url` · `avatar_default_key`)은 비밀이 아니라 사람 그림의 정본이다(D-556) — 그 둘만 더 실리고
     # 이메일 · 역할 · 비밀은 여전히 안 나간다.
-    assert all(
-        set(u.keys()) == {"user_id", "display_name", "dept", "title", "avatar_url", "avatar_default_key"}
-        for u in users
-    )
+    assert all(set(u.keys()) == {"user_id", "display_name", "dept", "title", "avatar_url", "avatar_default_key"} for u in users)
     assert any(u["display_name"] == "디렉터리투" for u in users)
 
 

@@ -2,7 +2,7 @@ import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useAssistantHotkey } from "./AssistantDrawer.jsx";
+import { useAssistantHotkey } from "./AssistantPanel.jsx";
 
 /* PA-RC-0020: 사이드바 카드·우하단 FAB을 없애면서 그 두 자리를 대신할 전역 단축키
  * (Ctrl/Cmd+/)가 필요했다 — CommandPalette.jsx의 useCommandPaletteHotkey(Ctrl/Cmd+K)와

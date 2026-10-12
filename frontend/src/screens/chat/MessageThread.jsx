@@ -28,7 +28,7 @@ import { SourceList, messageSources, safeSourceRoute } from "./SourceList.jsx";
 
 export function Message({
   m, onRetry, retrying, isLast, showSources = true,
-  onRegenerate, regenerating, onDelete, onFeedback,
+  onRegenerate, regenerating, onDelete, onFeedback, face = null,
 }) {
   const st = m.structured || {};
   const attachments = Array.isArray(st.attachments) ? st.attachments : [];
@@ -51,11 +51,13 @@ export function Message({
   const elapsed = isAssistant && !errorNotice ? elapsedLabel(st) : null;
   const attachCaveat = "전송 후 이미지 원본은 저장되지 않습니다. 파일 이름만 남습니다.";
 
-  return (
+  /* 얼굴(D-557) — 담는 쪽이 주면 말풍선 옆에 선다(클로비는 왼쪽, 나는 오른쪽). 팀 채팅의 상대 얼굴과 같은 자리다.
+     얼굴이 있으면 말풍선 기둥이 그만큼 좁아지므로 상한은 기둥과 얼굴을 합친 폭에 건다. */
+  const column = (
     <Box
       sx={{
         display: "flex", flexDirection: "column", gap: 0.75, minWidth: 0,
-        maxWidth: BUBBLE_MAX,
+        maxWidth: face ? "100%" : BUBBLE_MAX,
         alignSelf: isUser ? "flex-end" : "flex-start",
         alignItems: isUser ? "flex-end" : "flex-start",
       }}
@@ -136,7 +138,8 @@ export function Message({
         ) : null}
       </Box>
 
-      <Stack direction="row" alignItems="center" gap={0.25}>
+      {/* 동작 줄 — 좁은 판(390)에서는 두 줄로 접힌다. 글자 항목(걸린 시간 · 시각)은 낱말 안에서 끊기지 않는다. */}
+      <Stack direction="row" alignItems="center" gap={0.25} flexWrap="wrap" sx={{ "& .MuiTypography-root": { whiteSpace: "nowrap" } }}>
         {isAssistant && m.content && !processing && !errorNotice ? (
           <>
             <Button size="sm" variant="ghost"
@@ -201,6 +204,19 @@ export function Message({
           </Tooltip>
         ) : null}
       </Stack>
+    </Box>
+  );
+  if (!face) return column;
+  return (
+    <Box
+      sx={{
+        display: "flex", gap: 1, alignItems: "flex-start", minWidth: 0, maxWidth: BUBBLE_MAX,
+        alignSelf: isUser ? "flex-end" : "flex-start",
+        flexDirection: isUser ? "row-reverse" : "row",
+      }}
+    >
+      <Box aria-hidden="true" sx={{ flexShrink: 0, display: "flex", alignItems: "center", pt: 0.25 }}>{face}</Box>
+      {column}
     </Box>
   );
 }

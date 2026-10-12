@@ -100,6 +100,8 @@ export const MASCOT_PLACE = {
      2200 이상에서 PLAN 의 40px 에 닿는다. */
   topbar:        { visible: { xs: 34, xxl: 40, uhd: 46 }, context: "topbar" },
   assistantHead: { visible: 40,  context: "inline" },
+  /* AI 도우미 말풍선 옆의 클로비(D-557) — 팀 채팅의 상대 얼굴(34)과 같은 자리라 그 크기에 맞춘다. 본문 안 그림이다. */
+  chatBubble:    { visible: 34,  context: "inline" },
   /* `live` — 얼굴과 눈이 나뉜 한 벌로 그린다(시선 추적 + 깜빡임). 큰 자리에만 붙인다:
      34px 상단바에서는 눈이 1px 도 안 움직여 보여서 자산 두 장을 더 받을 값어치가 없다. */
   assistantHero: { visible: 144, context: "hero", live: true },
