@@ -313,6 +313,7 @@ function applyPrefsPatch(prefs, body) {
     if ("mail_enabled" in body) next.mail.enabled = body.mail_enabled;
     if ("mail_types" in body) next.mail.types = body.mail_types;
   }
+  if ("celebration_enabled" in body) next.celebration = { ...(prefs.celebration || {}), enabled: body.celebration_enabled };
   const dndKeys = ["dnd_enabled", "quiet_hours_enabled", "quiet_start", "quiet_end"];
   if (dndKeys.some((k) => k in body)) {
     next.dnd = { ...prefs.dnd };
@@ -550,6 +551,37 @@ function DeviceRow({ session, onRevoke, busy }) {
 }
 
 /* 내 기기 — 살아 있는 세션 목록 + 다른 기기 로그아웃. */
+/* 축하 효과(D-563) — 게임 당첨자 발표와 티켓 완료의 축포는 하나이므로 스위치도 하나다. 끄면 축포만 빠지고 결과 · 완료는 그대로다.
+ * OS 의 동작 줄이기 신호는 제품 결정(2026-09-03)대로 보지 않는다 — 끄는 자리는 이 스위치뿐이다. */
+function CelebrationCard({ prefs, save }) {
+  const on = !prefs.celebration || prefs.celebration.enabled !== false;
+  return (
+    <Card sx={CARD_ROWS}>
+      <SectionTitle spacing="none"
+        component="h2"
+        title="화면 효과"
+        help="축하 효과는 게임 당첨자 발표와 티켓 완료에 터지는 축포입니다. 꺼도 결과와 완료는 그대로 보입니다."
+      />
+      <Box>
+        <SettingRow
+          compact
+          label="축하 효과"
+          description={on ? "당첨자 발표와 티켓 완료에 축포가 터집니다." : "축포가 터지지 않습니다."}
+          controlId="pref-celebration"
+          action={(
+            <Switch
+              id="pref-celebration"
+              checked={on}
+              onChange={(e) => save({ celebration_enabled: e.target.checked })}
+              slotProps={{ input: { "aria-label": "축하 효과" } }}
+            />
+          )}
+        />
+      </Box>
+    </Card>
+  );
+}
+
 function SessionsCard() {
   const qc = useQueryClient();
   const toast = useToast();
@@ -741,6 +773,7 @@ export function Profile() {
             <Box sx={{ display: "grid", gap: GRID_GAP, alignContent: "start", minWidth: 0 }}>
               <SessionsCard />
               <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} />
+              <CelebrationCard prefs={prefsQuery.data} save={savePrefs.mutate} />
               <AccentPicker />
               <TourCard
                 tour={prefsQuery.data.tour}

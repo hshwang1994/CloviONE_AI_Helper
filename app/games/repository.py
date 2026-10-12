@@ -87,6 +87,14 @@ def member_count(db: Session, room_id: str) -> int:
     )
 
 
+def last_result_seq(db: Session, room_id: str) -> int | None:
+    """가장 새 결과 이벤트의 순번(D-563 — 발표 · 축포가 「결과 단위로 한 번」을 세는 열쇠). 결과가 없으면 None."""
+    value = db.execute(
+        select(func.max(GameEvent.seq)).where(GameEvent.room_id == room_id, GameEvent.kind == "result")
+    ).scalar_one()
+    return int(value) if value is not None else None
+
+
 def events_since(db: Session, room_id: str, since: int) -> list[GameEvent]:
     return list(
         db.execute(

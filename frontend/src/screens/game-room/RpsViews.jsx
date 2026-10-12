@@ -6,7 +6,7 @@ import { alpha } from "@mui/material/styles";
 import { Badge, FlatBadgeSurface } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
 import { RPS_LABELS, RPS_EMOJI, bracketListSx, rise } from "./constants.js";
-import { ResultStage, StageHint, WinnerName } from "./StageShared.jsx";
+import { StageHint } from "./StageShared.jsx";
 
 /* 가위바위보 대진표(진행/토너먼트 결과) 컴포넌트 — GameRoom.jsx 구조 분리(2026-08)로 값 변경
  * 없이 이 파일로 옮겼다. 원래 이름이 T_RPS_LABELS/T_RPS_EMOJI였던 배열은 GameRoom() 안의
@@ -47,6 +47,12 @@ export function RpsChoices({ labels, emojis, chosen, disabled, onPick }) {
   );
 }
 
+/* 승자는 **id** 로 가른다(P5 ②) — 동명이인이면 이름으로는 알 수 없다. id 가 없는 옛 상태 행만 이름으로 본다. */
+function wonBy(m, side) {
+  if (m.winner != null && (m.a != null || m.b != null)) return m.winner === m[side];
+  return !!m.winner_name && m.winner_name === m[side + "_name"];
+}
+
 /* 가위바위보 토너먼트 진행 화면: 라운드 대진표 + (내 대진이면) 선택 버튼. 상대 선택은 감춘다. */
 export function RpsTournamentLive({ gstate, onPick, pending, canPlay }) {
   const ym = gstate.your_match;
@@ -65,19 +71,19 @@ export function RpsTournamentLive({ gstate, onPick, pending, canPlay }) {
             <Stack direction="row" gap={0.75} alignItems="center" minWidth={0}>
               <Box component="span" sx={{
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                fontWeight: m.done && m.winner_name === m.a_name ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
-                color: m.done && m.winner_name === m.a_name ? "primary.main" : "inherit",
+                fontWeight: m.done && wonBy(m, "a") ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
+                color: m.done && wonBy(m, "a") ? "primary.main" : "inherit",
               }}>{m.a_name}</Box>
-              <MatchTag done={m.done} winner={m.winner_name === m.a_name} submitted={m.a_submitted} />
+              <MatchTag done={m.done} winner={wonBy(m, "a")} submitted={m.a_submitted} />
             </Stack>
             <Typography variant="caption" color="text.secondary" sx={{ px: 0.5 }}>{m.bye ? "부전승" : "vs"}</Typography>
             <Stack direction="row" gap={0.75} alignItems="center" minWidth={0} justifyContent="flex-end">
               <Box component="span" sx={{
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                fontWeight: m.done && m.winner_name === m.b_name ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
-                color: m.done && m.winner_name === m.b_name ? "primary.main" : "inherit",
+                fontWeight: m.done && wonBy(m, "b") ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
+                color: m.done && wonBy(m, "b") ? "primary.main" : "inherit",
               }}>{m.b_name || "-"}</Box>
-              {!m.bye ? <MatchTag done={m.done} winner={m.winner_name === m.b_name} submitted={m.b_submitted} /> : null}
+              {!m.bye ? <MatchTag done={m.done} winner={wonBy(m, "b")} submitted={m.b_submitted} /> : null}
             </Stack>
           </Paper>
         ))}
@@ -102,15 +108,10 @@ export function RpsTournamentLive({ gstate, onPick, pending, canPlay }) {
   );
 }
 
-/* 토너먼트 최종 결과: 우승자 + 라운드별 대진 히스토리. */
+/* 토너먼트 대진 히스토리 — 우승자는 공통 결과 판(`ResultPanel`, D-563)이 발표한다. */
 export function RpsTournamentResult({ result }) {
   return (
     <Box sx={{ display: "grid", gap: 2, justifyItems: "center", width: "100%" }}>
-      <ResultStage mood={result.champion ? "win" : "calm"} label="우승">
-        {result.champion
-          ? <WinnerName>🏆 {result.champion.name}</WinnerName>
-          : <Typography color="text.secondary">우승자가 없습니다.</Typography>}
-      </ResultStage>
       <Box sx={{ display: "grid", gap: 1.5, width: "100%", maxWidth: "30rem" }}>
         {(result.rounds || []).map((rnd, ri) => (
           <Box key={ri} sx={{ display: "grid", gap: 0.5 }}>
@@ -123,14 +124,14 @@ export function RpsTournamentResult({ result }) {
                 }}>
                   <Box component="span" sx={{
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    fontWeight: m.winner_name === m.a_name ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
-                    color: m.winner_name === m.a_name ? "primary.main" : "inherit",
+                    fontWeight: wonBy(m, "a") ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
+                    color: wonBy(m, "a") ? "primary.main" : "inherit",
                   }}>{m.a_name}</Box>
                   <Typography variant="caption" color="text.secondary">{m.b_name ? "vs" : "부전승"}</Typography>
                   <Box component="span" sx={{
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "right",
-                    fontWeight: m.winner_name === m.b_name ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
-                    color: m.winner_name === m.b_name ? "primary.main" : "inherit",
+                    fontWeight: wonBy(m, "b") ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
+                    color: wonBy(m, "b") ? "primary.main" : "inherit",
                   }}>{m.b_name || "-"}</Box>
                 </Paper>
               ))}

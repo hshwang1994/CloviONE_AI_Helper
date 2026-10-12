@@ -33,6 +33,7 @@ from app.games.models import (
     EV_SYSTEM,
     GAME_LADDER,
     GAME_NUMBER,
+    GAME_MARBLE,
     GAME_QUICK_VOTE,
     GAME_QUIZ,
     GAME_RANDOM_DRAW,
@@ -232,6 +233,9 @@ def leave_room(db: Session, room: GameRoom, user: User, *, now: datetime) -> Non
             db.flush()
             _append_event(db, room, "system", actor_id=None, payload={"text": f"{new_host.display_name}님이 방장이 되었습니다."}, now=now)
         else:
+            # 방을 닫는 모든 경로가 같은 종결 상태를 쓴다(`disband_room` · `cleanup_idle_rooms` 와 같이) — 예전에는
+            # 여기만 `closed_at` 을 찍고 `status` 를 그대로 둬 닫힌 방이 「진행 중」으로 세어졌다(P5 ②).
+            room.status = ROOM_FINISHED
             room.closed_at = now
             db.flush()
 
@@ -357,6 +361,10 @@ def start_game(db: Session, room: GameRoom, user: User, *, now: datetime) -> Gam
         return _open_rps(db, room, user, now=now)
     if room.game_type == GAME_QUIZ:
         return _open_quiz(db, room, user, now=now)
+    if room.game_type == GAME_MARBLE:
+        from app.games import marble
+
+        return marble.start(db, room, user, now=now)
     raise ValidationAppError("지원하지 않는 게임입니다.")
 
 
@@ -513,6 +521,11 @@ _SYSTEM_ACTOR = type("_SystemActor", (), {"id": None})()
 def maybe_autoresolve(db: Session, room: GameRoom, *, now: datetime) -> None:
     """진행 중인 타이머 게임의 마감이 지났으면 서버가 방장 없이도 자동 확정한다. 폴링(room_state)
     진입마다 호출된다 — 방장이 자리를 비워도 카운트다운 0에서 멈추지 않는다(방장 브라우저 비의존)."""
+    if room.game_type == GAME_MARBLE:
+        from app.games import marble
+
+        marble.maybe_finalize(db, room, now=now)  # 확인 창이 닫혔으면 판정, 제출 없이 10분이면 버림(D-564)
+        return
     if room.status != ROOM_PLAYING:
         return
     state = json.loads(room.state_json or "{}")
@@ -592,9 +605,11 @@ def _finish_vote(db: Session, room: GameRoom, user: User, *, now: datetime) -> G
             if isinstance(idx, int) and 0 <= idx < len(options):
                 counts[idx] += 1
         top = max(counts) if counts else 0
-        winners = [options[i] for i, c in enumerate(counts) if c == top and top > 0]  # 서버가 확정(동점이면 공동)
+        winner_indexes = [i for i, c in enumerate(counts) if c == top and top > 0]  # 서버가 확정(동점이면 공동)
+        winners = [options[i] for i in winner_indexes]
+        # 당첨 선택지는 **번호**가 정본이다(P5 ②) — 같은 글의 선택지가 둘이면 라벨로는 어느 쪽인지 알 수 없다.
         return {"result": {"question": state.get("question", ""), "options": options,
-                            "counts": counts, "winners": winners, "total": sum(counts)}}
+                            "counts": counts, "winners": winners, "winner_indexes": winner_indexes, "total": sum(counts)}}
 
     new_state = _cas_update_state(db, room, _apply)
     if room.status != ROOM_FINISHED:
@@ -887,7 +902,10 @@ def _tournament_advance(db, room, state: dict, *, now, force: bool) -> dict:
 
     # 끝난 라운드를 히스토리에 남긴다(대진표 표시용).
     state.setdefault("rounds", []).append([
-        {"a_name": m.get("a_name"), "b_name": m.get("b_name"), "winner_name": _wname(m)}
+        # 승자 · 양쪽은 **id** 가 정본이다(P5 ②) — 동명이인이면 이름으로는 가를 수 없다. 이름은 표시용으로 남긴다.
+        {"a": m.get("a"), "b": m.get("b"), "a_name": m.get("a_name"), "b_name": m.get("b_name"),
+         "winner": m.get("winner") if m.get("winner") in (m.get("a"), m.get("b")) else (m.get("a") if m.get("bye") else None),
+         "winner_name": _wname(m)}
         for m in matches
     ])
     winners = [m["winner"] for m in matches if m.get("winner")]
@@ -930,6 +948,8 @@ def _rps_tournament_public(state: dict, user_id: str) -> dict:
         if m.get("done") and m.get("winner"):
             winner_name = m.get("a_name") if m.get("winner") == m.get("a") else m.get("b_name")
         view_matches.append({
+            "a": m.get("a"), "b": m.get("b"),
+            "winner": m.get("winner") if m.get("done") and m.get("winner") in (m.get("a"), m.get("b")) else None,
             "a_name": m.get("a_name"), "b_name": m.get("b_name"),
             "a_submitted": m.get("a_choice") is not None,
             "b_submitted": m.get("b_choice") is not None,
@@ -1117,8 +1137,10 @@ def next_quiz(db: Session, room: GameRoom, user: User, *, now: datetime) -> Game
             key=lambda x: (-x["score"], x["name"]),
         )
         top = board[0]["score"] if board else 0
+        # 우승자는 **id** 가 정본이다(P5 ②) — 동명이인이면 이름으로는 가를 수 없다. `winners`(이름)는 옛 화면을 위해 남긴다.
         result = {"scoreboard": board, "total_rounds": len(questions),
-                  "winners": [b["name"] for b in board if b["score"] == top and top > 0]}
+                  "winners": [b["name"] for b in board if b["score"] == top and top > 0],
+                  "winner_ids": [b["user_id"] for b in board if b["score"] == top and top > 0]}
         room.status = ROOM_FINISHED
         room.state_json = json.dumps({"result": result}, ensure_ascii=False)
         db.flush()
@@ -1202,11 +1224,17 @@ def public_state(room: GameRoom, user_id: str) -> dict:
         }
     if room.game_type == GAME_QUIZ and room.status == ROOM_PLAYING:
         return _quiz_public(state, user_id)
+    if room.game_type == GAME_MARBLE:
+        from app.games import marble
+
+        return marble.public_view(state, user_id, config=json.loads(room.config_json or "{}"))
     return state
 
 
 def reset_room(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
     _ensure_host(room, user)
+    if room.status == ROOM_WAITING:
+        return room  # 이미 대기 중 — 멱등(두 번 눌러도 이벤트 · 준비 상태를 다시 건드리지 않는다, P5 ②)
     room.status = ROOM_WAITING
     room.state_json = "{}"
     for m in repository.members(db, room.id):

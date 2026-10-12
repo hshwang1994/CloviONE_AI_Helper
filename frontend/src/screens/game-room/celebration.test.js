@@ -8,7 +8,7 @@
  * 코드 상 truthy 값 하나만 잘못 세면 무승부에도 축포가 터지는 회귀가 된다 — 둘 다 화면
  * 스냅샷만으로는 못 잡는다(confetti는 mock되어 있어 어떤 인자로도 "그냥 호출됨"만 보인다). */
 import { describe, it, expect } from "vitest";
-import { deriveCelebrateKey } from "./celebration.js";
+import { deriveCelebrateKey, deriveResultKey } from "./celebration.js";
 
 const room = (overrides = {}) => ({
   id: "r1", title: "t", game_type: "random_draw", status: "finished", ...overrides,
@@ -87,5 +87,34 @@ describe("deriveCelebrateKey — 방이 finished + 승자가 있을 때만 키�
   it("알 수 없는 game_type이면 null (신규 게임 종류 추가 전까지는 조용히 무시)", () => {
     const data = { room: room({ game_type: "unknown_future_game" }), state: { result: { winners: ["u1"] } } };
     expect(deriveCelebrateKey(data)).toBeNull();
+  });
+});
+
+describe("deriveResultKey — 발표 열쇠는 방 id + 결과 번호다 (D-563)", () => {
+  it("finished 가 아니거나 결과가 없으면 null", () => {
+    expect(deriveResultKey(null)).toBeNull();
+    expect(deriveResultKey({ room: room({ status: "playing" }), state: { result: [{ user_id: "u1" }] }, result_seq: 3 })).toBeNull();
+    expect(deriveResultKey({ room: room(), state: {}, result_seq: 3 })).toBeNull();
+    expect(deriveResultKey({ room: room(), state: { result: [] }, result_seq: 3 })).toBeNull();
+  });
+
+  it("승자가 없는 결과(팀 나누기)도 발표는 하므로 열쇠가 있다 — 축포 열쇠와 다르다", () => {
+    const data = { room: room({ game_type: "team_split" }), state: { result: { teams: [[{ user_id: "u1" }]] } }, result_seq: 7 };
+    expect(deriveResultKey(data)).toBe("r1:7");
+    expect(deriveCelebrateKey(data)).toBeNull();
+  });
+
+  it("결과 번호가 없는 옛 응답은 승자 지문으로 대신한다", () => {
+    const data = { room: room(), state: { result: [{ user_id: "u2" }] } };
+    expect(deriveResultKey(data)).toBe("r1:r1d:u2");
+  });
+
+  it("구슬 레이스는 서버가 발표해도 된다고 한 결과(announceable)만, 축포는 당첨자가 있을 때만", () => {
+    const ok = { room: room({ game_type: "marble_race" }), state: { result: { winners: ["n:1"] }, announceable: true }, result_seq: 9 };
+    expect(deriveResultKey(ok)).toBe("r1:9");
+    expect(deriveCelebrateKey(ok)).toBe("r1m:n:1");
+    const disputed = { room: room({ game_type: "marble_race" }), state: { result: null, announceable: false }, result_seq: 9 };
+    expect(deriveResultKey(disputed)).toBeNull();
+    expect(deriveCelebrateKey(disputed)).toBeNull();
   });
 });

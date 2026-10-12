@@ -126,6 +126,8 @@ def preference_view(
         },
         # 알림을 메일로도 받기(계획 3.4). 라우터가 DB 와 메일 상태를 읽어 채운다.
         "mail": mail,
+        # 축하 효과(D-563). 행이 없으면 켬이다 — 백필하지 않는다.
+        "celebration": {"enabled": bool(pref.celebration_enabled) if pref else True},
         "dnd": {
             # 사용자가 켜 둔 상태(설정) — 지금 조용한지(quiet)와 다르다. 조용시간은
             # 켜 두었어도 낮에는 조용하지 않다.
@@ -205,6 +207,10 @@ def apply_preference_changes(
             raise ValidationAppError("시간은 'HH:MM' 형식이어야 합니다(예: 22:00).")
         setattr(pref, key, value)
         after[key] = value
+
+    if "celebration_enabled" in changes and changes["celebration_enabled"] is not None:
+        pref.celebration_enabled = bool(changes["celebration_enabled"])
+        after["celebration_enabled"] = pref.celebration_enabled
 
     if "mail_enabled" in changes and changes["mail_enabled"] is not None:
         pref.mail_enabled = bool(changes["mail_enabled"])

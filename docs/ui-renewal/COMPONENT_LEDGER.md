@@ -38,6 +38,12 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 표가 아닌 목록의 판 | `ListCard` | `ui/kit.jsx` | 자기 안을 자르지 않음(판 안 고정 머리). 표를 담는 목록은 쓰지 않는다 — `DataTable placement="surface"` | 1 | — | `kit.test` |
 | 행 동작 | `RowActions` | `ui/kit.jsx` | ≤2 → 30 보조/파괴 단추(채움 없음), >2 → `OverflowMenu sm` 하나, `icon` 항목은 30 아이콘 단추, `data-row-actions` | 8 | 데이터 표, 목록 화면 조합 | `row-actions` |
 | 제목 칸 | `TitleCell` | `ui/kit.jsx` | 링크색 `primary.dark` 600 한 줄 · 말줄임 · title, `onOpen` 단추 · `href` 앵커 · `link` 색만 · 셋 다 없으면 잉크 | 6 | 목록 화면 조합 | `list-surface`, `theme-link-contrast` |
+| 게임 결과(여덟 게임 공통) | `ResultPanel` | `screens/game-room/ResultPanel.jsx` | 「게임 종료」 배지 · 발표 전환 0.8초 → 당첨자 공개 순간 `onReveal(열쇠)` 한 번 · `instant`(늦은 입장은 전환 없음) · 한 명 / 순위 줄 / 같은 무게 격자 · `mood calm` 은 당첨자 자리 없음 · `detail` 접기 · 결과 복사 · `overlay`(게임판 위 반투명, D-563) | 2 | — | `result-panel.test`, `gameroom.test`, `marble-stage.test` |
+| 구슬 레이스 무대 | `MarbleStage` | `screens/game-room/marble/MarbleStage.jsx` | 머리 줄(단계 배지 · 참가자 · 당첨 · 배속 · 완주 · 설정 · 정보 · 전체 화면) + 캔버스(16:9, 좁은 화면 4:3, 테마 팔레트 `render/theme.js`) + 순위 레일, 확인 창 띠, 확정 결과만 발표(D-564) | 1 | — | `marble-stage.test`, `engine.test`, `games_e2e.py` |
+| 클로비 패널(고정 측면 판) | `AssistantPanel` | `app/AssistantPanel.jsx` | 모달 아님(`position:fixed`, 본문 불변 · 백드롭 없음), 폭 28.75rem · 넓게 45rem(저장) · xs 100%, Esc · 닫기 · 초점 복귀, 전체 화면 `/chat` 과 같은 부품(D-557) | 1 | — | `assistant-panel.test`, `assistant_panel_e2e.py` |
+| 채팅 입력 줄 | `Composer` | `screens/chat/Composer.jsx` | 한 줄 34 · 최대 6줄 · Enter 전송 · Shift+Enter 줄바꿈 · IME 가드 · 보조 줄(안내 · 글자 수 · 진행 문구 · 경과) · 보내는 중 단추만 비활성(D-557) | 2 | — | `composer.test` |
+| 채팅 말풍선 목록 | `MessageList` | `screens/chat/MessageList.jsx` | 내 말풍선 오른쪽 · 클로비 왼쪽 · 날짜 구분선 · 진행 말풍선 · 오류 말풍선 · 바닥 근처(80px)만 자동 따라가기 + 「새 답」 단추 · 얼굴(마스코트 24 · `UserAvatar sm`) (D-557) | 2 | — | `message-list.test` |
+| 메일 설정 진행 띠 | `ProgressStrip` | `screens/mail/ProgressStrip.jsx` | 서버 `progress` 의 일곱 단계 칩(done · current · todo · blocked) + 「다음 할 일」 한 문장 + [이동](anchor), 좁은 칸 두 줄(D-560) | 1 | — | `mail-screen.test` |
 | 선택 묶음 | `SelectionBar`(별칭 `BulkActions`) | `ui/kit.jsx`, `ui/bulkSelect.jsx` | role=toolbar 「일괄 작업」, 「N{단위} 선택」 · 일괄 동작 30 · 「해제」, 선택 0 이면 안 그림, `data-list-selection`(채움 하나는 이 묶음 몫) | 0(표가 그린다) | 목록 화면 조합 | `bulk-actions-toolbar-role`, `list-surface` |
 | 구획 제목 | `SectionTitle` | `ui/kit.jsx` | 1.0625rem/700 + 설명 | 21 | 모든 절 | `heading-order` |
 | 모달 | `Modal` | `ui/kit.jsx` | 제목 17/700 · 닫기 30 · 모서리 8 · 발 ActionFooter, `tone=danger` 표지 | 24 | 팝오버와 모달 | `modal-*`, `handoff-kit-contract` |
@@ -213,6 +219,8 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 | `app/LoginHandoff.jsx` | `LinearProgress` | 로그인 넘김 진행 줄 | 화면 전체가 넘어가는 동안의 진행 표시라 단추 `loading` 자리가 없다(계획 §0-11 대장 예외) |
 | `screens/GameRoom.jsx` | `Paper` | 놀이방 진행 현황 줄(카운트다운 · 제출 현황) | 게임 무대는 판 · 표 · 폼과 다른 놀이 면이다(계획 표 2 「게임 무대 면 · 알약 — 대장 예외 묶음」) |
 | `screens/game-room/GameStage.jsx` | `Paper` | 팀 결과 · 사다리 결과 · 숫자와 가위바위보 공개 타일(승자 강조 · 떠오르는 움직임) | 게임 무대 면이다(위와 같은 묶음) |
+| `screens/game-room/ResultPanel.jsx` | `Paper` | 공통 결과 판(D-563) — 게임판 위에 겹치는 반투명 면 · 당첨자 카드 · 순위 줄 | 게임 무대 면이다(위와 같은 묶음) |
+| `screens/game-room/marble/MarbleStage.jsx` | `Paper` | 구슬 레이스 순위 레일(D-564) — 판 옆에 서는 무대 면 | 게임 무대 면이다(위와 같은 묶음) |
 | `screens/game-room/RpsViews.jsx` | `Paper` | 가위바위보 선택 줄 · 대진 줄 | 게임 무대 면이다(위와 같은 묶음) |
 | `screens/game-room/Scoreboard.jsx` | `Paper` | 순위 줄(자동 번호 · 점수) | 게임 무대 면이다(위와 같은 묶음) |
 | `screens/game-room/StageShared.jsx` | `Paper` | 결과 무대(축하 그림 + 클로비) | 게임 무대 면이다(위와 같은 묶음) |

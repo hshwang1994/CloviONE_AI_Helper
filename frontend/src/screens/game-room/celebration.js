@@ -19,5 +19,21 @@ export function deriveCelebrateKey(data) {
   else if (gt === "rps" && res.mode === "tournament" && res.champion) sig = "t:" + res.champion.user_id;
   else if (gt === "rps" && res.outcome === "win") sig = "r:" + (res.winners || []).map((w) => w.user_id).join(",");
   else if (gt === "quiz" && (res.winners || []).length) sig = "q:" + res.winners.join(",");
+  else if (gt === "marble_race" && data.state.announceable && (res.winners || []).length) sig = "m:" + res.winners.join(",");
   return sig ? data.room.id + sig : null;
+}
+
+/* 발표 열쇠(D-563) — 방 id + 결과 번호(`result_seq`). 승자가 없는 결과(팀 나누기 · 사다리 · 무승부)도 발표는 하므로
+ * `deriveCelebrateKey` 와 다르다(그쪽은 축포의 조건). 구슬 레이스는 서버가 확정해 발표해도 되는 결과(`announceable`)만.
+ * 결과 번호가 없는 옛 응답은 승자 지문으로 대신한다. */
+export function deriveResultKey(data) {
+  if (!data || !data.room || data.room.status !== "finished") return null;
+  const res = data.state && data.state.result;
+  if (data.room.game_type === "marble_race") {
+    if (!res || !data.state.announceable) return null;
+  } else if (!res || (Array.isArray(res) && !res.length)) {
+    return null;
+  }
+  const seq = data.result_seq != null ? data.result_seq : (deriveCelebrateKey(data) || "r");
+  return `${data.room.id}:${seq}`;
 }

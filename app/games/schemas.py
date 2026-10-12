@@ -7,7 +7,25 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from app.games.models import GAME_TYPES
 
 # 정수여야 하는 방 설정 키(범위는 service 에서 clamp). 문자열이 와도 int 로 강제하거나 버린다.
-_NUMERIC_CONFIG_KEYS = frozenset({"winners", "teams", "min", "max", "timer_seconds"})
+_NUMERIC_CONFIG_KEYS = frozenset({"winners", "teams", "min", "max", "timer_seconds", "speed"})
+MARBLE_MAX_PARTICIPANTS = 100
+MARBLE_NAME_MAX = 24
+
+
+def _clean_participants(val: list) -> list[dict]:
+    """구슬 레이스 참가자(D-564) `[{key?, name, user_id?}]` — 모양과 길이만 거른다. 중복 · 인원은 `marble.validate_participants` 가 본다."""
+    out: list[dict] = []
+    for item in val[:MARBLE_MAX_PARTICIPANTS + 1]:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()[:MARBLE_NAME_MAX * 8]
+        row = {"name": name}
+        for field in ("key", "user_id"):
+            value = item.get(field)
+            if isinstance(value, str) and value and len(value) <= 64:
+                row[field] = value
+        out.append(row)
+    return out
 
 
 class RoomCreate(BaseModel):
@@ -68,6 +86,10 @@ class RoomCreate(BaseModel):
                 qs = _clean_questions(val)
                 if qs:
                     out[key] = qs
+            elif key == "participants" and isinstance(val, list):
+                out[key] = _clean_participants(val)
+            elif key == "pick_last":
+                out[key] = bool(val)
             elif key in _NUMERIC_CONFIG_KEYS:
                 # 숫자 설정은 정수로 강제한다 — 조작된 문자열이 service 정수 연산에서 500을 내던 걸 막는다
                 # (범위 clamp 는 service 가 담당). 숫자가 아니면 버려 service 기본값을 쓰게 한다.
@@ -141,6 +163,73 @@ class NumberInput(BaseModel):
     @classmethod
     def _val(cls, v: int) -> int:
         return int(v)  # 범위(min~max)는 방 설정에 따라 service에서 검증한다.
+
+
+class MarbleParticipantsInput(BaseModel):
+    """구슬 레이스 참가자 편집(방장, 대기 중). 2 ~ 100명의 판정은 service 가 한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    participants: list[dict]
+
+    @field_validator("participants")
+    @classmethod
+    def _p(cls, v: list) -> list:
+        if not isinstance(v, list) or len(v) > MARBLE_MAX_PARTICIPANTS + 1:
+            raise ValueError("참가자 목록이 올바르지 않습니다.")
+        return _clean_participants(v)
+
+
+class MarbleConfigInput(BaseModel):
+    """구슬 레이스 설정(방장, 대기 중) — 당첨 인원 · 꼴찌 당첨 · 판 · 배속. 준 키만 바꾼다."""
+
+    model_config = ConfigDict(extra="forbid")
+    winners: int | None = None
+    pick_last: bool | None = None
+    map: str | None = None
+    speed: int | None = None
+
+    @field_validator("map")
+    @classmethod
+    def _map(cls, v):
+        return (v or "").strip()[:32] if v is not None else None
+
+
+class MarbleResultInput(BaseModel):
+    """브라우저가 올리는 전체 결과(D-564). 순열 · 지문 · 시점은 service 가 검증한다."""
+
+    model_config = ConfigDict(extra="forbid")
+    race_id: str
+    ranking: list[str]
+    finish_steps: list[int]
+    digest: str
+
+    @field_validator("race_id", "digest")
+    @classmethod
+    def _hex(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v or len(v) > 64:
+            raise ValueError("결과 모양이 올바르지 않습니다.")
+        return v
+
+    @field_validator("ranking")
+    @classmethod
+    def _ranking(cls, v: list) -> list:
+        if not v or len(v) > MARBLE_MAX_PARTICIPANTS:
+            raise ValueError("순위 목록이 올바르지 않습니다.")
+        out = []
+        for k in v:
+            s = str(k)
+            if not s or len(s) > 64:
+                raise ValueError("순위 목록이 올바르지 않습니다.")
+            out.append(s)
+        return out
+
+    @field_validator("finish_steps")
+    @classmethod
+    def _steps(cls, v: list) -> list:
+        if not v or len(v) > MARBLE_MAX_PARTICIPANTS:
+            raise ValueError("완주 스텝 목록이 올바르지 않습니다.")
+        return [int(s) for s in v]
 
 
 class QuizGenerateInput(BaseModel):

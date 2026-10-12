@@ -128,6 +128,12 @@ class UserPreference(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     # ── 첫 로그인 투어 ────────────────────────────────────────────────────────
+    # 축하 효과(D-563) — 게임 당첨자 발표 · 티켓 완료의 축포를 이 사람이 끌 수 있다. OS 의 동작 줄이기 신호는
+    # 제품 결정(2026-09-03)대로 보지 않으므로, 끄는 자리는 이 칸 하나다. 기본 켬.
+    celebration_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+
     tour_seen_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0"
     )

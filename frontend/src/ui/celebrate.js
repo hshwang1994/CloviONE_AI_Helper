@@ -44,6 +44,12 @@ import confetti from "canvas-confetti";
 const BURST_COOLDOWN_MS = 1500;
 let lastBurstAt = 0;
 
+/* 「축하 효과」 사용자 스위치(D-563, 내 프로필). 꺼지면 어느 축포도 돌지 않는다 — 결과 · 완료 처리는 축포와 무관하다.
+   앱 셸이 `/api/me/preferences` 를 받을 때 한 번 맞추고(`app/CelebrationPreference.jsx`), 프로필에서 바꾸면 바로 따라온다. */
+let celebrationEnabled = true;
+export function setCelebrationEnabled(on) { celebrationEnabled = on !== false; }
+export function isCelebrationEnabled() { return celebrationEnabled; }
+
 /* 축포는 앱 크롬 위에 떠야 한다. canvas-confetti 의 기본 캔버스는 `z-index: 100` 이라
    MUI 모달(1300)·상단바(1100) 뒤에서 터진다 — 편집 모달에서 완료로 저장하면 정확히 그
    자리다. 로그인 인계 판에서 같은 이유로 폭죽이 통째로 안 보이던 것을 이미 겪었다
@@ -62,12 +68,12 @@ function takeBurstSlot() {
 /** 한 발만 쏜다. 층과 겹침 방지는 여기서 한 번에 챙긴다 — 부르는 쪽이 잊을 자리를
  *  안 만든다(축포가 모달 뒤에서 터지던 일이 그렇게 생겼다). */
 function celebrateBurst(options) {
-  if (!takeBurstSlot()) return;
+  if (!celebrationEnabled || !takeBurstSlot()) return;
   confetti({ zIndex: CONFETTI_Z, ...options });
 }
 
 export function celebrate() {
-  if (!takeBurstSlot()) return;
+  if (!celebrationEnabled || !takeBurstSlot()) return;
   const base = {
     spread: 74, startVelocity: 45, ticks: 200,
     origin: { y: 0.55 },

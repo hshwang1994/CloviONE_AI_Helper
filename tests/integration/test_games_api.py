@@ -1053,3 +1053,78 @@ def test_feature_flag_off_hides_games(db_url, tmp_path, fake_clock, fake_http):
     with TestClient(app, raise_server_exceptions=False) as c:
         c.post("/login", json={"email": "ff@goodmit.co.kr", "password": DEFAULT_TEST_PASSWORD})
         assert c.get("/api/games/rooms").status_code == 404
+
+
+# ── 기능 개선 회차 P5 ② — 기존 게임의 구조 결함 수정 회귀 (D-563) ─────────────────
+
+
+def test_state_carries_result_seq_server_time_and_an_event_cursor(client, login_as):
+    """결과 번호(`result_seq`)는 발표 · 축포의 열쇠다. 초기화는 멱등이고, `since=seq` 폴링은 그 뒤 이벤트만 받는다."""
+    csrf = login_as("user", email="rseq@goodmit.co.kr")
+    h = {"X-CSRF-Token": csrf}
+    rid = _create(client, csrf, title="추첨")["id"]
+    st = client.get(f"/api/games/rooms/{rid}/state?since=0").json()
+    assert st["result_seq"] is None and st["now"]
+    assert client.post(f"/api/games/rooms/{rid}/start", headers=h).status_code == 200
+    done = client.get(f"/api/games/rooms/{rid}/state?since=0").json()
+    assert done["room"]["status"] == "finished"
+    assert done["result_seq"] == max(e["seq"] for e in done["events"] if e["kind"] == "result")
+    assert client.get(f"/api/games/rooms/{rid}/state?since={done['seq']}").json()["events"] == [], "커서 뒤에는 새 이벤트가 없다"
+    assert client.post(f"/api/games/rooms/{rid}/reset", headers=h).status_code == 200
+    seq1 = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["seq"]
+    assert client.post(f"/api/games/rooms/{rid}/reset", headers=h).status_code == 200, "대기 중 초기화는 멱등"
+    again = client.get(f"/api/games/rooms/{rid}/state?since=0").json()
+    assert again["room"]["status"] == "waiting" and again["seq"] == seq1 and again["state"] == {}
+
+
+def test_host_alone_leaving_closes_the_room_as_finished(client, login_as):
+    """방장 혼자 나가면 방은 닫히고 `status` 도 종결이다 — 예전엔 `closed_at` 만 찍혀 「진행 중」으로 세어졌다."""
+    csrf = login_as("user", email="alone@goodmit.co.kr")
+    rid = _create(client, csrf, title="혼자")["id"]
+    assert client.post(f"/api/games/rooms/{rid}/leave", headers={"X-CSRF-Token": csrf}).status_code == 200
+    from app.games.models import GameRoom
+
+    with client.app.state.session_factory() as s:
+        room = s.get(GameRoom, rid)
+        assert room.status == "finished" and room.closed_at is not None
+    assert all(r["id"] != rid for r in client.get("/api/games/rooms").json()["items"])
+
+
+def test_vote_quiz_and_tournament_results_carry_ids_not_only_labels(app, client, login_as, make_user):
+    """당첨 선택지는 번호, 우승자는 사용자 id 가 정본이다 — 같은 글 · 동명이인에서도 화면이 가를 수 있다."""
+    csrf = login_as("user", email="idhost@goodmit.co.kr")
+    h = {"X-CSRF-Token": csrf}
+    me_id = client.get("/api/me").json()["user"]["id"]
+    # 빠른 투표: 1번을 찍었다 → winner_indexes == [1].
+    rid = _create(client, csrf, title="투표", game_type="quick_vote", config={"question": "q", "options": ["A", "B", "C"]})["id"]
+    assert client.post(f"/api/games/rooms/{rid}/start", headers=h).status_code == 200
+    client.post(f"/api/games/rooms/{rid}/vote", json={"option": 1}, headers=h)
+    assert client.post(f"/api/games/rooms/{rid}/finish", headers=h).status_code == 200
+    res = client.get(f"/api/games/rooms/{rid}/state?since=0").json()["state"]["result"]
+    assert res["winner_indexes"] == [1] and res["winners"] == ["B"]
+    # 퀴즈: 방장만 맞혔다 → winner_ids == [방장].
+    rid2 = _create(client, csrf, title="퀴즈", game_type="quiz",
+                   config={"questions": [{"q": "1+1?", "options": ["1", "2"], "answer": 1}]})["id"]
+    assert client.post(f"/api/games/rooms/{rid2}/start", headers=h).status_code == 200
+    client.post(f"/api/games/rooms/{rid2}/quiz-answer", json={"option": 1}, headers=h)
+    client.post(f"/api/games/rooms/{rid2}/reveal", headers=h)
+    assert client.post(f"/api/games/rooms/{rid2}/next", headers=h).json()["room"]["status"] == "finished"
+    res2 = client.get(f"/api/games/rooms/{rid2}/state?since=0").json()["state"]["result"]
+    assert res2["winner_ids"] == [me_id] and len(res2["winners"]) == 1
+    # 토너먼트: 대진 · 승자가 id 로 온다(진행 중 보기와 결과 히스토리 둘 다).
+    rid3 = _create(client, csrf, title="토너먼트", game_type="rps", config={"mode": "tournament", "timer_seconds": 0})["id"]
+    make_user("idp2@goodmit.co.kr")
+    c2, cs2 = _login_other(app, "idp2@goodmit.co.kr")
+    other_id = c2.get("/api/me").json()["user"]["id"]
+    assert c2.post(f"/api/games/rooms/{rid3}/join", headers={"X-CSRF-Token": cs2}).status_code == 200
+    assert client.post(f"/api/games/rooms/{rid3}/start", headers=h).status_code == 200
+    live = client.get(f"/api/games/rooms/{rid3}/state?since=0").json()["state"]["matches"][0]
+    assert {live["a"], live["b"]} == {me_id, other_id} and live["winner"] is None
+    client.post(f"/api/games/rooms/{rid3}/rps", json={"option": 0}, headers=h)  # 가위
+    c2.post(f"/api/games/rooms/{rid3}/rps", json={"option": 1}, headers={"X-CSRF-Token": cs2})  # 바위 → 승
+    c2.close()
+    fin = client.get(f"/api/games/rooms/{rid3}/state?since=0").json()
+    assert fin["room"]["status"] == "finished"
+    match = fin["state"]["result"]["rounds"][0][0]
+    assert match["winner"] == other_id and {match["a"], match["b"]} == {me_id, other_id}
+    assert fin["state"]["result"]["champion"]["user_id"] == other_id

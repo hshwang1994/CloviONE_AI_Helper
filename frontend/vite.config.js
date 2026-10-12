@@ -29,6 +29,8 @@ export default defineConfig({
         chunkFileNames: "assets/[name].[hash].js",
         assetFileNames: "assets/[name].[hash][extname]",
         manualChunks(id) {
+          /* 구슬 레이스의 물리 엔진(planck)은 놀이방에서만 받는 지연 청크다(D-564) — 초기 예산에 들어가지 않는다. */
+          if (id.includes("node_modules/planck")) return "physics";
           /* 두 콘솔이 **같이** 쓰는 설정 주도 화면 부품에 이름을 준다.
            *
            * 이름이 필요한 이유는 크기가 아니라 예산 검사다. 이 조각은 사용자·관리자 라우트가

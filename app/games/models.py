@@ -43,8 +43,11 @@ GAME_NUMBER = "number"
 GAME_LADDER = "ladder"
 GAME_RPS = "rps"
 GAME_QUIZ = "quiz"
+#   marble_race — 구슬 레이스(D-564). 서버는 seed 를 주고 모든 브라우저가 같은 결정적 경주를 계산한다. 결과는 브라우저들이
+#                 올린 전체 결과를 서버가 상호 대조해 확정한다(`app/games/marble.py`).
+GAME_MARBLE = "marble_race"
 GAME_TYPES: frozenset[str] = frozenset(
-    {GAME_RANDOM_DRAW, GAME_QUICK_VOTE, GAME_TEAM_SPLIT, GAME_NUMBER, GAME_LADDER, GAME_RPS, GAME_QUIZ}
+    {GAME_RANDOM_DRAW, GAME_QUICK_VOTE, GAME_TEAM_SPLIT, GAME_NUMBER, GAME_LADDER, GAME_RPS, GAME_QUIZ, GAME_MARBLE}
 )
 
 # 방 상태(§5.3).

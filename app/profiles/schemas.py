@@ -29,6 +29,8 @@ class PreferenceUpdate(BaseModel):
     # 알림을 메일로도 받기(계획 3.4). 스위치 하나와 받을 유형 목록이다. 유형은 관리자가 허용한 것 안에서만 고른다.
     mail_enabled: bool | None = None
     mail_types: list[str] | None = Field(default=None, max_length=32)
+    # 축하 효과(D-563). 끄면 게임 당첨자 발표 · 티켓 완료의 축포가 돌지 않는다. 결과 · 완료 자체는 그대로다.
+    celebration_enabled: bool | None = None
 
 
 class TourUpdate(BaseModel):

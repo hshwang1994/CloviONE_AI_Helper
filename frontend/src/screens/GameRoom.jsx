@@ -34,7 +34,7 @@ export function GameRoom() {
 
   const {
     room, you, submissionActive, remaining, activePlayers, submittedCount, waitingNames,
-    canReady, isHost, isVote, isTeam, isNumber, isLadder, isRps, isQuiz, isTournament,
+    canReady, isHost, isVote, isTeam, isNumber, isLadder, isRps, isQuiz, isMarble, isTournament,
     quizPlaying, mutations, actionFailure,
   } = c;
   const { ready, start, finish, reveal, nextQ, reset, disband, leave } = mutations;
@@ -87,7 +87,7 @@ export function GameRoom() {
               </Button>
             ) : null}
             {isHost && room.status === "waiting" ? (
-              <Button variant="primary" onClick={() => start.mutate()} disabled={start.isPending}>{isVote ? "투표 시작" : isTeam ? "팀 나누기" : isNumber ? "숫자 눈치 시작" : isLadder ? "사다리 타기" : isRps ? "가위바위보 시작" : isQuiz ? "퀴즈 시작" : "추첨 시작"}</Button>
+              <Button variant="primary" onClick={() => start.mutate()} disabled={start.isPending}>{isMarble ? "경주 시작" : isVote ? "투표 시작" : isTeam ? "팀 나누기" : isNumber ? "숫자 눈치 시작" : isLadder ? "사다리 타기" : isRps ? "가위바위보 시작" : isQuiz ? "퀴즈 시작" : "추첨 시작"}</Button>
             ) : null}
             {isHost && (isVote || isNumber || isRps) && room.status === "playing" ? (
               <Button variant="primary" onClick={() => finish.mutate()} disabled={finish.isPending}>{isVote ? "투표 종료" : isTournament ? "이 라운드 마감" : "결과 공개"}</Button>

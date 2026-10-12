@@ -6,7 +6,7 @@ import { api } from "../../lib/api.js";
 import { failureText } from "../../lib/failure.js";
 import { useGuardedMutation } from "../../lib/useGuardedMutation.js";
 import { useConfirm, useToast } from "../../ui/kit.jsx";
-import { celebrate, deriveCelebrateKey } from "./celebration.js";
+import { celebrate, deriveCelebrateKey, deriveResultKey } from "./celebration.js";
 import { useCountdown } from "./timeUtils.js";
 
 /* 채팅 패널에 흘려보낼 이벤트: 대화 그 자체 + 사람이 읽을 수 있는 안내문이 달린 system 이벤트
@@ -28,6 +28,27 @@ function isChatFeedEvent(e) {
  * state.isError 에 따른 조기 반환은 훅 호출이 전부 끝난 "뒤"에 평범한 if 문으로 한다(원래
  * GameRoom() 함수 안에서도 같은 순서였다 — 로직만 옮겼다). phase가 "pending"/"error"이면
  * 그 외 필드는 없다 — 호출부(GameRoom.jsx)가 phase를 먼저 분기해서 쓴다. */
+/* 폴링 커서(P5 ②) — 두 번째부터는 `since=<마지막 seq>` 로 그 뒤 이벤트만 받아 앞 이벤트에 잇는다(seq 로 중복 제거).
+ * 방 · 상태 · 참여자 · 결과 번호는 새 값으로 바꾼다. 첫 요청과 캐시가 없을 때는 `since=0` 이다. */
+export function mergeEvents(prev, next) {
+  const seen = new Set((prev || []).map((e) => e.seq));
+  const out = (prev || []).slice();
+  for (const e of next || []) {
+    if (e && e.seq != null && seen.has(e.seq)) continue;
+    if (e && e.seq != null) seen.add(e.seq);
+    out.push(e);
+  }
+  return out;
+}
+
+export async function fetchRoomState(qc, id) {
+  const prev = qc ? qc.getQueryData(["game-room", id]) : null;
+  const since = prev && Number.isInteger(prev.seq) && prev.seq > 0 && Array.isArray(prev.events) ? prev.seq : 0;
+  const fresh = await api(`/api/games/rooms/${id}/state?since=${since}`);
+  if (!since || !fresh || !Array.isArray(fresh.events)) return fresh;
+  return { ...fresh, events: mergeEvents(prev.events, fresh.events) };
+}
+
 export function useGameRoomController(id) {
   const nav = useNavigate();
   const toast = useToast();
@@ -42,7 +63,7 @@ export function useGameRoomController(id) {
 
   const state = useQuery({
     queryKey: ["game-room", id],
-    queryFn: () => api(`/api/games/rooms/${id}/state?since=0`),
+    queryFn: () => fetchRoomState(qc, id),
     refetchInterval: 1200,
   });
 
@@ -114,6 +135,23 @@ export function useGameRoomController(id) {
     mutationFn: () => api(`/api/games/rooms/${id}/next`, { method: "POST" }),
     onSuccess: () => state.refetch(),
   });
+  /* 구슬 레이스(D-564) — 참가자 · 설정은 방장, 결과는 방장 finish · 나머지 attest(검증은 같다). */
+  const marbleParticipants = useMutation({
+    mutationFn: (body) => api(`/api/games/rooms/${id}/marble/participants`, { method: "PUT", body }),
+    onSuccess: () => state.refetch(),
+  });
+  const marbleConfig = useMutation({
+    mutationFn: (body) => api(`/api/games/rooms/${id}/marble/config`, { method: "PUT", body }),
+    onSuccess: () => state.refetch(),
+  });
+  const marbleFinish = useMutation({
+    mutationFn: (body) => api(`/api/games/rooms/${id}/marble/finish`, { method: "POST", body }),
+    onSuccess: () => state.refetch(),
+  });
+  const marbleAttest = useMutation({
+    mutationFn: (body) => api(`/api/games/rooms/${id}/marble/attest`, { method: "POST", body }),
+    onSuccess: () => state.refetch(),
+  });
   const reset = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/reset`, { method: "POST" }),
     onSuccess: () => state.refetch(),
@@ -150,31 +188,34 @@ export function useGameRoomController(id) {
     [quizAnswer, "답을 내지 못했습니다. 다시 시도해 주세요."],
     [reveal, "정답을 공개하지 못했습니다. 다시 시도해 주세요."],
     [nextQ, "다음으로 넘어가지 못했습니다. 다시 시도해 주세요."],
+    [marbleFinish, "경주 결과를 올리지 못했습니다. 다시 시도해 주세요."],
+    [marbleAttest, "경주 결과를 올리지 못했습니다. 다시 시도해 주세요."],
     [reset, "다시 시작하지 못했습니다. 다시 시도해 주세요."],
     [leave, "처리하지 못했습니다. 다시 시도해 주세요."],
     [disband, "처리하지 못했습니다. 다시 시도해 주세요."],
   );
   const chatFailure = failureText([chat, "메시지를 보내지 못했습니다. 다시 시도해 주세요."]);
 
-  /* 승자가 **확정되는 순간** 축포를 한 번 터뜨린다. celebrateKey 는 결과 내용이 바뀔 때만
-   * 값이 달라지므로 폴링마다 재발화하지 않는다. 훅 순서 유지를 위해 조기 return 위에
-   * 둔다(무승부·팀나누기·사다리처럼 '승자'가 없는 결과는 제외).
+  /* 발표 열쇠 — 방 id + 결과 번호(`result_seq`, D-563). 결과 판(`ResultPanel`)이 이 열쇠로 「발표 전환 → 당첨자 공개」를
+   * 한 번 돌리고, 공개되는 순간 `celebrateOnReveal` 을 부른다. 축포는 열쇠당 한 번이다.
    *
-   * 🔴 **처음 본 값에는 안 터뜨린다** (사용자 지적: "아무것도 안 바꿨는데 페이지만
-   * 옮겨도 갑자기 축포가 터짐"). 이미 끝난 방을 **열기만 해도** 이 조건이 참이라
-   * 마운트 즉시 발사됐다 — 그건 「승자가 확정된 순간」이 아니라 「지난 결과를 다시
-   * 열어 본 순간」이다. 방을 오갈 때마다, 알림에서 딥링크로 들어올 때마다 터졌다.
-   *
-   * 그래서 마운트 뒤 **값이 실제로 달라진 때만** 축하한다 — `useCelebrateOnCleared` 가
-   * 「처음 본 값에는 안 터뜨린다」로 같은 함정을 피하는 것과 같은 규칙이다. */
-  const celebrateKey = deriveCelebrateKey(state.data);
-  const seenCelebrateKey = useRef(undefined);
-  useEffect(() => {
-    const first = seenCelebrateKey.current === undefined;
-    const changed = seenCelebrateKey.current !== celebrateKey;
-    seenCelebrateKey.current = celebrateKey;
-    if (!first && changed && celebrateKey) celebrate();
-  }, [celebrateKey]);
+   * 🔴 이 방을 **처음 열었을 때 본 열쇠**는 「지난 결과」다 — 이미 끝난 방에 늦게 들어오거나 새로고침한 사람은 발표를 본 것이
+   * 아니므로 전환 없이 결과만 보이고 축포도 없다(`instant`). 그 뒤 값이 실제로 달라진 때만 발표한다. 훅 순서 유지를 위해
+   * 조기 return 위에 둔다. */
+  const resultKey = deriveResultKey(state.data);
+  const roomKeyRef = useRef(null);
+  const firstKeyRef = useRef(undefined);
+  const firedKeyRef = useRef(null);
+  /* 렌더 중에 정한다 — 결과 판은 데이터가 온 그 렌더에 마운트되므로, effect 로 미루면 첫 렌더가 「처음 본 열쇠」를 모른 채
+     발표 전환을 시작한다. 방이 바뀌면 그 방의 첫 열쇠를 새로 본다. */
+  if (roomKeyRef.current !== id) { roomKeyRef.current = id; firstKeyRef.current = undefined; firedKeyRef.current = null; }
+  if (state.data && firstKeyRef.current === undefined) firstKeyRef.current = resultKey;
+  const hasWinners = deriveCelebrateKey(state.data) != null;
+  const celebrateOnReveal = (key) => {
+    if (!key || firedKeyRef.current === key || !hasWinners) return;
+    firedKeyRef.current = key;
+    celebrate();
+  };
 
   // 방이 사라지면(방장이 파함 → 404, 또는 closed 표시) 목록으로 돌려보낸다. 한 번만.
   const notFound = state.isError && state.error && state.error.status === 404;
@@ -243,6 +284,7 @@ export function useGameRoomController(id) {
   const isLadder = room.game_type === "ladder";
   const isRps = room.game_type === "rps";
   const isQuiz = room.game_type === "quiz";
+  const isMarble = room.game_type === "marble_race";
   const isHost = you.is_host;
   const canReady = isDraw && you.in_room && you.role === "player" && room.status === "waiting";
   const canVote = isVote && room.status === "playing" && you.in_room && you.role !== "spectator";
@@ -309,7 +351,10 @@ export function useGameRoomController(id) {
   return {
     phase: "ready",
     room, you, members, gstate, chatMsgs,
-    isVote, isTeam, isDraw, isNumber, isLadder, isRps, isQuiz, isHost, isTournament,
+    isVote, isTeam, isDraw, isNumber, isLadder, isRps, isQuiz, isMarble, isHost, isTournament,
+    serverNow: state.data.now || null,
+    revealPlan: { key: resultKey, instant: resultKey != null && resultKey === firstKeyRef.current },
+    celebrateOnReveal,
     canReady, canVote, canPick, canRps, canQuizAnswer,
     drawWinners, teams, ladderAssignments, numResult, rpsResult,
     quizResult, quizPlaying, liveScores,
@@ -318,7 +363,7 @@ export function useGameRoomController(id) {
     remaining,
     draft, setDraft, numDraft, setNumDraft, sendChat, voteOptionSx,
     chatLogRef,
-    mutations: { join, ready, start, vote, finish, pick, rps, quizAnswer, reveal, nextQ, reset, leave, disband, chat },
+    mutations: { join, ready, start, vote, finish, pick, rps, quizAnswer, reveal, nextQ, reset, leave, disband, chat, marbleParticipants, marbleConfig, marbleFinish, marbleAttest },
     actionFailure, chatFailure,
     disbandWithConfirm,
   };

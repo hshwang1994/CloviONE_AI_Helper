@@ -560,3 +560,17 @@ def test_activity_feed_only_shows_my_own_rows(app, client, make_user, db, fake_c
 
 def test_activity_feed_rejects_an_unknown_kind(client, me):
     assert client.get("/api/me/activity?kind=nope").status_code == 422
+
+
+# ── 축하 효과 스위치 (기능 개선 회차 P5, D-563) ──────────────────────────────
+
+def test_celebration_switch_defaults_on_and_is_saved(client, me):
+    """행이 없으면 켬이고, 끄면 꺼진 채로 남는다. 축포는 표현이라 결과 · 완료 처리는 이 값과 무관하다(화면 규칙)."""
+    csrf, _ = me
+    assert client.get("/api/me/preferences").json()["celebration"]["enabled"] is True
+    off = client.patch("/api/me/preferences", json={"celebration_enabled": False}, headers={"X-CSRF-Token": csrf})
+    assert off.status_code == 200, off.text
+    assert off.json()["celebration"]["enabled"] is False
+    assert client.get("/api/me/preferences").json()["celebration"]["enabled"] is False
+    on = client.patch("/api/me/preferences", json={"celebration_enabled": True}, headers={"X-CSRF-Token": csrf})
+    assert on.json()["celebration"]["enabled"] is True

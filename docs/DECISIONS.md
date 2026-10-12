@@ -16798,3 +16798,70 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
   종류가 있으므로 알림 메일로 중복 발송하지 않는다(유지보수 공지 · 작업 · 일정 실행 실패도 메일이 아니다).
 - **잰 것**: `tests/integration/test_notification_mail_fanout.py` 새 네 시험(유형 표, 새 유형은 허용 뒤에만, 전용 종류의 중복 0, 보안 메일은
   선택 · 허용과 무관하되 본인 알림만), 표본 · 황금 파일은 D-561.
+
+### D-563. 게임 결과는 공통 결과 판 하나에 게임별 결과 표현을 싣고, 축하는 제품의 축포 하나를 발표 단위(결과 번호)로 한 번만 돌리며, 이미 끝난 방에 늦게 들어온 사람은 발표가 아니라 결과를 본다 (기능 개선 회차 P5, 2026-10-12)
+
+- **결정**: `screens/game-room/ResultPanel.jsx` 가 틀이다 — 「게임 종료」 배지와 게임 이름 → 발표 제목 · 한 문장 · 결과의 사실(`note`) → 당첨자
+  자리(한 명은 가운데 큰 이름 + 얼굴 72, 여럿은 `ranked` 면 1 · 2 · 3 번호가 붙은 줄, 아니면 같은 무게의 카드 격자, 12명을 넘으면 목록) →
+  게임별 결과 자리(`detail`: 사다리 경로 · 득표 막대 · 점수표 · 대진표 · 공개된 숫자 · 낸 손 · 완주 순위) → 동작 줄(전체 결과 보기 · 결과 복사).
+  순위가 없는 추첨에 등수를 만들지 않고, 승자가 없는 결과(팀 나누기 · 사다리 · 무승부 · 맞힌 사람 없음)는 `mood="calm"` 으로 당첨자 자리가
+  없다. 실제 사용자는 `UserAvatar`(D-556), 자유 이름(구슬 레이스)은 구슬 색 점 + 머리글자다. 승자 · 선택지는 **id** 로 비교한다 — 서버가
+  투표 결과에 `winner_indexes`, 퀴즈 결과에 `winner_ids`, 토너먼트 대진에 `a` · `b` · `winner` 를 더했고, id 가 없는 옛 상태 행만 라벨로 읽는다.
+- **발표 순서와 축포**: 서버가 결과를 확정하면(`result_seq` — 결과 이벤트의 순번, `GET /state` 가 싣는다) 「결과를 발표합니다」 전환 0.8초
+  (`ANNOUNCE_MS`) 뒤 당첨자가 공개되고 **그 순간** `onReveal(열쇠)` 가 한 번 불려 `ui/celebrate.js::celebrate()` 가 돈다 — 게임 전용 축포 · 새
+  라이브러리 없이 티켓 완료와 같은 세 발이다. 열쇠는 `방 id:result_seq` 이고(`celebration.js::deriveResultKey`) 같은 열쇠에는 다시 돌지 않는다
+  (폴링 재수신 · 리렌더 · 창 크기 · 테마 전환 · 상세 열고 닫기). 다음 결과(다시 하기)는 새 열쇠라 다시 발표한다. 축포는 표현이라 결과 표시를
+  늦추지 않고 던져도 결과는 보인다. 승자가 없는 결과는 발표(전환 · 판)는 하되 축포가 없다(`deriveCelebrateKey` 가 null).
+- **처음 본 열쇠는 지난 결과다**: 컨트롤러(`useGameRoomController`)가 방을 처음 열었을 때 본 결과 열쇠를 기억해 그 열쇠는 전환 없이 결과만
+  보이고(`revealPlan.instant`) 축포가 없다 — 이미 끝난 방에 늦게 들어오거나 새로고침한 사람은 발표를 본 것이 아니다. 예전에는 끝난 방을 열기만
+  해도 마운트 직후에 터졌다(첫 렌더가 pending 이라 「처음 본 값」 가드가 비어 있었다). 렌더 중에 정한다 — 결과 판은 데이터가 온 그 렌더에
+  마운트되므로 effect 로 미루면 첫 렌더가 열쇠를 모른 채 발표를 시작한다.
+- **「축하 효과」 스위치**: `user_preferences.celebration_enabled`(0049, 기본 켬) · `PATCH /api/me/preferences {celebration_enabled}` ·
+  내 프로필 › 화면 효과 카드의 `SettingRow` 즉시 저장 · 앱 셸의 `app/CelebrationPreference.jsx` 가 `/api/me/preferences` 를 받아
+  `setCelebrationEnabled` 를 맞춘다. 꺼지면 어느 축포도(게임 · 티켓 완료 · 문서 저장) 돌지 않고 결과 · 완료 처리는 그대로다. OS 의 동작 줄이기
+  신호는 제품 결정(2026-09-03)대로 보지 않는다.
+- **기존 게임 결함(같이 고쳤다)**: 방장 혼자 나가면 `status=finished`(예전엔 `closed_at` 만 찍혀 「진행 중」으로 세어졌다), 대기 중 초기화는
+  멱등, 폴링은 `since=<마지막 seq>` 커서로 그 뒤 이벤트만 받아 잇는다(`fetchRoomState` · `mergeEvents`).
+- **잰 것**: `tests/integration/test_games_api.py`(결과 번호 · 커서 · 초기화 멱등 · 방장 단독 이탈 · id 승자 셋), `test_profile_self_service.py`
+  (스위치 기본 켬 · 저장), `screens/game-room/result-panel.test.jsx`(전환 → 공개 순간 한 번 · 같은 열쇠 재실행 0 · 새 열쇠 재발표 · instant ·
+  onReveal 예외 · calm · 격자 · 순위 · 접기), `celebration.test.js`(열쇠 규칙), `gameroom.test.jsx`(진행 중 → 종료에서 한 번 · 끝난 방 열기 0 ·
+  전환 동안 당첨자 없음 · 팀 나누기 0), `ui/celebrate.test.jsx`(스위치). 실브라우저 `scripts/ui_qa/games_e2e.py --capture`(여덟 게임의 네 순간
+  · 폭 × 테마, `dist/ui-qa/games-e2e/r2/review.html`).
+
+### D-564. 구슬 레이스는 모든 브라우저가 같은 결정적 경주를 계산하고, 서버는 seed 를 주고 결과를 상호 대조로 확정하며, 일치와 신뢰를 구분한다 (기능 개선 회차 P5, 2026-10-12)
+
+- **결정**: 새 게임 종류 `marble_race`(`app/games/marble.py`, 마이그레이션 없음). 물리는 planck 1.5.0(Box2D 의 JS 이식, MIT)을 **Web
+  Worker** 에서 돌리고(`marble/engine/worker.js`, 메인은 그리기만), 결정성은 셋으로 만든다 — (1) `determinism.js` 가 전역 `Math.sin · cos ·
+  atan · atan2` 를 fdlibm 이식으로 바꾸고 planck 보다 먼저 평가된다(planck 가 모듈 평가 때 `Math.*` 를 변수에 받아 두므로 import 순서가 결정성이다),
+  (2) 10ms 고정 스텝을 논리 시간 = (서버 시각 − 시작 시각) × 배속으로 누적한다(`useMarbleRace`, 폴링의 `now` 로 시계 보정 — 늦은 입장 · 재접속 ·
+  탭 복귀는 같은 스텝까지 빨리 감는다), (3) 난수는 seed 기반 mulberry32 뿐이다(출발 배치 · 밀도 · 멈춤 흔들기). 원본 lazygyu/roulette
+  (커밋 `3f59495e…`, MIT)의 물리 규칙 · 「Wheel of fortune」 판 자료 · 진행도 지도 순위를 옮겼고, 이름은 상표 고지대로 「구슬 레이스」만 쓴다
+  (`marble/ATTRIBUTION.md` · `docs/THIRD_PARTY_NOTICES.md`).
+- **서버**: `PUT /marble/participants`(방장 · 대기 중 · 2 ~ 100명 · 1 ~ 24자 · NFC · 공백 접기 · 중복은 422 와 「(2)」 제안) ·
+  `PUT /marble/config`(당첨 1 ~ 10 · 꼴찌 · 판 · 배속 1 · 2 · 4) · `start`(방장이 누르면 서버가 `race_id` · `seed` · `started_at` 발급, 참가자를
+  적지 않았으면 지금 있는 구성원) · `POST /marble/finish`(방장) · `POST /marble/attest`(구성원 · 관전자) — 검증은 같다: 순열 · 같은 race_id ·
+  최소 경과(8초 ÷ 배속) · 한 사람 한 번 · digest = sha256(`race_id|순위 열쇠,…|완주 스텝,…`) 가 브라우저(`engine/sha256.js`)와 같다.
+  **확정 시점은 하나다**: 첫 제출에 `verifying`, 확인 창(방장 제출 뒤 10초 · 방장 없이 첫 attest 뒤 30초 · 지금 있는 구성원이 모두 제출하면 즉시)이
+  닫힐 때 폴링(`maybe_finalize`)이 한 번 판정해 `finalized_at` 을 찍는다. 확정 뒤 제출은 기록만 하고 결과 · 상태가 불변이다. 상태 넷 —
+  `confirmed`(방장 결과 + 독립 제출 일치, 불일치 0) · `host_only`(대조할 제출 없음) · `host_absent`(방장 미제출, 참가자 다수 결과 승격) ·
+  `disputed`(불일치 하나라도 — 결과 없음 · 발표 · 축포 없음 · 방장이 다시 시작). 10분 안에 제출이 없으면 `abandoned`.
+- **일치 ≠ 신뢰**: 서버는 물리를 다시 계산하지 않는다. 「확인됨」은 서로 다른 브라우저의 결과가 **일치했다**는 뜻이지 계산이 조작되지 않았다는
+  증명이 아니다 — 화면의 「정보」 창과 이 결정에 적는다. 화면의 발표 허용은 `finalized_at` 이 있고 상태가 셋 중 하나일 때뿐이다(`announceable`).
+- **화면**: 머리 줄(단계 배지 · 참가자 · 당첨 · 배속 · 완주 수 · [설정] 방장 · [정보] · [전체 화면]) + 16:9 캔버스(좁은 화면 4:3) + 순위 레일.
+  판 팔레트는 테마 토큰에서 만든다(`render/theme.js`, 밝은 · 어두운 각각, 색 하드코딩 없음). 카메라는 당첨 경계 구슬을 따라가고 결승 근처에서
+  확대하며, 끝나면 결승선을 위쪽 1/4 에 두고 들어온 구슬을 그 자리에 남긴다(마지막 장면). 라벨은 30명까지 전부, 60명까지 상위 10 + 카메라 근처,
+  그 위는 번호. 확인 창 동안 「결과를 확인하는 중」 띠와 잠정 순위, 확정 뒤에만 결과 판(D-563, 판 위 반투명 겹침 · 좁은 화면은 아래)이다.
+  전체 화면은 Fullscreen API 로 판 컨테이너를 올리고 워커 · 상태는 그대로다. 워커를 못 쓰는 환경(시험)은 같은 엔진을 같은 스레드에서 돌린다
+  (`engine/client.js`).
+- **잰 것**: 백엔드 `tests/integration/test_games_marble.py`(검증 표 · 확인 창 넷 · 확정 뒤 불변 · 버림 · 초기화) · `tests/security/
+  test_games_marble_scope.py`(다른 조직 404 · 비구성원 · 비방장 403 · CSRF). 프런트 `marble/engine/engine.test.js`(결정적 수학 · 같은 seed 같은
+  지문 · 분할 불변 · 20 · 100개 완주 · `Math.random` 0 · 지문이 서버와 같은 글) · `marble-stage.test.jsx`(대기 · 실제 계산 뒤 finish/attest 한 번 ·
+  이미 올린 사람 0 · 확정 결과만 발표 · host_only 문장 · disputed 미발표). 실브라우저 `scripts/ui_qa/games_e2e.py --digest`: 방장 Chromium ·
+  참가자 Firefox 가 두 경주(12명 · 4배속)에서 같은 지문 → `confirmed`, 같은 당첨자 발표, 각 화면 축포, 늦게 들어온 셋째 사람은 결과만(축포 0).
+  `--perf`(100명 · 2배속 · 3회): 프레임 p95 16.8ms · 힙 26.3MB 로 변화 없음(`EVIDENCE/ui/2026-10-12-marble-perf.md`).
+
+### D-565. 채팅 스트리밍(부분 응답 표시)은 이번 회차 범위 밖이다 — 202 + 폴링을 유지하고 패널에도 진행 문구 · 경과 시간을 보인다 (기능 개선 회차, 2026-10-12)
+
+- **결정**: 클로비 패널과 전체 화면 채팅은 D-557 의 같은 컴포저 · 말풍선 · 스크롤 부품으로 「답을 만드는 중 · n초」를 보이는 것까지다. 토큰 단위
+  부분 응답은 제공자 셋(Anthropic · OpenAI API 키 · ChatGPT)의 스트리밍 계약과 폴링 구조(워커 · 큐 · 재시도)를 함께 바꿔야 하므로 BACKLOG(P-127)
+  로 넘긴다. 사용자가 지금 겪은 문제(패널이 본문을 밀고 입력 줄이 어긋남)는 스트리밍이 아니라 판 구조였고 D-557 이 고쳤다.

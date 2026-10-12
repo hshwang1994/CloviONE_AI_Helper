@@ -15,6 +15,7 @@ import {
   celebrateIfCleared, useCelebrateOnCleared, resetBurstCooldown,
   celebrateIfCompleted, celebrateIfCompletedCategory, doneStatusKeys,
   celebrateCreated, celebrate, CLOVER_PATH, CLOVER_COLORS,
+  setCelebrationEnabled, isCelebrationEnabled,
 } from "./celebrate.js";
 
 function Probe({ total, token }) {
@@ -212,5 +213,28 @@ describe("클로버 모양", () => {
     expect(nums.length).toBeGreaterThan(0);
     expect(Math.min(...nums)).toBeGreaterThanOrEqual(0);
     expect(Math.max(...nums)).toBeLessThanOrEqual(128);
+  });
+});
+
+describe("축하 효과 스위치 (D-563)", () => {
+  afterEach(() => setCelebrationEnabled(true));
+
+  it("꺼져 있으면 어느 축포도 돌지 않고, 완료 판정 자체는 그대로다", () => {
+    setCelebrationEnabled(false);
+    expect(isCelebrationEnabled()).toBe(false);
+    celebrate();
+    celebrateCreated();
+    expect(celebrateIfCompleted("done", new Set(["done"]))).toBe(true);
+    expect(celebrateIfCleared(0)).toBe(true);
+    vi.runOnlyPendingTimers();
+    expect(confettiSpy).not.toHaveBeenCalled();
+  });
+
+  it("다시 켜면 돈다 — 기본값은 켬이다", () => {
+    setCelebrationEnabled(false);
+    setCelebrationEnabled(undefined);
+    expect(isCelebrationEnabled()).toBe(true);
+    celebrate();
+    expect(confettiSpy).toHaveBeenCalled();
   });
 });

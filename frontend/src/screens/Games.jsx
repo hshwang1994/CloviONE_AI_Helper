@@ -22,7 +22,7 @@ import { TILE_PADDING } from "../ui/density.js";
  * 규칙이 전부 사라져 브라우저 기본 입력 상자로 떠 있었다(라벨·도움말 간격도 무너졌다).
  * MUI 폼 컨트롤로 옮겨 테마 하나를 따르게 한다. 카드 격자는 auto-fill이라 4K에서 열이 늘어난다. */
 
-export const GAME_LABELS = { random_draw: "랜덤 추첨", quick_vote: "빠른 투표", team_split: "랜덤 팀 나누기", number: "숫자 눈치", ladder: "사다리타기", rps: "가위바위보", quiz: "실시간 퀴즈" };
+export const GAME_LABELS = { random_draw: "랜덤 추첨", quick_vote: "빠른 투표", team_split: "랜덤 팀 나누기", number: "숫자 눈치", ladder: "사다리타기", rps: "가위바위보", quiz: "실시간 퀴즈", marble_race: "구슬 레이스" };
 const STATUS_LABELS = { waiting: "대기 중", playing: "진행 중", finished: "결과 확인 중" };
 const STATUS_KIND = { waiting: "info", playing: "warn", finished: "ok" };
 
@@ -123,6 +123,11 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
   const [aiTopic, setAiTopic] = useState("");
   const [aiCount, setAiCount] = useState(5);
   const [spectators, setSpectators] = useState(true);
+  // 구슬 레이스(D-564): 참가자는 한 줄에 한 명. 비우면 방에 들어온 사람이 참가자다. 방장이 방 안 설정에서 다시 고칠 수 있다.
+  const [marbleNames, setMarbleNames] = useState("");
+  const [marbleWinners, setMarbleWinners] = useState(1);
+  const [marblePickLast, setMarblePickLast] = useState(false);
+  const [marbleSpeed, setMarbleSpeed] = useState(1);
   React.useEffect(() => {
     if (open) {
       setGameType("random_draw"); setTitle(""); setMaxPlayers(8); setWinners(1); setTeams(2); setNumMax(10);
@@ -133,6 +138,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
       // 재실행을 건너뛴다) timer가 잘못된 값으로 굳어, 아무것도 안 바꾸고 열자마자 닫아도
       // dirty가 거짓으로 true가 되어 확인 대화상자가 새로 열 때마다 떴다.
       setAiTopic(""); setAiCount(5); setSpectators(true); setTimer(0); setRpsMode("single");
+      setMarbleNames(""); setMarbleWinners(1); setMarblePickLast(false); setMarbleSpeed(1);
       // 닫혀도 자리를 지키는 모달이라 요청 상태가 남는다 — 다시 열 때 지난 결과를 걷는다.
       genAi.reset(); create.reset();
     }
@@ -166,6 +172,10 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
   const isLadder = gameType === "ladder";
   const isRps = gameType === "rps";
   const isQuiz = gameType === "quiz";
+  const isMarble = gameType === "marble_race";
+  const marbleNameList = marbleNames.split(/\r?\n/).map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const marbleReady = !isMarble || marbleNameList.length === 0
+    || (marbleNameList.length >= 2 && marbleNameList.length <= 100 && marbleNameList.every((n) => Array.from(n).length <= 24));
   const needsOptions = isVote || isLadder;  // 선택지/결과 목록을 쓰는 게임
   const optionsReady = !needsOptions || cleanOptions.length >= 2;
   const questionReady = !isVote || question.trim().length > 0;
@@ -187,7 +197,9 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
             ? { timer_seconds: timerVal, mode: rpsMode }
             : isQuiz
               ? { questions: cleanQuiz, timer_seconds: timerVal }
-              : { winners: Number(winners) || 1 };
+              : isMarble
+                ? { participants: marbleNameList.map((name) => ({ name })), winners: Number(marbleWinners) || 1, pick_last: marblePickLast, speed: Number(marbleSpeed) || 1 }
+                : { winners: Number(winners) || 1 };
 
   const create = useMutation({
     mutationFn: () => api("/api/games/rooms", {
@@ -197,7 +209,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
     onSuccess: (res) => { toast("게임방을 만들었습니다.", "success"); onCreated && onCreated(res.room); },
   });
   const createFailure = failureText([create, "게임방을 만들지 못했습니다. 다시 시도해 주세요."]);
-  const canSave = title.trim().length > 0 && optionsReady && questionReady && quizReady && !create.isPending;
+  const canSave = title.trim().length > 0 && optionsReady && questionReady && quizReady && marbleReady && !create.isPending;
 
   // 뭔가 입력했으면 Esc·바깥 클릭에 그냥 닫히지 않게 한다 (E11). 퀴즈는 최대 20문항이라
   // 한 번의 실수로 사라지는 양이 크다 - 그리고 되돌릴 방법이 없다.
@@ -220,6 +232,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
     Number(timer) !== defaultTimer ||
     Number(aiCount) !== 5 ||
     rpsMode !== "single" ||
+    marbleNames.trim().length > 0 || Number(marbleWinners) !== 1 || marblePickLast || Number(marbleSpeed) !== 1 ||
     !spectators;
 
   // 하단 '취소' 버튼 전용 닫기 경로. `Modal`의 `dirty` prop은 X 아이콘·Esc·바깥 클릭에서
@@ -251,6 +264,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
             <MenuItem value="ladder">사다리타기</MenuItem>
             <MenuItem value="rps">가위바위보</MenuItem>
             <MenuItem value="quiz">실시간 퀴즈</MenuItem>
+            <MenuItem value="marble_race">구슬 레이스</MenuItem>
           </TextField>
         </Box>
 
@@ -259,7 +273,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
           <TextField
             id="gr-title" size="small" fullWidth required
             inputProps={{ maxLength: 120 }} value={title} onChange={(e) => setTitle(e.target.value)}
-            placeholder={isVote ? "예: 오늘 점심 정하기" : isTeam ? "예: 축구 팀 나누기" : isLadder ? "예: 청소 당번 사다리" : isQuiz ? "예: 사내 상식 퀴즈" : "예: 점심 커피 추첨"}
+            placeholder={isVote ? "예: 오늘 점심 정하기" : isMarble ? "예: 점심 내기 구슬 레이스" : isTeam ? "예: 축구 팀 나누기" : isLadder ? "예: 청소 당번 사다리" : isQuiz ? "예: 사내 상식 퀴즈" : "예: 점심 커피 추첨"}
           />
         </Box>
 
@@ -370,6 +384,38 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
               라운드마다 참여자가 몰래 답하고, 방장이 정답을 공개하면 서버가 채점합니다.
             </Typography>
+          </Box>
+        ) : isMarble ? (
+          <Box sx={{ display: "grid", gap: 2 }}>
+            <Box sx={{ minWidth: 0 }}>
+              <FieldLabel htmlFor="gr-marble-names">참가자</FieldLabel>
+              <TextField
+                id="gr-marble-names" size="small" fullWidth multiline minRows={3} maxRows={10}
+                value={marbleNames} onChange={(e) => setMarbleNames(e.target.value)}
+                placeholder={"한 줄에 한 명씩 적습니다.\n비워 두면 방에 들어온 사람이 참가자입니다."}
+                helperText="2명부터 100명까지, 이름은 24자까지입니다. 방을 연 뒤에도 방장이 설정에서 고칠 수 있습니다."
+              />
+            </Box>
+            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
+              <Box sx={{ minWidth: 0 }}>
+                <FieldLabel htmlFor="gr-marble-winners">당첨 인원</FieldLabel>
+                <TextField id="gr-marble-winners" type="number" size="small" fullWidth
+                  inputProps={{ min: 1, max: 10 }} value={marbleWinners} onChange={(e) => setMarbleWinners(e.target.value)} />
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <FieldLabel id="gr-marble-speed-label">배속</FieldLabel>
+                <TextField SelectProps={{ labelId: "gr-marble-speed-label" }} id="gr-marble-speed" select size="small" fullWidth
+                  value={marbleSpeed} onChange={(e) => setMarbleSpeed(Number(e.target.value))}>
+                  <MenuItem value={1}>1배속</MenuItem>
+                  <MenuItem value={2}>2배속</MenuItem>
+                  <MenuItem value={4}>4배속</MenuItem>
+                </TextField>
+              </Box>
+            </Box>
+            <FormControlLabel
+              control={<Checkbox checked={marblePickLast} onChange={(e) => setMarblePickLast(e.target.checked)} />}
+              label="꼴찌로 들어온 구슬이 당첨"
+            />
           </Box>
         ) : (
           <Box sx={{ minWidth: 0 }}>

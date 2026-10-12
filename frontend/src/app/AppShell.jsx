@@ -32,6 +32,7 @@ import { CommandPalette, useCommandPaletteHotkey } from "./CommandPalette.jsx";
 import { AssistantPanel, useAssistantHotkey } from "./AssistantPanel.jsx";
 import { ScopeBar } from "./ScopeBar.jsx";
 import { Tour } from "./Tour.jsx";
+import { CelebrationPreference } from "./CelebrationPreference.jsx";
 import { activeNavPath, filterGroupsByQuery, groupForPath, NAV_BREAKPOINT_PX } from "./navConfig.js";
 import { loginUrl, redirectToLogin } from "../lib/sessionRedirect.js";
 import TopBrand from "./TopBrand.jsx";
@@ -1176,6 +1177,7 @@ export function AppShell({
       {/* 첫 로그인 둘러보기 — 홈(/me)에서만 스스로 열리고, 건너뛰면 서버에 기록돼 다시 안 뜬다.
           세션 만료(minimal) 상태에서는 띄우지 않는다: 그때 필요한 유일한 행동은 재로그인이다. */}
       {!minimal ? <Tour /> : null}
+      {!minimal ? <CelebrationPreference /> : null}
     </Box>
     </WorkspaceShellContext.Provider>
   );

@@ -19,7 +19,18 @@ from app.core.errors import FeatureDisabledError, NotFoundError, RateLimitedErro
 from app.core.feature_flags import db_flag, load_feature_flags
 from app.games import ai, repository, service
 from app.games.models import EV_CHAT, ROLE_SPECTATOR
-from app.games.schemas import ChatInput, NumberInput, QuizGenerateInput, ReadyInput, RoomCreate, VoteInput
+from app.games import marble
+from app.games.schemas import (
+    ChatInput,
+    MarbleConfigInput,
+    MarbleParticipantsInput,
+    MarbleResultInput,
+    NumberInput,
+    QuizGenerateInput,
+    ReadyInput,
+    RoomCreate,
+    VoteInput,
+)
 from app.users.models import User
 from app.settings.gate import block_if_maintenance
 
@@ -170,6 +181,9 @@ def room_state(
             if mem is not None or e.kind != EV_CHAT
         ],
         "seq": room.event_seq,
+        # 결과 발표 · 축포는 이 번호 단위로 한 번이다(D-563). 구슬 레이스는 이 시각으로 논리 시간을 맞춘다(D-564).
+        "result_seq": repository.last_result_seq(db, room.id),
+        "now": now.isoformat(),
         "you": {
             "user_id": me.id,
             "in_room": mem is not None,
@@ -292,6 +306,44 @@ def quiz_generate(
             actor=me,
         )
     return {"questions": questions}
+
+
+# ── 구슬 레이스 (D-564) ─────────────────────────────────────────────────────
+
+
+@router.put("/rooms/{room_id}/marble/participants", dependencies=[Depends(require_csrf)])
+def marble_participants(request: Request, room_id: str, payload: MarbleParticipantsInput,
+                        db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    """참가자 편집(방장, 대기 중). 2 ~ 100명, 이름 1 ~ 24자, 중복은 422 + 「(2)」 제안."""
+    room = _get_room_or_404(db, room_id, me)
+    participants = marble.set_participants(db, room, me, payload.participants, now=request.app.state.clock.now())
+    return {"participants": participants}
+
+
+@router.put("/rooms/{room_id}/marble/config", dependencies=[Depends(require_csrf)])
+def marble_config(request: Request, room_id: str, payload: MarbleConfigInput,
+                  db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    """당첨 인원 · 꼴찌 당첨 · 판 · 배속(방장, 대기 중)."""
+    room = _get_room_or_404(db, room_id, me)
+    config = marble.set_config(db, room, me, payload.model_dump(exclude_unset=True, exclude_none=True),
+                               now=request.app.state.clock.now())
+    return {"config": config}
+
+
+@router.post("/rooms/{room_id}/marble/finish", dependencies=[Depends(require_csrf)])
+def marble_finish(request: Request, room_id: str, payload: MarbleResultInput,
+                  db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    """방장의 전체 결과. 검증은 `attest` 와 같다 — 확정은 확인 창이 닫힐 때 한 번이다."""
+    room = _get_room_or_404(db, room_id, me)
+    return marble.submit(db, room, me, payload.model_dump(), now=request.app.state.clock.now(), as_host=True)
+
+
+@router.post("/rooms/{room_id}/marble/attest", dependencies=[Depends(require_csrf)])
+def marble_attest(request: Request, room_id: str, payload: MarbleResultInput,
+                  db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    """구성원 · 관전자의 전체 결과(방장 결과와 대조할 제출). 방장 없이도 다수 결과를 승격할 수 있다."""
+    room = _get_room_or_404(db, room_id, me)
+    return marble.submit(db, room, me, payload.model_dump(), now=request.app.state.clock.now(), as_host=False)
 
 
 @router.post("/rooms/{room_id}/finish", dependencies=[Depends(require_csrf)])

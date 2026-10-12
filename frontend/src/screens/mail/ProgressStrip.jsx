@@ -10,6 +10,7 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js
  * 단계 칩은 상태 넷을 모양으로 가른다: 끝남(체크 · 옅은 면) · 지금(브랜드 테두리 · 굵게) · 아직(흐린 글자) · 막힘(오류색 테두리). 숫자
  * 배지가 순서를 말한다. 좁은 칸에서는 두 줄로 접힌다(`flexWrap`). 「다음 할 일」은 서버의 문장 그대로이고, [이동] 은 서버가 준 자리
  * (`anchor` — 구획 또는 머리 단추)로 간다. 화면이 단계를 지어내지 않는다 - 서버가 네트워크 없이 저장된 사실에서 계산한 값이다.
+ * 「다음 할 일」 상자는 제목 없이 한 줄(굵은 꼬리표 + 문장)에 [이동]이다 — 동작이 든 상자의 계약(D-528: 아이콘 · 첫 줄 · 동작이 한 가운데선, 한 줄 56)은 제목 줄을 세지 않는다.
  */
 
 export const STEP_STATE_LABEL = { done: "끝남", current: "지금 할 일", todo: "아직", blocked: "막힘" };
@@ -54,10 +55,13 @@ export function ProgressStrip({ progress, onGo }) {
       </Box>
       {next ? (
         <Callout
-          tone={next.state === "blocked" ? "warn" : "info"} compact title="다음 할 일" className="k-mail-next"
+          tone={next.state === "blocked" ? "warn" : "info"} className="k-mail-next"
           action={onGo ? <Button size="sm" variant="primary" onClick={() => onGo(next)}>이동</Button> : null}
         >
-          <Typography component="span" variant="body2" sx={KO_WORD_BREAK}>{next.hint || next.label}</Typography>
+          <Typography component="span" variant="body2" sx={KO_WORD_BREAK}>
+            <Box component="strong" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 0.75 }}>다음 할 일</Box>
+            {next.hint || next.label}
+          </Typography>
         </Callout>
       ) : (
         <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK} data-testid="mail-progress-complete">
