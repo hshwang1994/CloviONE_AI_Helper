@@ -51,7 +51,9 @@ def test_audit_read_role_matrix(client, login_as, role, expected):
 # 바람에 운영자·감사자는 화면마다 403 을 맞고 빈 필터를 봤다. 이 경로는 그 다섯 화면이
 # 쓰는 문이고, 그래서 `USER_MANAGE` 가 아니라 `CONSOLE_READ_ROLES` 여야 한다.
 
-PEOPLE_KEYS = {"id", "display_name", "email", "active", "archived", "department_name"}
+# 얼굴 두 칸(`avatar_url` · `avatar_default_key`)은 사람 그림의 정본 하나(D-556)가 모든 사람 행에 싣는 표시 값이다 — 역할 · 잠금 · 관리 범위가
+# 아니고, 사진 파일 자체는 그 사람을 목록에서 볼 수 있는 조회자에게만 열린다(`tests/integration/test_admin_users_avatar_fields.py`).
+PEOPLE_KEYS = {"id", "display_name", "email", "active", "archived", "department_name", "avatar_url", "avatar_default_key"}
 
 
 @pytest.mark.parametrize(

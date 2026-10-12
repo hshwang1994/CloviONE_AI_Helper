@@ -152,7 +152,11 @@ function InboxConfirm({ status, onRecorded }) {
       if (onRecorded) onRecorded(received);
     },
   });
-  if (!test || test.status !== "sent" || (inbox && inbox.delivery_id === test.id)) return null;
+  /* 받은 편지함을 물을 수 있는 것은 **받는 쪽 메일 서버까지 간** 시험 메일뿐이다 — 수신측이 거부했거나(bounced) 만료된(expired) 메일, 아직
+     전달 중인(queued · deferred) 메일은 묻지 않는다(그 상태는 진행 띠의 ⑦ 막힘 문장이 말한다, D-555). 바깥 추적이 없는 외부 SMTP(remote_status 없음)는
+     「메일 서버가 접수함」까지가 아는 전부라 그대로 묻는다. */
+  const remote = test ? test.remote_status : null;
+  if (!test || test.status !== "sent" || (remote && remote !== "delivered") || (inbox && inbox.delivery_id === test.id)) return null;
   const error = failureText([record, "받은 편지함 확인을 기록하지 못했습니다."]);
   return (
     <Box data-testid="mail-inbox-confirm">
@@ -165,7 +169,7 @@ function InboxConfirm({ status, onRecorded }) {
           </>
         )}
       >
-        {`${fmtDateTime(test.sent_at || test.created_at)}에 보낸 시험 메일을 다음 서버가 접수했습니다. 받은 편지함(정크함 포함)에서 확인했습니까?`}
+        {`${fmtDateTime(test.sent_at || test.created_at)}에 보낸 시험 메일을 ${remote === "delivered" ? "받는 쪽 메일 서버로 전달했습니다" : "메일 서버가 접수했습니다"}. 받은 편지함(정크함 포함)에서 확인했습니까?`}
         {error ? ` ${error}` : ""}
       </Callout>
     </Box>

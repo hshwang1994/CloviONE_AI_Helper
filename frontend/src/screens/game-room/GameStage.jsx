@@ -192,7 +192,7 @@ export function GameStage({ c }) {
       );
       return (
         <ResultPanel game="숫자 눈치" headline={w ? "가장 낮은 유일한 숫자" : "승자가 없습니다"}
-          lead={w ? `${w.number}을(를) 혼자 낸 사람이 이겼습니다.` : "유일한 숫자가 없어 승자가 없습니다."}
+          lead={w ? `가장 낮은 유일한 숫자는 ${w.number}입니다.` : "유일한 숫자가 없어 승자가 없습니다."}
           winners={winners} winnerLabel="승리" mood={w ? "win" : "calm"} {...reveal}
           detail={detail} detailLabel="공개된 숫자" detailDefaultOpen
           copyText={(numResult.picks || []).map((p) => `${p.name}: ${p.number}`).join("\n")} />

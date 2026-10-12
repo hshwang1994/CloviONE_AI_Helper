@@ -340,6 +340,19 @@ describe("메일 화면 — 안내 흐름 (D-560)", () => {
     await waitFor(() => expect(screen.queryByTestId("mail-inbox-confirm")).toBeNull());
   });
 
+  it("수신측이 거부한 시험 메일은 받은 편지함을 묻지 않고, 수신측까지 간 메일은 「전달했습니다」로 묻는다", async () => {
+    current = status({ latest_test: { id: "d2", status: "sent", sent_at: "2026-10-12T13:24:00", created_at: "2026-10-12T13:24:00", remote_status: "bounced" } });
+    const first = renderScreen();
+    await screen.findByText("메일");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByTestId("mail-inbox-confirm")).toBeNull();
+    first.unmount();
+    current = status({ latest_test: { id: "d3", status: "sent", sent_at: "2026-10-12T13:23:00", created_at: "2026-10-12T13:23:00", remote_status: "delivered" } });
+    renderScreen();
+    const ask = await screen.findByTestId("mail-inbox-confirm");
+    expect(ask).toHaveTextContent("받는 쪽 메일 서버로 전달했습니다");
+  });
+
   it("제공자 프리셋을 고르면 서버 값이 채워지고 도움말과 발급처 링크가 서며, 주소를 고치면 직접 입력으로 돌아간다", async () => {
     const user = userEvent.setup();
     renderScreen();
