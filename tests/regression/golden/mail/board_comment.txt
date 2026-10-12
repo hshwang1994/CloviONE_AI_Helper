@@ -1,0 +1,15 @@
+ClovirAssist
+
+게시글에 새 댓글이 있습니다.
+
+김하나 님이 쓴 게시글에 새 댓글이 달렸습니다.
+
+알림: 게시글에 새 댓글: 이두리
+댓글: 좋은 제안 감사합니다. 다음 주에 반영하겠습니다.
+
+ClovirAssist에서 보기: https://clovirassist.gooddi.lab/#/board
+
+--
+이 메일은 ClovirAssist의 게시글 댓글 알림 설정에 따라 보냈습니다.
+알림 메일 설정 바꾸기: https://clovirassist.gooddi.lab/#/profile
+이 메일은 발신 전용입니다.

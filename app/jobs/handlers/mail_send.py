@@ -145,6 +145,7 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
             subject=rendered.subject,
             body=rendered.text,
             html=rendered.html,
+            inline=rendered.inline,
         )
     except Exception as exc:
         # 렌더 실패도 발송 실패와 같은 자리에서 잡는다 - 렌더가 만든 토큰 행은 이 롤백과

@@ -56,15 +56,7 @@ TERMINAL_MAIL_STATUSES = ALL_MAIL_STATUSES - PENDING_MAIL_STATUSES
 
 # 화면이 상태 값을 받아 이름을 스스로 붙이면, 상태가 하나 늘 때 raw 값이 노출된다
 # (app/core/authz.py 의 ROLE_LABELS 와 같은 이유).
-MAIL_STATUS_LABELS: dict[str, str] = {
-    MAIL_QUEUED: "발송 대기",
-    MAIL_RETRYING: "다시 보내는 중",
-    MAIL_SENT: "발송됨",
-    MAIL_FAILED: "발송 실패",
-    MAIL_UNCONFIGURED: "발송 불가(설정 없음)",
-    MAIL_CANCELLED: "보내지 않음(취소)",
-    MAIL_SUPERSEDED: "의미가 없어져 보내지 않음",
-}
+# 상태의 낱말은 `app/mail/labels.py` 한 곳에 있다(D-555) - 「발송됨」 같은 옛 표는 걷었다(P4 ④). 어느 서버가 받았는지가 낱말에 든다.
 
 # 실패의 종류(`failure_kind`). 전송기가 SMTP 응답과 예외를 이 어휘로 나눈다(`app/mail/transport.py`).
 # 영구 실패는 다시 보내도 같은 결과라 즉시 끝내고, 일시 실패는 재시도 일정대로 다시 보낸다.

@@ -105,6 +105,8 @@ export function MailStatusCard({ health, summary, relay = null, checking = false
       {h.state === "failing" && !checking ? (
         <Callout tone="danger" compact>
           {failed && failed.detail ? failed.detail : h.message}
+          {/* 실패 종류의 흔한 원인 한 문장(P4 ③) - 서버 응답 원문은 기술 정보 안이다. */}
+          {h.hint ? <Typography component="span" variant="body2" sx={{ display: "block", mt: 0.5, ...KO_WORD_BREAK }} data-testid="mail-failure-hint">{h.hint}</Typography> : null}
         </Callout>
       ) : null}
       {problemList ? (

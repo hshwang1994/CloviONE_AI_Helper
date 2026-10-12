@@ -108,17 +108,27 @@ def receives(type_: str, role: str | None) -> bool:
 
 # ── 메일로도 받을 수 있는 유형 (계획 3.4, D-514) ─────────────────────────────
 #
-# 사람 한 명에게 일어난 협업 사건만 메일로 보낼 수 있다. 전용 메일이 따로 있는 유형(승인 요청, 백업 실패,
-# 초대)과 모두에게 가는 방송(유지보수 공지)은 여기 없다 - 같은 사건이 메일 두 통이 되거나 전 직원에게 메일이
-# 쏟아진다. 나열 순서가 화면 순서다.
+# 사람 한 명에게 일어난 사건은 전부 메일로 보낼 수 있다(D-562). 전용 메일이 따로 있는 유형(승인 요청, 백업 실패,
+# 초대)과 모두에게 가는 방송(유지보수 공지), 운영 알림(작업 · 일정 실행 실패)은 여기 없다 - 같은 사건이 메일 두 통이 되거나
+# 전 직원에게 메일이 쏟아진다. 계정 보안 둘(`UNMUTABLE_TYPES`)은 선택과 무관한 보안 메일이라 여기 있지 않고 따로 간다.
+# 나열 순서가 화면 순서다(업무 영역 순서 - `NOTIFICATION_TYPES` 와 같다).
 MAILABLE_TYPES: tuple[str, ...] = (
     "ticket_assigned",
     "ticket_status_changed",
     "ticket_resolved",
     "ticket_comment",
-    "document_comment",
-    "chat_mentioned",
+    "offboarding_handover",
     "approval_decided",
+    "approval_overdue",
+    "approval_expired",
+    "approval_cancelled",
+    "approval_delegated",
+    "chat_invited",
+    "chat_mentioned",
+    "document_comment",
+    "board_comment",
+    "idea_status_changed",
+    "ai_quota_exhausted",
     # AI 연결이 막히거나 복구됐을 때 시스템 관리자에게(D-516). 보내기 직전에 상태가 이미 바뀌었으면 보내지 않는다.
     "ai_provider_state",
 )

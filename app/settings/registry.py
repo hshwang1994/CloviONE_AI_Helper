@@ -150,6 +150,15 @@ def _backup_schedule(value: Any) -> None:
     _cron.validate_cron(expression)
 
 
+def _smtp_default() -> dict:
+    """메일 설정의 기본값 한 벌 - `app/mail/config.py::DEFAULT_SMTP` 의 사본(그 모듈은 이 모듈을 들여오지 않는다)."""
+    import copy
+
+    from app.mail.config import DEFAULT_SMTP
+
+    return copy.deepcopy(DEFAULT_SMTP)
+
+
 def _smtp(value: Any) -> None:
     """메일 발송 서버 설정(9-9 P4, D-545).
 
@@ -499,10 +508,9 @@ REGISTRY: dict[str, SettingSpec] = {
         # 승인 요청. '되는 척하는 스위치'가 아니라는 뜻이다. 기본은 꺼짐이고, 꺼져 있으면
         # 화면과 진단이 "설정 없음"을 분명히 말한다(app/mail/config.py).
         # 비밀번호는 여기 없다 - 고정 칸 smtp.password 에만 있다(D-545).
+        # 기본값은 `app/mail/config.py::DEFAULT_SMTP` 한 벌이다(P4 ④) - 예전에는 여기 옛 여덟 칸만 적혀 두 기본값이 어긋났다.
         SettingSpec("smtp", "object",
-                    {"enabled": False, "host": "", "port": 587, "security": "starttls",
-                     "from_address": "", "from_name": "", "username": "",
-                     "timeout_seconds": 20},
+                    _smtp_default(),
                     False,
                     # 지시 36: 비밀번호를 저장하지 않는다는 사실은 관리자가 알아야 하지만,
                     # 그 저장 방식의 내부 필드 이름까지 알 필요는 없다.

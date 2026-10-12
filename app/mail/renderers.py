@@ -50,6 +50,11 @@ KIND_NOTIFY_EMAIL_VERIFICATION = "notify_email_verification"
 # 코드다(지시 36 · 40). 상태값을 서버가 이름 지어 주는 것과 같은 이유로 종류도 여기서
 # 이름을 준다 - 화면이 스스로 사전을 들면 종류가 하나 늘 때마다 raw 키가 샌다
 # (app/mail/models.py 의 MAIL_STATUS_LABELS 주석 참조).
+# 계정 보안 메일(D-562) - 사용자 선택과 무관하게 본인에게 간다. 종류 키는 알림 유형과 같다(사건 하나에 이름 하나).
+KIND_ACCOUNT_LOCKED = "account_locked"
+KIND_PASSWORD_CHANGE_REQUIRED = "password_change_required"
+SECURITY_KINDS = frozenset({KIND_ACCOUNT_LOCKED, KIND_PASSWORD_CHANGE_REQUIRED})
+
 MAIL_KIND_LABELS: dict[str, str] = {
     KIND_PASSWORD_RESET: "비밀번호 재설정",
     KIND_INVITE: "계정 초대",
@@ -58,6 +63,8 @@ MAIL_KIND_LABELS: dict[str, str] = {
     KIND_TEST: "발송 시험",
     KIND_NOTIFICATION: "알림 메일",
     KIND_NOTIFY_EMAIL_VERIFICATION: "주소 확인 코드",
+    KIND_ACCOUNT_LOCKED: "계정 잠금 안내",
+    KIND_PASSWORD_CHANGE_REQUIRED: "비밀번호 변경 안내",
 }
 
 
@@ -177,11 +184,24 @@ def _content_test(db: Session, delivery: MailDelivery, ctx):
     from app.mail.content import test_content
 
     config = config_from_db(db)
+    mode = getattr(config, "mode", "external")
+    if getattr(config, "local_relay", False):
+        # 로컬 릴레이는 외부 SMTP 값(서버 · 보안 연결)이 없다 - 이 서버의 릴레이와 전달 방식이 사실이다.
+        relay = config.relay
+        if relay.delivery == "direct":
+            delivery_label = "인터넷으로 직접 전달"
+        else:
+            sh = relay.smarthost
+            delivery_label = f"상위 SMTP {sh.host}:{sh.port} 이용" if sh.host else "상위 SMTP 이용"
+        return test_content(
+            product=_product(db), base_url=_base_url(ctx), subject=delivery.subject, sent_at=ctx.clock.now(),
+            server="이 서버의 로컬 릴레이", security_label="", mode_label=MODE_LABELS[mode], delivery_label=delivery_label,
+        )
     return test_content(
         product=_product(db), base_url=_base_url(ctx), subject=delivery.subject, sent_at=ctx.clock.now(),
         server=f"{config.host}:{config.port}" if config.host else "-",
         security_label=SECURITY_LABELS.get(config.security, config.security),
-        mode_label=MODE_LABELS.get(getattr(config, "mode", "external"), MODE_LABELS["external"]),
+        mode_label=MODE_LABELS.get(mode, MODE_LABELS["external"]),
     )
 
 
@@ -227,6 +247,19 @@ def _content_notify_verification(db: Session, delivery: MailDelivery, ctx):
     )
 
 
+def _content_security(db: Session, delivery: MailDelivery, ctx):
+    """계정 잠금 · 비밀번호 변경 요청(D-562). 임시 비밀번호 · 링크 토큰은 싣지 않는다 - 알림의 제목과 본문 문장만이다."""
+    from app.mail.content import security_content
+
+    params = _params(delivery)
+    user = _require_user(db, params)
+    return security_content(
+        product=_product(db), base_url=_base_url(ctx), subject=delivery.subject, name=user.display_name,
+        type_=delivery.kind, title=str(params.get("title") or ""), body=str(params.get("body") or ""),
+        at=params.get("at") or delivery.created_at,
+    )
+
+
 # kind 하나에 내용 함수 하나. 여기 없는 kind 는 발송 자체가 거부된다 - 오타 난 kind 가
 # 조용히 빈 메일로 나가는 것보다, 잡이 영구 실패로 남아 눈에 띄는 편이 낫다.
 CONTENT_BUILDERS = {
@@ -237,6 +270,8 @@ CONTENT_BUILDERS = {
     KIND_TEST: _content_test,
     KIND_NOTIFICATION: _content_notification,
     KIND_NOTIFY_EMAIL_VERIFICATION: _content_notify_verification,
+    KIND_ACCOUNT_LOCKED: _content_security,
+    KIND_PASSWORD_CHANGE_REQUIRED: _content_security,
 }
 
 MAIL_KINDS = frozenset(CONTENT_BUILDERS)

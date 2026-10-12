@@ -21,6 +21,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 from dataclasses import dataclass, field
@@ -45,7 +46,23 @@ COLORS = {
 }
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+ASSET_DIR = Path(__file__).resolve().parent / "assets"
 KST = timezone(timedelta(hours=9))
+
+#: 머리의 로고 표식(D-561) — CID 로 붙인 PNG 한 장. 원격 그림이 아니라 메일 안에 들어 있고, 그림이 막힌 메일 앱에서도 글자 워드마크가 남는다.
+LOGO_CID = "clovi-mark@clovirassist"
+LOGO_FILE = ASSET_DIR / "mark-56.png"
+LOGO_SIZE = 28
+
+
+@lru_cache(maxsize=1)
+def logo_png() -> bytes:
+    return LOGO_FILE.read_bytes()
+
+
+def logo_data_uri() -> str:
+    """미리 보기(sandbox iframe)용 - `cid:` 를 그릴 수 없는 자리에 같은 그림을 data 주소로 준다. 실제 메일에는 쓰지 않는다."""
+    return "data:image/png;base64," + base64.b64encode(logo_png()).decode("ascii")
 
 
 @dataclass
@@ -73,6 +90,8 @@ class RenderedMail:
     subject: str
     text: str
     html: str
+    #: HTML 이 `cid:` 로 가리키는 그림들 `(cid, bytes, media_type)` — 전송기가 `multipart/related` 로 붙인다(D-561).
+    inline: tuple[tuple[str, bytes, str], ...] = ()
 
 
 # ── 설정에서 읽는 것 ──────────────────────────────────────────────────────────
@@ -230,29 +249,42 @@ def approval_requested_content(
 
 def test_content(
     *, product: str, base_url: str, subject: str, sent_at, server: str, security_label: str, mode_label: str,
+    delivery_label: str | None = None,
 ) -> MailContent:
+    """시험 메일. 외부 SMTP 는 서버 · 보안 연결을, 로컬 릴레이는 전달 방식(``delivery_label``)을 사실로 적는다 — 릴레이 모드에
+    외부 SMTP 값이 적히던 결함(P4 ④)을 고쳤다."""
+    facts = [("보낸 시각", kst_text(sent_at)), ("보내는 방법", mode_label), ("메일 서버", server)]
+    facts.append(("전달 방식", delivery_label) if delivery_label else ("보안 연결", security_label))
     return MailContent(
         subject=subject,
         preheader="메일 발송 설정을 확인하려고 보낸 시험 메일입니다.",
         heading="시험 메일입니다.",
         lead=["관리 화면에서 보낸 시험 메일입니다. 이 메일이 받은 편지함에 있다면 지금 설정으로 메일이 나갑니다."],
-        facts=[("보낸 시각", kst_text(sent_at)), ("보내는 방법", mode_label), ("메일 서버", server),
-               ("보안 연결", security_label)],
+        facts=facts,
         action=("메일 설정 열기", _link(base_url, "/admin#/mail?tab=settings")),
         footer_reason=_footer("{product} 관리자가 메일 발송을 확인하려고 보낸 메일입니다.", product),
         product_name=product,
     )
 
 
-# 알림 유형마다 제목 문장. 본문은 알림의 제목(티켓은 키가 든 문장)과 사실이다.
+# 알림 유형마다 제목 문장. 본문은 알림의 제목(티켓은 키가 든 문장)과 사실이다. 메일이 되는 유형 전부(D-562)가 여기 있다.
 NOTIFICATION_HEADINGS = {
     "ticket_assigned": "티켓이 배정됐습니다.",
     "ticket_status_changed": "티켓 상태가 바뀌었습니다.",
     "ticket_resolved": "요청한 티켓이 끝났습니다.",
     "ticket_comment": "티켓에 새 댓글이 있습니다.",
-    "document_comment": "문서에 새 댓글이 있습니다.",
-    "chat_mentioned": "채팅에서 나를 불렀습니다.",
+    "offboarding_handover": "업무를 넘겨받았습니다.",
     "approval_decided": "승인 결과가 나왔습니다.",
+    "approval_overdue": "처리할 승인 요청이 기한을 넘겼습니다.",
+    "approval_expired": "승인 대기 건이 만료됐습니다.",
+    "approval_cancelled": "승인 요청이 취소됐습니다.",
+    "approval_delegated": "승인 권한을 위임받았습니다.",
+    "chat_invited": "채팅방에 초대됐습니다.",
+    "chat_mentioned": "채팅에서 나를 불렀습니다.",
+    "document_comment": "문서에 새 댓글이 있습니다.",
+    "board_comment": "게시글에 새 댓글이 있습니다.",
+    "idea_status_changed": "제안의 상태가 바뀌었습니다.",
+    "ai_quota_exhausted": "AI 사용 한도에 닿았습니다.",
     "ai_provider_state": "AI 연결 상태가 바뀌었습니다.",
 }
 # 받는 사람에게 하는 첫 문장(완전한 문장). 알림 제목(「ABC-12 담당자로 지정: 이두리」)은 사실 상자의 「알림」 줄이다 — 예전에는 이름 뒤에
@@ -262,18 +294,70 @@ NOTIFICATION_LEADS = {
     "ticket_status_changed": "{name} 님과 관련된 티켓의 상태가 바뀌었습니다.",
     "ticket_resolved": "{name} 님이 요청한 티켓에 결과가 나왔습니다.",
     "ticket_comment": "{name} 님과 관련된 티켓에 새 댓글이 달렸습니다.",
-    "document_comment": "{name} 님과 관련된 문서에 새 댓글이 달렸습니다.",
-    "chat_mentioned": "{name} 님을 채팅에서 불렀습니다.",
+    "offboarding_handover": "{name} 님이 퇴사자의 티켓을 넘겨받았습니다.",
     "approval_decided": "{name} 님이 올린 승인 요청에 결과가 나왔습니다.",
+    "approval_overdue": "{name} 님이 처리할 승인 요청이 기한을 넘겼습니다.",
+    "approval_expired": "{name} 님과 관련된 승인 대기 건이 기한을 넘겨 만료됐습니다.",
+    "approval_cancelled": "{name} 님이 올린 승인 요청을 다른 사람이 취소했습니다.",
+    "approval_delegated": "{name} 님이 다른 사람의 승인 권한을 대신 위임받았습니다.",
+    "chat_invited": "{name} 님을 채팅방에 초대했습니다.",
+    "chat_mentioned": "{name} 님을 채팅에서 불렀습니다.",
+    "document_comment": "{name} 님과 관련된 문서에 새 댓글이 달렸습니다.",
+    "board_comment": "{name} 님이 쓴 게시글에 새 댓글이 달렸습니다.",
+    "idea_status_changed": "{name} 님이 올린 제안의 상태가 바뀌었습니다.",
+    "ai_quota_exhausted": "{name} 님이 이번 기간의 AI 사용 한도를 다 썼습니다.",
     "ai_provider_state": "{name} 님, AI 연결 상태가 바뀌었습니다.",
 }
 # 알림 본문 한 줄의 이름 — 티켓 알림의 본문은 티켓 제목이다.
 NOTIFICATION_FACT_LABELS = {
     "ticket_assigned": "티켓 제목", "ticket_status_changed": "티켓 제목", "ticket_resolved": "결과",
-    "ticket_comment": "댓글", "document_comment": "댓글",
+    "ticket_comment": "댓글", "document_comment": "댓글", "board_comment": "댓글", "offboarding_handover": "티켓",
+    "approval_overdue": "요청", "approval_expired": "요청", "approval_cancelled": "요청", "approval_delegated": "위임",
+    "chat_invited": "채팅방", "idea_status_changed": "제안", "ai_quota_exhausted": "한도",
 }
 # 본문을 싣지 않는 유형(D-547 내용 최소화) — 채팅 메시지 미리 보기와 승인자의 의견은 메일로 내보내지 않는다.
 NOTIFICATION_BODY_WITHHELD = frozenset({"chat_mentioned", "approval_decided"})
+
+# 계정 보안 메일(D-562) — 사용자 선택 · 관리자 허용 목록과 무관하게, 메일이 켜져 있고 주소가 있으면 본인에게 보낸다.
+SECURITY_HEADINGS = {
+    "account_locked": "계정이 잠겼습니다.",
+    "password_change_required": "비밀번호 변경이 필요합니다.",
+}
+SECURITY_LEADS = {
+    "account_locked": "{name} 님의 계정에 로그인 실패가 쌓여 잠시 잠겼습니다. 잠금 시간이 지나면 자동으로 풀립니다.",
+    "password_change_required": "{name} 님, 관리자가 비밀번호를 재발급했습니다. 다음 로그인 때 새 비밀번호로 바꾸세요.",
+}
+SECURITY_NOTES = {
+    "account_locked": ["본인이 로그인하려던 것이 아니라면 관리자에게 바로 알려 주세요.", "임시 비밀번호나 링크는 이 메일에 없습니다."],
+    "password_change_required": ["임시 비밀번호는 메일로 보내지 않습니다. 관리자에게 직접 받으세요.",
+                                 "본인이 요청한 일이 아니라면 관리자에게 알려 주세요."],
+}
+
+
+def security_content(*, product: str, base_url: str, subject: str, name: str, type_: str, title: str, body: str,
+                     at) -> MailContent:
+    """계정 잠금 · 비밀번호 변경 요청(D-562). 설정 화면 링크 대신 로그인 화면으로 보내고, 알림 설정 링크가 없다(끌 수 없는 메일)."""
+    link = _link(base_url, "/login")
+    facts: list[tuple[str, str]] = [("발생 시각", kst_text(at))]
+    headline = _one_line(title, 200)
+    if headline:
+        facts.append(("알림", headline))
+    text = _one_line(body, 300)
+    if text:
+        facts.append(("내용", text))
+    return MailContent(
+        subject=subject,
+        preheader=headline or SECURITY_HEADINGS.get(type_, "계정 보안 안내입니다."),
+        heading=SECURITY_HEADINGS.get(type_, "계정 보안 안내입니다."),
+        alert="계정 보안",
+        lead=[SECURITY_LEADS.get(type_, "{name} 님의 계정에 관한 안내입니다.").format(name=name)],
+        facts=facts,
+        action=("로그인 화면 열기", link),
+        fallback_url=link,
+        notes=list(SECURITY_NOTES.get(type_, [])),
+        footer_reason=_footer("계정 보안에 관한 메일이라 {product}의 알림 설정과 상관없이 보냅니다.", product),
+        product_name=product,
+    )
 
 
 def notification_content(
@@ -348,13 +432,21 @@ def _wordmark(product: str) -> tuple[str, str]:
     return product, ""
 
 
-def render(content: MailContent) -> RenderedMail:
-    """내용 → (제목, 평문, HTML). HTML 은 autoescape 라 제목 · 이름의 `<script>` 같은 글자가 그대로 글자로 보인다."""
+def render(content: MailContent, *, logo_src: str | None = None) -> RenderedMail:
+    """내용 → (제목, 평문, HTML). HTML 은 autoescape 라 제목 · 이름의 `<script>` 같은 글자가 그대로 글자로 보인다.
+
+    ``logo_src`` 가 없으면 로고는 `cid:` 로 가리키고 그 PNG 가 `inline` 에 실린다(실제 발송). 미리 보기는 data 주소를 넘긴다.
+    """
     env = _environment()
     head, tail = _wordmark(content.product_name)
-    values = {"c": content, "colors": COLORS, "wordmark_head": head, "wordmark_tail": tail}
+    inline: tuple = ()
+    if logo_src is None:
+        logo_src = f"cid:{LOGO_CID}"
+        inline = ((LOGO_CID, logo_png(), "image/png"),)
+    values = {"c": content, "colors": COLORS, "wordmark_head": head, "wordmark_tail": tail,
+              "logo_src": logo_src, "logo_size": LOGO_SIZE}
     html = env.get_template("layout.html.j2").render(**values)
     # 평문 틀은 이스케이프하지 않는다 - 평문에서 `&` 는 `&amp;` 가 아니라 `&` 다.
     text_env = env.overlay(autoescape=False)
     text = text_env.get_template("layout.txt.j2").render(**values)
-    return RenderedMail(subject=content.subject, text=text, html=html)
+    return RenderedMail(subject=content.subject, text=text, html=html, inline=inline)

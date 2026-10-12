@@ -4,6 +4,7 @@ import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 import { api } from "../../lib/api.js";
 import { failureText } from "../../lib/failure.js";
+import { fmtDateTime } from "../../lib/format.js";
 import {
   Button, Callout, ErrorState, Field, FlowStack, MetaBar, Modal, ModalBody, ModalFooter, Skeleton, useToast,
 } from "../../ui/kit.jsx";
@@ -134,7 +135,44 @@ function DeliveriesTab({ status }) {
   );
 }
 
-function MailBody({ tab, status, verify, setDirty, canOperate, backlog, onBacklog, sendingBacklog }) {
+/* 받은 편지함 확인(D-560 ⑦) — 접수된 시험 메일 한 통에 대해 사람이 「받았습니다」 · 「못 받았습니다」를 기록한다. 제품은 도착을 잴 수
+   없으므로 이 기록이 일곱째 단계의 유일한 근거다. 기록한 뒤에는 사라진다(새 시험 메일이 오면 다시 선다). */
+function InboxConfirm({ status, onRecorded }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const test = status.latest_test;
+  const inbox = status.inbox;
+  const record = useMutation({
+    mutationFn: (received) => api("/api/admin/mail/inbox-confirm", { method: "POST", body: { delivery_id: test.id, received } }),
+    onSuccess: (res, received) => {
+      if (res && res.status) qc.setQueryData(MAIL_STATUS_KEY, res.status);
+      else qc.invalidateQueries({ queryKey: MAIL_STATUS_KEY });
+      toast(received ? "받은 편지함 확인을 기록했습니다. 메일 설정이 끝났습니다." : "받지 못했다고 기록했습니다. 진단을 확인하세요.",
+        received ? "success" : "info");
+      if (onRecorded) onRecorded(received);
+    },
+  });
+  if (!test || test.status !== "sent" || (inbox && inbox.delivery_id === test.id)) return null;
+  const error = failureText([record, "받은 편지함 확인을 기록하지 못했습니다."]);
+  return (
+    <Box data-testid="mail-inbox-confirm">
+      <Callout
+        tone="info" title="받은 편지함 확인"
+        action={(
+          <>
+            <Button size="sm" variant="primary" loading={record.isPending} onClick={() => record.mutate(true)}>받았습니다</Button>
+            <Button size="sm" disabled={record.isPending} onClick={() => record.mutate(false)}>못 받았습니다</Button>
+          </>
+        )}
+      >
+        {`${fmtDateTime(test.sent_at || test.created_at)}에 보낸 시험 메일을 다음 서버가 접수했습니다. 받은 편지함(정크함 포함)에서 확인했습니까?`}
+        {error ? ` ${error}` : ""}
+      </Callout>
+    </Box>
+  );
+}
+
+function MailBody({ tab, status, verify, setDirty, canOperate, backlog, onBacklog, sendingBacklog, onAction }) {
   if (tab === "deliveries") return <DeliveriesTab status={status} />;
   if (tab === "notifications") return <NotificationMailTab status={status} />;
   return (
@@ -144,7 +182,8 @@ function MailBody({ tab, status, verify, setDirty, canOperate, backlog, onBacklo
           {`설정 전에 쌓인 메일 ${backlog}건이 있습니다. 지금 보내도 되는지 확인한 뒤 보내세요.`}
         </Callout>
       ) : null}
-      <MailSettingsTab status={status} verify={verify} onDirtyChange={setDirty} />
+      {canOperate ? <InboxConfirm status={status} /> : null}
+      <MailSettingsTab status={status} verify={verify} onDirtyChange={setDirty} onAction={onAction} />
     </FlowStack>
   );
 }
@@ -216,12 +255,18 @@ export function MailScreen() {
   const timedOut = test.timedOut ? "확인이 시간 안에 끝나지 않았습니다. 잠시 뒤 발송 기록에서 다시 확인하세요." : null;
   const verifyState = { ...verify, waiting: busy };
   const problem = startError || notice || timedOut;
+  /* 진행 띠의 「이동」이 머리 단추를 가리킬 때(연결 확인 · 시험 메일). 구획으로 가는 것은 설정 탭이 스스로 한다. */
+  const onAction = (anchor) => {
+    if (anchor === "action:verify" && !dirty && !cannotSend) startVerify.mutate();
+    else if (anchor === "action:test" && !dirty && !cannotSend) setDialog(true);
+  };
   const body = (tab) => (
     <FlowStack>
       {problem ? <Callout tone="danger" compact>{problem}</Callout> : null}
       <MailBody
         tab={tab} status={status} verify={verifyState} setDirty={setDirty} canOperate={caps.can_operate}
         backlog={(status.backlog || {}).count || 0} onBacklog={() => backlog.mutate()} sendingBacklog={backlog.isPending}
+        onAction={onAction}
       />
     </FlowStack>
   );

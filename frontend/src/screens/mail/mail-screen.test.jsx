@@ -50,8 +50,25 @@ const SETTINGS = {
   limits: {},
 };
 
+const PROGRESS = {
+  steps: [
+    { key: "enable", label: "메일 발송 켜기", state: "done", hint: null, anchor: "section:enable" },
+    { key: "method", label: "보내는 방법 고르기", state: "done", hint: null, anchor: "section:method" },
+    { key: "inputs", label: "보내는 사람과 방식별 정보 입력", state: "done", hint: null, anchor: "section:inputs" },
+    { key: "applied", label: "저장과 적용", state: "done", hint: null, anchor: "section:relay" },
+    { key: "verified", label: "연결 확인", state: "done", hint: null, anchor: "action:verify" },
+    { key: "test_sent", label: "시험 메일", state: "current", hint: "시험 메일을 보내세요.", anchor: "action:test" },
+    { key: "inbox_confirmed", label: "받은 편지함 확인", state: "todo", hint: null, anchor: "action:inbox" },
+  ],
+  next: { key: "test_sent", label: "시험 메일", state: "current", hint: "시험 메일을 보내세요.", anchor: "action:test" },
+  done_count: 5, total: 7, complete: false,
+};
+
 function status(patch = {}) {
   return {
+    progress: PROGRESS,
+    latest_test: null,
+    inbox: null,
     health: {
       state: "ok", label: "정상", kind: "ok", message: "메일 발송을 사용할 수 있습니다.", checked_at: "2026-10-01T05:05:00",
       stages: STAGES.map((s) => ({ ...s, state: s.state === "failed" || s.state === "not_reached" ? "ok" : s.state, detail: null })),
@@ -288,5 +305,72 @@ describe("메일 화면 — 발송 기록 · 알림 메일", () => {
     await user.click(screen.getByRole("tab", { name: "텍스트" }));
     expect(screen.getByTestId("mail-preview-text")).toHaveTextContent("평문 본문입니다.");
     expect(screen.queryByTestId("mail-preview-frame")).toBeNull();
+  });
+});
+
+describe("메일 화면 — 안내 흐름 (D-560)", () => {
+  it("진행 띠가 일곱 단계와 다음 할 일을 보이고 「이동」이 머리 동작을 연다", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    const strip = await screen.findByTestId("mail-progress");
+    expect(within(strip).getAllByRole("listitem")).toHaveLength(7);
+    expect(strip.querySelector('[data-step="test_sent"]')).toHaveAttribute("aria-current", "step");
+    expect(strip.querySelectorAll('[data-step-state="done"]')).toHaveLength(5);
+    expect(within(strip).getByText("시험 메일을 보내세요.")).toBeInTheDocument();
+    await user.click(within(strip).getByRole("button", { name: "이동" }));
+    expect(await screen.findByRole("dialog", { name: "시험 메일 보내기" })).toBeInTheDocument();
+  });
+
+  it("접수된 시험 메일은 받은 편지함 확인을 묻고 「받았습니다」가 기록 API 로 간다", async () => {
+    const user = userEvent.setup();
+    current = status({ latest_test: { id: "d1", status: "sent", sent_at: "2026-10-12T05:18:00", created_at: "2026-10-12T05:17:00" } });
+    route((p, method) => {
+      if (p === "/api/admin/mail/inbox-confirm" && method === "POST") {
+        return Promise.resolve({ inbox: { delivery_id: "d1", received: true }, status: { ...current, inbox: { delivery_id: "d1", received: true } } });
+      }
+      return null;
+    });
+    renderScreen();
+    const ask = await screen.findByTestId("mail-inbox-confirm");
+    expect(ask).toHaveTextContent("받은 편지함(정크함 포함)에서 확인했습니까?");
+    expect(ask.textContent).not.toMatch(/도착했습니다/);
+    await user.click(within(ask).getByRole("button", { name: "받았습니다" }));
+    await waitFor(() => expect(calls("POST", "/api/admin/mail/inbox-confirm")).toHaveLength(1));
+    expect(calls("POST", "/api/admin/mail/inbox-confirm")[0][1].body).toEqual({ delivery_id: "d1", received: true });
+    await waitFor(() => expect(screen.queryByTestId("mail-inbox-confirm")).toBeNull());
+  });
+
+  it("제공자 프리셋을 고르면 서버 값이 채워지고 도움말과 발급처 링크가 서며, 주소를 고치면 직접 입력으로 돌아간다", async () => {
+    const user = userEvent.setup();
+    renderScreen();
+    await screen.findByTestId("mail-settings-form");
+    expect(screen.getByRole("radio", { name: /직접 입력/ })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: /^Gmail/ }));
+    expect(screen.getByLabelText(/서버 주소/)).toHaveValue("smtp.gmail.com");
+    expect(screen.getByLabelText("포트")).toHaveValue(587);
+    expect(screen.getByTestId("mail-preset-help")).toHaveTextContent("16자리 앱 비밀번호");
+    expect(screen.getByRole("link", { name: "앱 비밀번호 발급 안내" })).toHaveAttribute("href", "https://myaccount.google.com/apppasswords");
+    await user.click(screen.getByRole("radio", { name: /^Naver/ }));
+    expect(screen.getByLabelText(/서버 주소/)).toHaveValue("smtp.naver.com");
+    expect(screen.getByLabelText("포트")).toHaveValue(465);
+    await user.type(screen.getByLabelText(/서버 주소/), "x");
+    expect(screen.getByRole("radio", { name: /직접 입력/ })).toBeChecked();
+    expect(screen.queryByTestId("mail-preset-help")).toBeNull();
+  });
+
+  it("발송 실패의 흔한 원인 한 문장이 까닭 아래에 선다", async () => {
+    current = status({ health: { state: "failing", label: "발송 실패", kind: "danger", message: "메일 서버가 로그인을 거부했습니다.",
+      checked_at: "2026-10-01T05:05:00", stages: STAGES, failure_kind: "auth", stage: "auth",
+      hint: "비밀번호가 틀렸거나 앱 비밀번호가 필요합니다." } });
+    renderScreen();
+    expect(await screen.findByTestId("mail-failure-hint")).toHaveTextContent("앱 비밀번호가 필요합니다.");
+  });
+
+  it("보내는 방법은 로컬 릴레이가 먼저다", async () => {
+    renderScreen();
+    await screen.findByTestId("mail-settings-form");
+    const radios = within(screen.getByRole("radiogroup", { name: "보내는 방법" })).getAllByRole("radio");
+    expect(radios[0]).toHaveAccessibleName(/로컬 릴레이/);
+    expect(radios[0]).toHaveTextContent("메일 계정이 필요 없습니다.");
   });
 });

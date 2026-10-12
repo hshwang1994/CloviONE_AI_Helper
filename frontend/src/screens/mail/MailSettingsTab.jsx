@@ -2,6 +2,7 @@ import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
+import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
@@ -14,11 +15,20 @@ import { SettingRow } from "../../ui/adminKit.jsx";
 import { ChoiceCards } from "../../ui/ChoiceCards.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 import { MailStatusCard } from "./MailStatusCard.jsx";
+import { ProgressStrip } from "./ProgressStrip.jsx";
+import { PRESET_CUSTOM, SMTP_PRESETS, presetByKey, presetOf, presetPatch } from "./presets.js";
 import {
   MAIL_RELAY_KEY, RelayFields, RelayReadOnly, RelayReadiness, RelayVerifyContext, useRelayQuery,
 } from "./RelaySection.jsx";
 
-/* 메일 · 설정 탭 (계획 M1, D-548) — 관리자의 작업 순서대로 읽힌다: 켜기 → 보내는 방법 → 보내는 사람 → 고른 방식의 설정 → 보안 → 저장.
+/* 메일 · 설정 탭 (계획 M1, D-548 · D-560) — 관리자의 작업 순서대로 읽힌다: 켜기 → 보내는 방법 → 보내는 사람 → 고른 방식의 설정 → 보안 → 저장.
+ *
+ * ## 「가진 것」에서 출발하는 안내 흐름 (D-560)
+ *
+ * 상태 면 아래 **진행 띠**가 서버가 계산한 일곱 단계(켜기 · 방법 · 입력 · 적용 · 연결 확인 · 시험 메일 · 받은 편지함 확인)와 「다음 할 일」
+ * 한 문장을 보이고, [이동] 은 그 단계의 구획이나 머리 단추로 간다. 보내는 방법은 로컬 릴레이가 먼저다(설치에 포함된 구성 요소, 계정 불필요).
+ * 외부 SMTP 구획 맨 위의 제공자 프리셋(Gmail · Microsoft 365 · Naver · 직접 입력)이 서버 값을 채우고 비밀번호 도움말과 발급처 링크를 준다.
+ * 긴 준비 점검 · 레코드 · 기술 값은 로컬 릴레이 구획의 「진단」 접기 안이다(`RelayReadiness`).
  *
  * 카드는 맨 위의 짧은 상태 면 하나뿐이고, 설정은 한 판 위의 구획(머리 + 1px 선)이다(F7). SMTP 설정을 범용 JSON 설정 창으로
  * 되돌리지 않는다. 저장 방식은 하나다: 비밀번호까지 한 번의 「저장」에 실린다 - 예전에는 비밀번호만 즉시 저장되고 나머지는 따로
@@ -65,13 +75,30 @@ function relayBody(relay) {
   };
 }
 
-export function MailSettingsTab({ status, verify, onDirtyChange }) {
+export function MailSettingsTab({ status, verify, onDirtyChange, onAction }) {
   const caps = status.capabilities || {};
   if (!caps.can_configure) return <ReadOnlySettings status={status} verify={verify} />;
-  return <EditableSettings status={status} verify={verify} onDirtyChange={onDirtyChange} />;
+  return <EditableSettings status={status} verify={verify} onDirtyChange={onDirtyChange} onAction={onAction} />;
 }
 
-function EditableSettings({ status, verify, onDirtyChange }) {
+/* 진행 띠의 「이동」 - 구획(`section:*`)은 여기서 굴리고, 머리 단추(`action:*`)는 화면(MailScreen)에 맡긴다. */
+function useSectionJump(onAction) {
+  const refs = React.useRef({});
+  const register = (key) => (el) => { refs.current[key] = el; };
+  const go = (next) => {
+    const anchor = (next && next.anchor) || "";
+    if (anchor.startsWith("section:")) {
+      const el = refs.current[anchor.slice("section:".length)];
+      const target = el && (el.firstElementChild || el);
+      if (target && typeof target.scrollIntoView === "function") target.scrollIntoView({ block: "start", behavior: "smooth" });
+      return;
+    }
+    if (onAction) onAction(anchor);
+  };
+  return { register, go };
+}
+
+function EditableSettings({ status, verify, onDirtyChange, onAction }) {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -82,6 +109,8 @@ function EditableSettings({ status, verify, onDirtyChange }) {
   const [relayPassword, setRelayPassword] = React.useState("");
   const [clearRelayPassword, setClearRelayPassword] = React.useState(false);
   const [advanced, setAdvanced] = React.useState(false);
+  const [presetKey, setPresetKey] = React.useState(null);
+  const jump = useSectionJump(onAction);
 
   const base = { ...EMPTY, ...((query.data && query.data.settings) || {}) };
   base.relay = { ...EMPTY_RELAY, ...(base.relay || {}) };
@@ -124,6 +153,14 @@ function EditableSettings({ status, verify, onDirtyChange }) {
 
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
   const setRelay = (patch) => setDraft((d) => ({ ...d, relay: { ...(d.relay || base.relay), ...patch } }));
+  /* 프리셋은 값을 채우는 도구다 - 고른 적이 없으면 지금 서버 주소의 모양으로 안다. 서버 주소를 고치면 「직접 입력」으로 돌아간다. */
+  const preset = presetKey || presetOf(values);
+  const presetInfo = presetByKey(preset);
+  function choosePreset(key) {
+    setPresetKey(key);
+    const patch = presetPatch(key);
+    if (Object.keys(patch).length) set(patch);
+  }
   function changeSecurity(next) {
     const before = values.security;
     const patch = { security: next };
@@ -168,6 +205,10 @@ function EditableSettings({ status, verify, onDirtyChange }) {
       {/* 발이 긴 폼에서 창 아래에 따라오도록(`ActionFooter sticky`) 판은 넘침을 자르지 않는다 - MUI Card 뿌리의 `overflow: hidden`
           이 판을 스크롤 창으로 만들면 발이 판 안에서만 움직이고 끝까지 굴렸을 때 마지막 단추를 덮었다(P12 실측 4px). */}
       <Card stack data-testid="mail-settings-form" sx={{ overflow: "visible" }}>
+        {/* 진행 띠(D-560) - 서버가 계산한 일곱 단계와 다음 할 일. 저장하지 않은 수정 내용이 있으면 저장한 사실이 아니라 그대로다. */}
+        <ProgressStrip progress={status.progress} onGo={jump.go} />
+
+        <Box ref={jump.register("enable")} sx={{ display: "contents" }}>
         <FormSection titleAs="h2" title="메일 보내기">
           <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 } }}>
             <SettingRow
@@ -180,23 +221,30 @@ function EditableSettings({ status, verify, onDirtyChange }) {
             />
           </Box>
         </FormSection>
+        </Box>
 
-        <FormSection titleAs="h2" title="보내는 방법">
+        <Box ref={jump.register("method")} sx={{ display: "contents" }}>
+        <FormSection titleAs="h2" title="보내는 방법"
+          description="메일 계정이 없어도 로컬 릴레이로 보낼 수 있습니다. 회사 계정이나 Gmail 같은 외부 계정이 있으면 외부 SMTP 를 고릅니다.">
+          {/* 로컬 릴레이가 먼저다(D-560) - 설치에 포함된 구성 요소라 계정이 필요 없다. */}
           <ChoiceCards
             name="mail-mode" ariaLabel="보내는 방법" value={values.mode} onChange={(next) => set({ mode: next })}
             options={[
-              { value: "external", label: "외부 SMTP 사용", description: "회사 SMTP 서버나 외부 메일 서비스로 보냅니다." },
               {
                 value: "local_relay", label: "ClovirAssist 로컬 릴레이",
-                description: "이 서버에 설치된 발송 전용 구성 요소로 보냅니다.",
+                description: "이 서버에 설치된 구성 요소로 보냅니다. 메일 계정이 필요 없습니다.",
               },
+              { value: "external", label: "외부 SMTP 사용", description: "회사 메일 계정이나 Gmail 같은 외부 계정으로 보냅니다." },
             ]}
           />
         </FormSection>
+        </Box>
 
+        <Box ref={jump.register("inputs")} sx={{ display: "contents" }}>
         <FormSection titleAs="h2" title="보내는 사람">
           <FieldRow columns={["1fr", "1fr"]}>
-            <Field label="보내는 주소" htmlFor="mail-from" required={!off} help="받는 사람이 보는 주소입니다.">
+            <Field label="보내는 주소" htmlFor="mail-from" required={!off}
+              help={presetInfo && presetInfo.from_note && !local ? presetInfo.from_note : "받는 사람이 보는 주소입니다."}>
               <TextField id="mail-from" size="small" fullWidth value={values.from_address}
                 onChange={(e) => set({ from_address: e.target.value })} placeholder="noreply@example.com"
                 inputProps={{ spellCheck: false, autoComplete: "off" }} />
@@ -207,9 +255,10 @@ function EditableSettings({ status, verify, onDirtyChange }) {
             </Field>
           </FieldRow>
         </FormSection>
+        </Box>
 
         {local ? (
-          <>
+          <Box ref={jump.register("relay")} sx={{ display: "contents" }}>
             <RelayFields
               values={values} setRelay={setRelay} relay={relayQuery.data || null} savedLocal={base.mode === "local_relay"} dirty={dirty}
               relayPassword={relayPassword} setRelayPassword={setRelayPassword} clearRelayPassword={clearRelayPassword}
@@ -217,15 +266,35 @@ function EditableSettings({ status, verify, onDirtyChange }) {
             />
             {relayQuery.isError ? <ErrorState error={relayQuery.error} onRetry={relayQuery.refetch} /> : null}
             <RelayReadiness relay={relayQuery.data || null} savedLocal={base.mode === "local_relay"} dirty={dirty} />
-          </>
+          </Box>
         ) : null}
 
         {local ? null : (
-        <FormSection titleAs="h2" title="SMTP 서버">
+        <FormSection titleAs="h2" title="SMTP 서버"
+          description="메일 서비스를 고르면 서버 값이 채워집니다. 계정과 비밀번호만 넣으면 됩니다.">
+          {/* 제공자 프리셋(D-560) - 값을 채우는 도구다. 서버 주소를 고치면 「직접 입력」으로 돌아간다. */}
+          <Field label="메일 서비스" labelId="mail-preset-label">
+            <ChoiceCards
+              name="mail-preset" ariaLabel="메일 서비스" value={preset} onChange={choosePreset}
+              options={SMTP_PRESETS.map((p) => ({ value: p.key, label: p.label, description: p.description }))}
+            />
+          </Field>
+          {presetInfo && preset !== PRESET_CUSTOM ? (
+            <Box data-testid="mail-preset-help">
+              <Callout tone="info" compact
+                action={presetInfo.link ? (
+                  <Link href={presetInfo.link.url} target="_blank" rel="noopener noreferrer" sx={{ fontSize: FONT_SIZE.bodySm, whiteSpace: "nowrap" }}>
+                    {presetInfo.link.label}
+                  </Link>
+                ) : null}>
+                {presetInfo.help}
+              </Callout>
+            </Box>
+          ) : null}
           <FieldRow columns={["2fr", "12rem", "8rem"]}>
             <Field label="서버 주소" htmlFor="mail-host" required={!off}>
               <TextField id="mail-host" size="small" fullWidth value={values.host}
-                onChange={(e) => set({ host: e.target.value })} placeholder="smtp.example.com"
+                onChange={(e) => { set({ host: e.target.value }); setPresetKey(null); }} placeholder="smtp.example.com"
                 inputProps={{ spellCheck: false, autoComplete: "off" }} />
             </Field>
             <Field label="보안 연결" labelId="mail-security-label">
@@ -241,7 +310,8 @@ function EditableSettings({ status, verify, onDirtyChange }) {
             </Field>
           </FieldRow>
           <FieldRow columns={["1fr", "1fr"]}>
-            <Field label="계정" htmlFor="mail-username" help="계정이 없는 사내 중계라면 계정과 비밀번호를 비워 둡니다.">
+            <Field label="계정" htmlFor="mail-username"
+              help={preset !== PRESET_CUSTOM ? "그 서비스에 로그인하는 메일 주소입니다." : "계정이 없는 사내 중계라면 계정과 비밀번호를 비워 둡니다."}>
               <TextField id="mail-username" size="small" fullWidth value={values.username}
                 onChange={(e) => set({ username: e.target.value })} inputProps={{ spellCheck: false, autoComplete: "off" }} />
             </Field>
@@ -249,7 +319,8 @@ function EditableSettings({ status, verify, onDirtyChange }) {
               label="비밀번호" htmlFor="mail-password"
               help={clearPassword ? "저장하면 비밀번호를 삭제합니다."
                 : password ? "저장하면 이 비밀번호로 바꿉니다."
-                  : stored ? "비밀번호가 저장돼 있습니다. 바꿀 때만 새로 넣으세요." : "비밀번호가 저장돼 있지 않습니다."}
+                  : stored ? "비밀번호가 저장돼 있습니다. 바꿀 때만 새로 넣으세요."
+                    : (preset === "gmail" ? "16자리 앱 비밀번호를 넣습니다. 계정 비밀번호는 쓸 수 없습니다." : "비밀번호가 저장돼 있지 않습니다.")}
               action={stored && !password ? (
                 <Button onClick={() => setClearPassword((v) => !v)}>{clearPassword ? "삭제 취소" : "삭제"}</Button>
               ) : null}

@@ -480,8 +480,10 @@ def test_the_admin_status_lists_the_mailable_catalog(client, world):
     csrf = _login(client, "mail-amy@goodmit.co.kr")
     body = client.get("/api/admin/mail/status", headers={"X-CSRF-Token": csrf}).json()["notification_mail"]
     assert body["allowed"] == ["ticket_assigned", "ticket_status_changed", "ticket_resolved"]
-    # 메일로 보낼 수 있는 유형은 여덟이다 - D-516 이 AI 연결 상태를 더했다(시스템 관리자만 받는다).
-    assert len(body["catalog"]) == 8 and body["max_age_days"] == 7
+    # 메일로 보낼 수 있는 유형은 사용자에게 가는 사건 전부다(D-562) - 표의 순서가 화면 순서다.
+    from app.profiles.prefs import MAILABLE_TYPES
+
+    assert [item["key"] for item in body["catalog"]] == list(MAILABLE_TYPES) and body["max_age_days"] == 7
     assert "ai_provider_state" in {item["key"] for item in body["catalog"]}
 
 
@@ -490,3 +492,87 @@ def test_the_allow_list_rejects_types_that_cannot_be_mailed(client, world):
     r = client.put("/api/admin/settings/mail_notification_types", json={"value": ["backup_failed"]},
                    headers={"X-CSRF-Token": csrf})
     assert r.status_code == 422, r.text
+
+
+# ── 메일이 되는 유형의 확대와 계정 보안 메일 (D-562) ───────────────────────────
+
+
+def test_every_user_facing_type_is_mailable_and_the_dedicated_kinds_are_not(app, world):
+    from app.notifications.mail import SECURITY_MAIL_TYPES
+    from app.profiles.prefs import MAILABLE_TYPES, NOTIFICATION_TYPES, UNMUTABLE_TYPES
+
+    for type_ in ("approval_overdue", "approval_expired", "approval_cancelled", "approval_delegated", "chat_invited",
+                  "board_comment", "idea_status_changed", "offboarding_handover", "ai_quota_exhausted"):
+        assert type_ in MAILABLE_TYPES and type_ in NOTIFICATION_TYPES, type_
+    for type_ in ("approval_requested", "backup_failed", "maintenance_announcement", "job_failed", "schedule_failed"):
+        assert type_ not in MAILABLE_TYPES, f"{type_} 는 전용 메일이나 방송이라 알림 메일이 되면 두 통이다"
+    assert SECURITY_MAIL_TYPES == UNMUTABLE_TYPES and not (SECURITY_MAIL_TYPES & set(MAILABLE_TYPES))
+
+
+def test_a_newly_mailable_type_reaches_an_opted_in_user_once_the_admin_allows_it(app, settings, fake_clock, world):
+    configure_smtp(app)
+    _opt_in(app, world["wendy"])
+    from app.notifications.service import notify_user
+
+    with app.state.session_factory() as db:
+        notify_user(db, world["wendy"], type_="idea_status_changed", title="제안 상태 변경: 검토 중",
+                    body="메일 알림 유형 확대 제안이 검토 중으로 바뀌었습니다.", now=app.state.clock.now())
+        db.commit()
+    assert _mails(app) == [], "관리자가 허용하기 전에는 새 유형도 메일이 되지 않는다(기본 셋 그대로)"
+    _allow(app, ["ticket_assigned", "idea_status_changed"])
+    with app.state.session_factory() as db:
+        notify_user(db, world["wendy"], type_="idea_status_changed", title="제안 상태 변경: 검토 중",
+                    body="메일 알림 유형 확대 제안이 검토 중으로 바뀌었습니다.", now=app.state.clock.now())
+        db.commit()
+    rows = _mails(app, "mail-wendy@goodmit.co.kr")
+    assert len(rows) == 1
+    server = FakeServer()
+    drain_worker(app, settings, fake_clock, server)
+    assert server.sent, [(r.status, r.skip_reason, r.last_error) for r in _mails(app)]
+    assert "제안의 상태가 바뀌었습니다." in server.sent[0]["body"]
+
+
+def test_the_dedicated_kinds_never_make_a_second_notification_mail(app, world):
+    configure_smtp(app)
+    _opt_in(app, world["amy"])
+    from app.notifications.service import notify_admins, notify_user
+
+    with app.state.session_factory() as db:
+        notify_user(db, world["amy"], type_="approval_requested", title="승인 요청", now=app.state.clock.now())
+        notify_admins(db, type_="backup_failed", title="백업 실패", now=app.state.clock.now())
+        db.commit()
+    assert _mails(app) == []
+
+
+def test_account_security_mails_go_to_the_person_regardless_of_choices_and_not_to_admins(app, settings, fake_clock, world):
+    """계정 잠금 · 비밀번호 변경 요청은 메일 알림을 끈 사람에게도, 관리자가 허용하지 않아도 간다 - 관리자 방송은 가지 않는다."""
+    configure_smtp(app)
+    _allow(app, ["ticket_assigned"])
+    from app.notifications.service import notify_admins, notify_user
+
+    with app.state.session_factory() as db:
+        notify_user(db, world["bob"], type_="account_locked", title="로그인 실패 누적으로 계정이 잠겼습니다",
+                    body="잠금 시간이 지나면 자동 해제됩니다.", now=app.state.clock.now(), context={"security_self": True})
+        notify_admins(db, type_="account_locked", title="계정 잠금 발생: mail-bob@goodmit.co.kr", now=app.state.clock.now())
+        notify_user(db, world["rita"], type_="password_change_required", title="비밀번호 변경이 필요합니다",
+                    body="관리자가 비밀번호를 재발급했습니다.", now=app.state.clock.now(), context={"security_self": True})
+        # 같은 유형이라도 본인 표지가 없는 알림(관리자 방송 · 다른 경로)은 메일이 되지 않는다.
+        notify_user(db, world["wendy"], type_="account_locked", title="계정 잠금 발생: 남의 계정", now=app.state.clock.now())
+        db.commit()
+    with app.state.session_factory() as db:
+        rows = list(db.execute(select(MailDelivery).where(MailDelivery.kind.in_(["account_locked", "password_change_required"]))
+                               .order_by(MailDelivery.created_at)).scalars())
+        db.expunge_all()
+    with app.state.session_factory() as db:
+        everything = [(r.kind, r.to_email, r.status, r.last_error) for r in db.execute(select(MailDelivery)).scalars()]
+    # 같은 시각(가짜 시계)에 만든 행이라 순서는 없다 - 집합으로 본다.
+    assert sorted((r.kind, r.to_email) for r in rows) == [
+        ("account_locked", "mail-bob@goodmit.co.kr"), ("password_change_required", "mail-rita@goodmit.co.kr"),
+    ], f"본인에게 한 통씩, 관리자 방송은 메일이 아니다: {everything}"
+    assert _mails(app) == [], "보안 메일은 알림 메일 종류가 아니다"
+    server = FakeServer()
+    drain_worker(app, settings, fake_clock, server)
+    bodies = {m["to"]: m["body"] for m in server.sent}
+    assert "계정이 잠겼습니다." in bodies["mail-bob@goodmit.co.kr"]
+    assert "알림 설정과 상관없이" in bodies["mail-bob@goodmit.co.kr"]
+    assert "token=" not in bodies["mail-rita@goodmit.co.kr"] and "임시 비밀번호는 메일로 보내지 않습니다." in bodies["mail-rita@goodmit.co.kr"]

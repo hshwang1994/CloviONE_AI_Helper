@@ -113,6 +113,23 @@ STAGE_LABELS: dict[str, str] = {
 VERIFY_STAGES = ("dns", "connect", "tls", "auth", "sender", "recipient")
 
 
+#: 연결 확인 · 발송 실패의 **흔한 원인**(P4 ③) — 실패 종류마다 사람이 먼저 볼 곳 한 문장. 서버 응답 원문은 기술 정보 안이다.
+FAILURE_HINTS: dict[str, str] = {
+    "auth": "비밀번호가 틀렸거나 앱 비밀번호가 필요합니다. Microsoft 365 라면 조직이 SMTP 인증을 막았을 수 있습니다(535 5.7.139).",
+    "sender": "보내는 주소가 로그인 계정과 다르면 메일 서버가 거부합니다(550, 553). 계정 주소를 보내는 주소로 쓰세요.",
+    "connect": "서버 주소와 포트를 확인하세요. 587 이나 465 가 방화벽에 막혀 있으면 연결이 시간 안에 끝나지 않습니다.",
+    "tls": "서버 인증서를 확인하지 못했습니다. 사설 인증서라면 CA 인증서를 넣고, 보안 연결 방식과 포트가 짝이 맞는지 보세요.",
+    "temporary": "메일 서버가 잠시 거절했습니다. 잠시 뒤 다시 확인하세요.",
+    "rejected": "메일 서버가 거절했습니다. 기술 정보의 응답 코드를 보고 계정과 보내는 주소를 확인하세요.",
+    "disconnected": "메일 서버가 연결을 끊었습니다. 보안 연결 방식과 포트를 확인하세요.",
+    "config": "설정이 비어 있거나 비밀번호가 없습니다. 메일 설정을 다시 저장하세요.",
+}
+
+
+def failure_hint(kind: str | None) -> str | None:
+    return FAILURE_HINTS.get(kind or "")
+
+
 def delivery_word(status: str, *, mode: str | None = None, remote_status: str | None = None,
                   relay_delivery: str | None = None, sending: bool = False) -> str:
     """발송 기록 한 줄의 상태 낱말. 확인한 단계까지만 말한다(머리말)."""

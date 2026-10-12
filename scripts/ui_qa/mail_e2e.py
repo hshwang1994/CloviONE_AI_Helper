@@ -101,12 +101,17 @@ def _wait_new(sink: MailSink, before: int, *, expect: int = 1, timeout: float = 
 
 def _shape_checks(report: Report, step: str, mail: dict, base: str) -> None:
     report.check(f"{step}: 제목 접두", mail["subject"].startswith("[ClovirAssist]"), mail["subject"])
+    # HTML 쪽은 CID 로고를 담은 `multipart/related` 다(D-561) - 평문이 먼저, 그 다음이 HTML(관련 그림 포함)이다.
+    html_part = mail["parts"][1] if len(mail["parts"]) > 1 else ""
     report.check(f"{step}: 두 부분(평문 → HTML)", mail["content_type"] == "multipart/alternative"
-                 and mail["parts"][:2] == ["text/plain", "text/html"], ", ".join(mail["parts"]))
+                 and mail["parts"][0] == "text/plain" and html_part in ("text/html", "multipart/related"), ", ".join(mail["parts"]))
     links = [u for u in LINK_RE.findall(mail["html"]) if not u.startswith("mailto:")]
     bad = [u for u in links if not u.startswith(base)]
     report.check(f"{step}: 링크가 기준 주소의 절대 주소", not bad, ", ".join(bad[:3]) or f"{len(links)}개")
-    report.check(f"{step}: 원격 그림 없음", "<img" not in mail["html"].lower())
+    report.check(f"{step}: 원격 그림 없음", not re.search(r'<img[^>]+src="https?://', mail["html"], re.I))
+    cids = [str(part["Content-ID"] or "") for part in mail["msg"].walk() if part.get_content_type() == "image/png"]
+    report.check(f"{step}: 로고는 CID 로 붙인 PNG 한 장", cids == ["<clovi-mark@clovirassist>"]
+                 and 'src="cid:clovi-mark@clovirassist"' in mail["html"], str(cids))
 
 
 def run(out: Path, render: bool) -> int:
@@ -189,6 +194,14 @@ def run(out: Path, render: bool) -> int:
                          f"{d.get('message_id')} / {mail['message_id']}")
             report.check("발송 기록 낱말이 「접수」(도착이 아니다)", "도착" not in (d.get("status_label") or "")
                          and "접수" in (d.get("status_label") or ""), d.get("status_label") or "")
+            # 7단계(D-560): 접수된 시험 메일 뒤 남은 일은 받은 편지함 확인이고, 사람이 「받았습니다」를 적어야 끝난다.
+            prog = (admin.get("/api/admin/mail/status").json().get("progress") or {})
+            report.check("7단계: 접수 뒤 남은 일은 받은 편지함 확인", (prog.get("next") or {}).get("key") == "inbox_confirmed"
+                         and prog.get("done_count") == 6, json.dumps(prog.get("next"), ensure_ascii=False))
+            r2 = admin.post("/api/admin/mail/inbox-confirm", json={"delivery_id": delivery_id, "received": True}, headers=csrf)
+            done = ((r2.json().get("status") or {}).get("progress") or {}) if r2.status_code == 200 else {}
+            report.check("7단계: 「받았습니다」 기록 뒤 완료", r2.status_code == 200 and done.get("complete") is True,
+                         f"HTTP {r2.status_code} {done.get('done_count')}/{done.get('total')}")
 
         # 3 초대
         before = len(sink.messages())

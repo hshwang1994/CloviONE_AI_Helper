@@ -155,6 +155,46 @@ def fan_out_mail(db: Session, row, *, now: datetime, context: dict | None = None
     )
 
 
+#: 계정 보안 메일(D-562) - 사용자 선택 · 관리자 허용 목록과 무관하다. 침해를 알리는 신호를 사용자가 끌 수 없는 것과 같은 까닭
+#: (`prefs.UNMUTABLE_TYPES`). 본인 알림(audience user)만이다 - 관리자에게 가는 「계정 잠금 발생」 방송은 메일이 되지 않는다.
+SECURITY_MAIL_TYPES = frozenset({"account_locked", "password_change_required"})
+
+
+def security_block_reason(user) -> str | None:
+    """보안 메일을 이 사람에게 보내면 안 되는 까닭(계정 사정만 본다). 보내도 되면 None."""
+    if user is None:
+        return REASON_ACCOUNT_GONE
+    if user.archived_at is not None:
+        return REASON_ARCHIVED
+    if not user.active:
+        return REASON_INACTIVE
+    if not (user.email or "").strip():
+        return REASON_NO_EMAIL
+    return None
+
+
+def fan_out_security_mail(db: Session, row, *, now: datetime):
+    """계정 잠금 · 비밀번호 변경 요청을 본인 메일로도 보낸다(D-562). 멱등 열쇠가 알림 id 라 한 사건에 한 통이다.
+
+    받는 주소는 **계정 이메일**이다 - 다른 알림 주소를 확인해 둔 사람이라도 계정 보안 메일은 계정 주소로 간다(그 주소가 계정의
+    것이라는 사실 자체가 알리려는 내용이다).
+    """
+    from app.mail.service import mail_subject, queue_mail
+    from app.users.models import User
+
+    if row.type not in SECURITY_MAIL_TYPES:
+        return None
+    user = db.get(User, row.user_id)
+    if security_block_reason(user) is not None:
+        return None
+    params = {"notification_id": row.id, "user_id": row.user_id, "type": row.type, "title": row.title,
+              "body": row.body or "", "at": now.isoformat()}
+    return queue_mail(
+        db, kind=row.type, to_email=user.email.strip(), recipient_user_id=user.id, subject=mail_subject(db, row.title),
+        params=params, now=now, idempotency_key=f"security:{row.id}",
+    )
+
+
 def recheck_recipient(db: Session, delivery) -> str | None:
     """보내기 직전에 받는 사람 쪽 사정을 다시 본다. 보내면 안 되면 그 까닭을 돌려준다.
 

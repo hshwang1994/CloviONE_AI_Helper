@@ -30,12 +30,53 @@ def _all_previews(product="ClovirAssist"):
     return {key: samples.preview(key, product=product, base_url=BASE) for key, _label, _ in samples.PREVIEW_KINDS}
 
 
-def test_there_are_ten_kinds_and_each_renders_both_parts():
+def test_every_mailable_type_and_security_kind_has_a_preview_and_each_renders_both_parts():
+    """D-562: 메일이 되는 알림 유형 전부 + 계정 보안 둘 + 전용 메일 다섯 + 시험 둘이 표본이다 - 미리 보기 = 실제 그리기 함수."""
+    from app.mail.renderers import SECURITY_KINDS
+    from app.profiles.prefs import MAILABLE_TYPES
+
     rendered = _all_previews()
-    assert len(rendered) == 10
+    assert len(rendered) == len(samples.PREVIEW_KINDS) >= 26
+    for key in (*MAILABLE_TYPES, *sorted(SECURITY_KINDS), "invite", "password_reset", "approval_requested", "backup_failed",
+                "notify_email_verification", "test", "test_relay"):
+        assert key in rendered, f"{key} 의 표본이 없다"
     for key, mail in rendered.items():
         assert mail.text.strip() and mail.html.strip(), key
         assert mail.subject.startswith("[ClovirAssist] "), key
+
+
+def test_the_logo_is_an_inline_cid_image_and_the_preview_uses_a_data_uri():
+    """D-561: 머리의 로고는 CID 로 붙인 PNG 한 장이다 - 원격 그림이 없고, 미리 보기는 같은 그림을 data 주소로 받는다."""
+    mail = samples.preview("invite", product="ClovirAssist", base_url=BASE)
+    assert f'<img src="cid:{c.LOGO_CID}"' in mail.html and mail.html.count("<img") == 1
+    assert mail.inline and mail.inline[0][0] == c.LOGO_CID and mail.inline[0][1][:8] == b"\x89PNG\r\n\x1a\n"
+    shown = samples.preview("invite", product="ClovirAssist", base_url=BASE, logo_src=c.logo_data_uri())
+    assert '<img src="data:image/png;base64,' in shown.html and shown.inline == ()
+    assert "cid:" not in shown.html
+
+
+def test_the_message_carries_the_logo_as_a_related_part():
+    from app.mail.config import smtp_config
+    from app.mail.transport import build_message
+
+    config = smtp_config({"enabled": True, "host": "smtp.example.com", "from_address": "noreply@example.com", "from_name": "ClovirAssist"})
+    mail = samples.preview("invite", product="ClovirAssist", base_url=BASE)
+    message = build_message(config, to_email="kim@example.com", subject=mail.subject, body=mail.text, html=mail.html,
+                            inline=mail.inline)
+    html_part = message.get_payload()[-1]
+    assert html_part.get_content_type() == "multipart/related"
+    parts = html_part.get_payload()
+    assert parts[0].get_content_type() == "text/html"
+    assert parts[1].get_content_type() == "image/png" and parts[1]["Content-ID"] == f"<{c.LOGO_CID}>"
+    assert parts[1].get_content_disposition() == "inline"
+
+
+def test_security_mails_have_no_settings_link_and_no_secret():
+    for kind in ("account_locked", "password_change_required"):
+        mail = samples.preview(kind, product="ClovirAssist", base_url=BASE)
+        assert "알림 설정" in mail.text and "알림 메일 설정 바꾸기" not in mail.text, kind
+        assert "/login" in mail.text and "token=" not in mail.text, kind
+        assert "계정 보안" in mail.html, kind
 
 
 @pytest.mark.parametrize("key", [key for key, _label, _ in samples.PREVIEW_KINDS])
@@ -66,7 +107,9 @@ def test_links_are_absolute_and_there_are_no_remote_images():
         # 주소 확인 메일만 링크가 없다 - 코드를 넣게 하는 메일이다(링크 검사기가 코드를 써 버리지 못하게).
         assert hrefs or key == "notify_email_verification", key
         assert all(h.startswith(BASE + "/") for h in hrefs), (key, hrefs)
-        assert "<img" not in mail.html and "<svg" not in mail.html, key
+        # 그림은 CID 로 붙인 로고 한 장뿐이다(D-561) - 원격 주소의 그림 · SVG 는 없다.
+        assert mail.html.count("<img") == 1 and 'src="cid:' in mail.html and "<svg" not in mail.html, key
+        assert not re.search(r'<img[^>]+src="https?://', mail.html), key
         assert 'lang="ko"' in mail.html and "max-width:600px" in mail.html, key
         assert "gradient" not in mail.html and "box-shadow" not in mail.html, key
 

@@ -819,6 +819,8 @@ def admin_reset_password(
         title="비밀번호 변경이 필요합니다",
         body="관리자가 비밀번호를 재발급했습니다. 다음 로그인 시 새 비밀번호로 변경해 주세요.",
         now=now or utcnow(),
+        # 본인에게 가는 계정 보안 알림 - 메일로도 간다(D-562). 임시 비밀번호는 싣지 않는다.
+        context={"security_self": True},
     )
     db.flush()
     return password

@@ -16698,3 +16698,103 @@ RULES §3 · §13 · ACCEPTANCE K3)는 그 자리를 옅은 경계선으로 정�
 - **잰 것**: `tests/integration/test_admin_users_avatar_fields.py`(네 경로의 두 칸 · 고른 그림 · 보관 사용자 사진은 전역 관리자 200 · 일반 사용자 404),
   `tests/security/test_avatar_admin_scope.py`(전역 관리자의 다른 조직 200 · 부서 범위 관리자의 범위 밖 보관 사진 404 · 일반 사용자 규칙 불변),
   `test_team_chat_api.py` 디렉터리 계약 갱신, 프런트 `ui/user-avatar-fallback.test.jsx` · `org/org-members-avatar.test.jsx`. 랩 확인은 P7.
+
+### D-557. 클로비 패널은 모달이 아니다 — 머리 아래 오른쪽에 고정된 측면 판이고 본문을 밀지도 잠그지도 덮지도 않으며, 전체 화면 `/chat` 과 같은 컴포저 · 말풍선 · 스크롤 규칙을 쓴다 (기능 개선 회차 P2, 2026-10-12)
+
+- **원인**: 패널이 MUI temporary `Drawer`(모달 · 백드롭 · 포커스 가둠 · 본문 스크롤 잠금)였다. 스크롤 잠금이 `body` 에 `overflow:hidden` 과
+  스크롤바 폭만큼의 `padding-right` 를 넣어 오른쪽에 빈 띠가 남고 고정 머리와 본문이 어긋났다(사용자가 본 「오른쪽 여백 · 화면이 왼쪽으로 밀림」).
+  패널 전용 컴포저는 입력 44 와 단추 34 를 `flex-end` 로 묶어 단추가 처졌고, 목록은 `grid` 라 내 말풍선이 오른쪽에 붙지 않았으며 자동 스크롤이
+  바닥 조건 없이 튀었다. 펼침 모드는 없었다.
+- **결정**: `app/AssistantPanel.jsx` — `<aside aria-label="클로비">` 를 `position:fixed; top:<머리>; right:0; bottom:0` 에 두고 폭 28.75rem(펼침
+  45rem, `localStorage["clovi.panel.wide"]`, xs 100%)이다. `main` 의 폭 · 스크롤 · 패딩 · `body` 스타일을 건드리지 않고 백드롭이 없다 — 열려 있는
+  동안 페이지는 그대로 쓸 수 있다. z 는 머리 바로 위(1202), 모달 1300 · 토스트 1400 아래. 열리면 초점이 입력 칸으로, 닫히면 연 단추로
+  돌아오고 Esc 는 판 안에서만 듣는다. 닫아도 대화는 남는다. 컴포저(`screens/chat/Composer.jsx` — 한 줄 34, 최대 6줄, Enter 전송 ·
+  Shift+Enter 줄바꿈 · IME 가드, 보조 줄에 「Enter 전송 · Shift+Enter 줄바꿈」 · 글자 수(4,500자부터) · 진행 문구와 경과)와 목록
+  (`screens/chat/MessageList.jsx` — flex 열, 내 말풍선 오른쪽 · 클로비 왼쪽, 바닥 80px 안에서만 따라가고 아니면 「새 답」 단추, 얼굴은 클로비
+  마스코트 · `UserAvatar`)은 `/chat` 과 패널이 **같은 부품**이다. 스트리밍은 범위 밖이다(D-565).
+- **잰 것**: vitest 채팅 · 패널 시험, `scripts/ui_qa/assistant_panel_e2e.py`(열기 전후 `main` 의 사각형 · `body.style` · 가로 넘침 불변, 백드롭
+  0, 패널 기하, 입력 34 와 단추의 세로 중심 일치, 초점, 넓게 보기 저장, Esc, 말풍선 좌우 — 1920 · 1366 · 1024 · 390 × 밝음 · 어두움),
+  `shell_e2e.py::ff_1191_clovi` 갱신. 캡처 `dist/ui-qa/p2-panel/`.
+
+### D-558. AI 연결 상태 면은 서버가 준 사실만 그린다 — 자격이 없으면 모델 · 능력 줄이 없고, 낱말 여덟 중 「로그인 진행 중」이 열린 시도이며, 「AI 사용」은 자격과 모델이 갖춰진 뒤에만 켤 수 있다 (기능 개선 회차 P3, 2026-10-12)
+
+- **원인**: `AiStatusCard` 가 자격 유무와 무관하게 「모델 gpt-5.5」 · 「문서 검색 사용 가능」(고정 문자열)을 그렸고, `configured = provider && auth
+  && model` 이 자격을 안 봐 「AI 사용」 스위치가 미설정에서도 켜졌다. `state.view()` 는 설정 지문이 바뀐 뒤에도 옛 `checked_at` 을 내어 「미설정」
+  옆에 「최근 확인」이 섰다. 사용자가 「미연결인데 모델이 보인다」로 본 것이다.
+- **결정**: `GET /api/admin/ai` 가 `credentials{ready, method, account_label}` · `facts[]`(그릴 줄만 — 자격이 없으면 제공자 · 인증 방식뿐, 자격이
+  있으면 모델 · 최근 성공(없으면 최근 확인) · 도구 호출 · 문서 검색(의미 · 낱말)) · `next{label, action}`(다음 할 일 한 문장과 자리:
+  `configure · api_key · login · paste · model · enable · verify · wait`, 정상이면 없음) · `login{open, transaction_id, expires_at}` 을 낸다.
+  상태 낱말은 여덟이다 — 미설정 · **로그인 진행 중**(`authenticating`: 이 관리자의 열린 · 만료 전 시도가 있고 자격이 아직 없다) · 확인 중 ·
+  확인 전 · 정상 · 일시 장애 · 재로그인 필요 · 연결 오류 · 꺼짐. `state.view()` 는 지문이 다르면 `checked_at` · `last_success_at` 을 비운다. 화면은
+  `facts` 와 `next` 만 그리고(같은 문장을 두 번 쓰지 않는다) 「AI 사용」은 `credentials.ready && model` 일 때만 켤 수 있다. Anthropic 모델 목록은
+  `has_more` · `last_id` 로 끝까지 넘긴다(상한 10쪽).
+- **잰 것**: `tests/integration/test_ai_personal_eval.py` 4절, `screens/ai/ai-connection.test.jsx`(자격 없음 → 모델 줄 없음 · 다음 할 일 단추 · 스위치
+  비활성, 다음 할 일의 「지금 확인」).
+
+### D-559. 운영 설치(중앙 호스팅)의 AI 인증은 API 키뿐이고, ChatGPT 계정 연결은 설치 플래그 `AI_CHATGPT_PERSONAL_EVAL`(기본 꺼짐)이 켜진 개인 · 로컬 개발 설치의 평가 기능이며, 켜진 설치에서도 연결한 사람 본인만 쓴다 (기능 개선 회차 P3, 2026-10-12)
+
+- **원인**: 기존 구현은 OpenAI 「Sign in with ChatGPT — 오픈소스 앱 토큰 공유」의 기술 절차(`dynamic_agent_client` 등록 · PKCE · 루프백
+  `127.0.0.1:<포트>/auth/callback` · `store:false,stream:true`)를 따르지만, 공식 문서(2026-10-12 확인)가 자체 등록을 허용하는 대상은 「오픈소스 ·
+  로컬 · 개인 프로젝트」이고 유료 · 원격 호스팅 앱은 대기자 명단이다. ClovirAssist 랩은 직원이 함께 쓰는 중앙 호스팅 웹 서비스라 그 환경에서의 지원을
+  **확인할 수 없다**. 지원 미확인 기능을 경고 문구를 붙여 정상 기능으로 제공하지 않는다. 사용자가 본 「Firefox 가 127.0.0.1:51274 서버에 연결할 수
+  없습니다」는 그 절차에서 승인이 끝났다는 신호인데 화면이 그것을 도움말 한 줄로만 말했다.
+- **결정**: `app/core/config.py::ai_chatgpt_personal_eval`(`deploy/clovirassist.env.example` 에 문서화, 기본 `false`). 꺼진 설치: 제공자 표에 ChatGPT
+  방식이 없고(`providers_view`), 그 방식을 고르는 저장은 422, 로그인 시작은 409, 옛 `chatgpt` 저장값은 「미설정 · 이 설치에서는 ChatGPT 계정 연결을
+  쓸 수 없습니다. API 키로 연결하세요.」이며 저장된 토큰을 쓰지 않는다(연결 확인 · 도우미 · 헬스 틱 갱신 모두 — `AiRuntime.problems` 하나가
+  판정). 켜진 설치: 로그인 묶음에 `owner_user_id` 를 적고 `AiRuntime.personal_only_for` 가 본인이 아닌 사용자 · 시스템(배치) 호출을
+  `unconfigured + personal_only` 로 돌려보낸다(사용 기록 없음, 연결 확인은 예외). `/api/ai/status` 의 `reason: personal_only` 와 문장. 주인을 적지
+  않은 옛 묶음은 아무의 것도 아니다(다시 로그인). 화면: API 키가 먼저(발급처 링크 · 조직 키 권장 · 과금 한 줄), ChatGPT 는 「ChatGPT 계정(개인 평가용)」
+  으로 서버가 줄 때만 보이고 「연결한 사람(나)만 쓴다」 확인 뒤에 시작한다. 붙여 넣기 흐름은 세 단계 카드(둘째 단계가 오류 화면이 정상이라고
+  **먼저** 말한다)이고, 맞는 주소를 붙여 넣는 순간 단추 없이 완료하며 이번 시도의 포트 · state 가 아니면 「이번 시도의 주소가 아닙니다」, 만료는
+  「다시 시작」, 창이 막히면 링크, 새로고침 뒤에는 서버의 `login.open` 으로 칸을 되찾는다. https 콜백 · 도우미 프로그램 · 비공식 끝점은 열지 않는다.
+  사용자마다 자기 ChatGPT 를 잇는 구조는 같은 까닭으로 범위 밖이다(BACKLOG).
+- **잰 것**: `tests/integration/test_ai_personal_eval.py`(꺼짐 기본 · 422 · 409 · 옛 값 미설정과 토큰 미사용 · 본인만 · 주인 없는 묶음 · API 키
+  설치 불변), `tests/integration/test_ai_console_openai.py` · `test_ai_health_tick.py` · `tests/security/test_chatgpt_oauth.py` 는 플래그를 켠 설치를
+  잰다, `screens/ai/chatgpt-login.test.jsx`(동의 · 세 단계 · 새 창 · 막힘 · 자동 완료 · 거절 문장 둘 · 만료 · 되찾기 · redirect).
+
+### D-560. 메일 설정은 「가진 것」에서 출발하는 일곱 단계 안내 흐름이다 — 서버가 단계와 다음 할 일을 계산하고, 로컬 릴레이가 기본이며, 서버가 못 하는 일은 담당자별 요청문으로 나가고, 받은 편지함 도착은 사람이 기록한다 (기능 개선 회차 P4, 2026-10-12)
+
+- **원인**: 메일 백엔드(설정 · 전송기 · 큐 · 건강 · 릴레이 · 준비 점검)는 P12 ~ P18 에서 동작했고 랩 실측도 수신측 250 접수까지 갔지만,
+  화면은 「무엇을 가진 사람이 어디서 시작하는가」를 말하지 않았다. 사용자는 SMTP 서버 값 · DNS 값을 모르고 메일 계정도 준비하지 않는다.
+  랩은 발송 꺼짐 + 릴레이 켜짐(Postfix active)이라 「사용 안 함」 옆에 동작 중인 구성 요소가 섰고, 긴 준비 점검 표가 다음 할 일을 숨겼다.
+- **결정**: `app/mail/progress.py` 가 네트워크 없이 저장된 사실에서 일곱 단계(`enable · method · inputs · applied · verified ·
+  test_sent · inbox_confirmed`)의 상태(`done · current · todo · blocked`)와 다음 할 일(`next{key, label, hint, anchor}`)을 계산해
+  `GET /api/admin/mail/status` 의 `progress` 로 낸다(`latest_test` · `inbox` 와 함께). 화면(`ProgressStrip`)은 단계 칩 일곱과 「다음 할 일」
+  한 문장 + [이동](구획으로 굴리거나 머리 단추 — 연결 확인 · 시험 메일 — 를 누른다)을 상태 면 아래에 세운다. 보내는 방법은 **로컬 릴레이가
+  먼저**(설치에 포함된 구성 요소, 계정 불필요)다. 외부 SMTP 구획의 제공자 프리셋(Gmail · Microsoft 365 · Naver · 직접 입력,
+  `screens/mail/presets.js`)이 서버 주소 · 포트 · 보안 연결을 채우고 비밀번호 도움말과 발급처 링크를 준다 - 서버 주소를 고치면 직접 입력으로
+  돌아간다. 「인터넷으로 직접 전달」의 조건 상자(도메인 DNS 담당자 · PTR 은 회선 업체)는 고르기 전부터 보이고, 준비 점검 결과에 **담당자별
+  요청문** `requests[{owner, title, why, records, text}]`(`relay_readiness.requests_for` — DNS 담당자: SPF · DKIM · DMARC · 서버 이름 A,
+  회선 또는 클라우드 업체: PTR)이 실려 [요청문 복사] 한 번으로 보낸다. 긴 점검 표 · 레코드 · 기술 값은 「진단」 접기 안이고 밖에는 「준비 N개 중
+  M개 통과 · 지금 막는 것 · 담당」 한 줄이다. 연결 확인 · 발송 실패에는 실패 종류의 흔한 원인 한 문장(`labels.FAILURE_HINTS` — 535 · 550/553 ·
+  시간 초과 · 인증서)이 붙는다. 접수 ≠ 도착(D-555)은 그대로다: 접수된 시험 메일에 대해 `POST /api/admin/mail/inbox-confirm
+  {delivery_id, received}` 로 **사람이** 「받았습니다 · 못 받았습니다」를 기록하고(`sync_status["mail_inbox"]`, 감사 `mail.inbox_confirm`,
+  주소는 가린다), 그 기록이 일곱째 단계의 유일한 근거다. 시험 메일이 다시 나가면 다시 확인할 일이 된다.
+- **결함 수정(P4 ④)**: 로컬 릴레이 모드의 시험 메일 본문에 외부 SMTP 값이 적히던 것(`renderers._content_test` — 이제 릴레이와 전달 방식),
+  죽은 `MAIL_STATUS_LABELS`(「발송됨」, D-555 위반) 삭제, 설정 등록부의 `smtp` 기본값을 `DEFAULT_SMTP` 한 벌로.
+- **잰 것**: `tests/unit/test_mail_progress.py`(단계 × 상태 표, 「꺼짐 + 릴레이 켜짐」은 1단계, 접수 ≠ 도착, 새 시험 메일은 다시 확인),
+  `tests/integration/test_mail_inbox_confirm.py`(7단계 응답 · 접수된 시험 메일만 · 범위 · 감사 · 못 받음은 막힘),
+  `tests/unit/test_mail_relay_parts.py::test_requests_for_*`, `screens/mail/mail-screen.test.jsx`(진행 띠 · 이동 · 받은 편지함 확인 ·
+  프리셋 · 흔한 원인 · 릴레이 먼저), `relay-section.test.jsx`(조건 상자 · 요청문 복사 · 진단 접기). 랩 실측(E2E-3c)은 P7.
+
+### D-561. 메일 틀은 제품 머리(로고 표식 + 워드마크) 하나로 통일한다 — 로고는 CID 로 붙인 PNG 한 장이고, 모든 종류가 같은 틀에 종류별 사실만 다르며, 미리 보기는 실제 그리기 함수다 (기능 개선 회차 P4, 2026-10-12)
+
+- **결정**: `app/mail/templates/layout.html.j2` — 흰 머리 띠(로고 표식 28px + 「ClovirAssist」 워드마크, 아래 1px 선) → 보안 · 실패의 한 줄
+  표지 → 제목 20/700 → 핵심 문장 15 → 사실 상자(옅은 면, 라벨 muted · 값 잉크, 행 사이 1px) → 주 단추 44(보라, 모바일 전체 폭) → 대체 주소
+  → 보조 설명 → 바닥글 12(왜 왔는가 · 알림 설정 링크 · 문의 · 발신 전용). 로고는 `app/mail/assets/mark-56.png`(브랜드 표식에서 한 번 만든
+  PNG)를 `content.LOGO_CID` 로 가리키고 `RenderedMail.inline` 에 실어 전송기가 `multipart/related` 로 붙인다(`transport.build_message
+  (inline=)`) - 원격 그림이 없고 그림을 막는 메일 앱에서도 글자 워드마크가 남는다. 미리 보기(sandbox iframe)는 같은 PNG 를 data 주소로 받는다
+  (`samples.preview(logo_src=)`). 황금 파일 26종 × 2 를 다시 만들었고 그림 규칙은 「CID 로고 한 장, 원격 주소의 그림 0」이다.
+- **잰 것**: `tests/unit/test_mail_templates.py`(표본 26종, CID 로고 · data 미리 보기, `multipart/related` 구조, 보안 메일의 링크 · 비밀 없음),
+  `dist/ui-qa/mail-templates/*-{680,375}.png` 눈으로 확인(머리 · 위계 · 모바일 전체 폭 단추).
+
+### D-562. 메일이 되는 알림 유형은 사용자에게 가는 사건 전부이고, 계정 보안 둘은 선택과 무관한 보안 메일이며, 전용 메일이 있는 사건은 알림 메일이 되지 않는다 (기능 개선 회차 P4, 2026-10-12)
+
+- **결정**: `prefs.MAILABLE_TYPES` 에 결재 지연 · 만료 · 취소 · 위임, 채팅 초대, 게시판 댓글, 제안 상태, 인수인계, AI 한도를 더했다(업무 영역
+  순). 관리자 허용 목록 기본값은 지금 셋 그대로라 새 유형은 관리자가 켜야 나간다. `account_locked` · `password_change_required` 는 메일 종류
+  (`renderers.KIND_ACCOUNT_LOCKED` 등, `content.security_content`)로 **본인에게**만 간다 - 사용자 선택 · 관리자 허용 목록과 무관하고
+  (`UNMUTABLE_TYPES` 와 같은 까닭), 호출부가 `context={"security_self": True}` 를 준 알림만이다(관리자에게 가는 「계정 잠금 발생」 방송은
+  화면 알림으로 끝난다). 받는 주소는 계정 이메일이고 임시 비밀번호 · 토큰은 싣지 않는다. `approval_requested` · `backup_failed` 는 자기
+  종류가 있으므로 알림 메일로 중복 발송하지 않는다(유지보수 공지 · 작업 · 일정 실행 실패도 메일이 아니다).
+- **잰 것**: `tests/integration/test_notification_mail_fanout.py` 새 네 시험(유형 표, 새 유형은 허용 뒤에만, 전용 종류의 중복 0, 보안 메일은
+  선택 · 허용과 무관하되 본인 알림만), 표본 · 황금 파일은 D-561.

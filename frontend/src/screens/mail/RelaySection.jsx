@@ -213,6 +213,13 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
             ]}
           />
         </Field>
+        {/* 조건 상자(D-560) - 고르기 전부터 보인다. 직접 전달은 서버 혼자 끝낼 수 없고 담당자가 있어야 한다. */}
+        <Box data-testid="relay-direct-conditions">
+          <Callout tone="info" compact>
+            인터넷으로 직접 전달하려면 도메인 DNS 담당자가 필요합니다(SPF, DKIM, 공개 서버 이름). 역방향 이름(PTR)은 회선이나 클라우드 업체가
+            넣습니다. 담당자가 없다면 상위 SMTP 이용을 고르세요. 필요한 레코드와 요청문은 아래 준비 점검이 채워 줍니다.
+          </Callout>
+        </Box>
       </FormSection>
 
       {!direct ? (
@@ -367,16 +374,32 @@ export function RelayReadiness({ relay, savedLocal, dirty }) {
   const readiness = relay && relay.readiness;
   const checks = (readiness && readiness.checks) || [];
   const records = (readiness && readiness.records) || [];
+  const requests = (readiness && readiness.requests) || [];
   const running = !!jobId && !timedOut;
   const failed = poll.data && poll.data.pending === false && poll.data.error ? poll.data.error : null;
   const error = failureText([start, "점검을 시작하지 못했습니다."]) || failed;
   const blocked = !savedLocal || dirty;
-  async function copy(value) {
+  const [showDiagnosis, setShowDiagnosis] = React.useState(false);
+  async function copy(value, what = "복사했습니다.") {
     try {
       await navigator.clipboard.writeText(value);
-      toast("복사했습니다.", "success");
+      toast(what, "success");
     } catch {
       toast("복사하지 못했습니다. 값을 직접 선택해 복사하세요.", "error");
+    }
+  }
+  /* 요약 한 줄(D-560) - 긴 표는 「진단」 안이고 밖에는 「몇 개 중 몇 개 통과 · 지금 막는 것 · 누가」만 선다. */
+  const passed = checks.filter((c) => c.state === "ok").length;
+  const blocking = checks.filter((c) => c.state === "fail" || c.state === "warn");
+  const owners = [...new Set(requests.map((r) => r.owner))];
+  let summary = null;
+  if (checks.length) {
+    summary = `준비 ${checks.length}개 중 ${passed}개를 통과했습니다.`;
+    if (blocking.length) {
+      summary += ` 지금 막는 것은 ${blocking.map((c) => c.label).join(", ")}입니다.`;
+      if (owners.length) summary += ` 담당은 ${owners.join(", ")}입니다.`;
+    } else {
+      summary += " 바깥으로 보낼 준비가 됐습니다.";
     }
   }
   return (
@@ -390,7 +413,38 @@ export function RelayReadiness({ relay, savedLocal, dirty }) {
       {readiness && readiness.stale ? <Callout tone="info" compact>점검한 뒤 설정이 바뀌었습니다. 다시 점검하세요.</Callout> : null}
       {timedOut ? <Callout tone="info" compact>점검이 시간 안에 끝나지 않았습니다. 잠시 뒤 다시 점검하세요.</Callout> : null}
       {error ? <Callout tone="danger" compact>{error}</Callout> : null}
+      {summary ? <Typography variant="body2" sx={KO_WORD_BREAK} data-testid="relay-summary">{summary}</Typography> : null}
+      {requests.length ? (
+        <Box data-testid="relay-requests" sx={{ display: "grid", gap: 1.5 }}>
+          <Typography component="h3" sx={{ m: 0, fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.semibold }}>담당자에게 요청하기</Typography>
+          <Line>서버가 할 수 없는 일입니다. 담당자별 요청문을 그대로 복사해 보내고, 담당자가 넣은 뒤 점검을 다시 하세요.</Line>
+          {requests.map((req) => (
+            <Box key={req.owner + req.title} data-request-owner={req.owner}
+              sx={{ display: "grid", gap: 0.75, p: 1.5, bgcolor: "background.inset", borderRadius: `${RADIUS.sm}px` }}>
+              <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
+                <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, fontSize: FONT_SIZE.bodySm }}>{req.owner}</Typography>
+                <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{req.title}</Typography>
+                <Box sx={{ flex: 1 }} />
+                <Button size="sm" onClick={() => copy(req.text, "요청문을 복사했습니다.")} aria-label={`${req.owner} 요청문 복사`}>요청문 복사</Button>
+              </Box>
+              <Line>{req.why}</Line>
+              <Box component="pre" sx={{ m: 0, p: 1.25, bgcolor: "background.paper", borderRadius: `${RADIUS.sm}px`, fontSize: FONT_SIZE.caption,
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 220, overflow: "auto" }}>
+                {req.text}
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      ) : null}
       {checks.length ? (
+        <Box>
+          <Button onClick={() => setShowDiagnosis((v) => !v)} aria-expanded={showDiagnosis} aria-controls="relay-diagnosis">
+            {showDiagnosis ? "진단 접기" : "진단 펼치기"}
+          </Button>
+        </Box>
+      ) : null}
+      {checks.length && showDiagnosis ? (
+      <Box id="relay-diagnosis" data-testid="relay-diagnosis" sx={{ display: "grid", gap: 2 }}>
         <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid" }} data-testid="relay-checks">
           {checks.map((c) => {
             const meta = CHECK_STATE[c.state] || CHECK_STATE.unknown;
@@ -412,9 +466,6 @@ export function RelayReadiness({ relay, savedLocal, dirty }) {
             );
           })}
         </Box>
-      ) : (
-        <Line>{blocked ? "로컬 릴레이 설정을 저장한 뒤에 점검할 수 있습니다." : "점검하면 바깥으로 보내는 데 필요한 것을 한 줄씩 확인합니다."}</Line>
-      )}
       {records.length ? (
         <>
           <Box>
@@ -447,6 +498,11 @@ export function RelayReadiness({ relay, savedLocal, dirty }) {
             </Box>
           ) : null}
         </>
+      ) : null}
+      </Box>
+      ) : null}
+      {!checks.length ? (
+        <Line>{blocked ? "로컬 릴레이 설정을 저장한 뒤에 점검할 수 있습니다." : "점검하면 바깥으로 보내는 데 필요한 것을 한 줄씩 확인합니다."}</Line>
       ) : null}
     </FormSection>
   );

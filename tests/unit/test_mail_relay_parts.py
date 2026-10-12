@@ -287,3 +287,20 @@ def test_counterexample_a_valid_record_keeps_every_term_and_has_no_note():
         from_address="noreply@x.com", helo="mail.x.com")}
     assert "include:spf.protection.outlook.com" in records["spf"]["value"] and "redirect=_spf.x.com" in records["spf"]["value"]
     assert "note" not in records["spf"]
+
+
+def test_requests_for_groups_records_by_owner_with_a_copyable_text():
+    """「담당자에게 요청하기」(D-560) - DNS 담당자에게 SPF · DKIM · DMARC · 서버 이름, 회선 업체에게 PTR. 그대로 보낼 수 있는 글이다."""
+    records = rr.records_for(domain="example.com", egress_ip="203.0.113.5", current_spf="v=spf1 include:spf.protection.outlook.com -all",
+                             dkim_selector="ca1", dkim_public="QUJD", dkim_enabled=True, from_address="noreply@example.com",
+                             helo="mail.example.com")
+    requests = rr.requests_for(records, domain="example.com", egress_ip="203.0.113.5", helo="mail.example.com")
+    assert [r["owner"] for r in requests] == [rr.OWNER_DNS, rr.OWNER_NETWORK]
+    dns, ptr = requests
+    assert [r["key"] for r in dns["records"]] == ["spf", "dkim", "dmarc", "helo"]
+    assert "example.com 도메인의 DNS 에 아래 레코드를 넣어 주세요." in dns["text"]
+    assert "v=spf1 ip4:203.0.113.5 include:spf.protection.outlook.com -all" in dns["text"]
+    assert "ca1._domainkey.example.com" in dns["text"]
+    assert ptr["records"][0]["key"] == "ptr" and "203.0.113.5" in ptr["text"] and "mail.example.com" in ptr["text"]
+    assert "PTR" in ptr["title"]
+    assert rr.requests_for([], domain="example.com", egress_ip=None, helo="") == []

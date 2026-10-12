@@ -73,6 +73,7 @@ from app.mail.config import (
     is_sendable,
     mail_status,
 )
+from app.mail.models import MAIL_SENT
 from app.mail.renderers import KIND_TEST
 from app.notifications.mail import admin_catalog as notification_mail_catalog
 from app.mail.service import (
@@ -165,14 +166,23 @@ def _base_url_state(request: Request, can_configure: bool) -> dict:
 @router.get("/status", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def status(request: Request, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     """메일 화면 한 벌. 전부 DB 의 설정 한 번(`config_from_db`)에서 만든다 - 한 응답 안에서 단추 상태와 문장이 엇갈리지 않게."""
+    from app.mail import progress
+
     config = config_from_db(db)
     now = request.app.state.clock.now()
     health = current_health(request, db)
     can_configure = _can_configure(db, request.state.user)
+    relay = _status_relay(request, db, config)
+    test = progress.latest_test(db)
+    inbox = progress.load_inbox(db)
     return {
         "mail": mail_status(config, _secrets(request)),
         # 다섯 상태(사용 안 함 · 설정 덜 됨 · 확인 전 · 정상 · 발송 실패)와 마지막 확인의 단계 줄(D-546).
         "health": health,
+        # 일곱 단계와 다음 할 일(D-560). 화면은 이 순서로 선다.
+        "progress": progress.compute(config, _secrets(request), health=health, relay=relay, test=test, inbox=inbox),
+        "latest_test": test,
+        "inbox": inbox,
         "problems": configuration_problems(config, _secrets(request)) if config.enabled else [],
         "summary": {**config.public_view(), "mode": getattr(config, "mode", "external"),
                     "password": _password_state(request)},
@@ -184,7 +194,7 @@ def status(request: Request, db: Session = Depends(get_db), principal: Principal
         "backlog": {"count": pending_unconfigured_count(db, now=now), "window_days": backlog_window_days(db)},
         "base_url": _base_url_state(request, can_configure),
         # 로컬 릴레이(M7, D-551) - 그 방식일 때만 구성 요소 상태와 최근 바깥 전달을 싣는다(상태 면의 두 줄).
-        "relay": _status_relay(request, db, config),
+        "relay": relay,
         "capabilities": {
             "can_configure": can_configure,
             "can_operate": _can_operate(request.state.user, principal),
@@ -596,6 +606,42 @@ def send_test(
     }
 
 
+class InboxConfirmRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    delivery_id: str = Field(min_length=1, max_length=64)
+    received: bool = True
+
+
+@router.post("/inbox-confirm", dependencies=[Depends(require_roles(*CONSOLE_WRITE_ROLES))])
+def inbox_confirm(
+    body: InboxConfirmRequest, request: Request, db: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+):
+    """시험 메일 한 통을 받은 편지함에서 확인했다(또는 못 찾았다)고 **사람이** 기록한다(D-560 ⑦).
+
+    제품은 도착을 잴 수 없다 — 이 기록이 일곱째 단계의 유일한 근거다. 접수된(`sent`) 시험 메일만 대상이고, 범위 밖 메일은 없는
+    것과 같다(404). 감사에는 메일 id 와 결과만 남는다(주소는 가린다).
+    """
+    from app.mail import progress
+
+    _require_mail_operator(request, db, principal, "받은 편지함 확인", "기록할")
+    detail = delivery_detail(db, body.delivery_id, visible=visible_user_ids(db, principal.management))
+    if detail.get("kind") != KIND_TEST:
+        raise ValidationAppError("시험 메일만 받은 편지함 확인을 기록할 수 있습니다.")
+    if detail.get("status") != MAIL_SENT:
+        raise ConflictError("다음 서버가 아직 접수하지 않은 시험 메일입니다. 접수된 뒤에 확인하세요.")
+    now = request.app.state.clock.now()
+    record = progress.record_inbox(db, delivery_id=body.delivery_id, received=body.received,
+                                   user_id=request.state.user.id, now=now)
+    record_audit_from_request(
+        request, db, action="mail.inbox_confirm", object_type="mail_delivery", object_id=body.delivery_id,
+        after={"received": bool(body.received), "to_masked": mask_address(detail.get("to_email") or "")},
+    )
+    db.commit()
+    return {"inbox": record, "status": status(request, db, principal)}
+
+
 # ── 연결 확인 (계획 3.3, D-546) ──────────────────────────────────────────────
 
 
@@ -951,12 +997,13 @@ def templates():
 @router.get("/templates/{kind}/preview", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
 def template_preview(kind: str, request: Request, db: Session = Depends(get_db)):
     """표본 한 통 — 제목 · 평문 · HTML. **표본만 쓴다**(실제 사용자 · 티켓 · 토큰이 없다, `app/mail/samples.py`)."""
-    from app.mail.content import product_name, support_email
+    from app.mail.content import logo_data_uri, product_name, support_email
     from app.mail.samples import preview
 
+    # 미리 보기는 sandbox iframe 이라 `cid:` 그림을 그릴 수 없다 - 같은 PNG 를 data 주소로 넣는다(실제 메일은 CID, D-561).
     rendered = preview(
         kind, product=product_name(db), base_url=str(getattr(request.app.state.settings, "app_base_url", "") or ""),
-        support=support_email(db),
+        support=support_email(db), logo_src=logo_data_uri(),
     )
     if rendered is None:
         raise NotFoundError("미리 볼 수 없는 메일 종류입니다.")

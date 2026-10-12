@@ -106,15 +106,23 @@ def _fan_out_mail(db: Session, row: Notification, *, now: datetime, context: dic
     저장점 안에서 한다. 메일 쪽 질의 하나가 실패해도 바깥 트랜잭션이 깨지지 않는다 - 깨지면 이 알림을 만든 티켓
     저장이 함께 실패한다.
     """
+    from app.notifications.mail import SECURITY_MAIL_TYPES
     from app.profiles.prefs import MAILABLE_TYPES
 
-    if row.type not in MAILABLE_TYPES:
+    # 계정 보안 메일은 **본인에게 가는** 알림(`context.security_self`)만이다 - 같은 유형의 관리자 방송(「계정 잠금 발생: …」)은
+    # 화면 알림으로 끝난다. 받는 사람의 콘솔(audience)로 가르지 않는다 - 관리자 자신의 계정이 잠겨도 본인 메일은 받아야 한다.
+    security = row.type in SECURITY_MAIL_TYPES and bool((context or {}).get("security_self"))
+    if row.type not in MAILABLE_TYPES and not security:
         return
     try:
-        from app.notifications.mail import fan_out_mail
+        from app.notifications.mail import fan_out_mail, fan_out_security_mail
 
         with db.begin_nested():
-            fan_out_mail(db, row, now=now, context=context)
+            if security:
+                # 계정 보안 메일(D-562) - 선택 · 허용 목록과 무관하게 본인에게.
+                fan_out_security_mail(db, row, now=now)
+            else:
+                fan_out_mail(db, row, now=now, context=context)
     except Exception:  # noqa: BLE001 - 메일이 알림과 본 작업을 막으면 안 된다
         logger.exception("알림 메일을 큐에 넣지 못했다 (notification=%s)", row.id)
 

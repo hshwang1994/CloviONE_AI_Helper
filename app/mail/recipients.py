@@ -186,6 +186,12 @@ def _rule_notification(db: Session, delivery: MailDelivery, params: dict, now: d
     return recheck_recipient(db, delivery)
 
 
+def _rule_security(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
+    """계정 보안 메일(D-562) - 계정 사정만 본다. 메일 알림을 껐거나 유형을 고르지 않은 것은 막는 까닭이 아니다(끌 수 없는 메일).
+    받는 주소는 계정 이메일 그대로다(다른 알림 주소로 고치지 않는다 - 그 주소가 계정의 것이라는 사실이 알릴 내용이다)."""
+    return _account_block(_recipient(db, delivery, params))
+
+
 Rule = Callable[[Session, MailDelivery, dict, datetime], "str | None"]
 
 RECIPIENT_RULES: dict[str, Rule] = {
@@ -196,6 +202,8 @@ RECIPIENT_RULES: dict[str, Rule] = {
     KIND_TEST: _rule_test,
     KIND_NOTIFICATION: _rule_notification,
     KIND_NOTIFY_EMAIL_VERIFICATION: _rule_notify_verification,
+    "account_locked": _rule_security,
+    "password_change_required": _rule_security,
 }
 
 
@@ -268,14 +276,40 @@ def _access_ai_provider_state(db: Session, delivery: MailDelivery, params: dict,
     return None if user.role == ROLE_SYSTEM_ADMIN else REASON_NO_LONGER_ADMIN
 
 
+def _access_account(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
+    """받는 사람 본인에게 일어난 사건(인수인계 · 게시글 댓글 · 제안 상태 · AI 한도) - 볼 권한은 계정이 살아 있는가뿐이다."""
+    return _account_block(_recipient(db, delivery, params))
+
+
+def _access_approval_party(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
+    """승인 지연 · 만료 · 위임 - 받는 사람은 결재자나 위임받은 사람이다(요청자가 아니다). 승인 건이 가리켜져 있으면 아직 있어야 한다."""
+    from app.approvals.models import Approval
+
+    blocked = _account_block(_recipient(db, delivery, params))
+    if blocked:
+        return blocked
+    if params.get("related_type") == "approval" and params.get("related_id") and db.get(Approval, params["related_id"]) is None:
+        return REASON_NO_ACCESS
+    return None
+
+
 ACCESS_RULES: dict[str, Rule] = {
     "ticket_assigned": _access_ticket,
     "ticket_status_changed": _access_ticket,
     "ticket_resolved": _access_ticket,
     "ticket_comment": _access_ticket,
-    "document_comment": _access_document,
-    "chat_mentioned": _access_chat_room,
+    "offboarding_handover": _access_account,
     "approval_decided": _access_approval_decided,
+    "approval_overdue": _access_approval_party,
+    "approval_expired": _access_approval_party,
+    "approval_cancelled": _access_approval_decided,
+    "approval_delegated": _access_approval_party,
+    "chat_invited": _access_chat_room,
+    "chat_mentioned": _access_chat_room,
+    "document_comment": _access_document,
+    "board_comment": _access_account,
+    "idea_status_changed": _access_account,
+    "ai_quota_exhausted": _access_account,
     "ai_provider_state": _access_ai_provider_state,
 }
 

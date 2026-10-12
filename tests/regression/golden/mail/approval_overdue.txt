@@ -1,0 +1,15 @@
+ClovirAssist
+
+처리할 승인 요청이 기한을 넘겼습니다.
+
+김하나 님이 처리할 승인 요청이 기한을 넘겼습니다.
+
+알림: 승인 기한 초과: AI 문서 만들기
+요청: 이두리 님이 올린 요청이 기한을 넘겼습니다.
+
+ClovirAssist에서 보기: https://clovirassist.gooddi.lab/admin#/approvals
+
+--
+이 메일은 ClovirAssist의 승인 기한 초과 알림 설정에 따라 보냈습니다.
+알림 메일 설정 바꾸기: https://clovirassist.gooddi.lab/#/profile
+이 메일은 발신 전용입니다.

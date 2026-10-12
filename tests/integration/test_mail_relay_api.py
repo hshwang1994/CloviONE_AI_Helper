@@ -246,7 +246,7 @@ def test_check_job_runs_and_its_result_is_returned(client, app, login_as, helper
 class RelaySmtp(FakeSmtp):
     """로컬 릴레이처럼 큐 id 가 든 응답을 준다."""
 
-    def send(self, config, secret_provider, *, to_email, subject, body, html=None):
+    def send(self, config, secret_provider, *, to_email, subject, body, html=None, inline=None):
         from app.mail.transport import SendReceipt
 
         super().send(config, secret_provider, to_email=to_email, subject=subject, body=body, html=html)

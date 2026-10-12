@@ -13,15 +13,19 @@ import pytest
 pytestmark = pytest.mark.integration
 
 
-def test_ten_kinds_render_and_unknown_is_404(client, login_as):
+def test_every_kind_renders_with_an_inline_logo_and_unknown_is_404(client, login_as):
+    """종류는 표본 표(`samples.PREVIEW_KINDS`, D-562 로 늘었다)가 정한다. 미리 보기의 로고는 sandbox 가 그릴 수 있는 data 주소다(D-561)."""
+    from app.mail.samples import PREVIEW_KINDS
+
     h = {"X-CSRF-Token": login_as("auditor")}
     kinds = client.get("/api/admin/mail/templates", headers=h).json()["items"]
-    assert len(kinds) == 10 and kinds[0] == {"key": "ticket_assigned", "label": "티켓 배정"}
+    assert len(kinds) == len(PREVIEW_KINDS) >= 26 and kinds[0] == {"key": "ticket_assigned", "label": "티켓 배정"}
     for kind in kinds:
         r = client.get(f"/api/admin/mail/templates/{kind['key']}/preview", headers=h)
         assert r.status_code == 200, (kind, r.text)
         body = r.json()
         assert body["subject"] and body["text"] and body["html"].lstrip().startswith("<!DOCTYPE html>")
+        assert 'src="data:image/png;base64,' in body["html"] and "cid:" not in body["html"], kind
     assert client.get("/api/admin/mail/templates/nope/preview", headers=h).status_code == 404
 
 

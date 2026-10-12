@@ -459,6 +459,55 @@ def records_for(*, domain: str, egress_ip: str | None, current_spf: str | None, 
     return out
 
 
+OWNER_DNS = "도메인 DNS 담당자"
+OWNER_NETWORK = "회선 또는 클라우드 업체"
+_DNS_RECORD_KEYS = ("spf", "dkim", "dmarc", "helo")
+
+
+def requests_for(records: list[dict], *, domain: str, egress_ip: str | None, helo: str) -> list[dict]:
+    """「담당자에게 보낼 요청문」(D-560) — 서버가 할 수 없는 일을 담당자별로 「무엇을 · 왜 · 어떤 값으로」 한 문단과 레코드로.
+
+    메일 서버 설정을 모르는 관리자가 그대로 복사해 보낼 수 있는 글이다. 도메인 DNS 담당자에게는 SPF · DKIM · DMARC · 서버 이름(A),
+    회선 또는 클라우드 업체에게는 PTR 이다. 여기 없는 것(받는 쪽 관리자의 격리 해제)은 요청문이 아니라 보고의 일이다.
+    """
+    out: list[dict] = []
+    dns = [r for r in records if r.get("key") in _DNS_RECORD_KEYS]
+    ip_text = egress_ip or "이 서버의 공인 IP"
+    if dns:
+        lines = [
+            f"{domain} 도메인의 DNS 에 아래 레코드를 넣어 주세요.",
+            f"ClovirAssist 서버({ip_text})가 {domain} 주소로 보내는 메일을 받는 쪽 메일 서버가 정상으로 판정하는 데 필요합니다.",
+            "",
+        ]
+        for r in dns:
+            lines.append(f"[{r['type']}] {r['name']}")
+            lines.append(f"값: {r['value']}")
+            if r.get("note"):
+                lines.append(f"참고: {r['note']}")
+            lines.append("")
+        lines.append("등록이 끝나면 알려 주세요. ClovirAssist 의 메일 설정에서 점검을 다시 하면 결과가 보입니다.")
+        out.append({
+            "owner": OWNER_DNS, "title": "DNS 레코드 등록 요청",
+            "why": "받는 쪽 메일 서버는 SPF, DKIM, 서버 이름으로 이 서버가 보낸 메일인지 확인합니다. 레코드가 없으면 정크로 가거나 거부됩니다.",
+            "records": dns, "text": "\n".join(lines).rstrip() + "\n",
+        })
+    ptr = next((r for r in records if r.get("key") == "ptr"), None)
+    if ptr is not None and egress_ip and helo:
+        text = "\n".join([
+            f"공인 IP {egress_ip} 의 역방향 이름(PTR 레코드)을 {helo} 로 등록해 주세요.",
+            "이 IP 로 메일을 보내는 서버(ClovirAssist)가 있는데, 역방향 이름이 없으면 받는 쪽 메일 서버(Gmail 등)가 연결 단계에서 거부합니다.",
+            "",
+            f"[PTR] {egress_ip}",
+            f"값: {helo}",
+        ]) + "\n"
+        out.append({
+            "owner": OWNER_NETWORK, "title": "PTR 등록 요청",
+            "why": "역방향 이름은 IP 를 준 쪽(회선 또는 클라우드 업체)만 등록할 수 있습니다. 도메인 DNS 에서는 할 수 없습니다.",
+            "records": [ptr], "text": text,
+        })
+    return out
+
+
 # ── 묶어 돌리기 ──────────────────────────────────────────────────────────────
 
 
@@ -510,8 +559,10 @@ def run_checks(
             records.insert(0, {"key": "override", "name": probe_domain, "type": "전달 서버", "value": suggest})
     worst = FAIL if any(c["state"] == FAIL for c in checks) else (
         WARN if any(c["state"] in (WARN, UNKNOWN) for c in checks) else OK)
+    requests = requests_for(records, domain=config.sender_domain, egress_ip=egress_ip, helo=relay.helo_name) if direct else []
     return {"delivery": relay.delivery, "probe_domain": probe_domain if direct else None, "egress_ip": egress_ip,
-            "checks": checks, "records": records, "state": worst, "fingerprint": config.relay_fingerprint}
+            "checks": checks, "records": records, "requests": requests, "state": worst,
+            "fingerprint": config.relay_fingerprint}
 
 
 def save(db: Session, result: dict, *, now: datetime) -> None:

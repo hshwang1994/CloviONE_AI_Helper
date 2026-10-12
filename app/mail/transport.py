@@ -175,7 +175,7 @@ def _domain_of(address: str) -> str | None:
 
 
 def build_message(
-    config: MailConfig, *, to_email: str, subject: str, body: str, html: str | None = None,
+    config: MailConfig, *, to_email: str, subject: str, body: str, html: str | None = None, inline=None,
 ) -> EmailMessage:
     """보낼 메일 한 통. 받는 서버와 사람이 기대하는 머리를 갖춘다.
 
@@ -185,6 +185,8 @@ def build_message(
     - `Auto-Submitted` · `X-Auto-Response-Suppress` 는 자동 응답(부재 중 회신)이 이 발송함으로 돌아오지 않게 한다.
     - `html` 이 있으면 평문 다음에 HTML 을 붙인 `multipart/alternative` 다(D-549). 메일 앱은 마지막(가장 풍부한) 부분을
       고르고, HTML 을 못 그리는 앱과 사람이 읽는 원문은 평문을 본다. 둘 다 utf-8 이다.
+    - `inline` 은 HTML 이 `cid:` 로 가리키는 그림 `(cid, bytes, media_type)` 들이다(D-561 로고). HTML 부분이 그 그림을 담은
+      `multipart/related` 가 된다 - 원격 그림이 아니라 메일 안에 있어 그림을 막는 메일 앱에서도 받는 쪽 서버를 부르지 않는다.
     """
     message = EmailMessage()
     message["From"] = formataddr((config.from_name, config.from_address)) if config.from_name else config.from_address
@@ -197,6 +199,12 @@ def build_message(
     message.set_content(body)
     if html:
         message.add_alternative(html, subtype="html")
+        if inline:
+            html_part = message.get_payload()[-1]
+            for cid, data, media_type in inline:
+                maintype, _, subtype = str(media_type or "image/png").partition("/")
+                html_part.add_related(data, maintype=maintype or "image", subtype=subtype or "png", cid=f"<{cid}>",
+                                      disposition="inline")
     return message
 
 
@@ -405,9 +413,10 @@ class SmtpTransport:
         subject: str,
         body: str,
         html: str | None = None,
+        inline=None,
     ) -> SendReceipt:
         """보낸다. 보낸 메일의 `Message-ID` 와 다음 서버의 응답 한 줄을 돌려준다."""
-        message = build_message(config, to_email=to_email, subject=subject, body=body, html=html)
+        message = build_message(config, to_email=to_email, subject=subject, body=body, html=html, inline=inline)
         trail: list[str] = []
         try:
             server = self._open(config, secret_provider, trail)

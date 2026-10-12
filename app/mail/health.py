@@ -146,7 +146,7 @@ def _detail(row) -> dict:
 
 def health_state(db: Session, config: MailConfig, secret_provider=None) -> dict:
     """지금 상태 한 덩어리. **네트워크를 쓰지 않는다**(머리말). `stages` 는 마지막 확인이 지난 단계와 그 결과다."""
-    from app.mail.labels import STAGE_LABELS
+    from app.mail.labels import STAGE_LABELS, failure_hint
     from app.observability.models import SYNC_OK
 
     problems = configuration_problems(config, secret_provider)
@@ -157,6 +157,8 @@ def health_state(db: Session, config: MailConfig, secret_provider=None) -> dict:
         "checked_at": row.last_run_at.isoformat() if row is not None and row.last_run_at else None,
         "last_success_at": row.last_success_at.isoformat() if row is not None and row.last_success_at else None,
         "failure_kind": None, "stage": None, "consecutive_failures": 0,
+        # 실패 종류의 흔한 원인 한 문장(P4 ③). 실패일 때만 찬다.
+        "hint": None,
         "stages": _stage_rows(detail.get("stages") if same else None, STAGE_LABELS),
     }
     if not config.enabled:
@@ -174,6 +176,7 @@ def health_state(db: Session, config: MailConfig, secret_provider=None) -> dict:
         base.update(
             failure_kind=detail.get("failure_kind"), stage=detail.get("stage"),
             consecutive_failures=int(detail.get("consecutive_failures") or 0),
+            hint=failure_hint(detail.get("failure_kind")),
         )
     return {"state": state, "label": STATE_LABELS[state], "kind": STATE_KINDS[state], "message": message,
             "problems": problems if state == STATE_UNCONFIGURED else [], **base}

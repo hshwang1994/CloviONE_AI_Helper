@@ -62,6 +62,9 @@ const RELAY_VIEW = {
     ],
     records: [{ key: "spf", name: "goodmit.co.kr", type: "TXT", value: "v=spf1 ip4:221.147.80.10 ~all",
       note: "기존 SPF 에서 도메인이 아닌 항목(include:google-site-verification=QY1D)을 뺐습니다. 이 항목이 레코드 오류의 원인입니다." }],
+    requests: [{ owner: "회선 또는 클라우드 업체", title: "PTR 등록 요청", why: "역방향 이름은 IP 를 준 쪽만 등록할 수 있습니다.",
+      records: [{ key: "ptr", name: "221.147.80.10", type: "PTR", value: "mail.goodmit.co.kr" }],
+      text: "공인 IP 221.147.80.10 의 역방향 이름(PTR 레코드)을 mail.goodmit.co.kr 로 등록해 주세요.\n" }],
   },
   outer: null,
 };
@@ -198,8 +201,27 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
     expect(opts.body.password).toBeUndefined();
   });
 
-  it("준비 점검의 줄이 상태 · 할 일 · 고칠 곳을 말하고, 레코드는 펼쳐야 보인다", async () => {
+  it("조건 상자가 고르기 전부터 서고, 요청문은 담당자별로 복사할 수 있다", async () => {
+    const user = userEvent.setup();
     renderScreen();
+    expect(await screen.findByTestId("relay-direct-conditions")).toHaveTextContent("담당자가 없다면 상위 SMTP 이용을 고르세요.");
+    expect(await screen.findByTestId("relay-summary")).toHaveTextContent(
+      "준비 2개 중 1개를 통과했습니다. 지금 막는 것은 역방향 이름(PTR)입니다. 담당은 회선 또는 클라우드 업체입니다.",
+    );
+    const requests = screen.getByTestId("relay-requests");
+    expect(within(requests).getByText("PTR 등록 요청")).toBeInTheDocument();
+    expect(requests).toHaveTextContent("mail.goodmit.co.kr 로 등록해 주세요.");
+    const write = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: write }, configurable: true });
+    await user.click(within(requests).getByRole("button", { name: "회선 또는 클라우드 업체 요청문 복사" }));
+    await waitFor(() => expect(write).toHaveBeenCalledWith(expect.stringContaining("역방향 이름(PTR 레코드)")));
+  });
+
+  it("준비 점검의 줄이 상태 · 할 일 · 고칠 곳을 말하고, 표와 레코드는 「진단」 안에서 펼쳐야 보인다", async () => {
+    renderScreen();
+    await screen.findByTestId("relay-summary");
+    expect(screen.queryByTestId("relay-checks")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "진단 펼치기" }));
     const checks = await screen.findByTestId("relay-checks");
     const ptr = checks.querySelector('[data-check="ptr_fcrdns"]');
     expect(ptr).toHaveAttribute("data-check-state", "fail");

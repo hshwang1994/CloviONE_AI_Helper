@@ -97,7 +97,9 @@ REASON_LABELS: dict[str, str] = {
 
 # 판정하지 않고 늘 보내는 종류(모듈 머리말).
 # 주소 확인 코드(M4)는 받는 사람 재검사가 「그 확인이 아직 열려 있는가」를 이미 본다 - 나이 규칙을 따로 걸지 않는다.
-ALWAYS_RELEVANT_KINDS = frozenset({KIND_PASSWORD_RESET, KIND_TEST, KIND_NOTIFY_EMAIL_VERIFICATION})
+# 계정 보안 둘(D-562)은 잠금이 풀린 뒤에 도착해도 「그 일이 있었다」는 사실 자체가 알릴 내용이라 늘 보낸다.
+ALWAYS_RELEVANT_KINDS = frozenset({KIND_PASSWORD_RESET, KIND_TEST, KIND_NOTIFY_EMAIL_VERIFICATION,
+                                   "account_locked", "password_change_required"})
 
 
 def _params(delivery: MailDelivery) -> dict:
@@ -314,17 +316,33 @@ def _rule_ai_provider_state(db: Session, delivery: MailDelivery, params: dict, n
     return None if row.status == wanted else REASON_AI_STATE_MOVED_ON
 
 
+def _rule_still_informative(db: Session, delivery: MailDelivery, params: dict, now: datetime) -> str | None:
+    """사건 자체가 사실로 남는 유형(인수인계 · 게시글 댓글 · 제안 상태 · AI 한도) - 나이 규칙만 본다(위에서 이미 봤다)."""
+    return None
+
+
 Rule = Callable[[Session, MailDelivery, dict, datetime], "str | None"]
 
-# 알림 유형 하나에 판정 하나. 메일로 보낼 수 있는 유형(`app/profiles/prefs.py::MAILABLE_TYPES`)이 전부 있어야 한다.
+# 알림 유형 하나에 판정 하나. 메일로 보낼 수 있는 유형(`app/profiles/prefs.py::MAILABLE_TYPES`)이 전부 있어야 한다(D-562).
 NOTIFICATION_RULES: dict[str, Rule] = {
     "ticket_assigned": _rule_ticket_assigned,
     "ticket_status_changed": _rule_ticket_status_changed,
     "ticket_resolved": _rule_ticket_resolved,
     "ticket_comment": _rule_ticket_comment,
-    "document_comment": _rule_document_comment,
-    "chat_mentioned": _rule_chat_mentioned,
+    "offboarding_handover": _rule_still_informative,
     "approval_decided": _rule_approval_decided,
+    # 승인 지연 · 만료 · 취소 · 위임은 그 승인 건이 아직 있을 때만 뜻이 있다(결과와 같은 판정).
+    "approval_overdue": _rule_approval_decided,
+    "approval_expired": _rule_approval_decided,
+    "approval_cancelled": _rule_approval_decided,
+    "approval_delegated": _rule_approval_decided,
+    # 초대는 방이 아직 있을 때만(메시지 id 가 없으니 방만 본다).
+    "chat_invited": _rule_chat_mentioned,
+    "chat_mentioned": _rule_chat_mentioned,
+    "document_comment": _rule_document_comment,
+    "board_comment": _rule_still_informative,
+    "idea_status_changed": _rule_still_informative,
+    "ai_quota_exhausted": _rule_still_informative,
     "ai_provider_state": _rule_ai_provider_state,
 }
 
