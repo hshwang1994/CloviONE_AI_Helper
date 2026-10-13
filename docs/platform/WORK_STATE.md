@@ -28,6 +28,7 @@
 | P5 공통 결과 판(`ResultPanel`, 발표 전환 → 공개 순간 축포 한 번, 늦은 입장은 결과만) · 기존 게임 결함(방장 단독 이탈 종결 · 초기화 멱등 · id 승자 · 폴링 커서) · 「축하 효과」 스위치(0049) · 구슬 레이스(planck 워커 · fdlibm 결정적 수학 · 논리 시간 · 상호 대조 확정 넷 · 판 팔레트 · 전체 화면 · 출처 고지) · `games_e2e.py`(두 브라우저 지문 일치 · 성능 · 캡처) · P6 공통 UI 프로브(다섯 화면 × 4폭, 메일 「다음 할 일」 상자 계약 수정) | `ffa45b02` | D-563 ~ D-565 |
 | P7 전량 검증 · 번들 · 랩 배포 · 실측 · 문서 | `1b0f6638` (배포) · `85b1c1b5` (문서) | — |
 | D-566 ChatGPT 계정 연결 정식 방식 복귀(플래그 · 본인만 · 꺼진 설치 안내 걷음, 요금제 공유 한 줄, 시험 `test_ai_chatgpt_shared.py`) · 랩 배포 | `6b848630` | D-566(D-559 대체) |
+| 붙여 넣기 결함 — Z 없는 UTC 만료 시각을 지역 시각으로 읽어 한국에서 곧바로 「만료」(로그인 카드 · 메일 코드 다시 받기), 글 안의 주소 찾기 · 돌아오면 초점 · 랩 배포 | `670c6058` | — (`EVIDENCE/ai/2026-10-13-lab-chatgpt.md`) |
 
 - 잰 것(P5 · P6): 백엔드 게임 56건(구슬 레이스 7 · 범위 1 · 회귀 3 포함) · 프로필 33건, 프런트 게임방 묶음 90여 건(엔진 7 · 무대 8 · 결과 판 7 ·
   게임방 6 · 열쇠 11 · 축포 24), 정적 검사(dev) 통과. 실브라우저 `games_e2e --digest`(Chromium 방장 + Firefox 참가자 12명 두 경주 → `confirmed`,
@@ -165,11 +166,11 @@
 - session: 사용자가 지시서(열 절)와 계획 승인으로 P0 ~ P7 을 끝까지 지시했다(구현 → 표적 검증 → 문서 → 커밋 → 랩 배포 → 실측). 사람이 필요한 것만 남겨 한 번에 요청한다(맨 위 절).
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`6b848630`** (2026-10-13, D-566 ChatGPT 계정 연결 정식 방식) — 마이그레이션 없음(alembic head `0049_celebration_pref` 그대로), Stage 18
-  VERIFY_OK, 밖에서 본 `verify_deploy.sh` DEPLOY_VERIFY_OK. 스냅샷 `C:/Program Files/Git/var/backups/clovirassist/20261013-080213`, 설치 로그 `C:/Program Files/Git/var/log/clovirassist/install-20261013-080213.log`. 되돌리려면 `sudo clovirassist rollback`(D-524).
-  그 전 배포는 `1b0f6638`(2026-10-12, 기능 개선 회차 최종). 랩의 메일은 사용자 결정대로 **발송 켬 · 로컬 릴레이 동작 · 인터넷으로 직접 전달 · DKIM 서명**을
-  켠 채 두었다. AI 는 옛 `openai · chatgpt` 설정이 그대로 살아 「미설정 · ChatGPT 계정을 아직 연결하지 않았습니다」이고, 사용자가 랩 화면에서
-  로그인하면 그 자격을 모두가 쓴다.
+- deployed: **`670c6058`** (2026-10-13, 붙여 넣기 결함 수정 — 만료 시각 UTC 파서) — 마이그레이션 없음(alembic head `0049_celebration_pref` 그대로),
+  Stage 18 VERIFY_OK, 밖에서 본 `verify_deploy.sh` DEPLOY_VERIFY_OK. 스냅샷 `C:/Program Files/Git/var/backups/clovirassist/20261013-091622`, 설치 로그 `C:/Program Files/Git/var/log/clovirassist/install-20261013-091622.log`. 되돌리려면
+  `sudo clovirassist rollback`(D-524). 그 전 배포는 `6b848630`(같은 날, D-566) · `1b0f6638`(2026-10-12, 기능 개선 회차 최종). 랩의 메일은 사용자
+  결정대로 **발송 켬 · 로컬 릴레이 동작 · 인터넷으로 직접 전달 · DKIM 서명**을 켠 채 두었다. AI 는 옛 `openai · chatgpt` 설정이 그대로 살아
+  「미설정 · ChatGPT 계정을 아직 연결하지 않았습니다」이고, 사용자가 랩 화면에서 로그인하면 그 자격을 모두가 쓴다.
 - verification: 맨 위 절의 「잰 것」과 `EVIDENCE/ui/2026-10-12-*.md` · `EVIDENCE/mail/2026-10-12-lab-relay-e2e-2.md` · `EVIDENCE/ai/2026-10-12-lab-ai.md`.
 - capture: 전량 정본은 **`s22-final`** 그대로다(D-306). 이번 회차의 부분 캡처는 랩 `dist/ui-qa-lab/r19-before` → `r19-after`(+ `-room` · `-mail`), 로컬 `dist/ui-qa/games-e2e/r2 ~ r5` ·
   `p6-local*` · `p6-shots` 이고 Acceptance 정본을 옮기지 않는다. 뼈대 기준 라벨은 **`p8-geo`** 다 — 작업 보드는 D-497 이 상단을
