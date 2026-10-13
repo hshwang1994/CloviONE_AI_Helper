@@ -80,6 +80,13 @@ describe("메일 알림 카드", () => {
     expect(screen.getByTestId("mail-address-value")).toHaveTextContent("other@goodmit.co.kr");
   });
 
+  it("서버가 Z 없이 준 UTC 재발송 시각을 지역 시각으로 읽지 않는다 — 한국에서 대기 없이 곧바로 다시 받기가 열리던 결함", () => {
+    const pending = { email: "other@goodmit.co.kr", sent_at: new Date().toISOString(), expires_at: null,
+      resend_after: new Date(Date.now() + 30_000).toISOString().replace(/Z$/, "") };
+    render(<Harness initial={mailBlock({ address: { ...mailBlock().address, pending } })} />);
+    expect(screen.getByRole("button", { name: /코드 다시 받기\(\d+초 뒤\)/ })).toBeDisabled();
+  });
+
   it("다른 주소로 받기 → 코드 보내기 → 코드 확인", async () => {
     const user = userEvent.setup();
     const pending = { email: "other@goodmit.co.kr", sent_at: new Date().toISOString(), expires_at: null,

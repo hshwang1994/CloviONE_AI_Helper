@@ -240,3 +240,33 @@ describe("matchAttempt", () => {
     expect(matchAttempt(CALLBACK, { transaction_id: "tx" })).toEqual({ ok: true, url: CALLBACK });
   });
 });
+
+describe("ChatGPT 로그인 — 만료 시각 규약과 붙여 넣은 글 (랩에서 본 결함, 2026-10-13)", () => {
+  it("서버가 Z 없이 준 UTC 만료 시각을 지역 시각으로 읽지 않는다 — 한국에서 9시간 일찍 「만료」가 되던 결함", async () => {
+    const user = userEvent.setup();
+    startReply = { ...startReply, expires_at: new Date(Date.now() + 10 * 60_000).toISOString().replace(/Z$/, "") };
+    renderLogin();
+    const box = await begin(user);
+    expect(box).not.toBeDisabled();
+    expect(screen.queryByText(EXPIRED_TEXT)).toBeNull();
+    expect(screen.getByText(/남은 시간 (9:5\d|10:00)/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "다시 시작" })).toBeNull();
+  });
+
+  it("오류 화면의 글을 통째로 붙여 넣어도 그 안의 주소를 찾아 연결한다", async () => {
+    const user = userEvent.setup();
+    const onConnected = vi.fn();
+    renderLogin({ onConnected });
+    const box = await begin(user);
+    await paste(user, box, `Firefox가 127.0.0.1:51234 서버에 연결할 수 없습니다. ${CALLBACK} 다시 시도`);
+    await waitFor(() => expect(onConnected).toHaveBeenCalled());
+    const sent = apiMock.mock.calls.filter(([p]) => String(p).endsWith("/complete"));
+    expect(sent[0][1].body).toEqual({ callback_url: CALLBACK });
+  });
+
+  it("matchAttempt 는 글 안의 주소를 찾고, 주소가 없으면 그대로 거절한다", () => {
+    const attempt = { redirect_uri: REDIRECT, authorize_url: AUTHORIZE };
+    expect(matchAttempt(`앞 글 ${CALLBACK} 뒤 글`, attempt)).toEqual({ ok: true, url: CALLBACK });
+    expect(matchAttempt("Firefox가 서버에 연결할 수 없습니다. 주소가 없음", attempt).note).toBe(NOT_A_CALLBACK);
+  });
+});

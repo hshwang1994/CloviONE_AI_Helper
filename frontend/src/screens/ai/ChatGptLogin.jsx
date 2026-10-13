@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { failureText } from "../../lib/failure.js";
+import { toUTCDate } from "../../lib/format.js";
 import { Button, Callout, DotLabel, Field, Modal, useConfirm, useToast } from "../../ui/kit.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 
@@ -41,6 +42,8 @@ export const EXPIRED_TEXT = "시도가 만료됐습니다. 다시 시작하세�
 export const BLOCKED_TEXT = "창이 열리지 않았습니다. 팝업을 허용하거나 이 링크로 여세요.";
 export const CONNECTED_LABEL = "ChatGPT 계정으로 연결됨";
 const CALLBACK_RE = /^http:\/\/127\.0\.0\.1:\d{2,5}\/auth\/callback\?/;
+/* 붙여 넣은 글 안에서 주소만 찾는다 — 오류 화면의 글을 통째로 넣어도 된다. */
+const CALLBACK_IN_TEXT_RE = /http:\/\/127\.0\.0\.1:\d{2,5}\/auth\/callback\?[^\s\x22\x27<>]+/;
 const NOTICE_KEY = "clovirassist.chatgpt-plan-notice";
 /* 글자를 치는 중에 「주소가 아닙니다」가 깜빡이지 않게 - 이만큼은 있어야 주소를 넣으려 했다고 본다. */
 const MIN_PASTE_CHARS = 16;
@@ -59,10 +62,12 @@ function stateOf(url) {
 
 /* 붙여 넣은 글을 이번 시도와 맞춰 본다. `{ok, url}` 또는 `{ok:false, note}` (note 가 null 이면 아직 아무 말도 안 한다). */
 export function matchAttempt(text, attempt) {
-  const trimmed = String(text || "").trim();
-  if (!trimmed) return { ok: false, note: null };
+  const raw = String(text || "").trim();
+  if (!raw) return { ok: false, note: null };
+  const found = raw.match(CALLBACK_IN_TEXT_RE);
+  const trimmed = found ? found[0] : raw;
   if (!looksLikeCallback(trimmed)) {
-    return { ok: false, note: trimmed.length >= MIN_PASTE_CHARS ? NOT_A_CALLBACK : null };
+    return { ok: false, note: raw.length >= MIN_PASTE_CHARS ? NOT_A_CALLBACK : null };
   }
   const expected = attempt && attempt.redirect_uri;
   if (expected && !trimmed.startsWith(`${expected}?`)) return { ok: false, note: WRONG_ATTEMPT };
@@ -99,9 +104,11 @@ export function openBlankWindow() {
 export function useCountdown(expiresAt) {
   const compute = React.useCallback(() => {
     if (!expiresAt) return null;
-    const end = Date.parse(expiresAt);
-    if (Number.isNaN(end)) return null;
-    return Math.max(0, Math.floor((end - Date.now()) / 1000));
+    /* 서버는 UTC 를 Z 없이 준다(`iso_dt` 규약). 그대로 Date.parse 하면 브라우저가 지역 시각으로 읽어 한국에서는 9시간 일찍
+       「만료」가 됐다(랩 실측 2026-10-13) — 제품의 UTC 파서로 읽는다. */
+    const end = toUTCDate(expiresAt);
+    if (!end) return null;
+    return Math.max(0, Math.floor((end.getTime() - Date.now()) / 1000));
   }, [expiresAt]);
   const [left, setLeft] = React.useState(compute);
   React.useEffect(() => {
@@ -162,6 +169,16 @@ function PasteBox({ attempt, onCancel, onRestart, onConnected }) {
   const sentRef = React.useRef(null);
   const left = useCountdown(attempt.expires_at);
   const expired = left === 0;
+  /* 다른 탭에서 주소를 복사해 돌아오면 칸에 초점을 둔다 — 바로 Ctrl+V 하면 된다. */
+  React.useEffect(() => {
+    if (expired) return undefined;
+    const onFocus = () => {
+      const el = document.getElementById("chatgpt-callback-url");
+      if (el && !el.disabled) el.focus();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [expired]);
   const finish = useMutation({
     mutationFn: (callbackUrl) => api(`/api/admin/ai/oauth/openai/transactions/${attempt.transaction_id}/complete`, {
       method: "POST", body: { callback_url: callbackUrl },

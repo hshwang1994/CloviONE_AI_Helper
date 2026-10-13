@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../../lib/api.js";
 import { failureText } from "../../lib/failure.js";
+import { toUTCDate } from "../../lib/format.js";
 import { Button, Callout, Card, DotLabel, Field, FieldRow, FormSection, useToast } from "../../ui/kit.jsx";
 import { SettingRow } from "../../ui/adminKit.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
@@ -52,7 +53,9 @@ function AddressBlock({ address, mailOff }) {
   const [code, setCode] = React.useState("");
   const pending = address.pending;
   const now = useNow(Boolean(pending));
-  const resendAt = pending && pending.resend_after ? Date.parse(pending.resend_after) : 0;
+  /* 서버의 시각은 UTC 를 Z 없이 준다 — 제품의 UTC 파서로 읽는다(지역 시각으로 읽으면 한국에서 9시간 이르다). */
+  const resendDate = pending && pending.resend_after ? toUTCDate(pending.resend_after) : null;
+  const resendAt = resendDate ? resendDate.getTime() : 0;
   const waitSeconds = resendAt > now ? Math.ceil((resendAt - now) / 1000) : 0;
   const state = addressState(address);
   const meta = ADDRESS_STATE[state];
