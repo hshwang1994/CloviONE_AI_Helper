@@ -221,9 +221,13 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 | `screens/dev/KitGallery.jsx` | `MenuList` | 열린 팝오버 항목 붙박이 견본 | 대조표가 실제 `overflowMenuItems` 를 열린 채로 세우는 틀이다 |
 | `app/CommandPalette.jsx` | `Dialog` · `DialogContent` · `LinearProgress` | 명령 팔레트(Ctrl+K) 창과 찾는 중 줄 | 머리 · 발 · 제목이 없는 검색 창이라 모달 3단 계약과 다르다(계획 §0-11 대장 예외) |
 | `app/LoginHandoff.jsx` | `LinearProgress` | 로그인 넘김 진행 줄 | 화면 전체가 넘어가는 동안의 진행 표시라 단추 `loading` 자리가 없다(계획 §0-11 대장 예외) |
-| `screens/game-room/GameStage.jsx` | `Paper` | 사다리 옛 결과(열 정보가 없는 상태 행)의 도착 줄 — 판(D-575)은 `BoardFrame` 이 서고 결과 발표는 `ResultDialog`(D-576)다 | 게임 무대는 판 · 표 · 폼과 다른 놀이 면이다(계획 표 2 「게임 무대 면 · 알약 — 대장 예외 묶음」) |
+| `screens/GameRoom.jsx` | `Paper` | 놀이방 진행 현황 줄(카운트다운 · 제출 현황) | 게임 무대는 판 · 표 · 폼과 다른 놀이 면이다(계획 표 2 「게임 무대 면 · 알약 — 대장 예외 묶음」) |
+| `screens/game-room/GameStage.jsx` | `Paper` | 팀 결과 · 사다리 결과 · 숫자와 가위바위보 공개 타일(승자 강조 · 떠오르는 움직임) | 게임 무대 면이다(위와 같은 묶음) |
+| `screens/game-room/ResultPanel.jsx` | `Paper` | 공통 결과 판(D-563) — 게임판 위에 겹치는 반투명 면 · 당첨자 카드 · 순위 줄 | 게임 무대 면이다(위와 같은 묶음) |
+| `screens/game-room/marble/MarbleStage.jsx` | `Paper` | 구슬 레이스 순위 레일(D-564) — 판 옆에 서는 무대 면 | 게임 무대 면이다(위와 같은 묶음) |
 | `screens/game-room/RpsViews.jsx` | `Paper` | 가위바위보 선택 줄 · 대진 줄 | 게임 무대 면이다(위와 같은 묶음) |
 | `screens/game-room/Scoreboard.jsx` | `Paper` | 순위 줄(자동 번호 · 점수) | 게임 무대 면이다(위와 같은 묶음) |
+| `screens/game-room/StageShared.jsx` | `Paper` | 결과 무대(축하 그림 + 클로비) | 게임 무대 면이다(위와 같은 묶음) |
 
 ## 0-5. 카드 발 · 모달 발의 주인은 하나다
 
