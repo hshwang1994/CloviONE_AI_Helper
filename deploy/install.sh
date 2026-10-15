@@ -1969,6 +1969,23 @@ jq_get() {
   sed -n "s/^[[:space:]]*\"$1\":[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$MANIFEST" | tail -1
 }
 
+# 매니페스트의 문자열 값 하나만 바꾼다(키가 없으면 그대로 둔다 — 다음 upgrade 의 write_manifest 가 그 키를 쓴다). 매니페스트는
+# 키마다 한 줄(`"key": "value"`)이라 jq_get 과 같은 꼴을 고친다. 값은 json_str 로 거르고, awk 에는 환경 변수로 넘긴다
+# (`awk -v` 는 백슬래시를 풀어 json_str 의 이스케이프를 망가뜨린다).
+manifest_set() {
+  [ -f "$MANIFEST" ] || return 0
+  grep -qE "^[[:space:]]*\"$1\":[[:space:]]*\"" "$MANIFEST" || return 0
+  local tmp
+  tmp="$(mktemp)"
+  MS_KEY="$1" MS_VAL="$(json_str "$2")" awk '
+    !done && match($0, "^[[:space:]]*\"" ENVIRON["MS_KEY"] "\":[[:space:]]*\"") {
+      pre = substr($0, 1, RLENGTH - 1); rest = substr($0, RLENGTH); sub(/^"[^"]*"/, "", rest)
+      print pre ENVIRON["MS_VAL"] rest; done = 1; next
+    }
+    { print }' "$MANIFEST" >"$tmp" && cat "$tmp" >"$MANIFEST"
+  rm -f "$tmp"
+}
+
 # ═════════════════════════════════════════════════════════════════════════════
 # version
 # ═════════════════════════════════════════════════════════════════════════════
@@ -2411,6 +2428,8 @@ case "$SUBCOMMAND" in
   ai)        open_log
              resolve_with_ai
              ai_env_apply
+             # 다음 upgrade 가 이 선택을 잇도록 매니페스트에도 적는다(D-570) — env 만 바꾸면 매니페스트는 옛 값을 말한다.
+             manifest_set with_ai "$WITH_AI"
              run_stage 12 AI stage_12_ai
              systemctl restart "$INDEX_UNIT" >>"$LOG" 2>&1 || log "색인 유닛 재시작 실패"
              # 색인 레인만이 아니라 web · 배치 · 대화형도 다시 띄운다(D-570) — web 은 부팅 때 AI 게이트웨이를 만들고, 다시 뜨기 전까지

@@ -259,3 +259,20 @@ def test_with_ai_and_without_ai_together_are_refused():
                             text=True, encoding="utf-8")
     assert result.returncode == 64, (result.returncode, result.stdout, result.stderr)
     assert "함께 줄 수 없습니다" in result.stdout
+
+
+def test_the_ai_command_records_the_ai_state_in_the_manifest():
+    assert 'manifest_set with_ai "$WITH_AI"' in _dispatch("ai"), "ai 부명령이 매니페스트의 with_ai 를 안 고친다 — 매니페스트가 옛 상태를 말한다"
+
+
+@needs_bash
+@pytest.mark.parametrize("value", ["1", "0", 'a"b&c|d\\e'])
+def test_manifest_set_replaces_one_string_value_and_keeps_the_file_strict_json(tmp_path, value):
+    manifest = tmp_path / "m.json"
+    manifest.write_text('{\n  "dns_name": "a.example.com",\n  "with_ai": "0",\n  "installed_at": "x"\n}\n', encoding="utf-8")
+    script = ("MANIFEST=" + _ansi_c(manifest.as_posix()) + "\n" + _function("json_str") + _function("manifest_set")
+              + 'manifest_set with_ai "$1"\nmanifest_set missing_key "$1"\n')
+    done = _run(script, value)
+    assert done.returncode == 0, done.stderr
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    assert data == {"dns_name": "a.example.com", "with_ai": value, "installed_at": "x"}
