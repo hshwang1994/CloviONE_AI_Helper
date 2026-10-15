@@ -7,61 +7,52 @@
 > 큰 작업 단위는 [`BACKLOG.md`](BACKLOG.md), 설치 사양은 [`INSTALLATION.md`](INSTALLATION.md),
 > 실측 목록은 [`INVENTORY/`](INVENTORY/README.md), 결정은 [`../DECISIONS.md`](../DECISIONS.md) D-187~.
 
-## 끝남 — 후속 개선 회차: 메일 발송 품질 · AI 사내 데이터 검색 · 게임 UI/UX (2026-10-15)
+## 끝남 — AI 채팅 전면 개선: 대화 선택 · 화면 틀 · 답 표현 · 답 품질 (2026-10-15 ~ 16)
 
-- 계획 정본: `C:/Users/hshwa/.claude/plans/pasted-content-id-2c29-clovirassist-wild-marshmallow.md`(사용자 승인). 결정은 **D-567 ~ D-579**,
-  마이그레이션 없음(alembic head `0049_celebration_pref` 그대로). 기준 화면은 사용자 캡처 열두 장(2026-10-15 09:19 ~ 09:34).
-- 사용자 결정(2026-10-15): 검증 전용 계정 · 시드 데이터를 만들지 않고 **사용자 본인 계정으로 모든 랩 검증**을 한다(자격은 gitignore 된
-  `dist/ops/user.env` 에만). **팀 채팅은 AI · 통합 검색에서 계속 제외**한다.
+- 계획 정본: `C:/Users/hshwa/.claude/plans/pasted-content-id-2c29-clovirassist-wild-marshmallow.md`(사용자 승인 — 앞 회차와 같은 파일을 이 회차가
+  덮어썼다). 결정 **D-582 ~ D-586**, 마이그레이션 **0050** `conversation_activity` — alembic head `0050_conversation_activity`. 기준 화면은 사용자
+  캡처 `스크린샷 2026-10-15 182632.png`. 사용자 결정(본인 계정으로 랩 검증 · 팀 채팅은 AI 에서 제외)은 그대로다.
 - 끝난 묶음:
 
 | 묶음 | 커밋 | 결정 |
 |---|---|---|
-| K0 공통 부품 `Disclosure` · `TechRows` · `SettingRows` · 잠금 빌드 `scripts/ui_qa/build_bundle.py` | `b2460f24` · `46614c60` | D-574 |
-| 배포 tar 의 `VERSION` · `*.j2` LF(랩 매니페스트에 날 CR) | `2b16a7ca` | D-573 |
-| M1 메일 틀(클래식 Outlook — 고스트 표 · VML 단추 · px 줄 높이 · 36px CID 로고 · 다크 두 벌 · eyebrow · Reply-To/List-Unsubscribe) · M2 발신 신뢰(중복 DMARC 없음 · 메일 전용 HELO/PTR 이름 · M365 관리자 요청문 · EHLO 이름 · 표시 이름 기본값 · 받은 편지함 아이콘 안내) · 이 PC 클래식 Outlook COM 렌더 하네스 | `db0309e4` · `6c5323bf` | D-571 · D-572 |
-| A1 ~ A10 AI(세기 계약 · 도구 17 · 문서 단위 검색 · 프로젝트 후보 · 순위 · 파서 판 2 · 고정 틀 규칙 · 출처 일치 링크 · 의미 검색 상태 · 진실 하네스) | `e367460f` · `dc904a46` | D-567 ~ D-570 |
-| M3 대표 주소(도우미 `domain.preview/apply` · 별칭 · 인증서 전략 · 지연 재시작 · 설치기 `--alias-name`) · M4 설정 화면(서비스 주소 판 · 메일 다섯 구획 · AI 여섯 구획) · 설치기 AI 상태 보존 | `93404873` · `e8c1cbbc` · `f0321fd0` · `4fd16a13` | D-573 · D-574 · D-570 |
-| G1 ~ G8 놀이(방 껍데기 · 툴바 · 결과 대화 상자 · 전체 화면 · 신원 스냅샷과 얼굴 · 구슬 원본 재현 · 판 넷 · 오픈소스 고지 · 하네스) · 구슬 카메라 미니맵 오른쪽 자리 | `11d36b9d` · `81088d6d` | D-575 ~ D-579 |
-| 문서 · 증거 · 번들 | `32aab42a` · `c5d5da57` · `e51506e9` · `64c58058` | — |
-| 후속(같은 날 오후) — 에지 앞단 프록시 신뢰(P-143) · 구슬 원본 대조(당첨 뒤 20배 빨리 감기 · 원본 슬로 모션 규칙 · 이른 제출 대기) · 찾아본 자료(P-133) · 화면 길잡이 링크 · 이번 주 경계(P-139) · 태그 · 분류 · 공간 변경 색인(P-138) · kit 줄 동작 · 모달 초점 · 접기 제목(P-134 ~ P-137) · 하네스(P-140) · 증거 정정(P-142) | `66263c12` · `84778051` · `1b1a133c` · `504e4590` · `5e20ad4a` · `daf08266` · `188d99c0` · 번들 `308750cd` · `f4b52991` | D-580 · D-581 |
+| W0 랩 대화 하네스 `ai_chat_e2e`(그 시각의 화면 API 진실과 대조) · 「전」 기준선 | `13ef6088` | — |
+| W1 대화 줄의 JSX 주석 누출(고른 대화가 `나/* 행 안 동작은 30 …`) · 바벨 파서 시험 | `f8c53f8d` | D-582 |
+| W2 대화 무결성(대화당 대기 하나 · 잡 키 · 첨부 범위 · 지운 대화의 잡 · 5,000자) | `fc592aaf` | D-585 |
+| W3 0050 마지막 대화 시각 · 메시지 수 · 서버 빈 대화 보관 · 다듬은 첫 제목 | `42f287cd` | D-585 |
+| W4 결과 블록 · 이어지는 질문의 기억 · 결과 맞추기 · 의도 제목 · 형식 줄 | `cc707516` | D-584 · D-585 |
+| W5 결과 블록의 쪽 넘기기 API(모델 없음) | `2ee40765` | D-584 |
+| W6 ~ W9 화면(주소 정본 · 폭으로 정하는 세 칸 틀 · 메뉴 하나의 대화 줄 · 글 기둥 답 · 마크다운 · 결과 목록 · 프로젝트 카드 · 참고 자료 칸) | `a162aeb2` | D-582 ~ D-584 |
+| W10 하네스(`chat_nav_e2e` · 진짜 도구로 만든 결과 블록 씨앗 · S21 · 대본 · 브랜드 프로브) · `/chat/<id>` 화면 등록 | `4447c5ad` | D-584 |
+| W11 번들 · 랩 배포 · 랩 대조 후속(프로젝트 후보 링크 · 카드의 연결 문서 · 이번 주에 끝낸 내 티켓 · 하네스 판독) | `3cc9981c` · `498b9275` · `e992eee4` | D-586 |
 
-- 잰 것: 정적 전량 `STATIC_CHECKS_OK`(최종 `e51506e9`, 깨끗한 작업 트리), vitest 전량 512 파일 4,405 중 4,401 → 남은 넷(대비 계약 시험이 옛 파일을
-  찾음)을 고친 뒤 그 파일 178 통과, 백엔드 전량 회귀 `FULL_REGRESSION_OK`(`run_full_regression.sh`, `4fd16a13` — unit · regression · security · integration 네 청크)와
-  그 뒤 놀이 백엔드 64. 표적 — 메일 198 · AI 보안 포함 250 · 도메인 · 설치기 · 도우미 155 · 설정 화면 143. 실브라우저 — 메일 `mail_e2e` 162/162 ·
-  `mail_render_matrix` 156/156 · 클래식 Outlook COM(밝은 테마), 놀이 `games_e2e --layout` 80/80 · `--fullscreen` · `--capture` 여덟 게임 ·
-  `--digest` 판 넷 confirmed · `--perf` 100명 p95 16.8ms.
-- 랩(배포 두 번 — `e8c1cbbc` 13:01 · `e51506e9` 14:23, 둘 다 Stage 0 ~ 18 OK · `VERIFY_OK` · `DEPLOY_VERIFY_OK`):
-  - 대표 주소 전환 `clovirassist.gooddi.lab` → `https://clovirassist.goodmit.co.kr`(옛 이름은 리디렉션 없는 별칭) — 사내 · 별칭 · 공개 에지 모두
-    200(`EVIDENCE/ops/2026-10-15-domain-cutover.md`). 서비스 주소 판의 확인 넷이 정상이다.
-  - 의미 검색 켬(`sudo clovirassist ai --with-ai`, 모델은 8월부터 있었다) — 조각 2,282/2,282, 콘솔 「낱말 검색 + 의미 검색」, 둘째 배포(일반 upgrade)
-    뒤에도 켜져 있다. AI 진실 하네스 18문항 — 17 통과 · 1 건너뜀(시스템 관리자 계정이라 남의 문서 제한은 이 계정으로 못 잰다) · 색인 프로브 7.9초
-    (`EVIDENCE/ai/2026-10-15-lab-truth.md`).
-  - 메일 — 요청문이 담당자 셋으로 바르게 나오고(DMARC 중복 없음), 새 틀 시험 메일이 Exchange Online 250 접수(13:12 KST,
-    `EVIDENCE/mail/2026-10-15-lab-relay-e2e-3.md`).
-  - 놀이 — 사용자 계정으로 구슬 레이스 한 판(fill · 판 1240×821 · 레일 바닥 = 판 바닥 · 페이지 굴림 0 · 슬로 모션 · 미니맵 · 결과 대화 상자 · 축포 →
-    방 파함, `dist/ui-qa-lab/r20-games`).
-- 후속(배포 `308750cd` 17:03 · `f4b52991` 17:23, 둘 다 Stage 0 ~ 18 OK · `VERIFY_OK` · 두 이름 `DEPLOY_VERIFY_OK` · 에지 새 자산 200):
-  - 에지가 실제 주소를 덧붙이고 위조 값은 무시됨을 확인한 뒤 `--upstream-proxy 10.100.64.96` — 로그인 감사 IP 가 사용자별이다
-    (`EVIDENCE/ops/2026-10-15-domain-cutover.md`).
-  - 구슬 — 호스팅된 원본을 띄워 대조했다. 당첨까지는 비슷했고(원본 약 24초 · 우리 25.7초), 당첨 뒤 결과까지 우리만 6개 9.8초 · 100개 94.7초를
-    기다렸다. 이제 랩 20개 경주에서 1.1초다(D-580, `EVIDENCE/ui/2026-10-15-games-room-layout.md` §11).
-  - AI — 찾지 못한 답의 출처 8개가 모두 `cited: false` 로 접힌 「찾아본 자료」, 답 안 마크다운 글자 없음, 태그만 바꾼 문서가 12.4초 만에
-    새 태그로 찾힘(D-581 · P-138, `EVIDENCE/ai/2026-10-15-lab-truth.md` 「후속」).
-  - 잰 것 — vitest 전량 512 파일 4,420 통과(kit 변경 뒤), 표적 pytest · vitest, 두 브라우저 지문 confirmed(바퀴), `--perf` 100개 p95 16.7ms,
-    `KIT_MEASURE_SELFTEST_OK`, 정적 dev 검사.
+- 잰 것: 표적 `verify.py` `TARGETED_OK`(vitest 55 파일 611 · 후속 표적), 정적 전량 `STATIC_CHECKS_OK`, 백엔드 전량 회귀 `FULL_REGRESSION_OK`
+  (네 청크). **vitest 전량은 끝나지 않았다** — 실행 중 PC 메모리가 모자라 Claude Code 가 배경 작업을 멈췄고 알림대로 다시 돌리지 않았다.
+  로컬 실브라우저 — 캡처 20쪽(치명 0 · `brand_role_coverage` 20/20), `kit_measure` page_fill 32/0 · control_row 60/0, 클로비 패널 0 실패, 키보드
+  44 정지점, `chat_nav_e2e` 24/24, `ai_scripted_e2e` 31/31, S21 AI 도우미 21/22(FF-0198 은 이 회차 전부터 FAIL), 프로브 반례 98
+  (`EVIDENCE/ui/2026-10-15-chat-screen.md`).
+- 랩(배포 `3cc9981c` 10-15 23:44 · `e992eee4` 10-16 00:16, 둘 다 Stage 0 ~ 18 OK · `0049 → 0050` · `VERIFY_OK` · 두 이름 `DEPLOY_VERIFY_OK` · 에지
+  새 자산 200, 스냅샷 `/var/backups/clovirassist/20261015-234427` · `20261016-001615`):
+  - AI 대화 하네스 14문항 — 「전」 60 · 3 · 5 → 「후 1」 84 · 6 · 2 → 후속 수정 뒤 「후 2」 **94 · 0 · 0**. 「후 1」의 실패 여섯은 하네스 셋과 제품 셋이었다
+    (`EVIDENCE/ai/2026-10-15-chat-lab.md`). 그린 화면 일곱 대화에 `](/` · `**` 없음.
+  - `chat_nav_e2e` 랩 **32/32**(시험 대화만, 끝에 지움). 캡처 「전」 `dist/ui-qa-lab/r22-chat-before/` · 「후」 `r22-chat-after/` · `r22-chat-after2/`.
 - 사람이 해야 하는 것(완료로 표시하지 않는다):
-  ① 받은 편지함 확인 — 13:12 KST 시험 메일(Message-ID `<179203753563.66435.16500499612322647244@goodmit.co.kr>`)이 받은 편지함 · 정크 · 격리 중
-    어디였는지, 새 틀이 PC Outlook · 새 Outlook/OWA · 모바일 Gmail · 모바일 Outlook · 다크에서 어떻게 보이는지(캡처). 메일 설정 ④ 의 「받았습니다 ·
+  ① 받은 편지함 확인 — 10-15 13:12 KST 시험 메일(Message-ID `<179203753563.66435.16500499612322647244@goodmit.co.kr>`)이 받은 편지함 · 정크 · 격리
+    중 어디였는지, 새 틀이 PC Outlook · 새 Outlook/OWA · 모바일 Gmail · 모바일 Outlook · 다크에서 어떻게 보이는지. 메일 설정 ④ 의 「받았습니다 ·
     못 받았습니다」로 기록한다.
-  ② 도메인 DNS 담당자 — SPF 합치기(`ip4:221.147.80.201` 추가 · 깨진 include 제거, 사이트 확인 값은 별도 TXT) · DKIM `ca1._domainkey` TXT · A
-    `clovirassist-mail.goodmit.co.kr → 221.147.80.201`. 회선 업체 — PTR `221.147.80.201 → clovirassist-mail.goodmit.co.kr`(또는 NAT). M365 관리자 —
-    인증 확인 · (선택) 발신자 사진. 요청문은 메일 설정 ⑤ 「담당자에게 요청하기」에 그대로 있다. 레코드가 들어오면 메일 설정에서 서버 이름(HELO)을
-    `clovirassist-mail.goodmit.co.kr` 로 바꾸고 점검을 다시 한다.
-  ③ 사내 DNS 담당 — 사내 사용자의 자체 서명 경고 해소. 권장은 사내 DNS 의 `clovirassist.goodmit.co.kr` 를 에지의 안쪽 주소
-    **10.100.64.96** 으로 돌리는 것이다(유효한 인증서로 200, 사용자 주소 유지 — 확인함). 공개 주소 221.147.80.210 으로 돌리면 사내 전원이
-    회사 출구 주소 하나로 보인다. 에지 앞단 프록시 신뢰는 끝났다(P-143, 15:07).
+  ② 도메인 DNS 담당자 — SPF 합치기(`ip4:221.147.80.201` 추가 · 깨진 include 제거) · DKIM `ca1._domainkey` TXT · A
+    `clovirassist-mail.goodmit.co.kr → 221.147.80.201`. 회선 업체 — PTR. M365 관리자 — 인증 확인. 요청문은 메일 설정 ⑤ 에 있다.
+  ③ 사내 DNS 담당 — 사내 DNS 의 `clovirassist.goodmit.co.kr` 를 에지의 안쪽 주소 **10.100.64.96** 으로 돌린다(자체 서명 경고 해소).
   ④ (선택) 일반 사용자 계정으로 AI 권한 제한 한 문항(P-132).
+  ⑤ vitest 전량 — 메모리가 넉넉할 때 다시 돌릴지 정한다(`python scripts/verify.py --full`, 요청하면 돌린다).
+- 이 회차가 하지 않은 것: 생성 중지(P-144) · 부분 응답 스트리밍(P-127) · iPhone 실기기 키보드(에뮬레이션만). 새로 남긴 것 — P-145(초안 화면의
+  브랜드 자리) · P-146(키보드 프로브의 검색 칸 초점). P-141 티켓 본문 색인은 `0051` 이 된다.
+
+## 끝남 — 후속 개선 회차: 메일 발송 품질 · AI 사내 데이터 검색 · 게임 UI/UX (2026-10-15)
+
+- 계획 정본은 위 회차와 같은 파일의 앞 판, 결정 D-567 ~ D-581, 마이그레이션 없음, 배포 `e8c1cbbc` → `e51506e9` → `308750cd` → `f4b52991`.
+  묶음 · 잰 것 · 랩 실측은 이 파일의 git log(`3a87f535` 판)와 `EVIDENCE/{ops,ai,mail,ui}/2026-10-15-*.md` 다. 그 회차의 사람이 할 일은 위 회차로
+  옮겼다.
 
 ## 끝남 — 기능 개선 회차: 조직 아바타 · 클로비 패널 · AI 연결 · 메일 · 게임(구슬 레이스) (2026-10-12)
 
