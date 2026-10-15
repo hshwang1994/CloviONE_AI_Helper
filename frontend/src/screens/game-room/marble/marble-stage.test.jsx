@@ -26,6 +26,7 @@ vi.mock("canvas-confetti", () => {
 import { GameRoom } from "../../GameRoom.jsx";
 import { ConfirmProvider, ToastProvider } from "../../../ui/kit.jsx";
 import { ThemeModeProvider } from "../../../ui/ThemeModeProvider.jsx";
+import { SUBMIT_MARGIN_MS, submitDelayMs } from "./useMarbleRoom.js";
 
 function renderRoom() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -156,6 +157,19 @@ describe("진행 중 — 이 브라우저가 경주를 계산해 결과를 한 �
     expect(apiMock.mock.calls.some((c) => String(c[0]).includes("/marble/finish"))).toBe(false);
   }, 30000);
 
+  it("서버의 최소 경과 전에 끝난 경주는 그때까지 기다렸다 올린다(D-580)", async () => {
+    apiMock.mockImplementation((url) => {
+      if (String(url).includes("/marble/finish")) return Promise.resolve({ recorded: true, late: false, state: {} });
+      const data = running();
+      data.state.min_race_seconds = 100000; // 배속 4 → 2만 5천 초. 시험 안에서는 오지 않는 시각이다.
+      return Promise.resolve(data);
+    });
+    renderRoom();
+    expect(await screen.findByText(/결과를 확인하는 중입니다/, undefined, { timeout: 20000 })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(apiMock.mock.calls.some((c) => String(c[0]).includes("/marble/finish"))).toBe(false);
+  }, 30000);
+
   it("서버가 이미 받은 사람(you_submitted)은 올리지 않는다", async () => {
     const data = running();
     data.state.you_submitted = true;
@@ -165,6 +179,19 @@ describe("진행 중 — 이 브라우저가 경주를 계산해 결과를 한 �
     await new Promise((r) => setTimeout(r, 3000));
     expect(apiMock.mock.calls.some((c) => String(c[0]).includes("/marble/"))).toBe(false);
   }, 15000);
+});
+
+describe("제출 대기 — 서버의 최소 경과(D-580)", () => {
+  it("최소 경과(배속으로 나눔)에 못 미친 만큼 + 여유만 기다린다", () => {
+    expect(submitDelayMs({ minRaceSeconds: 8, speed: 1, logicalMs: 7000 })).toBe(1000 + SUBMIT_MARGIN_MS);
+    expect(submitDelayMs({ minRaceSeconds: 8, speed: 4, logicalMs: 6000 })).toBe(500 + SUBMIT_MARGIN_MS); // 벽시계 1.5초 · 최소 2초
+    expect(submitDelayMs({ minRaceSeconds: 8, speed: 1, logicalMs: 30000 })).toBe(0);
+    expect(submitDelayMs({ minRaceSeconds: 8, speed: 2, logicalMs: 16000 + 2 * SUBMIT_MARGIN_MS })).toBe(0);
+  });
+  it("서버가 최소 경과를 알려 주지 않거나 논리 시간을 모르면 기다리지 않는다", () => {
+    expect(submitDelayMs({ minRaceSeconds: undefined, speed: 1, logicalMs: 1000 })).toBe(0);
+    expect(submitDelayMs({ minRaceSeconds: 8, speed: 1, logicalMs: null })).toBe(0);
+  });
 });
 
 describe("종료", () => {

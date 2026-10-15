@@ -21,7 +21,8 @@ import { spawnPosition } from "./engine/layout.js";
  * - 대기 중: 참가자 구슬(얼굴)이 출발 격자에 놓인 장면. 설정은 툴바의 [설정](방장)이다.
  * - 진행 중: 서버가 준 seed · started_at · speed 로 이 브라우저가 경주를 계산한다(`useMarbleRoom` → `useMarbleRace`). 카메라는 원본의
  *   규칙으로 따라가고(선두 → 당첨 경계 구슬, 결승 근처 확대), 왼쪽 위 미니맵을 누르거나 끌면 그 자리를 보는 「자유 보기」, 오른쪽 아래
- *   전환으로 「따라가기 | 전체 보기」. 오른쪽 위에 선두 셋(얼굴 · 이름), 결승 근처에서 엔진의 슬로 모션이 걸리면 위 가운데 「슬로 모션」.
+ *   전환으로 「따라가기 | 전체 보기」. 오른쪽 위에 선두 셋(얼굴 · 이름), 결승 근처에서 엔진의 슬로 모션이 걸리면 「슬로 모션」, 당첨이
+ *   정해져 남은 경주를 빨리 감는 동안은 「빨리 감기」(D-580) — 카메라는 결승선 아래 장면에 선다.
  * - 확인 창 · 확정 실패 · 중단 · 오류는 판 위에 뜨는 알림이다(판의 자리를 밀지 않는다).
  * - 종료: 서버가 확정한 결과는 결과 대화 상자(`ResultDialog`)가 발표하고, 판은 결승선 아래 마지막 장면(당첨 구슬 고리)으로 남는다.
  * 전체 화면은 방 루트의 일이다(`useFullscreen`) — 여기서는 판 틀의 크기가 바뀌면 캔버스만 다시 잰다. 워커 · 경주는 그대로다. */
@@ -211,6 +212,7 @@ export function MarbleStage({ c }) {
 
   const snap = waiting ? null : race.snapshotRef.current;
   const slow = !!(snap && !snap.finished && snap.timeScale != null && snap.timeScale < 1);
+  const fast = !!(snap && !snap.finished && snap.timeScale != null && snap.timeScale > 1);
   const disputed = phase === "finished" && integrity.status === "disputed";
   let notice = null;
   if (race.status === "error") {
@@ -242,15 +244,15 @@ export function MarbleStage({ c }) {
       {race.status === "loading" ? (
         <BoardFrame.Notice><Typography variant="body2" color="text.secondary">경주를 준비하는 중입니다.</Typography></BoardFrame.Notice>
       ) : notice ? <BoardFrame.Notice>{notice}</BoardFrame.Notice> : null}
-      {/* 슬로 모션 표지 — 미니맵 오른쪽 위. 가운데에 두면 좁은 판(390)에서 오른쪽 위 선두 칩과 겹쳤다. */}
-      {slow && !notice ? (
-        <Box component="span" ref={slowRef} data-slowmo="" sx={(t) => ({
+      {/* 슬로 모션 · 빨리 감기 표지 — 미니맵 오른쪽 위. 가운데에 두면 좁은 판(390)에서 오른쪽 위 선두 칩과 겹쳤다. */}
+      {(slow || fast) && !notice ? (
+        <Box component="span" ref={slowRef} data-slowmo={slow ? "" : undefined} data-fastforward={fast ? "" : undefined} sx={(t) => ({
           position: "absolute", top: 10, left: (miniLayout ? miniLayout.w + 22 : 12), zIndex: 2,
           display: "inline-flex", alignItems: "center", gap: 0.5, px: 1.25, height: "1.625rem", borderRadius: `${RADIUS.full}px`,
           bgcolor: alpha(t.palette.background.paper, 0.9), color: "primary.main", fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.bold,
           boxShadow: `0 0 0 1px ${alpha(t.palette.primary.main, 0.35)}`, pointerEvents: "none",
         })}>
-          슬로 모션
+          {slow ? "슬로 모션" : "빨리 감기"}
         </Box>
       ) : null}
       {/* 판 위 알림(확인 중 · 확정 실패 · 중단 · 오류)이 서면 선두 칩을 걷는다 — 둘이 위쪽에서 겹치지 않게 알림이 이긴다. */}

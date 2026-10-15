@@ -12,12 +12,14 @@
  * 우리는 그러지 않는다. 물리 스텝은 언제나 10ms 이고, 바뀌는 것은 **한 스텝이 쓰는 논리 시간**이다: 스텝 k 의 값
  * `c_k = STEP_MS / timeScale(S_k)` 를 누적한 `T_k` 가 논리 시간 L 이하인 동안 스텝을 밟는다. `S_k` 는 k 스텝 뒤의 경주 상태라
  * 모든 브라우저에서 같고(D-564), 그래서 `T_k` 도 같다 → 논리 시간 L 에서 정확히 `max{k : T_k ≤ L}` 스텝 — 프레임률 · 입장 시각 ·
- * 나눠 부르는 크기와 무관하다. `finish_steps` 는 스텝 색인이라 그대로이고 지문(`raceDigest`)도 그대로다. 슬로 모션은 벽시계만 늘린다.
+ * 나눠 부르는 크기와 무관하다. `finish_steps` 는 스텝 색인이라 그대로이고 지문(`raceDigest`)도 그대로다. 슬로 모션은 벽시계만 늘리고 빨리 감기는 줄인다.
  *
- * `timeScale(S)` — 당첨이 이미 정해졌으면 1. 아니면 **당첨 경계의 살아 있는 구슬**(꼴찌 당첨이면 맨 뒤 구슬)의 `d = |zoomY − y|`
- * 로 `clamp(d / 12, 0.25, 1)` 을 0.05 단위로 자른다. 경계 구슬은 진행도 지도의 날 거리(지수 평활 없음)로 매 스텝 고른다 — 화면의
- * 순위 레일은 평활한 순위라 나눠 부르는 크기에 따라 다를 수 있어 시간 매핑에 쓰지 않는다. 자른 값은 정수 칸(5 ~ 20)이라 비용
- * `200 / 칸` 이 모든 엔진에서 같은 부동소수다.
+ * `timeScale(S)` — 원본의 규칙이다(D-580). **당첨 경계의 살아 있는 구슬**(꼴찌 당첨이면 맨 뒤 구슬)과 그 맞수(바로 뒤, 없으면 바로 앞)
+ * 중 zoomY 에 가까운 쪽의 `d = |zoomY − y|` 로 `clamp(d / 5, 0.2, 1)` 을 0.05 단위로 자른다. 경계 구슬은 진행도 지도의 날 거리(지수
+ * 평활 없음)로 매 스텝 고른다 — 화면의 순위 레일은 평활한 순위라 나눠 부르는 크기에 따라 다를 수 있어 시간 매핑에 쓰지 않는다.
+ * 당첨이 정해지면(앞에서부터 뽑을 때) 남은 경주는 20 배로 감는다 — 결과는 모든 구슬이 들어와야 확정되므로(전체 순위가 지문이다)
+ * 원본처럼 곧바로 발표할 수는 없고, 기다림만 줄인다. 시간 칸은 정수(4 ~ 20, 빨리 감기 400)라 비용 `200 / 칸` 이 모든 엔진에서
+ * 같은 부동소수다.
  *
  * 🔴 import 순서: `determinism.js` → `world.js`(planck). 이 모듈을 들여오는 쪽이 그 순서를 지킨다(이 파일이 지킨다). */
 
@@ -32,12 +34,15 @@ export const STEP_MS = 10;
 export const MAX_STEPS = 24000;
 export const RANK_EMA_SEC = 0.4;
 export const RANK_MARGIN = 0.25;
-/* 슬로 모션 — 경계 구슬이 zoomY 에서 12 단위 안이면 느려지기 시작해 0.25 배까지. 0.05 단위(정수 칸 5 ~ 20)로 자른다. */
-export const ZOOM_THRESHOLD = 12;
-export const SLOWMO_MIN = 0.25;
+/* 슬로 모션 — 경계 구슬(또는 그 맞수)이 zoomY 에서 5 단위 안이면 느려지기 시작해 0.2 배까지(원본 값). 0.05 단위(정수 칸 4 ~ 20)로 자른다. */
+export const ZOOM_THRESHOLD = 5;
+export const SLOWMO_MIN = 0.2;
 export const SLOWMO_QUANT = 0.05;
+/* 당첨이 정해진 뒤 남은 경주의 배속 — 100개 구슬의 꼬리(약 95초)가 5초 안팎이 된다. 워커는 한 스텝에 0.3ms 안팎이라 따라온다. */
+export const FAST_FORWARD = 20;
 const QUANT_STEPS = Math.round(1 / SLOWMO_QUANT); // 20
-const MIN_QUANT = Math.round(SLOWMO_MIN * QUANT_STEPS); // 5
+const MIN_QUANT = Math.round(SLOWMO_MIN * QUANT_STEPS); // 4
+const FAST_QUANT = FAST_FORWARD * QUANT_STEPS; // 400 → 한 스텝 0.5ms
 
 /** 경계 구슬의 거리 → 시간 칸(정수 5 ~ 20). 순수 함수 — 시험이 표로 잰다. */
 export function slowmoQuant(d) {
@@ -45,6 +50,16 @@ export function slowmoQuant(d) {
   const clamped = ratio >= 1 ? 1 : ratio <= SLOWMO_MIN ? SLOWMO_MIN : ratio;
   const q = Math.round(clamped * QUANT_STEPS);
   return q < MIN_QUANT ? MIN_QUANT : q > QUANT_STEPS ? QUANT_STEPS : q;
+}
+
+/** 슬로 모션이 보는 거리 — 경계 구슬과 맞수(바로 뒤, 없으면 바로 앞) 중 zoomY 에 가까운 쪽(원본 `_focusOnRival`). `rows` 는 진행 순. */
+export function slowmoDistance(rows, targetIndex, zoomY) {
+  const dist = (r) => (zoomY > r.y ? zoomY - r.y : r.y - zoomY);
+  const rival = targetIndex + 1 < rows.length ? targetIndex + 1 : targetIndex - 1;
+  const d = dist(rows[targetIndex]);
+  if (rival < 0) return d;
+  const dr = dist(rows[rival]);
+  return dr < d ? dr : d;
 }
 
 /* 순위 흔들림 줄이기(원본 _sortMarbles) — 표시 전용. 지문에는 들어가지 않는다. */
@@ -84,7 +99,7 @@ export function createRace({ stage, participants, seed, winners = 1, pickLast = 
   function nextQuant() {
     if (!slowmo || done) return QUANT_STEPS;
     const n = winners > 0 ? winners : 1;
-    if (!pickLast && finishOrder.length >= n) return QUANT_STEPS; // 당첨이 이미 정해졌다
+    if (!pickLast && finishOrder.length >= n) return FAST_QUANT; // 당첨이 정해졌다 — 남은 구슬은 빨리 감는다
     const bodies = world.marbles;
     let near = false;
     for (let i = 0; i < bodies.length; i += 1) {
@@ -94,7 +109,7 @@ export function createRace({ stage, participants, seed, winners = 1, pickLast = 
       const d = zoomY > y ? zoomY - y : y - zoomY;
       if (d < ZOOM_THRESHOLD) { near = true; break; }
     }
-    if (!near) return QUANT_STEPS; // 경계 구슬이 어디 있든 12 단위 밖이다
+    if (!near) return QUANT_STEPS; // 어느 구슬도 5 단위 안에 없다
     const rows = [];
     for (let i = 0; i < bodies.length; i += 1) {
       const m = bodies[i];
@@ -105,9 +120,8 @@ export function createRace({ stage, participants, seed, winners = 1, pickLast = 
     if (rows.length < 2) return QUANT_STEPS;
     rows.sort((a, b) => (a.d - b.d) || (b.y - a.y) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
     const remaining = n - finishOrder.length;
-    const focus = pickLast ? rows[rows.length - 1] : rows[Math.min(rows.length, remaining) - 1];
-    const d = zoomY > focus.y ? zoomY - focus.y : focus.y - zoomY;
-    return slowmoQuant(d);
+    const target = pickLast ? rows.length - 1 : Math.min(rows.length, remaining) - 1;
+    return slowmoQuant(slowmoDistance(rows, target, zoomY));
   }
   quant = nextQuant(); // S_0 — 출발 자리(판마다 zoomY 에서 멀다)
 
@@ -172,7 +186,7 @@ export function createRace({ stage, participants, seed, winners = 1, pickLast = 
     get result() { return result; },
     /** 지금까지 밟은 스텝이 쓴 논리 시간(ms) — 스텝 k 의 `T_k`. */
     get logicalMs() { return T; },
-    /** 다음 스텝의 배속(1 이면 보통, 0.25 까지 느려진다). */
+    /** 다음 스텝의 배속(1 이면 보통, 0.2 까지 느려지고 당첨이 정해지면 20). */
     get timeScale() { return quant / QUANT_STEPS; },
     /* 논리 시간(ms)까지 스텝을 누적한다. 돌린 스텝 수를 돌려준다. 끝나면 `result` 가 찬다. */
     stepTo(logicalMs, raceId) {

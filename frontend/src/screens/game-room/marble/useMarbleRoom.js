@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useMarbleRace } from "./useMarbleRace.js";
 import { participantHue } from "./render/theme.js";
 import { stageBounds } from "./render/camera.js";
@@ -41,14 +41,27 @@ export function useMarbleRoom({ data, mutations }) {
   const stage = stageOf(stageKey);
   const bounds = stageBounds(stage);
 
-  /* 결과 제출 — 경주당 한 번(훅이 보장), 방 안의 사람만, 아직 안 올렸을 때만, 확정 전일 때만. */
+  /* 결과 제출 — 경주당 한 번(훅이 보장), 방 안의 사람만, 아직 안 올렸을 때만, 확정 전일 때만. 서버는 시작 뒤 최소 경과 전에 온 결과를
+     거절하므로(경주를 돌리지 않은 결과), 일찍 끝난 짧은 경주는 그 시각까지 기다렸다 올린다(D-580). 기다리는 사이 경주가 바뀌면 올리지
+     않는다. */
   const latest = useRef(null);
   latest.current = { g, you, isHost: !!(you && you.is_host), mutations };
+  const raceRef = useRef(null);
+  const submitTimerRef = useRef(0);
+  useEffect(() => () => clearTimeout(submitTimerRef.current), []);
   const onFinished = useCallback((result) => {
-    const { g: s, you: y, isHost, mutations: m } = latest.current;
-    if (!y || !y.in_room || s.you_submitted || s.finalized_at) return;
-    const body = { race_id: s.race_id, ranking: result.ranking, finish_steps: result.finish_steps, digest: result.digest };
-    (isHost ? m.marbleFinish : m.marbleAttest).mutate(body);
+    const raceId = latest.current.g.race_id;
+    const submit = () => {
+      const { g: s, you: y, isHost, mutations: m } = latest.current;
+      if (!y || !y.in_room || s.you_submitted || s.finalized_at || s.race_id !== raceId) return;
+      const body = { race_id: s.race_id, ranking: result.ranking, finish_steps: result.finish_steps, digest: result.digest };
+      (isHost ? m.marbleFinish : m.marbleAttest).mutate(body);
+    };
+    const s0 = latest.current.g;
+    const wait = submitDelayMs({ minRaceSeconds: s0.min_race_seconds, speed: s0.speed, logicalMs: raceRef.current ? raceRef.current.logicalMs() : null });
+    clearTimeout(submitTimerRef.current);
+    if (wait > 0) submitTimerRef.current = setTimeout(submit, wait);
+    else submit();
   }, []);
 
   const race = useMarbleRace({
@@ -58,6 +71,7 @@ export function useMarbleRoom({ data, mutations }) {
     active: isMarble && !waiting && phase !== "abandoned" && Array.isArray(g.participants) && g.participants.length >= 2,
     onFinished,
   });
+  raceRef.current = race;
 
   const serverResult = isMarble && phase === "finished" && g.result ? g.result : null;
   const announceable = !!(g.announceable && serverResult);
@@ -72,6 +86,18 @@ export function useMarbleRoom({ data, mutations }) {
     isMarble, phase, waiting, config, participants, byKey, winnersN, pickLast, speed, stageKey, stage, bounds,
     race, serverResult, announceable, integrity, winnerKeys, winnerSet, verifying, finishedCount,
   };
+}
+
+/** 결과를 올리기 전에 기다릴 시간(ms). 서버의 최소 경과(배속으로 나눔)에서 지금까지의 경과(논리 시간 ÷ 배속)를 빼고, 기다려야 하면 시계
+ *  보정 오차만큼 더 기다린다. 서버가 최소 경과를 알려 주지 않으면 기다리지 않는다(예전 서버 — 그때는 거절도 없었다). */
+export const SUBMIT_MARGIN_MS = 600;
+export function submitDelayMs({ minRaceSeconds, speed, logicalMs }) {
+  const min = Number(minRaceSeconds);
+  if (!Number.isFinite(min) || min <= 0 || logicalMs == null) return 0;
+  const sp = Number(speed) > 0 ? Number(speed) : 1;
+  const minWallMs = (min * 1000) / sp;
+  const elapsedMs = Number(logicalMs) / sp;
+  return elapsedMs >= minWallMs + SUBMIT_MARGIN_MS ? 0 : Math.ceil(minWallMs + SUBMIT_MARGIN_MS - elapsedMs);
 }
 
 /** 순위 레일의 줄 순서 — 확정 뒤엔 서버 순위, 진행 중엔 실시간(완주한 구슬 먼저), 대기 중엔 참가자 순. */

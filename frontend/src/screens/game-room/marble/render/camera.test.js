@@ -56,6 +56,15 @@ describe("목표", () => {
     expect(Math.abs(t1.y - 30)).toBeLessThan(H / t1.zoom / 2);
   });
 
+  it("당첨이 정해져 빨리 감는 동안은 경주가 끝난 장면에 선다(D-580)", () => {
+    const s = snap([12, 112, 0, 12, 60, 0, 12, 20, 0], [FLAG_FINISHED, 0, 0], [0, 1, 2], { finishedCount: 1 });
+    const following = cameraTarget({ stage: WHEEL, snapshot: { ...s, timeScale: 1 }, width: W, height: H, focusIndex: 1, leader: 1 });
+    const fast = cameraTarget({ stage: WHEEL, snapshot: { ...s, timeScale: 20 }, width: W, height: H, focusIndex: 1, leader: 1 });
+    const done = cameraTarget({ stage: WHEEL, snapshot: { ...s, finished: true }, width: W, height: H, focusIndex: 1, leader: 1 });
+    expect(fast).toEqual(done);
+    expect(following.y).toBeLessThan(done.y - 5);
+  });
+
   it("결승 근처에서 확대한다(뷰 높이 6 단위가 바닥)", () => {
     const far = cameraTarget({ stage: WHEEL, snapshot: snap([12, 40, 0, 12, 20, 0], [0, 0], [0, 1]), width: W, height: H, focusIndex: 0, leader: 0 });
     const near = cameraTarget({ stage: WHEEL, snapshot: snap([12, WHEEL.zoomY, 0, 12, 20, 0], [0, 0], [0, 1]), width: W, height: H, focusIndex: 0, leader: 0 });

@@ -102,6 +102,7 @@ def test_participants_default_to_present_members_and_config_is_clamped(app, clie
     assert st["state"]["winners_n"] == 2, "당첨 인원은 참가자 수를 넘지 않는다"
     assert st["state"]["pick_last"] is True
     assert "now" in st and st["state"]["started_at"]
+    assert st["state"]["min_race_seconds"] == marble.MIN_RACE_SECONDS, "브라우저가 짧은 경주의 제출을 이 경과까지 미룬다(D-580)"
     # 진행 중엔 참가자 · 설정을 바꿀 수 없고 다시 시작할 수도 없다.
     assert client.put(f"/api/games/rooms/{rid}/marble/participants", json={"participants": [{"name": "a"}, {"name": "b"}]}, headers=h).status_code == 409
     assert client.post(f"/api/games/rooms/{rid}/start", headers=h).status_code == 409

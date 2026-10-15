@@ -15,7 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { atan2, cos, hypot, isInstalled, selfTest, sin, stats } from "./determinism.js";
-import { createRace, MAX_STEPS, STEP_MS, slowmoQuant, SLOWMO_MIN } from "./race.js";
+import { createRace, FAST_FORWARD, MAX_STEPS, STEP_MS, slowmoDistance, slowmoQuant, SLOWMO_MIN } from "./race.js";
 import { raceDigest, sha256Hex } from "./sha256.js";
 import { ProgressMap } from "./progressMap.js";
 import { WHEEL } from "./stages/wheel.js";
@@ -26,7 +26,7 @@ function participants(n) {
   return Array.from({ length: n }, (_, i) => ({ key: `n:${String(i).padStart(3, "0")}`, name: `참가자 ${i + 1}` }));
 }
 
-/* 슬로 모션이 한 스텝의 논리 시간을 최대 1/0.25 배로 늘리므로(D-578) 상한은 물리 스텝 상한의 네 배 논리 시간이다. */
+/* 슬로 모션이 한 스텝의 논리 시간을 최대 1/0.2 배로 늘리므로(D-578 · D-580) 상한은 물리 스텝 상한의 다섯 배 논리 시간이다. */
 const LOGICAL_CAP_MS = (MAX_STEPS / SLOWMO_MIN + 1000) * STEP_MS;
 
 function runToEnd(race, raceId, chunkMs) {
@@ -142,6 +142,7 @@ describe("슬로 모션 — 엔진의 시간 매핑 (D-578)", () => {
     let lastSteps = 0;
     let lastT = 0;
     let slowSteps = 0;
+    let fastSteps = 0;
     for (let L = 0; !race.finished && L < LOGICAL_CAP_MS; L += 37) {
       const before = race.step;
       race.stepTo(L, "r6");
@@ -149,28 +150,63 @@ describe("슬로 모션 — 엔진의 시간 매핑 (D-578)", () => {
       expect(race.logicalMs).toBeGreaterThanOrEqual(lastT);
       expect(race.logicalMs).toBeLessThanOrEqual(L + 1e-9);
       if (race.step > before && race.logicalMs - lastT > (race.step - before) * STEP_MS + 1e-9) slowSteps += 1;
+      if (race.step > before && race.logicalMs - lastT < (race.step - before) * STEP_MS - 1e-9) fastSteps += 1;
       lastSteps = race.step;
       lastT = race.logicalMs;
     }
     expect(race.finished).toBe(true);
     expect(slowSteps).toBeGreaterThan(0); // 결승 근처에서 실제로 느려졌다
-    expect(race.logicalMs).toBeGreaterThan(race.step * STEP_MS);
+    expect(fastSteps).toBeGreaterThan(0); // 당첨이 정해진 뒤 남은 경주를 감았다
   }, 60_000);
 
-  it("배속은 0.25 ~ 1 이고 0.05 단위다", () => {
-    expect([0, 1, 3, 3.6, 6, 9, 12, 40].map(slowmoQuant)).toEqual([5, 5, 5, 6, 10, 15, 20, 20]);
+  it("당첨이 정해지면 남은 경주는 20 배로 감긴다 — 꼬리는 스텝당 0.5ms, 꼴찌 뽑기에는 없다(D-580)", () => {
+    const race = createRace({ stage: WHEEL, participants: participants(10), seed: "tail", winners: 1 });
+    let decStep = null;
+    let decT = null;
+    for (let L = 0; !race.finished && L < LOGICAL_CAP_MS; L += 20) {
+      race.stepTo(L, "r10");
+      if (decStep === null && race.snapshot().finishedCount >= 1) {
+        decStep = race.step;
+        decT = race.logicalMs;
+        if (!race.finished) expect(race.snapshot().timeScale).toBe(FAST_FORWARD);
+      }
+    }
+    expect(race.finished).toBe(true);
+    expect(race.step).toBeGreaterThan(decStep);
+    expect(race.logicalMs - decT).toBe(((race.step - decStep) * STEP_MS) / FAST_FORWARD);
+    const last = createRace({ stage: WHEEL, participants: participants(6), seed: "tail-last", winners: 1, pickLast: true });
+    for (let L = 0; !last.finished && L < LOGICAL_CAP_MS; L += 50) {
+      last.stepTo(L, "r11");
+      expect(last.snapshot().timeScale).toBeLessThanOrEqual(1);
+    }
+    expect(last.finished).toBe(true);
+  }, 60_000);
+
+  it("배속은 0.2 ~ 1 의 0.05 단위이고, 당첨이 정해지면 20 이다(원본의 5 단위 · 0.2 배)", () => {
+    expect([0, 1, 1.25, 1.5, 2.5, 3.75, 5, 40].map(slowmoQuant)).toEqual([4, 4, 5, 6, 10, 15, 20, 20]);
     const race = createRace({ stage: WHEEL, participants: participants(8), seed: "ts", winners: 1 });
     const seen = new Set();
     for (let L = 0; !race.finished && L < LOGICAL_CAP_MS; L += 50) {
       race.stepTo(L, "r7");
       const ts = race.snapshot().timeScale;
-      expect(ts).toBeGreaterThanOrEqual(0.25);
-      expect(ts).toBeLessThanOrEqual(1);
+      if (ts !== FAST_FORWARD) {
+        expect(ts).toBeGreaterThanOrEqual(SLOWMO_MIN);
+        expect(ts).toBeLessThanOrEqual(1);
+      }
       expect(Math.abs(ts * 20 - Math.round(ts * 20))).toBeLessThan(1e-9);
       seen.add(ts);
     }
-    expect(seen.size).toBeGreaterThan(2);
+    expect(seen.has(FAST_FORWARD)).toBe(true);
+    expect([...seen].filter((v) => v < 1).length).toBeGreaterThan(1);
   }, 60_000);
+
+  it("슬로 모션은 경계 구슬과 맞수(바로 뒤, 없으면 바로 앞) 중 확대선에 가까운 쪽을 본다", () => {
+    const rows = [{ y: 100 }, { y: 104 }, { y: 90 }];
+    expect(slowmoDistance(rows, 0, 106.75)).toBeCloseTo(2.75, 9); // 맞수(뒤)가 더 가깝다
+    expect(slowmoDistance(rows, 2, 106.75)).toBeCloseTo(2.75, 9); // 맨 뒤가 경계면 맞수는 바로 앞
+    expect(slowmoDistance([{ y: 101 }, { y: 40 }], 0, 106.75)).toBeCloseTo(5.75, 9);
+    expect(slowmoDistance([{ y: 101 }], 0, 106.75)).toBeCloseTo(5.75, 9);
+  });
 
   it("비눗방울 판 — 두 실행이 같은 스텝에 같은 장애물을 뺀다", () => {
     const a = createRace({ stage: STAGES.bubble, participants: participants(20), seed: "pop", winners: 1 });

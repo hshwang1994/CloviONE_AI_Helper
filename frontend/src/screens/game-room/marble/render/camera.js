@@ -141,8 +141,9 @@ function sceneTarget({ stage, snapshot, width, height, focusIndex, leader = -1, 
     return clampCenter({ x: c.x, y: c.y, zoom: Math.max(base, fit) }, b, width, height);
   }
   const zoomY = Number.isFinite(stage.zoomY) ? stage.zoomY : stage.goalY;
-  if (snapshot.finished) {
-    // 마지막 장면 — 결승선이 화면 위쪽 1/4 에 서고 그 아래에 들어온 구슬들이 보인다.
+  if (snapshot.finished || snapshot.timeScale > 1) {
+    // 마지막 장면 — 결승선이 화면 위쪽 1/4 에 서고 그 아래에 들어온 구슬들이 보인다. 당첨이 정해져 남은 경주를 빨리 감는 동안에도
+    // 여기 선다(D-580) — 20 배로 내려오는 꼴찌들을 쫓으면 화면이 휘청인다.
     const zoom = Math.min(base * 1.6, height / MIN_VIEW_UNITS);
     const viewH = height / zoom;
     return clampCenter({ x: (b.minX + b.maxX) / 2, y: (stage.goalY || 111) + viewH * 0.25, zoom }, b, width, height);

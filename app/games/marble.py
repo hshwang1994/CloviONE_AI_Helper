@@ -463,4 +463,6 @@ def public_view(state: dict, user_id: str, config: dict | None = None) -> dict:
                         for s in subs],
         "you_submitted": any(s.get("user_id") == user_id for s in subs),
         "announceable": bool(state.get("finalized_at")) and (state.get("integrity") or {}).get("status") in ANNOUNCEABLE,
+        # 결과를 받기 시작하는 최소 경과(배속 1 기준) — 짧게 끝난 경주의 브라우저가 이만큼 기다렸다 올린다(D-580).
+        "min_race_seconds": MIN_RACE_SECONDS,
     }
