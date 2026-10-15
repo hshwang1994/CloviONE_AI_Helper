@@ -10,6 +10,7 @@
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { parse } from "@babel/parser";
 import { describe, expect, it } from "vitest";
 
 // jsdom 환경에서는 `import.meta.url` 이 file: 스킴이 아니라 fileURLToPath 가 던진다.
@@ -77,5 +78,46 @@ describe("JSX 주석", () => {
       }
     }
     expect(broken).toEqual([]);
+  });
+});
+
+/* 중괄호 없이 원소 사이에 쓴 `/* … *​/` 는 주석이 아니라 **화면에 그려지는 글**이다.
+ *
+ * 2026-09-15 부터 AI 도우미 대화 목록의 행 동작 단추마다 「/* 행 안 동작은 30 이다(핸드오프 RULES §5) — …」가 그려졌고,
+ * 줄지 않는 동작 칸에 밀려 선택한 대화의 제목이 한 글자로 줄었다(사용자가 본 「나/* 행 안 동작은 …」). 빌드도 시험도 조용했다 —
+ * JSX 문법으로는 맞는 글이기 때문이다. 정규식은 주석과 글을 가르지 못하므로 파서로 JSXText 마디를 직접 본다. */
+function commentTextNodes(source, file = "견본.jsx") {
+  const ast = parse(source, { sourceType: "module", plugins: ["jsx"] });
+  const out = [];
+  const visit = (node) => {
+    if (!node || typeof node.type !== "string") return;
+    if (node.type === "JSXText" && /\/\*|\*\/|(^|\s)\/\/\s/.test(node.value)) {
+      out.push(`${file}:${node.loc.start.line} ${node.value.trim().slice(0, 60)}`);
+    }
+    for (const key of Object.keys(node)) {
+      if (key === "loc" || key === "start" || key === "end") continue;
+      const value = node[key];
+      if (Array.isArray(value)) value.forEach(visit);
+      else if (value && typeof value.type === "string") visit(value);
+    }
+  };
+  visit(ast.program);
+  return out;
+}
+
+describe("JSX 글 자식", () => {
+  it("검사기는 원소 사이의 주석 글을 잡고 중괄호 안의 주석은 통과시킨다", () => {
+    const bad = "const a = <Tooltip title=\"t\">\n  /* 행 안 동작 */\n  <b />\n</Tooltip>;\nconst c = <p>// 여기\n</p>;";
+    const good = "const a = <Tooltip title=\"t\">\n  {/* 행 안 동작 */}\n  <b />\n</Tooltip>;\nconst u = <a href=\"http://x\">주소 http://x/y</a>;";
+    expect(commentTextNodes(bad)).toHaveLength(2);
+    expect(commentTextNodes(good)).toEqual([]);
+  });
+
+  it("화면 파일의 JSX 글 자식에 주석 표식이 없다", () => {
+    const found = [];
+    for (const file of jsxFiles(SRC)) {
+      found.push(...commentTextNodes(readFileSync(file, "utf8"), file.replace(SRC, "src")));
+    }
+    expect(found).toEqual([]);
   });
 });

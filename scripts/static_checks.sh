@@ -537,7 +537,7 @@ step "JS 진실은 JS 가 증명한다 — REGISTRY 대조 + UX Writing 계약"
 # `registry-filter-axes` 가 여기 있는 이유는 `registry-surface-parity` 와 같다 — REGISTRY 는
 # 일곱 파일의 객체 조립 결과라 Python 정규식으로 훑으면 조용히 놓친다. 그 검사가 막는 것은
 # 「서버가 묶음을 자르는 화면에서 받아 둔 행만 보고 거르거나 후보를 뽑는」 선언이다.
-JS_CONTRACT_TESTS="src/screens/registry-surface-parity.test.js src/screens/registry-filter-axes.test.js src/ui/ux-writing-punctuation.test.js src/ui/ux-writing-verb-table.test.js"
+JS_CONTRACT_TESTS="src/screens/registry-surface-parity.test.js src/screens/registry-filter-axes.test.js src/ui/ux-writing-punctuation.test.js src/ui/ux-writing-verb-table.test.js src/ui/jsx-comments.test.js"
 VITEST_BIN=""
 for cand in frontend/node_modules/.bin/vitest frontend/node_modules/.bin/vitest.cmd; do
   [ -x "$cand" ] || [ -f "$cand" ] && VITEST_BIN="$cand" && break
