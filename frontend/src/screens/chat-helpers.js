@@ -301,6 +301,11 @@ export const URL_RE = /(https?:\/\/[^\s]+)/g;
  * 「/」로 끝나는 갈래는 그 아래 경로를, 아닌 갈래는 그 경로 자체나 질의(`?`)가 붙은 것만 받는다 — `/sprints-x` 를 `/sprint` 로 읽지 않는다. */
 export const SOURCE_ROUTE_PREFIXES = ["/knowledge/", "/tickets/", "/projects/", "/my-approvals", "/board/", "/sprint"];
 
+/* 화면 길잡이 경로 — 서버의 `ROUTE_GUIDE`(`app/ai/assistant/turn.py`)가 모델에게 알려 주는 **화면 자체**의 경로다. 문서 · 티켓 같은 자료를
+ * 가리키지 않아 지어낼 것이 없으므로, 그 답의 출처에 없어도 정확히 이 경로면 링크가 된다(질의 · 하위 경로는 받지 않는다). 예전에는
+ * 「[사내 문서](/knowledge)」가 글자 그대로 보였다(랩 2026-10-15). 서버 목록과 같은지 `chat-helpers.test.js` 가 대조한다. */
+export const GUIDE_ROUTES = new Set(["/new-ticket", "/my-tickets", "/my-approvals", "/knowledge", "/projects", "/notifications", "/sprint"]);
+
 function routeHasPrefix(route, prefix) {
   if (prefix.endsWith("/")) return route.startsWith(prefix);
   return route === prefix || route.startsWith(prefix + "?");
@@ -418,9 +423,9 @@ function inlineSpans(text, targets, keyLinks, depth) {
     if (m.index > 0) out.push(...plainSegments(rest.slice(0, m.index), { keyLinks }));
     if (m === link) {
       const safe = safeSourceRoute(link[2]);
-      const target = safe ? targets.get(stripBlock(safe)) : undefined;
+      const target = (safe ? targets.get(stripBlock(safe)) : undefined) || (GUIDE_ROUTES.has(link[2]) ? link[2] : undefined);
       if (target) out.push({ t: "link", route: target, label: link[1].replace(BOLD_MARKS, "$1") });
-      else out.push(...plainSegments(link[0], { keyLinks }));   // 출처에 없는 링크 — 원래 글자 그대로
+      else out.push(...plainSegments(link[0], { keyLinks }));   // 출처에도 길잡이에도 없는 링크 — 원래 글자 그대로
     } else {
       out.push({ t: "bold", children: inlineSpans(bold[1], targets, keyLinks, depth + 1) });
     }

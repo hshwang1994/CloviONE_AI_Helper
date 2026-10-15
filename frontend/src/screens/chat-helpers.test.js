@@ -18,7 +18,11 @@ import {
   toolCountLabel,
   INLINE_LINK_RE,
   BOLD_RE,
+  GUIDE_ROUTES,
 } from "./chat-helpers.js";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 /* 예전에는 이 자리에 `safeNotion` 의 허용 호스트 시험 여덟 개가 있었다: notion.so 계열은
    진짜 앵커로 열고 나머지(스킴 위조·접미 위조·접두 위조·임의 호스트)는 거절한다.
@@ -244,6 +248,24 @@ describe("parseInline (A8)", () => {
       { t: "text", text: ")" },
     ]);
     expect(parseInline("[연차 규정](/knowledge/d-1)")).toEqual([{ t: "text", text: "[연차 규정](/knowledge/d-1)" }]);
+  });
+
+  it("화면 길잡이 경로는 출처에 없어도 정확히 그 경로면 링크다 — 하위 경로 · 질의는 아니다", () => {
+    expect(parseInline("[사내 문서](/knowledge) 화면에서 보세요.")).toEqual([
+      { t: "link", route: "/knowledge", label: "사내 문서" },
+      { t: "text", text: " 화면에서 보세요." },
+    ]);
+    expect(parseInline("[내 티켓](/my-tickets)")).toEqual([{ t: "link", route: "/my-tickets", label: "내 티켓" }]);
+    expect(parseInline("[문서](/knowledge?q=x)")).toEqual([{ t: "text", text: "[문서](/knowledge?q=x)" }]);
+    expect(parseInline("[가짜](/knowledgebase)")).toEqual([{ t: "text", text: "[가짜](/knowledgebase)" }]);
+  });
+
+  it("화면 길잡이 목록은 서버가 모델에게 알려 주는 경로와 같다(app/ai/assistant/turn.py ROUTE_GUIDE)", () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const source = fs.readFileSync(path.resolve(here, "../../../app/ai/assistant/turn.py"), "utf-8");
+    const block = source.slice(source.indexOf("ROUTE_GUIDE = ("), source.indexOf(")", source.indexOf("ROUTE_GUIDE = (")));
+    const paths = new Set(block.match(/\/[a-z][a-z-]*/g));
+    expect([...paths].sort()).toEqual([...GUIDE_ROUTES].sort());
   });
 
   it("굵게 안의 링크와 티켓 키도 조각이 된다", () => {
