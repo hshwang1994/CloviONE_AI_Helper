@@ -570,6 +570,14 @@ def assemble_turn(lines, *, deadline: float | None = None, clock=time.monotonic)
             response = event.get("response") if isinstance(event.get("response"), dict) else {}
             return base.converse_from_failure(_stream_failure(response.get("error")))
         elif kind == "response.incomplete":
+            # 출력 한도에 닿아 끝났다. 받은 글이 있고 도구 호출이 없으면 잘린 답으로 남긴다(`read_output` 이 status=incomplete 를
+            # STOP_MAX_TOKENS 로 읽는다). 예전에는 실패로 버려 마지막 라운드의 긴 답이 고정 문장으로 바뀌었다.
+            if text and not any(item.get("type") == "function_call" for item in items.values()):
+                response = dict(event.get("response")) if isinstance(event.get("response"), dict) else {}
+                response["status"] = "incomplete"
+                if not response.get("output"):
+                    response["output"] = [items[k] for k in sorted(items)]
+                return read_output(response, streamed_text="".join(text))
             return base.converse_failure(base.ERROR_REQUEST, "incomplete")
         elif kind == "error":
             return base.converse_from_failure(_stream_failure(event.get("error") if isinstance(event.get("error"), dict) else event))

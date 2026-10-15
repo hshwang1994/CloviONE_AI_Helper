@@ -45,6 +45,12 @@ class _Args(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class _ShowArgs(_Args):
+    """목록 · 현황 도구의 공통 인자 — 모델이 「사용자에게 보여 줄 목록」을 고른다(결과 블록, `blocks.py`)."""
+
+    show: bool | None = None
+
+
 #: 목록 도구가 넘길 수 있는 쪽의 상한(offset). 그 뒤는 화면에서 본다.
 MAX_LIST_OFFSET = 200
 
@@ -52,13 +58,14 @@ TicketStatus = Literal["계획", "진행", "검증", "완료", "보류", "취소
 TicketSort = Literal["due", "created", "updated", "completed"]
 
 
-class DocumentQueryArgs(_Args):
+class DocumentQueryArgs(_ShowArgs):
     query: str = Field(min_length=2, max_length=200)
     project: str | None = Field(default=None, max_length=100)
+    mine: bool | None = None
     offset: int | None = Field(default=None, ge=0, le=40)
 
 
-class MyDocumentsArgs(_Args):
+class MyDocumentsArgs(_ShowArgs):
     view: Literal["authored", "edited"] | None = None
     query: str | None = Field(default=None, max_length=100)
     project: str | None = Field(default=None, max_length=100)
@@ -77,7 +84,7 @@ class WorkspaceArgs(_Args):
     kinds: list[Literal["ticket", "document", "board"]] | None = Field(default=None, max_length=3)
 
 
-class MyWorkArgs(_Args):
+class MyWorkArgs(_ShowArgs):
     view: Literal["assigned", "requested", "watching", "due_this_week", "overdue"]
     include_done: bool | None = None
     query: str | None = Field(default=None, max_length=100)
@@ -93,7 +100,7 @@ class TicketArgs(_Args):
     comments_offset: int | None = Field(default=None, ge=0, le=MAX_LIST_OFFSET)
 
 
-class SearchTicketsArgs(_Args):
+class SearchTicketsArgs(_ShowArgs):
     scope: Literal["team", "unassigned"]
     query: str | None = Field(default=None, max_length=100)
     match_body: bool | None = None
@@ -109,7 +116,7 @@ class SearchTicketsArgs(_Args):
     offset: int | None = Field(default=None, ge=0, le=MAX_LIST_OFFSET)
 
 
-class SearchProjectsArgs(_Args):
+class SearchProjectsArgs(_ShowArgs):
     scope: Literal["mine", "all"]
     query: str | None = Field(default=None, max_length=100)
     status: Literal["planned", "active", "on_hold", "done"] | None = None
@@ -117,17 +124,18 @@ class SearchProjectsArgs(_Args):
     offset: int | None = Field(default=None, ge=0, le=MAX_LIST_OFFSET)
 
 
-class ProjectArgs(_Args):
+class ProjectArgs(_ShowArgs):
     project: str = Field(min_length=1, max_length=100)
 
 
-class ProjectActivityArgs(_Args):
+class ProjectActivityArgs(_ShowArgs):
     project: str = Field(min_length=1, max_length=100)
     days: int | None = Field(default=None, ge=1, le=180)
 
 
-class ApprovalsArgs(_Args):
+class ApprovalsArgs(_ShowArgs):
     box: Literal["todo", "requested", "done"]
+    offset: int | None = Field(default=None, ge=0, le=MAX_LIST_OFFSET)
 
 
 class PeopleArgs(_Args):
@@ -143,13 +151,13 @@ class SummaryArgs(_Args):
     period: Literal["today", "standup", "this_week"]
 
 
-class NotificationsArgs(_Args):
+class NotificationsArgs(_ShowArgs):
     unread_only: bool | None = None
     days: int | None = Field(default=None, ge=1, le=60)
     offset: int | None = Field(default=None, ge=0, le=MAX_LIST_OFFSET)
 
 
-class ActivityArgs(_Args):
+class ActivityArgs(_ShowArgs):
     days: int | None = Field(default=None, ge=1, le=90)
     kinds: list[Literal["tickets", "documents", "comments"]] | None = Field(default=None, max_length=3)
     offset: int | None = Field(default=None, ge=0, le=MAX_LIST_OFFSET)
@@ -179,6 +187,11 @@ def _flag(description: str) -> dict:
 
 def _number(description: str) -> dict:
     return {"type": ["integer", "null"], "description": description}
+
+
+#: 목록 · 현황 도구의 `show` 설명 — 모델이 보여 줄 목록을 고르고, 그 목록을 답에서 다시 나열하지 않게 한다.
+_SHOW_TEXT = ("사용자에게 이 결과를 목록이나 카드로 보여 줄지. 사용자가 목록이나 현황을 보여 달라고 했으면 true 로 둡니다. "
+              "화면이 그 목록을 그리므로 답에서 항목을 다시 나열하지 않습니다.")
 
 
 def _choices(values, description: str) -> dict:
@@ -224,7 +237,8 @@ REGISTRY: tuple[Tool, ...] = (
         "my_documents", "내 문서", "내 문서를 확인하고 있습니다.",
         "묻는 사람이 만든 사내 문서를 세고 나열합니다. 「내가 작성한 문서」 「내 문서가 몇 개」 같은 질문에 씁니다. "
         "total 이 정확한 건수이고 items 는 한 쪽 분량입니다. 문서 화면의 내 문서와 같은 기준이며, edited 는 묻는 사람이 "
-        "고친 적이 있는 문서입니다.",
+        "고친 적이 있는 문서입니다. query 는 제목과 본문에 그 글자가 그대로 있는 문서만 거릅니다. 주제로 찾을 때는 "
+        "search_documents 에 mine 을 켭니다.",
         MyDocumentsArgs, {
             "view": _choice(("authored", "edited"), "authored 는 만든 문서, edited 는 고친 적이 있는 문서입니다. "
                             "비우면 만든 문서입니다.", nullable=True),
@@ -234,6 +248,7 @@ REGISTRY: tuple[Tool, ...] = (
             "updated_within_days": _number("최근 며칠 안에 바뀐 문서만 볼지(1에서 365)."),
             "sort": _choice(("recent", "created", "title"), "정렬. 비우면 최근에 바뀐 순입니다.", nullable=True),
             "offset": _number(_OFFSET),
+            "show": _flag(_SHOW_TEXT),
         }, readers.my_documents, permission="DOCUMENT_READ",
     ),
     Tool(
@@ -241,11 +256,13 @@ REGISTRY: tuple[Tool, ...] = (
         "사내 문서(지식 공간)를 낱말로 찾습니다. 규정, 절차, 안내처럼 문서에 적힌 내용을 묻는 질문에 먼저 씁니다. "
         "질문에서 핵심 낱말만 넘기세요. 결과는 문서 하나에 한 줄이고, total 은 낱말이 하나라도 들어 있는 문서 수, "
         "documents_with_every_word 는 낱말이 모두 들어 있는 문서 수입니다. 묻는 사람이 쓴 문서를 세거나 나열할 때는 "
-        "my_documents 를 씁니다.",
+        "my_documents 를 쓰고, 묻는 사람이 만든 문서에서 주제로 찾을 때는 mine 을 켭니다.",
         DocumentQueryArgs, {
             "query": _text("찾을 낱말. 두 글자 이상입니다."),
             "project": _text("이 프로젝트의 문서로 좁힐 때 프로젝트 코드나 이름.", nullable=True),
+            "mine": _flag("묻는 사람이 만든 문서에서만 찾을지."),
             "offset": _number("몇 번째 문서부터 볼지(0에서 40). 비우면 처음부터 봅니다."),
+            "show": _flag(_SHOW_TEXT),
         }, readers.search_documents, permission="DOCUMENT_READ",
     ),
     Tool(
@@ -278,6 +295,7 @@ REGISTRY: tuple[Tool, ...] = (
             "updated_within_days": _number("최근 며칠 안에 바뀐 티켓만 볼지(1에서 365)."),
             "sort": _choice(readers.TICKET_SORTS, _TICKET_SORT, nullable=True),
             "offset": _number(_OFFSET),
+            "show": _flag(_SHOW_TEXT),
         }, readers.my_work,
     ),
     Tool(
@@ -307,6 +325,7 @@ REGISTRY: tuple[Tool, ...] = (
             "completed_within_days": _number("최근 며칠 안에 끝낸 티켓만 볼지(1에서 365). 주면 끝난 티켓도 봅니다."),
             "sort": _choice(readers.TICKET_SORTS, _TICKET_SORT, nullable=True),
             "offset": _number(_OFFSET),
+            "show": _flag(_SHOW_TEXT),
         }, readers.search_tickets,
     ),
     Tool(
@@ -319,13 +338,15 @@ REGISTRY: tuple[Tool, ...] = (
             "status": _choice(("planned", "active", "on_hold", "done"), "상태.", nullable=True),
             "trouble_only": _flag("건강도가 낮은 프로젝트만 볼지."),
             "offset": _number(_OFFSET),
+            "show": _flag(_SHOW_TEXT),
         }, readers.search_projects,
     ),
     Tool(
         "get_project_summary", "프로젝트 요약", "프로젝트 진행 상황을 확인하고 있습니다.",
         "프로젝트 하나의 진행률과 그 기준, 건강도와 그 이유를 봅니다. 코드, 이름, 결과의 ref 를 넘깁니다. "
         "이름이 여럿에 걸리면 후보 목록을 돌려주니 사용자에게 고르게 하세요.",
-        ProjectArgs, {"project": _text("프로젝트 코드, 이름, 결과의 ref.")}, readers.get_project_summary,
+        ProjectArgs, {"project": _text("프로젝트 코드, 이름, 결과의 ref."), "show": _flag(_SHOW_TEXT)},
+        readers.get_project_summary,
     ),
     Tool(
         "project_activity", "프로젝트 진행 현황", "프로젝트 진행 기록을 모으고 있습니다.",
@@ -334,12 +355,17 @@ REGISTRY: tuple[Tool, ...] = (
         ProjectActivityArgs, {
             "project": _text("프로젝트 코드, 이름, 결과의 ref."),
             "days": _number("최근 며칠의 기록을 볼지(1에서 180). 비우면 30일입니다."),
+            "show": _flag(_SHOW_TEXT),
         }, readers.project_activity,
     ),
     Tool(
         "my_approvals", "내 결재함", "결재함을 확인하고 있습니다.",
         "묻는 사람의 결재함을 봅니다. todo 는 지금 결재할 것, requested 는 올린 것, done 은 결재한 것입니다.",
-        ApprovalsArgs, {"box": _choice(("todo", "requested", "done"), "볼 칸.")}, readers.my_approvals,
+        ApprovalsArgs, {
+            "box": _choice(("todo", "requested", "done"), "볼 칸."),
+            "offset": _number(_OFFSET),
+            "show": _flag(_SHOW_TEXT),
+        }, readers.my_approvals,
     ),
     Tool(
         "my_notifications", "내 알림", "알림을 확인하고 있습니다.",
@@ -349,6 +375,7 @@ REGISTRY: tuple[Tool, ...] = (
             "unread_only": _flag("안 읽은 알림만 볼지."),
             "days": _number("최근 며칠의 알림을 볼지(1에서 60). 비우면 기간 제한이 없습니다."),
             "offset": _number(_OFFSET),
+            "show": _flag(_SHOW_TEXT),
         }, readers.my_notifications,
     ),
     Tool(
@@ -359,6 +386,7 @@ REGISTRY: tuple[Tool, ...] = (
             "days": _number("최근 며칠을 볼지(1에서 90). 비우면 14일입니다."),
             "kinds": _choices(("tickets", "documents", "comments"), "볼 종류. 비우면 셋 다 봅니다."),
             "offset": _number(_OFFSET),
+            "show": _flag(_SHOW_TEXT),
         }, readers.my_activity,
     ),
     Tool(
@@ -495,7 +523,9 @@ def execute(call: base.ToolCall, *, allowed: dict[str, Tool], env: ToolEnv,
         return results.error(tool.name, results.ERROR_INVALID_ARGUMENTS)
     if progress is not None:
         progress(tool.progress)
-    return run(tool, args, env)
+    from dataclasses import replace
+
+    return replace(run(tool, args, env), args=args.model_dump(exclude_none=True))
 
 
 def fallback_search(question: str, *, allowed: dict[str, Tool], env: ToolEnv) -> results.Execution | None:

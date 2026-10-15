@@ -180,6 +180,8 @@ UNSUPPORTED_TOOLS_CODE = "unsupported_capability"
 LABEL_TOOL_RESULT = "도구 결과입니다."
 LABEL_SCREEN = "사용자가 지금 보는 화면의 대상입니다. 서버가 권한을 확인해 읽었습니다."
 LABEL_SEARCH = "서버가 질문으로 먼저 찾은 사내 자료입니다."
+LABEL_MEMORY = ("앞 차례에서 쓴 도구와 인자, 찾은 목록입니다(turn -1 이 바로 앞 차례). shown 이 true 인 목록은 사용자가 화면에서 "
+                "본 것입니다. 사용자가 앞 목록을 가리킬 때만 씁니다.")
 RESULT_CUT_NOTE = "(결과가 길어 앞부분만 실었습니다.)"
 #: 마지막 라운드가 답 글을 주지 못했을 때 - 찾은 자료는 화면이 출처로 보인다.
 CLOSE_WITHOUT_ANSWER = "찾은 자료를 아래 「참고한 자료」에 모았습니다. 답을 문장으로 정리하지 못했으니 자료를 직접 열어 확인해 주세요."
@@ -206,6 +208,8 @@ class TurnInput:
     history: tuple = ()
     context_lines: tuple = ()
     preload: str | None = None
+    #: 앞 차례의 도구 · 인자 · 보인 목록(`history.recent_results`) — 이어지는 질문의 기억. 데이터 칸으로 간다.
+    memory: str | None = None
     tools: tuple = ()
     execute: Callable | None = None
     fallback: Callable | None = None
@@ -354,6 +358,11 @@ class _AssistantMixin:
                                               label=LABEL_SCREEN)
                 ledger.conflict |= c2
                 parts.append(fenced)
+            if turn.memory:
+                fenced, c4 = prompt_mod.fence(policies.mask(turn.memory)[:TOOL_RESULT_CHARS], nonce=nonce,
+                                              label=LABEL_MEMORY)
+                ledger.conflict |= c4
+                parts.append(fenced)
             if search_only:
                 found = self._fallback(turn)
                 if found is not None:
@@ -481,7 +490,8 @@ class _AssistantMixin:
                 # 상한은 읽어 온 자료에만 건다. 오류 결과(상한 초과 알림 포함)는 짧고, 잘리면 모델이 왜 멈췄는지 모른다.
                 room = max(0, min(TOOL_RESULT_CHARS, TURN_RESULT_CHARS - ledger.result_chars))
                 if len(content) > room:
-                    content = content[:room] + "\n" + RESULT_CUT_NOTE
+                    # 뒤 항목부터 덜어 맞춘다 — JSON 가운데를 자르지 않는다(`results.fit`).
+                    content = results_mod.fit(content, room, cut_note=RESULT_CUT_NOTE)
             ledger.result_chars += len(content)
             fenced, conflict = prompt_mod.fence(content, nonce=nonce, label=LABEL_TOOL_RESULT)
             ledger.conflict |= conflict

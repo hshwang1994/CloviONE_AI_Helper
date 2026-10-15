@@ -33,6 +33,7 @@ from app.conversations.models import (
     PROC_FAILED,
     PROC_PROCESSING,
     ROLE_ASSISTANT_MSG,
+    ROLE_USER_MSG,
     Conversation,
     Message,
 )
@@ -184,6 +185,7 @@ def _finish(db: Session, job: Job, ctx: WorkerContext, payload: dict, *, convers
     message.processing_status = PROC_FAILED if failed else PROC_DONE
     message.error_code = error_code if failed else None
     conversation.updated_at = ctx.clock.now()
+    conversation.last_message_at = ctx.clock.now()
     strip_attachment_bytes(job, payload)  # terminal path — no bytes at rest
     db.flush()
 
@@ -249,6 +251,36 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
         stored["attachments_ignored"] = True
     _finish(db, job, ctx, payload, conversation=conversation, message=message, text=text, stored=stored,
             failed=failed, error_code=f"assistant_{reply.outcome.status}")
+    if not failed:
+        _intent_title(db, conversation, message, reply.outcome.executions)
+
+
+def _intent_title(db: Session, conversation: Conversation, message: Message, executions) -> None:
+    """첫 질문의 답이 끝나면 그 차례의 도구와 인자로 짓는 제목(「내 담당 티켓 조회」)으로 바꾼다 — 모델을 부르지 않는다.
+
+    **조건부 갱신**이다: 지금 제목이 첫 질문을 다듬은 임시 제목과 같을 때만 바꾼다. 답을 기다리는 동안 사람이 이름을 바꿨으면
+    그 이름이 남는다. 첫 질문이 아니거나 이름을 지을 수 없는 도구뿐이면 그대로 둔다."""
+    from sqlalchemy import update
+
+    from app.ai.assistant import blocks
+    from app.chat.service import clean_title
+
+    title = blocks.intent_title(executions)
+    if not title:
+        return
+    first = db.execute(
+        select(Message).where(Message.conversation_id == conversation.id, Message.role == ROLE_USER_MSG,
+                              Message.deleted_at.is_(None)).order_by(Message.seq).limit(1)
+    ).scalar_one_or_none()
+    if first is None or first.id != message.id:
+        return
+    db.execute(
+        update(Conversation)
+        .where(Conversation.id == conversation.id, Conversation.title == clean_title(first.content or ""))
+        .values(title=title)
+        .execution_options(synchronize_session="fetch")
+    )
+    db.flush()
 
 
 def on_failure(db: Session, job: Job, ctx: WorkerContext, error: str) -> None:
@@ -276,6 +308,9 @@ def on_failure(db: Session, job: Job, ctx: WorkerContext, error: str) -> None:
         return
     message.processing_status = PROC_FAILED
     message.error_code = "assistant_error"
+    conversation = db.get(Conversation, message.conversation_id)
+    if conversation is not None:
+        conversation.last_message_at = ctx.clock.now()
     db.add(Message(
         conversation_id=message.conversation_id,
         # job.id in the id: a retried-then-failed message would collide on a fixed

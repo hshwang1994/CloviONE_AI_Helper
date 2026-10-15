@@ -77,6 +77,37 @@ def recent_pairs(db: Session, *, conversation_id: str, before_seq: int, pairs: i
     return tuple(out)
 
 
+def recent_results(db: Session, *, conversation_id: str, before_seq: int) -> str | None:
+    """앞 차례들(많아야 `blocks.MEMORY_TURNS`)이 쓴 목록 · 현황 도구와 보인 목록 — 이어지는 질문의 기억(한 칸의 JSON 글).
+
+    지난 문답은 글자만 가서(`recent_pairs`) 「다음 10개」 「그중 VMware」 「첫 번째 문서」가 무엇을 가리키는지 모델이 글에서
+    추측해야 했다. 블록(도구 · 검증한 인자 · total · offset · 항목 번호 · ref · 제목)을 그대로 실어 그 추측을 없앤다. 제목은 남이 쓴
+    글이라 **데이터 칸**으로 간다(런타임이 가리고 난스 칸에 넣는다). 실패 · 안내 · 지운 답은 뺀다. 블록이 없으면 None 이다."""
+    from app.ai.assistant import blocks
+    from app.conversations.models import ROLE_ASSISTANT_MSG, Message
+
+    rows = db.execute(
+        select(Message).where(
+            Message.conversation_id == conversation_id, Message.deleted_at.is_(None), Message.seq < before_seq,
+            Message.role == ROLE_ASSISTANT_MSG,
+        ).order_by(Message.seq.desc()).limit(blocks.MEMORY_TURNS * 4)
+    ).scalars().all()
+    entries: list[dict] = []
+    turns = 0
+    for row in rows:
+        if not row.message_id.startswith("a-") or "-fail-" in row.message_id:
+            continue
+        payload = _payload(row)
+        found = [b for b in payload.get("results") or [] if isinstance(b, dict)]
+        if payload.get("error_notice") or not found:
+            continue
+        turns += 1
+        entries = blocks.memory_entry(found, turn=-turns) + entries
+        if turns >= blocks.MEMORY_TURNS:
+            break
+    return blocks.memory_text(entries)
+
+
 def screen_target(raw) -> dict | None:
     """화면 문맥의 모양만 본다. 옛 문자열(화면 이름)은 받고 버린다 - 대상이 없다."""
     if not isinstance(raw, dict):

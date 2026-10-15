@@ -5,8 +5,12 @@
 
 ## 도우미 메시지의 구조
 
-    {kind: "assistant", status, mode, sources[{type, id, title, route, where?, status?, key?}],
-     tools[{name, label, ok, count, total, query?}], rounds, elapsed_ms, truncated, notice, model}
+    {kind: "assistant", status, mode, sources[{type, id, title, route, where?, status?, key?, cited, shown?}],
+     tools[{name, label, ok, count, total, query?}], results[블록], rounds, elapsed_ms, truncated, notice, model}
+
+``results`` 는 목록 · 현황 도구 호출의 블록이다(`blocks.py`) — 화면은 모델이 보여 주기로 한 것(`shown`)만 목록 · 카드로 그리고,
+나머지는 이어지는 질문의 기억에만 쓴다. 보인 블록의 항목은 출처에서 `shown` 이다(답 글이 다시 나열하지 않아도 「찾아본
+자료」로 접히지 않는다).
 
 출처는 서버가 모은다(경로가 있는 항목만, 많아야 30개, 중복 없이). **답에 인용된 것이 먼저다**(D-569) — 답의 글에 그 경로 ·
 id · 티켓 키가 있으면 앞으로, 나머지는 도구를 부른 순서다. 화면은 이 순서대로 그리고, 답 안의 링크는 이 목록의 경로와 같을
@@ -25,7 +29,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.ai.assistant import catalog, history
+from app.ai.assistant import blocks, catalog, history
 
 MAX_SOURCES = 30
 NOTICE_NO_RESULTS = "no_results"
@@ -107,11 +111,12 @@ def _cited(source: dict, text: str) -> bool:
     return False
 
 
-def _sources(executions, text: str = "") -> list[dict]:
-    """도구가 돌려준 출처를 모은다 — 경로가 있는 것만, 중복 없이, **답에 인용된 것 먼저**, 많아야 `MAX_SOURCES` 개.
+def _sources(executions, text: str = "", shown: frozenset | set = frozenset()) -> list[dict]:
+    """도구가 돌려준 출처를 모은다 — 경로가 있는 것만, 중복 없이, **답에 인용됐거나 보인 목록에 선 것 먼저**, 많아야
+    `MAX_SOURCES` 개.
 
     출처마다 `cited` 를 싣는다. 하나도 인용되지 않은 답(찾지 못함 · 뜻만 가까운 문서)은 화면이 「참고한 자료」가 아니라 접힌 「찾아본
-    자료」로 보인다(P-133)."""
+    자료」로 보인다(P-133). 보인 블록의 항목(`shown`)은 답 글에 없어도 쓰인 자료다 — 목록을 다시 나열하지 않는 것이 맞는 답이다."""
     out: list[dict] = []
     seen: set = set()
     for execution in executions:
@@ -123,9 +128,11 @@ def _sources(executions, text: str = "") -> list[dict]:
             out.append({k: v for k, v in source.items() if v is not None})
     for source in out:
         source["cited"] = _cited(source, text)
-    cited = [s for s in out if s["cited"]]
-    rest = [s for s in out if not s["cited"]]
-    return (cited + rest)[:MAX_SOURCES]
+        if (source.get("type"), str(source.get("id"))) in shown:
+            source["shown"] = True
+    used = [s for s in out if s["cited"] or s.get("shown")]
+    rest = [s for s in out if not (s["cited"] or s.get("shown"))]
+    return (used + rest)[:MAX_SOURCES]
 
 
 def _tools(executions) -> list[dict]:
@@ -165,6 +172,7 @@ def run(db: Session, *, owner, user_message, conversation_id: str, runtime, env:
         can=lambda key: has_permission(db, owner, key), flag=env.flag,
     )}
     pairs = history.recent_pairs(db, conversation_id=conversation_id, before_seq=user_message.seq)
+    memory = history.recent_results(db, conversation_id=conversation_id, before_seq=user_message.seq)
     preload = _screen_preload(history.screen_target(screen_context), allowed=allowed, env=env)
     question = user_message.content or ""
     turn = TurnInput(
@@ -172,6 +180,7 @@ def run(db: Session, *, owner, user_message, conversation_id: str, runtime, env:
         history=pairs,
         context_lines=context_lines(owner, today=today),
         preload=preload.content if preload is not None else None,
+        memory=memory,
         tools=tuple(tool.spec() for tool in allowed.values()),
         execute=lambda call: catalog.execute(call, allowed=allowed, env=env, progress=progress),
         fallback=lambda: catalog.fallback_search(question, allowed=allowed, env=env),
@@ -179,12 +188,14 @@ def run(db: Session, *, owner, user_message, conversation_id: str, runtime, env:
     )
     outcome = runtime.converse(db, action_key=ASSISTANT_CHAT, actor=owner, turn=turn, job_id=job_id)
     executions = ([preload] if preload is not None else []) + list(outcome.executions)
+    results = blocks.build(outcome.executions, owner_id=getattr(owner, "id", None)) if outcome.ok else []
     structured = {
         "kind": "assistant",
         "status": outcome.status,
         "mode": outcome.mode,
-        "sources": _sources(executions, outcome.text or ""),
+        "sources": _sources(executions, outcome.text or "", blocks.shown_keys(results)),
         "tools": _tools(outcome.executions),
+        "results": results,
         "rounds": outcome.rounds,
         "elapsed_ms": outcome.latency_ms,
         "truncated": bool(outcome.truncated),

@@ -7,6 +7,8 @@ DB 없이 도는 오프라인 런타임으로 잰다 - 상한은 런타임의 �
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from app.ai import runtime as runtime_mod
@@ -101,6 +103,9 @@ def test_a_huge_result_is_cut_and_the_turn_has_a_total_budget():
         body = result.content.split("\n")[2:-2]
         assert len("\n".join(body)) <= runtime_mod.TOOL_RESULT_CHARS + 40
         assert runtime_mod.RESULT_CUT_NOTE in result.content
+        # 줄인 결과도 온전한 JSON 이다 — 예전에는 글자째 잘라 마지막 따옴표가 열린 채로 모델에 갔다.
+        parsed = json.loads("\n".join(body))
+        assert parsed["ok"] is True and runtime_mod.RESULT_CUT_NOTE in parsed["note"]
     total = sum(len(r.content) for i in range(1, 3) for r in adapter.tool_results(i))
     assert total < runtime_mod.TURN_RESULT_CHARS + 4000
     # 예산을 다 쓴 뒤의 호출은 실행하지 않고 그 사실을 결과로 말한다.

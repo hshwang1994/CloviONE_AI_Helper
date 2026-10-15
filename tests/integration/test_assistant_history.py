@@ -100,3 +100,71 @@ def test_a_hyphenated_message_id_does_not_steal_another_messages_answer(db, conv
 ])
 def test_the_screen_target_shape_is_checked(raw, expected):
     assert history.screen_target(raw) == expected
+
+
+# ── 이어지는 질문의 기억 (AI 채팅 개선 회차) ──────────────────────────────────────
+
+
+def _answer_with_blocks(db, conversation, question, results, *, failed_reply=False, notice=False, deleted=False):
+    mid = f"m{uuid.uuid4().hex[:12]}"
+    db.add(Message(conversation_id=conversation.id, message_id=mid, role=ROLE_USER_MSG, content=question,
+                   processing_status=PROC_DONE))
+    db.flush()
+    job = str(uuid.uuid4())
+    payload = {"kind": "assistant", "results": results, **({"error_notice": True} if notice else {})}
+    row = Message(conversation_id=conversation.id, message_id=f"a-{mid}-fail-{job}" if failed_reply else f"a-{mid}-{job}",
+                  role=ROLE_ASSISTANT_MSG, content="답", processing_status=PROC_DONE,
+                  structured_payload_json=json.dumps(payload, ensure_ascii=False))
+    db.add(row)
+    db.flush()
+    if deleted:
+        from datetime import datetime
+
+        row.deleted_at = datetime(2026, 10, 15, 0, 0, 0)
+        db.flush()
+
+
+def _block(tool, n, *, offset=0, total=None, shown=True, args=None):
+    return {"id": "r1", "tool": tool, "kind": "document", "shown": shown, "args": args or {}, "total": total or n,
+            "offset": offset, "returned": n,
+            "items": [{"ref": f"d{i}", "title": f"문서 {i}", "updated_at": "2026-09-04T00:00:00", "route": f"/knowledge/d{i}"}
+                      for i in range(n)]}
+
+
+def test_recent_results_carry_args_refs_and_numbers(db, conversation):
+    _answer_with_blocks(db, conversation, "내가 만든 문서", [_block("my_documents", 10, total=361, args={"sort": "recent"})])
+    current = _current(db, conversation)
+    memory = json.loads(history.recent_results(db, conversation_id=conversation.id, before_seq=current.seq))
+    [entry] = memory
+    assert (entry["turn"], entry["tool"], entry["shown"], entry["total"], entry["offset"]) == (-1, "my_documents", True, 361, 0)
+    assert entry["args"] == {"sort": "recent"}
+    assert entry["items"][0] == {"n": 1, "ref": "d0", "title": "문서 0", "updated_at": "2026-09-04T00:00:00"}
+
+
+def test_recent_results_skip_failed_deleted_and_notice_answers(db, conversation):
+    _answer_with_blocks(db, conversation, "쓴 질문", [_block("my_documents", 2)])
+    _answer_with_blocks(db, conversation, "실패한 답", [_block("search_documents", 2)], failed_reply=True)
+    _answer_with_blocks(db, conversation, "안내 답", [_block("search_documents", 2)], notice=True)
+    _answer_with_blocks(db, conversation, "지운 답", [_block("search_documents", 2)], deleted=True)
+    current = _current(db, conversation)
+    memory = json.loads(history.recent_results(db, conversation_id=conversation.id, before_seq=current.seq))
+    assert [e["tool"] for e in memory] == ["my_documents"]
+
+
+def test_recent_results_keep_two_turns_oldest_first_within_the_budget(db, conversation):
+    from app.ai.assistant import blocks
+
+    for tool in ("my_documents", "search_documents", "my_work"):
+        _answer_with_blocks(db, conversation, tool, [_block(tool, 10, args={"query": "가" * 90})])
+    current = _current(db, conversation)
+    text = history.recent_results(db, conversation_id=conversation.id, before_seq=current.seq)
+    memory = json.loads(text)
+    assert [e["tool"] for e in memory] == ["search_documents", "my_work"], "앞 두 차례만, 오래된 것부터"
+    assert [e["turn"] for e in memory] == [-2, -1]
+    assert len(text) <= blocks.MEMORY_CHARS
+
+
+def test_no_blocks_means_no_memory(db, conversation):
+    _pair(db, conversation, "안녕", "안녕하세요")
+    current = _current(db, conversation)
+    assert history.recent_results(db, conversation_id=conversation.id, before_seq=current.seq) is None

@@ -394,13 +394,15 @@ def search_documents(ctx: ToolContext, args) -> results.Execution:
         project_id = project.id
     offset = max(0, min(_offset(args), retrieval.MAX_OFFSET))
     gateway = ctx.gateway if ctx.gateway is not None else contract.Gateway(enabled=False)
+    # 「내 문서 중 …」 — 묻는 사람이 만든 문서로 목록과 수를 같은 절로 좁힌다. 사람은 서버가 정한다(인자는 켜고 끄기뿐이다).
+    author_id = ctx.user.id if getattr(args, "mine", None) else None
     found = retrieval.retrieve(
         ctx.db, ctx.user, raw_query=args.query, gateway=gateway, top_k=SEARCH_TOP_K,
-        distinct_documents=True, offset=offset, project_id=project_id,
+        distinct_documents=True, offset=offset, project_id=project_id, author_id=author_id,
     )
     counted = retrieval.count_matching_documents(
         ctx.db, ctx.user, text=args.query, words=found.keywords, expanded=found.expanded, project_id=project_id,
-        also_documents=found.semantic_only_documents,
+        also_documents=found.semantic_only_documents, author_id=author_id,
     )
     facts = _document_facts(ctx, [cite.document_id for cite in found.citations])
     items, sources = [], []
@@ -1020,10 +1022,11 @@ def my_approvals(ctx: ToolContext, args) -> results.Execution:
     from app.approvals import service as approvals
     from app.core.feature_flags import load_feature_flags
 
+    offset = _offset(args)
     found = approvals.list_my_approvals(
         ctx.db, ctx.user, ctx.principal, box=args.box, now=ctx.now,
         self_approval_allowed=bool(load_feature_flags(ctx.settings.config_dir).get("self_approval_allowed")),
-        offset=0, limit=LIST_LIMIT,
+        offset=offset, limit=LIST_LIMIT,
     )
     items, sources = [], []
     for row in found["rows"]:
@@ -1048,7 +1051,7 @@ def my_approvals(ctx: ToolContext, args) -> results.Execution:
         note = "이 사람은 결재 권한이 없어 결재할 건이 없습니다."
     elif not items:
         note = "조건에 맞는 결재가 없습니다."
-    return results.ok("my_approvals", items, total=found["total"], note=note, sources=tuple(sources))
+    return results.ok("my_approvals", items, total=found["total"], offset=offset, note=note, sources=tuple(sources))
 
 
 def find_people(ctx: ToolContext, args) -> results.Execution:

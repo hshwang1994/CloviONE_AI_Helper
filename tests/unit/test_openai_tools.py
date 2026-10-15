@@ -279,3 +279,21 @@ def test_chatgpt_capability_refusal_is_a_request_error_the_runtime_can_read(outb
     result = adapter.converse(system="s", turns=[base.UserTurn("u")], tools=[TOOL], tool_choice=base.TOOL_CHOICE_AUTO,
                               model="m", max_output_tokens=10, timeout=30)
     assert (result.error_kind, result.error_code, result.http_status) == (base.ERROR_REQUEST, "unsupported_capability", 400)
+
+
+def test_incomplete_with_text_keeps_a_truncated_answer():
+    """출력 한도에 닿아 끝난 스트림(`response.incomplete`)도 받은 글이 있으면 잘린 답이다 — 예전에는 실패로 버려 마지막
+    라운드의 긴 답이 고정 문장(「찾은 자료를 아래에 모았습니다」)으로 바뀌었다. 도구 호출이 걸렸으면 지금처럼 실패다."""
+    answered = openai.assemble_turn(_sse(
+        {"type": "response.output_text.delta", "delta": "긴 답의 앞부분"},
+        {"type": "response.incomplete", "response": {"status": "incomplete", "output": [MESSAGE],
+                                                     "incomplete_details": {"reason": "max_output_tokens"}}},
+    ).splitlines())
+    assert answered.ok and answered.text == "긴 답의 앞부분"
+    assert answered.stop_reason == base.STOP_MAX_TOKENS
+    with_call = openai.assemble_turn(_sse(
+        {"type": "response.output_text.delta", "delta": "확인해 보겠습니다."},
+        {"type": "response.output_item.added", "output_index": 1, "item": CALL},
+        {"type": "response.incomplete", "response": {}},
+    ).splitlines())
+    assert not with_call.ok and with_call.error_code == "incomplete"

@@ -171,11 +171,25 @@ def test_the_count_rule_names_the_identity_tools_and_forbids_searching_the_asker
 
 
 def test_the_assistant_format_line_asks_for_source_routes_and_no_tables():
+    """qa-contract-change: 형식 줄이 「- [제목](route) 작성자, 수정일」 목록을 강제하던 것을 걷었다 — 같은 작성자 · 날짜를 줄마다
+    되풀이하게 했고(랩 기준선 열 줄), 보인 목록은 이제 화면이 결과 블록으로 그린다. 소제목은 ### 이다."""
     slot = prompt_catalog.get_slot(prompt_catalog.ASSISTANT)
     assert "route 는 결과의 route 값을 그대로" in slot.format_line
-    assert "표와 # 머리글은 쓰지 않습니다" in slot.format_line
+    assert "표는 쓰지 않습니다" in slot.format_line and "### " in slot.format_line
+    assert "작성자, 수정일" not in slot.format_line
+    assert "첫 문장에 질문의 결론" in slot.format_line
     assert "몇 건 중 몇 건" in slot.instruction
     assert slot.format_line.endswith(".")
+
+
+def test_the_tools_rule_shows_lists_follows_up_and_reads_bodies():
+    """보여 줄 목록은 show 로 고르고 다시 나열하지 않으며, 앞 목록을 가리키는 질문은 앞 인자를 이어 쓰고, 내용을 물으면 본문을 읽는다.
+    찾지 못한 답에 도구 이름을 쓰지 않는다(랩 기준선 q14 가 `search_documents` 를 그대로 말했다)."""
+    rule = prompt.ASSISTANT_TOOLS_RULE
+    assert "show" in rule and "다시 나열하지 않습니다" in rule
+    assert "offset" in rule and "새 주제면 앞 조건을 쓰지 않습니다" in rule
+    assert "get_ticket" in rule and "get_document" in rule
+    assert "도구 이름은 쓰지 않습니다" in prompt.ASSISTANT_EVIDENCE_RULE
 
 
 def test_user_turn_limit_covers_the_send_limit():

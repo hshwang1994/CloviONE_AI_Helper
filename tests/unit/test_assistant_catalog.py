@@ -138,3 +138,20 @@ def test_the_routing_sentences_point_identity_questions_at_the_identity_tools():
 def test_out_of_range_or_foreign_arguments_are_refused(name, arguments):
     with pytest.raises(ValidationError):
         catalog.TOOLS[name].args.model_validate(arguments)
+
+
+def test_show_only_on_list_and_summary_tools():
+    """`show` 는 결과 블록이 있는 도구(목록 · 현황)에만 있다 — 문서 읽기 · 티켓 보기 · 요약 같은 단건 도구에 두면 모델이 그리지 못할
+    목록을 보여 주겠다고 고른다. 스키마는 OpenAI strict 규칙대로 필수 + null 허용이다."""
+    from app.ai.assistant import blocks
+
+    required = {"search_documents": {"query": "연차"}, "my_work": {"view": "assigned"}, "search_tickets": {"scope": "team"},
+                "search_projects": {"scope": "mine"}, "get_project_summary": {"project": "a"},
+                "project_activity": {"project": "a"}, "my_approvals": {"box": "todo"}}
+    for tool in catalog.REGISTRY:
+        props = tool.spec().parameters["properties"]
+        assert ("show" in props) == (tool.name in blocks.SHOWABLE), tool.name
+        if "show" in props:
+            assert props["show"]["type"] == ["boolean", "null"]
+            assert "show" in tool.spec().parameters["required"]
+            assert tool.args.model_validate({**required.get(tool.name, {}), "show": True}).show is True

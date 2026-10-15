@@ -144,7 +144,7 @@ class RetrievalResult:
         }
 
 
-def visible_document_ids(db: Session, user, *, project_id: str | None = None):
+def visible_document_ids(db: Session, user, *, project_id: str | None = None, author_id: str | None = None):
     """이 사람이 볼 수 있는 문서 id 의 **서브쿼리**.
 
     파이썬으로 id 를 먼저 뽑지 않는다 — 문서가 수천 건이면 그 목록이 그대로 SQL
@@ -153,12 +153,17 @@ def visible_document_ids(db: Session, user, *, project_id: str | None = None):
 
     `project_id` 는 그 프로젝트가 소유한 공간의 문서로 **더 좁힌다**(문서 목록의 `project_id` 와 같은 판정). 권한은
     그대로 먼저 걸린다 — 볼 수 없는 프로젝트를 넘기면 조건을 만족하는 공간이 없어 0건이 될 뿐이다.
+
+    `author_id` 는 그 사람이 만든 문서로 더 좁힌다(문서 화면 `mine=true` 와 같은 `created_by` 판정). 도우미는 묻는 사람의
+    id 만 넘긴다(「내 문서 중 VMware 관련」) — 다른 사람의 id 를 받는 인자는 없다.
     """
     ctx = context_for_user(db, user)
     clause = effective_visibility_clause(ctx, RESOURCE_KNOWLEDGE_DOC)
     stmt = select(Document.id).where(Document.archived.is_(False))
     if clause is not None:
         stmt = stmt.where(clause)
+    if author_id:
+        stmt = stmt.where(Document.created_by == author_id)
     if project_id:
         from app.core.ownership import OWNER_PROJECT
 
@@ -170,9 +175,9 @@ def visible_document_ids(db: Session, user, *, project_id: str | None = None):
     return stmt
 
 
-def _narrowing(db: Session, user, *, project_id: str | None = None):
+def _narrowing(db: Session, user, *, project_id: str | None = None, author_id: str | None = None):
     """chunk 에 거는 권한 조건. **모든 레인이 이것을 `LIMIT` 앞에 받는다.**"""
-    return DocumentChunk.document_id.in_(visible_document_ids(db, user, project_id=project_id))
+    return DocumentChunk.document_id.in_(visible_document_ids(db, user, project_id=project_id, author_id=author_id))
 
 
 def _query_embedding(gateway: contract.Gateway, text: str):
@@ -232,6 +237,7 @@ def retrieve(
     distinct_documents: bool = False,
     offset: int = 0,
     project_id: str | None = None,
+    author_id: str | None = None,
 ) -> RetrievalResult:
     """질의 → 권한을 통과한 인용 목록. **예외를 올리지 않는다.**
 
@@ -253,7 +259,7 @@ def retrieve(
     offset = max(0, min(int(offset or 0), MAX_OFFSET)) if distinct_documents else 0
     if distinct_documents:
         lane_candidates = max(int(lane_candidates or 0), DISTINCT_LANE_CANDIDATES)
-    narrowing = _narrowing(db, user, project_id=project_id)
+    narrowing = _narrowing(db, user, project_id=project_id, author_id=author_id)
     weights = query_mod.keyword_weights(db, words, expanded, narrowing=narrowing)
 
     rankings: dict[str, list[str]] = {
@@ -323,6 +329,7 @@ class MatchCount:
 
 def count_matching_documents(
     db: Session, user, *, text: str, words=(), expanded=(), project_id: str | None = None, also_documents=(),
+    author_id: str | None = None,
 ) -> MatchCount | None:
     """낱말 두 레인의 조건(트라이그램 OR 낱말 LIKE OR tsquery)에 걸리는 **서로 다른 문서의 수** — 같은 권한 절 안에서.
 
@@ -339,7 +346,7 @@ def count_matching_documents(
     if not text:
         return MatchCount(documents=0, with_every_word=0)
     also = tuple(dict.fromkeys(str(d) for d in (also_documents or ()) if d))
-    narrowing = _narrowing(db, user, project_id=project_id)
+    narrowing = _narrowing(db, user, project_id=project_id, author_id=author_id)
     condition = or_(
         query_mod.trgm_condition_for(text, keywords=words, expanded=expanded),
         query_mod.fts_condition_for(text, keywords=words, expanded=expanded),

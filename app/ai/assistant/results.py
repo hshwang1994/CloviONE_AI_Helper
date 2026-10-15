@@ -57,6 +57,8 @@ class Execution:
     query: str | None = None
     #: 화면의 「참고한 자료」 후보 - 서버가 만든 경로가 있는 항목만(`turn.py` 가 모아 중복을 걷는다).
     sources: tuple = field(default_factory=tuple)
+    #: 서버가 검증한 인자(`catalog.execute` 가 단다). 결과 블록 · 쪽 넘기기 · 첫 답의 제목이 쓰고, 모델에는 가지 않는다.
+    args: dict | None = None
 
 
 def ok(tool: str, items: list, *, total=AUTO, truncated: bool | None = None, note: str | None = None,
@@ -81,6 +83,68 @@ def ok(tool: str, items: list, *, total=AUTO, truncated: bool | None = None, not
         body.setdefault(key, value)
     return Execution(tool=tool, content=json.dumps(body, ensure_ascii=False, default=str), ok=True,
                      count=returned, total=count, query=query, sources=tuple(sources))
+
+
+def _dump(body) -> str:
+    return json.dumps(body, ensure_ascii=False, default=str)
+
+
+def _longest_text(node, *, floor: int):
+    """봉투 안에서 가장 긴 글 칸 — (담은 것, 열쇠, 글). `floor` 자 이하만 남았으면 None."""
+    best = None
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        pairs = current.items() if isinstance(current, dict) else enumerate(current) if isinstance(current, list) else ()
+        for key, value in pairs:
+            if isinstance(value, str) and len(value) > floor and (best is None or len(value) > len(best[2])):
+                best = (current, key, value)
+            elif isinstance(value, (dict, list)):
+                stack.append(value)
+    return best
+
+
+def fit(content: str, limit: int, *, cut_note: str) -> str:
+    """봉투 글을 `limit` 자 안에 맞춘다 — **JSON 가운데를 자르지 않는다.**
+
+    뒤 항목부터 덜어 내고 `returned` · `truncated` · `note` 를 고친다(모델이 offset 으로 이어 본다). 그래도 넘치면 가장 긴 글 칸을
+    넘친 만큼 줄이고, 그래도 넘치면(봉투가 아닌 글) 앞부분만 싣고 `cut_note` 를 단다. 예전에는 늘 글자째 잘라 마지막 항목의 따옴표가
+    열린 채로 모델에 갔다."""
+    if len(content) <= limit:
+        return content
+    try:
+        body = json.loads(content)
+    except ValueError:
+        body = None
+    if not isinstance(body, dict):
+        return content[: max(0, limit - len(cut_note) - 1)] + "\n" + cut_note
+    items = body.get("items")
+    dropped = 0
+    text = _dump(body)
+    if isinstance(items, list):
+        while len(text) > limit and len(items) > 1:
+            items.pop()
+            dropped += 1
+            body["returned"] = len(items)
+            body["truncated"] = True
+            text = _dump(body)
+        if dropped:
+            note = f"{cut_note} 뒤 항목 {dropped}개를 덜었습니다. offset 으로 이어서 볼 수 있습니다."
+            body["note"] = f"{body['note']} {note}" if body.get("note") else note
+            text = _dump(body)
+    while len(text) > limit:
+        found = _longest_text(body, floor=80)
+        if found is None:
+            break
+        holder, key, value = found
+        # 넘친 만큼만 줄인다 — 반으로 자르면 칸을 다 쓰지 않아 다음 결과의 몫(차례 예산)이 흔들린다.
+        holder[key] = value[: max(40, len(value) - (len(text) - limit) - 8)].rstrip() + "…"
+        if not dropped and "note" in body and cut_note not in str(body.get("note") or ""):
+            body["note"] = f"{body['note']} {cut_note}" if body.get("note") else cut_note
+        text = _dump(body)
+    if len(text) > limit:
+        return text[: max(0, limit - len(cut_note) - 1)] + "\n" + cut_note
+    return text
 
 
 def error(tool: str, code: str, message: str | None = None, *, query: str | None = None,

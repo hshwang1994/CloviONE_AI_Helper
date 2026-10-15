@@ -627,3 +627,102 @@ def test_a_purged_payload_finishes_quietly(db, assistant, chatter, fake_clock):
     db.refresh(job)
     assert job.status == STATUS_SUCCEEDED
     assert db.execute(select(Notification).where(Notification.user_id == chatter.id)).scalars().all() == []
+
+
+# ── 결과 블록 · 의도 제목 · 이어지는 질문 (AI 채팅 개선 회차) ─────────────────────────
+
+
+def _my_docs(db, space, owner, n):
+    docs = []
+    for i in range(n):
+        doc = _seed_doc(db, space, f"내 문서 {i:02d}", f"본문 {i}")
+        doc.created_by = owner.id
+        docs.append(doc)
+    db.commit()
+    return docs
+
+
+def test_a_shown_list_is_persisted_as_a_compact_block(client, db, space, assistant, posted, chatter):
+    """모델이 `show` 를 켠 목록은 답에 블록으로 남는다 — 화면이 그 목록을 그리므로 답 글은 결론만 쓴다. 블록에는 허용 칸만 있고
+    (발췌 없음), 그 항목은 출처에서 「보인 것」이라 답 글에 없어도 「찾아본 자료」로 접히지 않는다."""
+    _my_docs(db, space, chatter, 3)
+    adapter = ScriptedToolAdapter([tool_call("my_documents", {"show": True}), "작성하신 문서는 총 3건입니다."])
+    worker = assistant(adapter)
+    _send(client, posted, "내가 만든 문서")
+    worker.run_once()
+
+    stored = _stored(_replies(db, posted["conversation_id"])[0])
+    [block] = stored["results"]
+    assert (block["tool"], block["kind"], block["shown"], block["total"], block["returned"]) == (
+        "my_documents", "document", True, 3, 3)
+    assert block["args"] == {} and block["list_route"] == f"/knowledge?author={chatter.id}&sort=recent"
+    assert all("excerpt" not in item and item["route"].startswith("/knowledge/") for item in block["items"])
+    assert all(s.get("shown") for s in stored["sources"]) and len(stored["sources"]) == 3
+    assert stored["tools"] == [{"name": "my_documents", "label": "내 문서", "ok": True, "count": 3, "total": 3}]
+
+
+def test_an_unshown_search_stays_searched_only(client, db, space, assistant, posted, chatter):
+    """`show` 없이 살펴본 검색은 블록으로 서지 않고(기억에만 남는다) 출처도 「보인 것」이 아니다(D-581 그대로)."""
+    _my_docs(db, space, chatter, 2)
+    adapter = ScriptedToolAdapter([tool_call("my_documents", {"query": "없는 주제"}), "찾지 못했습니다."])
+    worker = assistant(adapter)
+    _send(client, posted, "없는 주제 문서")
+    worker.run_once()
+
+    stored = _stored(_replies(db, posted["conversation_id"])[0])
+    assert [b["shown"] for b in stored["results"]] == [False]
+    assert not any(s.get("shown") for s in stored["sources"])
+
+
+def test_first_reply_sets_the_intent_title(client, db, space, assistant, posted, chatter):
+    """첫 답이 끝나면 다듬은 질문(「나에게 할당된 티켓」)이 도구와 인자로 지은 제목(「내 담당 티켓 조회」)으로 바뀐다."""
+    adapter = ScriptedToolAdapter([tool_call("my_work", {"view": "assigned", "show": True}), "담당 티켓은 0건입니다."])
+    worker = assistant(adapter)
+    _send(client, posted, "나에게 할당된 티켓 보여줘")
+    assert client.get(f"/api/conversations/{posted['conversation_id']}/messages").json()["conversation"]["title"] == \
+        "나에게 할당된 티켓"
+    worker.run_once()
+    assert client.get(f"/api/conversations/{posted['conversation_id']}/messages").json()["conversation"]["title"] == \
+        "내 담당 티켓 조회"
+
+
+def test_a_rename_during_the_first_turn_is_kept(client, db, space, assistant, posted, chatter):
+    """답을 기다리는 동안 사람이 이름을 바꿨으면 의도 제목이 그 이름을 덮지 않는다(조건부 갱신)."""
+    def rename_meanwhile(request):
+        r = client.patch(f"/api/conversations/{posted['conversation_id']}", json={"title": "내가 붙인 이름"},
+                         headers={"X-CSRF-Token": posted["csrf"]})
+        assert r.status_code == 200
+        return [tool_call("my_work", {"view": "assigned"})]
+
+    worker = assistant(ScriptedToolAdapter([rename_meanwhile, "담당 티켓은 0건입니다."]))
+    _send(client, posted, "나에게 할당된 티켓 보여줘")
+    worker.run_once()
+    assert client.get(f"/api/conversations/{posted['conversation_id']}/messages").json()["conversation"]["title"] == \
+        "내가 붙인 이름"
+
+
+def test_next_page_follow_up_reuses_previous_args(client, db, space, assistant, posted, chatter):
+    """「다음 10개」는 앞 차례의 도구 · 인자 · 쪽을 기억 칸(데이터 칸)으로 받아 offset 을 넘긴다 — 글자만 가던 때에는 추측이었다."""
+    _my_docs(db, space, chatter, 12)
+    seen = {}
+
+    def follow_up(request):
+        seen["last"] = request["turns"][-1].text
+        return [tool_call("my_documents", {"offset": 10, "show": True})]
+
+    worker = assistant(ScriptedToolAdapter([
+        tool_call("my_documents", {"show": True}), "작성하신 문서는 총 12건입니다. 최근 10건을 보여드립니다.",
+        follow_up, "나머지 2건입니다.",
+    ]))
+    _send(client, posted, "내가 만든 문서")
+    worker.run_once()
+    _send(client, posted, "다음 10개 보여줘.", message_id="h0123456789abcdef0123456789abcd02")
+    worker.run_once()
+
+    memory = seen["last"]
+    assert memory.startswith("다음 10개 보여줘.")
+    assert memory.index("<<<CLOVI_DATA:") < memory.index('"tool": "my_documents"') < memory.index("<<<END_CLOVI_DATA:")
+    assert '"total": 12' in memory and '"offset": 0' in memory and '"n": 10' in memory
+    second = _stored(_replies(db, posted["conversation_id"])[-1])
+    [block] = second["results"]
+    assert (block["offset"], block["returned"], block["total"]) == (10, 2, 12)

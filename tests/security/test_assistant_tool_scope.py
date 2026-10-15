@@ -366,3 +366,16 @@ def test_document_level_search_counts_only_visible_documents(app, wider):
     assert [i["title"] for i in body["items"]] == ["A1 연차 안내"]
     assert body["total"] == body["total_documents"] == 1, "다른 부서 문서가 전체 수에 들었다"
     assert "B1 연차 비밀" not in found.content
+
+
+def test_search_documents_mine_counts_only_my_visible_documents(app, wider):
+    """「내 문서 중 …」(`mine`) — 묻는 사람이 만든 문서로 좁히되 권한 절은 그대로 먼저 걸린다. 내가 만들었지만 지금 볼 수 없는
+    공간의 문서는 목록에도 수에도 없고, 남이 만든 보이는 문서도 빠진다. 사람을 고르는 인자는 없다(켜고 끄기뿐)."""
+    mine = _body(_run(app, wider["a1"], "search_documents", query="문서", mine=True))
+    assert [i["title"] for i in mine["items"]] == ["A1 내가 쓴 운영 문서"]
+    assert mine["total"] == mine["total_documents"] == 1, "볼 수 없는 공간의 내 문서가 수에 들었다"
+    others = _body(_run(app, wider["a1"], "search_documents", query="연차", mine=True))
+    assert others["items"] == [] and others["total"] == 0, "남이 만든 문서가 내 문서로 나왔다"
+    assert [i["title"] for i in _body(_run(app, wider["a1"], "search_documents", query="연차"))["items"]] == ["A1 연차 안내"]
+    with pytest.raises(Exception):
+        catalog.TOOLS["search_documents"].args.model_validate({"query": "문서", "mine": True, "author_id": wider["b1"].id})
