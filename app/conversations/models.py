@@ -40,6 +40,8 @@ class Conversation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="새 대화")
     # 옛 러너 쪽 대화 id 칸은 0046 이 지웠다(D-544) - S11 이 그 경로를 걷어낸 뒤로 읽는 곳이 없었다.
     archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 마지막으로 메시지가 생긴 시각(0050). 목록의 정렬과 행 시각이다 — 이름 · 보관이 바꾸는 `updated_at` 과 따로다.
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class Message(UUIDPrimaryKeyMixin, TimestampMixin, Base):

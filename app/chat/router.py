@@ -14,13 +14,19 @@ from sqlalchemy.orm import Session
 from app.chat.service import (
     DEFAULT_CONVERSATION_LIST_LIMIT,
     MAX_CONVERSATION_LIST_LIMIT,
+    VIEW_ACTIVE,
+    VIEW_ALL,
+    VIEW_ARCHIVED,
+    archive_empty_conversations,
     conversation_view,
+    count_empty_conversations,
     create_conversation,
     delete_conversation,
     delete_message,
     get_owned_conversation,
     list_conversations,
     list_messages,
+    message_counts,
     message_view,
     post_user_message,
     regenerate_message,
@@ -123,9 +129,14 @@ class MessageCreateRequest(BaseModel):
 
 @router.get("/api/conversations", dependencies=[Depends(require_chat_enabled)])
 def get_conversations(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     include_archived: bool = Query(default=False),
+    # 「보관함」은 보관한 대화만 본다. 옛 `include_archived=true` 는 지금 쓰는 대화와 보관한 대화를 함께 준다(그대로 둔다).
+    archived: str | None = Query(default=None, pattern="^(only|include)$"),
+    # 「빈 대화 N개 보관」의 N 에서 뺄 대화 — 화면이 지금 연 대화다.
+    keep: str | None = Query(default=None, max_length=36),
     q: str | None = Query(default=None, max_length=200),
     # AI-18: 예전엔 100개 고정 상한이라 그 이상은 화면에서 영영 안 보였다. 화면은 이제
     # "더 보기"를 누르면 offset을 이어붙이는 대신 limit을 키워 같은 목록을 처음부터 다시
@@ -133,8 +144,31 @@ def get_conversations(
     # 중복되거나 빠질 수 있는데, 매번 "상위 N개 전부"를 다시 받으면 그 문제 자체가 없다.
     limit: int = Query(default=DEFAULT_CONVERSATION_LIST_LIMIT, ge=1, le=MAX_CONVERSATION_LIST_LIMIT),
 ):
-    rows, total = list_conversations(db, user, include_archived=include_archived, q=q, limit=limit)
-    return {"items": [conversation_view(c) for c in rows], "total": total}
+    view = VIEW_ARCHIVED if archived == "only" else (VIEW_ALL if include_archived or archived == "include" else VIEW_ACTIVE)
+    rows, total = list_conversations(db, user, view=view, q=q, limit=limit)
+    counts = message_counts(db, [c.id for c in rows])
+    return {
+        "items": [conversation_view(c, message_count=counts.get(c.id, 0)) for c in rows],
+        "total": total,
+        "empty_total": count_empty_conversations(db, user, keep_id=keep, now=request.app.state.clock.now()),
+    }
+
+
+class ArchiveEmptyRequest(BaseModel):
+    keep: str | None = Field(default=None, max_length=36)
+
+
+@router.post("/api/conversations/archive-empty",
+             dependencies=[Depends(require_chat_enabled), Depends(require_csrf), Depends(block_if_maintenance)])
+def archive_empty(
+    request: Request,
+    payload: ArchiveEmptyRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """메시지가 없는 내 대화를 보관한다(지금 연 대화 · 만든 지 2분이 안 된 대화는 뺀다). 보관이라 보관함에서 다시 꺼낼 수 있다."""
+    ids = archive_empty_conversations(db, user, keep_id=payload.keep, now=request.app.state.clock.now())
+    return {"archived": len(ids), "ids": ids}
 
 
 # AI-44: 남은 AI 쿼터가 백엔드는 이미 예약·차감하는데(post_message의 ai_quotas.reserve)

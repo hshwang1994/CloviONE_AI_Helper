@@ -211,6 +211,122 @@ def test_client_message_id_reuse_across_conversations_is_not_a_conflict(
     assert r2.json()["job_id"] and r2.json()["job_id"] != r.json()["job_id"]
 
 
+def _done(db, conv_id):
+    """워커가 하는 그대로 그 대화의 사람 메시지를 끝낸다(대화당 대기 하나 — 다음 질문을 보낼 수 있게)."""
+    from app.conversations.models import PROC_DONE, Message
+
+    for row in db.query(Message).filter(Message.conversation_id == conv_id):
+        row.processing_status = PROC_DONE
+    db.commit()
+
+
+def test_rename_and_archive_do_not_reorder(client, user_csrf, db, app):
+    """목록은 마지막으로 말을 나눈 순서다 — 이름을 바꾸거나 보관했다 꺼내도 맨 위로 오르지 않는다."""
+    older = _new_conversation(client, user_csrf)
+    assert _send(client, user_csrf, older["id"], "먼저 한 질문", "m-older-000000001").status_code == 202
+    app.state.clock.advance(seconds=30)
+    newer = _new_conversation(client, user_csrf)
+    assert _send(client, user_csrf, newer["id"], "나중 질문", "m-newer-000000001").status_code == 202
+    ids = [c["id"] for c in client.get("/api/conversations").json()["items"]]
+    assert ids.index(newer["id"]) < ids.index(older["id"])
+
+    client.patch(f"/api/conversations/{older['id']}", json={"title": "이름만 바꿈"}, headers=_headers(user_csrf))
+    client.patch(f"/api/conversations/{older['id']}", json={"archived": True}, headers=_headers(user_csrf))
+    client.patch(f"/api/conversations/{older['id']}", json={"archived": False}, headers=_headers(user_csrf))
+    items = client.get("/api/conversations").json()["items"]
+    ids = [c["id"] for c in items]
+    assert ids.index(newer["id"]) < ids.index(older["id"])
+    row = next(c for c in items if c["id"] == older["id"])
+    assert row["last_message_at"] < next(c for c in items if c["id"] == newer["id"])["last_message_at"]
+
+
+def test_new_message_moves_conversation_to_top(client, user_csrf, db, app):
+    """새 질문을 보낸 대화가 맨 위다(마지막 대화 시각)."""
+    first = _new_conversation(client, user_csrf)
+    assert _send(client, user_csrf, first["id"], "첫 대화 질문", "m-first-top-00001").status_code == 202
+    second = _new_conversation(client, user_csrf)
+    assert _send(client, user_csrf, second["id"], "둘째 대화 질문", "m-second-top-0001").status_code == 202
+    _done(db, first["id"])
+    app.state.clock.advance(seconds=60)
+    assert _send(client, user_csrf, first["id"], "첫 대화에 다시", "m-first-top-00002").status_code == 202
+    assert client.get("/api/conversations").json()["items"][0]["id"] == first["id"]
+
+
+def test_list_items_carry_message_count(client, user_csrf, db):
+    talked = _new_conversation(client, user_csrf)
+    r = _send(client, user_csrf, talked["id"], "세어 볼 질문", "m-count-000000001")
+    empty = _new_conversation(client, user_csrf)
+    items = {c["id"]: c for c in client.get("/api/conversations").json()["items"]}
+    assert items[talked["id"]]["message_count"] == 1
+    assert items[empty["id"]]["message_count"] == 0
+    client.delete(f"/api/messages/{r.json()['message']['id']}", headers=_headers(user_csrf))
+    items = {c["id"]: c for c in client.get("/api/conversations").json()["items"]}
+    assert items[talked["id"]]["message_count"] == 0, "지운 메시지를 셌다"
+
+
+def _age(db, conv_id, app, minutes):
+    from datetime import timedelta
+
+    from sqlalchemy import update
+
+    from app.conversations.models import Conversation
+
+    db.execute(update(Conversation).where(Conversation.id == conv_id)
+               .values(created_at=app.state.clock.now() - timedelta(minutes=minutes)))
+    db.commit()
+
+
+def test_archive_empty_only_mine_and_empty(client, user_csrf, login_as, make_user, db, app):
+    """메시지가 없는 내 대화만 보관한다 — 제목이 「새 대화」여도 메시지가 있으면 빈 대화가 아니고, 남의 대화는 건드리지 않는다."""
+    empty = _new_conversation(client, user_csrf)
+    titled_talk = _new_conversation(client, user_csrf)
+    assert _send(client, user_csrf, titled_talk["id"], "질문", "m-talk-0000000001").status_code == 202
+    client.patch(f"/api/conversations/{titled_talk['id']}", json={"title": "새 대화"}, headers=_headers(user_csrf))
+    make_user("other-empty@goodmit.co.kr")
+    other_csrf = login_as("user", email="other-empty@goodmit.co.kr")
+    others = _new_conversation(client, other_csrf)
+    for conv in (empty, titled_talk, others):
+        _age(db, conv["id"], app, 5)
+
+    mine = login_as("user")
+    listed = client.get("/api/conversations").json()
+    assert listed["empty_total"] == 1
+    r = client.post("/api/conversations/archive-empty", json={}, headers=_headers(mine))
+    assert r.status_code == 200
+    assert r.json() == {"archived": 1, "ids": [empty["id"]]}
+    active = {c["id"] for c in client.get("/api/conversations").json()["items"]}
+    assert titled_talk["id"] in active and empty["id"] not in active
+    from app.conversations.models import Conversation
+
+    assert db.get(Conversation, others["id"]).archived is False
+
+
+def test_archive_empty_skips_kept_and_fresh(client, user_csrf, db, app):
+    """지금 연 대화와 만든 지 2분이 안 된 대화(첫 메시지를 보내는 중일 수 있다)는 빈 대화로 보지 않는다."""
+    kept = _new_conversation(client, user_csrf)
+    fresh = _new_conversation(client, user_csrf)
+    old = _new_conversation(client, user_csrf)
+    _age(db, kept["id"], app, 10)
+    _age(db, old["id"], app, 10)
+    assert client.get("/api/conversations", params={"keep": kept["id"]}).json()["empty_total"] == 1
+    r = client.post("/api/conversations/archive-empty", json={"keep": kept["id"]}, headers=_headers(user_csrf))
+    assert r.json()["ids"] == [old["id"]]
+    active = {c["id"] for c in client.get("/api/conversations").json()["items"]}
+    assert {kept["id"], fresh["id"]} <= active
+
+
+def test_archived_only_view(client, user_csrf):
+    """「보관함」은 보관한 대화만 보인다. 옛 `include_archived=true` 는 둘을 함께 준다."""
+    live = _new_conversation(client, user_csrf)
+    stored = _new_conversation(client, user_csrf)
+    client.patch(f"/api/conversations/{stored['id']}", json={"archived": True}, headers=_headers(user_csrf))
+    only = {c["id"] for c in client.get("/api/conversations", params={"archived": "only"}).json()["items"]}
+    both = {c["id"] for c in client.get("/api/conversations", params={"include_archived": "true"}).json()["items"]}
+    assert only == {stored["id"]}
+    assert {live["id"], stored["id"]} <= both
+    assert client.get("/api/conversations", params={"archived": "nope"}).status_code == 422
+
+
 def _send(client, csrf, conv_id, text, mid):
     return client.post(f"/api/conversations/{conv_id}/messages",
                        json={"content": text, "client_message_id": mid}, headers=_headers(csrf))
@@ -278,12 +394,13 @@ def test_first_message_sets_conversation_title(client, user_csrf):
         headers=_headers(user_csrf),
     )
     data = client.get(f"/api/conversations/{conv['id']}/messages").json()
-    assert data["conversation"]["title"] == "이번 주 마감 티켓 알려줘"
+    # 끝의 요청 어미는 제목에 남지 않는다 — 무엇을 묻는가만 남긴다.
+    assert data["conversation"]["title"] == "이번 주 마감 티켓"
 
 
 def test_long_first_message_title_is_truncated_with_an_ellipsis(client, user_csrf):
     """AI-55: 예전엔 60자에서 잘리기만 하고 표시가 없어, 같은 문장으로 시작하는 대화
-    여러 개가 목록에서 글자 하나 안 틀리고 똑같아 보였다."""
+    여러 개가 목록에서 글자 하나 안 틀리고 똑같아 보였다. 지금 상한은 목록 두 줄인 40자이고 낱말 경계에서 자른다."""
     long_msg = "이 메시지는 예순 글자를 넘겨서 자동 제목이 잘리는지 확인하기 위한 아주 긴 문장입니다 " * 2
     conv = _new_conversation(client, user_csrf)
     client.post(
@@ -294,9 +411,9 @@ def test_long_first_message_title_is_truncated_with_an_ellipsis(client, user_csr
     data = client.get(f"/api/conversations/{conv['id']}/messages").json()
     title = data["conversation"]["title"]
     assert title.endswith("…")
-    assert len(title) <= 60
-    assert title[:-1] == long_msg[:59].rstrip()
-    assert title[:-1] == long_msg[: len(title) - 1]
+    assert len(title) <= 40
+    assert long_msg.startswith(title[:-1])
+    assert long_msg[len(title) - 1] == " ", "낱말 가운데에서 잘랐다"
 
 
 def test_message_too_long_rejected_with_input_preserved_semantics(client, user_csrf, settings):

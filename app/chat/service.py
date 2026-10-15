@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from datetime import datetime, timedelta
 
 from sqlalchemy import delete, func, or_, select, update
@@ -34,7 +35,10 @@ logger = logging.getLogger("app.chat.service")
 
 _CLIENT_MESSAGE_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 DEFAULT_TITLE = "새 대화"
-AUTO_TITLE_MAX_CHARS = 60
+#: 자동 제목의 글자 상한. 목록 행이 두 줄까지 보이는 길이다.
+AUTO_TITLE_MAX_CHARS = 40
+#: 「빈 대화 보관」이 건드리지 않는 나이 — 화면은 대화를 만든 직후에 첫 메시지를 보낸다(그 사이의 대화는 빈 대화가 아니다).
+EMPTY_MIN_AGE = timedelta(minutes=2)
 # AI-18: 예전엔 100개로 고정 상한이었고 그 이상은 화면에서 영영 볼 방법이 없었다(스크롤도,
 # "더 보기"도 없음). 기본값은 그대로 100 — 대화가 100개 이하인 절대다수 사용자는 지금과
 # 똑같이 한 번에 다 받는다. 그 이상 필요할 때만 화면이 이 값을 키워 같은 목록을 처음부터
@@ -61,14 +65,31 @@ def chat_job_key(conversation_id: str, client_message_id: str) -> str:
     return f"chatmsg:{conversation_id}:{client_message_id}"
 
 
-def auto_title(content: str) -> str:
-    """AI-55: 첫 메시지를 그대로 60자에서 잘랐더니 잘렸다는 표시가 없어, 같은 문장으로
-    시작하는 대화 여러 개가 목록에서 글자 하나 안 틀리고 똑같아 보였다(사용자가 구분할
-    유일한 단서가 없어졌다). 잘렸을 때만 말줄임표를 붙인다 — 안 잘렸으면 그대로 둔다."""
-    text = content.strip()
+#: 질문 끝의 요청 어미 — 제목에는 무엇을 묻는가만 남긴다(「나에게 할당된 티켓 보여줘」 → 「나에게 할당된 티켓」).
+_REQUEST_ENDING = re.compile(
+    r"\s*(?:좀\s*)?(?:보여\s*줘요?|보여\s*주세요|보여\s*줄래|알려\s*줘요?|알려\s*주세요|알려\s*줄래|찾아\s*줘요?|"
+    r"찾아\s*주세요|찾아\s*줄래|해\s*줘요?|해\s*주세요|해\s*줄래)?\s*[?？!！.。~]*\s*$"
+)
+
+
+def clean_title(content: str) -> str:
+    """첫 질문에서 만든 제목 — 제어 문자 · 줄바꿈을 걷고, 끝의 요청 어미와 물음표를 떼고, 낱말 경계에서 40자로 줄인다.
+
+    AI-55: 잘렸을 때만 말줄임표를 붙인다(같은 문장으로 시작하는 대화가 목록에서 똑같아 보이지 않게). 다듬고 나서
+    아무것도 안 남으면(「?」 만 보낸 질문) 기본 제목이다."""
+    text = "".join(" " if unicodedata.category(ch)[0] in ("C", "Z") else ch for ch in (content or ""))
+    text = " ".join(text.split())
+    trimmed = _REQUEST_ENDING.sub("", text).strip()
+    text = trimmed or text.strip(" ?？!！.。~")
+    if not text:
+        return DEFAULT_TITLE
     if len(text) <= AUTO_TITLE_MAX_CHARS:
         return text
-    return text[: AUTO_TITLE_MAX_CHARS - 1].rstrip() + "…"
+    head = text[: AUTO_TITLE_MAX_CHARS - 1]
+    cut = head.rfind(" ")
+    if cut >= AUTO_TITLE_MAX_CHARS // 2:
+        head = head[:cut]
+    return head.rstrip() + "…"
 
 
 def create_conversation(db: Session, user: User, *, title: str | None = None) -> Conversation:
@@ -80,17 +101,28 @@ def create_conversation(db: Session, user: User, *, title: str | None = None) ->
     return conversation
 
 
+#: 목록 보기 — 지금 쓰는 대화 · 보관함 · 둘 다(옛 `include_archived=true`).
+VIEW_ACTIVE, VIEW_ARCHIVED, VIEW_ALL = "active", "archived", "all"
+
+
+def _has_messages():
+    """이 대화에 지우지 않은 메시지가 있는가(상관 서브쿼리)."""
+    return select(Message.id).where(Message.conversation_id == Conversation.id, Message.deleted_at.is_(None)).exists()
+
+
 def list_conversations(
     db: Session,
     user: User,
     *,
-    include_archived: bool = False,
+    view: str = VIEW_ACTIVE,
     q: str | None = None,
     limit: int = DEFAULT_CONVERSATION_LIST_LIMIT,
 ) -> tuple[list[Conversation], int]:
     stmt = select(Conversation).where(Conversation.user_id == user.id)
-    if not include_archived:
+    if view == VIEW_ACTIVE:
         stmt = stmt.where(Conversation.archived.is_(False))
+    elif view == VIEW_ARCHIVED:
+        stmt = stmt.where(Conversation.archived.is_(True))
     pattern = pattern_for(q)
     if pattern is not None:
         # AI-38: 제목 부분일치만으로는 "내가 만든 티켓 보여줘" 같은 흔한 제목 아래 묻힌
@@ -117,12 +149,58 @@ def list_conversations(
     # AI-18: total은 limit과 무관하게 "이 필터에 맞는 전체 개수" — 화면이 이걸로 상한
     # 너머에 더 있는지 판단해 "더 보기"를 보여줄지 정한다.
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+    # 마지막으로 말을 나눈 순서다(0050). 이름 바꾸기 · 보관은 순서를 바꾸지 않는다. 같은 시각이면 만든 순서 · id 로 정한다.
+    activity = func.coalesce(Conversation.last_message_at, Conversation.created_at)
     rows = (
-        db.execute(stmt.order_by(Conversation.updated_at.desc()).limit(limit))
+        db.execute(stmt.order_by(activity.desc(), Conversation.created_at.desc(), Conversation.id.desc()).limit(limit))
         .scalars()
         .all()
     )
     return rows, total
+
+
+def message_counts(db: Session, conversation_ids) -> dict[str, int]:
+    """대화마다 지우지 않은 메시지 수 — 목록 한 쪽치를 한 질의로."""
+    ids = list(conversation_ids)
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(Message.conversation_id, func.count())
+        .where(Message.conversation_id.in_(ids), Message.deleted_at.is_(None))
+        .group_by(Message.conversation_id)
+    ).all()
+    return {conversation_id: int(count) for conversation_id, count in rows}
+
+
+def _empty_conversations(user: User, *, keep_id: str | None, now: datetime):
+    stmt = select(Conversation).where(
+        Conversation.user_id == user.id,
+        Conversation.archived.is_(False),
+        Conversation.created_at <= now - EMPTY_MIN_AGE,
+        ~_has_messages(),
+    )
+    if keep_id:
+        stmt = stmt.where(Conversation.id != keep_id)
+    return stmt
+
+
+def count_empty_conversations(db: Session, user: User, *, keep_id: str | None, now: datetime) -> int:
+    """「빈 대화 N개 보관」의 N — 화면이 받아 온 쪽이 아니라 내 대화 전체에서 센다."""
+    stmt = _empty_conversations(user, keep_id=keep_id, now=now)
+    return db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
+
+
+def archive_empty_conversations(db: Session, user: User, *, keep_id: str | None, now: datetime) -> list[str]:
+    """메시지가 하나도 없는 내 대화를 보관한다. 제목은 보지 않는다 — 제목이 「새 대화」여도 메시지가 있으면 빈 대화가 아니다.
+
+    예전에는 화면이 받아 온 쪽에서 제목만 보고 PATCH 를 여러 번 보냈다. 지금 연 대화와 만든 지 2분이 안 된 대화(첫 메시지를
+    보내는 중일 수 있다)는 건드리지 않는다. 지우지 않고 보관하므로 보관함에서 다시 꺼낼 수 있다."""
+    rows = db.execute(_empty_conversations(user, keep_id=keep_id, now=now)).scalars().all()
+    for conversation in rows:
+        conversation.archived = True
+    if rows:
+        db.flush()
+    return [conversation.id for conversation in rows]
 
 
 def get_owned_conversation(db: Session, user: User, conversation_id: str) -> Conversation:
@@ -296,10 +374,11 @@ def post_user_message(
     )
     db.add(message)
 
-    # Auto-title from the first message (spec §13.1).
-    if conversation.title == DEFAULT_TITLE:
-        conversation.title = auto_title(content)
+    # Auto-title from the first message (spec §13.1). 이미지만 보낸 질문은 제목이 될 글이 없어 기본 제목으로 둔다.
+    if conversation.title == DEFAULT_TITLE and content != IMAGE_ONLY_CONTENT:
+        conversation.title = clean_title(content)
     conversation.updated_at = now
+    conversation.last_message_at = now
     db.flush()
 
     job = jobs_repo.enqueue(
@@ -572,11 +651,16 @@ def message_view(message: Message) -> dict:
     }
 
 
-def conversation_view(conversation: Conversation) -> dict:
-    return {
+def conversation_view(conversation: Conversation, *, message_count: int | None = None) -> dict:
+    view = {
         "id": conversation.id,
         "title": conversation.title,
         "archived": conversation.archived,
         "created_at": conversation.created_at.isoformat(),
         "updated_at": conversation.updated_at.isoformat(),
+        # 목록의 정렬과 행 시각 — 메시지가 아직 없으면 만든 시각이다(정렬과 같은 값).
+        "last_message_at": (conversation.last_message_at or conversation.created_at).isoformat(),
     }
+    if message_count is not None:
+        view["message_count"] = message_count
+    return view
