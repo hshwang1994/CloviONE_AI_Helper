@@ -15,6 +15,7 @@ import "@testing-library/jest-dom/vitest";
 
 import { SourceList, safeSourceRoute, SOURCE_ROUTE_PREFIXES } from "./SourceList.jsx";
 import { RAIL_SOURCE_LIMIT, ResultsRail } from "./ResultsRail.jsx";
+import { citesSources } from "./SourceList.jsx";
 import { ThemeModeProvider } from "../../ui/ThemeModeProvider.jsx";
 
 function renderList(sources, props) {
@@ -93,5 +94,18 @@ describe("참고한 자료 레일 (A8)", () => {
     expect(screen.getAllByRole("link")).toHaveLength(30);
     await user.click(screen.getByRole("button", { name: "5개 더 보기" }));
     expect(screen.getAllByRole("link")).toHaveLength(35);
+  });
+});
+
+/* P-133 — 레일과 마스코트의 「찾았다」는 출처를 하나라도 인용한 답만이다. 인용 표시가 없는 옛 답은 인용한 것으로 본다. */
+describe("인용 판정(citesSources)", () => {
+  it("인용한 출처가 있어야 참이고, 표시가 없는 옛 답은 참, 출처가 없으면 거짓이다", () => {
+    const doc = (id, cited) => ({ type: "document", id, title: id, route: `/knowledge/${id}`, ...(cited === undefined ? {} : { cited }) });
+    expect(citesSources({ sources: [doc("a", false), doc("b", false)] })).toBe(false);
+    expect(citesSources({ sources: [doc("a", false), doc("b", true)] })).toBe(true);
+    expect(citesSources({ sources: [doc("a")] })).toBe(true);
+    expect(citesSources({ sources: [] })).toBe(false);
+    expect(citesSources({ citations: [{ document_id: "d1", document_title: "연차 규정", route: "/knowledge/d1" }] })).toBe(true);
+    expect(citesSources({ sources: [{ type: "document", id: "x", title: "바깥", route: "https://example.com/x", cited: true }] })).toBe(false);
   });
 });

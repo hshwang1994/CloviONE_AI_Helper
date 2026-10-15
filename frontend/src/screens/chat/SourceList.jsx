@@ -47,11 +47,17 @@ export function messageSources(structured) {
   return [];
 }
 
+/** 답이 출처를 하나라도 인용했는가. 서버가 출처마다 `cited` 를 싣는다(P-133) — 그 값이 없는 옛 답은 인용한 것으로 본다. */
+export function citesSources(structured) {
+  const items = visibleSources(messageSources(structured));
+  return items.length > 0 && items.some((s) => s.cited !== false);
+}
+
 function metaOf(source) {
   return [source.key, source.status, source.where].filter((v) => typeof v === "string" && v.trim());
 }
 
-export function SourceList({ sources, title = "참고한 자료", limit = 8 }) {
+export function SourceList({ sources, title = "참고한 자료", note = null, limit = 8 }) {
   const [showAll, setShowAll] = React.useState(false);
   const items = visibleSources(sources);
   if (!items.length) return null;
@@ -64,6 +70,7 @@ export function SourceList({ sources, title = "참고한 자료", limit = 8 }) {
           {title}
         </Typography>
       ) : null}
+      {note ? <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>{note}</Typography> : null}
       <Box component="ul" role="list" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.75, minWidth: 0 }}>
         {shown.map((source) => {
           const kind = KINDS[source.type];

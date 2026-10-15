@@ -82,10 +82,17 @@ def _screen_preload(target: dict | None, *, allowed: dict, env: catalog.ToolEnv)
 _KEY_SHAPE = re.compile(r"^[A-Za-z0-9-]{3,40}$")
 
 
+#: 제목으로 인용을 알아보는 최소 길이 — 「회의록」 같은 짧은 제목은 답의 다른 말과 겹치므로 세지 않는다.
+CITED_TITLE_MIN = 5
+
+
 def _cited(source: dict, text: str) -> bool:
-    """이 출처가 답의 글에 인용됐는가 — 경로(`?block=` 앞까지) · id · 티켓 키 · 결재 경로 중 하나가 글에 있다."""
+    """이 출처가 답의 글에 인용됐는가 — 경로(`?block=` 앞까지) · id · 티켓 키 · 결재 경로 · 다섯 글자 이상의 제목 중 하나가 글에 있다."""
     if not text:
         return False
+    title = str(source.get("title") or "").strip()
+    if len(title) >= CITED_TITLE_MIN and title in text:
+        return True
     route = str(source.get("route") or "")
     base = route.split("?block=", 1)[0]
     if base and base in text:
@@ -101,7 +108,10 @@ def _cited(source: dict, text: str) -> bool:
 
 
 def _sources(executions, text: str = "") -> list[dict]:
-    """도구가 돌려준 출처를 모은다 — 경로가 있는 것만, 중복 없이, **답에 인용된 것 먼저**, 많아야 `MAX_SOURCES` 개."""
+    """도구가 돌려준 출처를 모은다 — 경로가 있는 것만, 중복 없이, **답에 인용된 것 먼저**, 많아야 `MAX_SOURCES` 개.
+
+    출처마다 `cited` 를 싣는다. 하나도 인용되지 않은 답(찾지 못함 · 뜻만 가까운 문서)은 화면이 「참고한 자료」가 아니라 접힌 「찾아본
+    자료」로 보인다(P-133)."""
     out: list[dict] = []
     seen: set = set()
     for execution in executions:
@@ -111,8 +121,10 @@ def _sources(executions, text: str = "") -> list[dict]:
                 continue
             seen.add(key)
             out.append({k: v for k, v in source.items() if v is not None})
-    cited = [s for s in out if _cited(s, text)]
-    rest = [s for s in out if not _cited(s, text)]
+    for source in out:
+        source["cited"] = _cited(source, text)
+    cited = [s for s in out if s["cited"]]
+    rest = [s for s in out if not s["cited"]]
     return (cited + rest)[:MAX_SOURCES]
 
 

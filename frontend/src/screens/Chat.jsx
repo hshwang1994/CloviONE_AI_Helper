@@ -22,7 +22,7 @@ import { Composer } from "./chat/Composer.jsx";
 import { MessageList } from "./chat/MessageList.jsx";
 import { AssistantUnavailable, MascotStatus, Welcome } from "./chat/WelcomeStatus.jsx";
 import { ResultsRail } from "./chat/ResultsRail.jsx";
-import { messageSources } from "./chat/SourceList.jsx";
+import { citesSources } from "./chat/SourceList.jsx";
 import { assistantOf, useAiStatus } from "../lib/useAiStatus.js";
 import { useAuth } from "../app/auth.jsx";
 import { setItemTitle } from "../app/documentTitle.js";
@@ -140,10 +140,11 @@ export function Chat() {
     });
   }
 
-  /* 레일이 지는 것은 '마지막으로 출처를 든 도우미 답' 하나다. 스레드를 거슬러 올라가며 처음 만나는 것을 쓴다 — 대화가
-   * 이어져도 마지막으로 찾은 자료가 오른쪽에 남아 있어야 그 문서와 티켓을 보며 다음 질문을 칠 수 있다. */
+  /* 레일이 지는 것은 '마지막으로 출처를 인용한 도우미 답' 하나다. 스레드를 거슬러 올라가며 처음 만나는 것을 쓴다 — 대화가
+   * 이어져도 마지막으로 찾은 자료가 오른쪽에 남아 있어야 그 문서와 티켓을 보며 다음 질문을 칠 수 있다. 아무것도 인용하지 않은
+   * 답(「찾아본 자료」만 있는 답)은 레일에 서지 않고 자기 말풍선에 접힌다(P-133). */
   const railMsg = railOpen
-    ? [...items].reverse().find((m) => m.role === "assistant" && messageSources(m.structured).length) || null
+    ? [...items].reverse().find((m) => m.role === "assistant" && citesSources(m.structured)) || null
     : null;
   const railIsLast = !!railMsg && !!lastMsg && railMsg.id === lastMsg.id;
   // 답을 기다리는 동안의 진행 문구 — 서버가 사용자 메시지에 적는다(`structured.progress`, D-535).
@@ -159,7 +160,7 @@ export function Chat() {
     sending: starting,
     awaitingReply, busy,
     justAnswered,
-    hasResult: !!lastMsg && messageSources(lastMsg.structured).length > 0,
+    hasResult: !!lastMsg && citesSources(lastMsg.structured),
     composerFocused,
   });
 

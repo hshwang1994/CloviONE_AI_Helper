@@ -511,6 +511,20 @@ def test_the_source_list_is_capped_and_keeps_cited_ones_inside_the_cap():
     # 「ABCDEF-3」 이 「ABCDEF-39」 안에서 걸리지 않는다 — 키는 낱말 경계로 본다.
     only = turn_mod._sources([execution], "ABCDEF-39 만 봅니다.")
     assert only[0]["id"] == "t-039" and only[1]["id"] == "t-000"
+    # 출처마다 인용 여부를 싣는다 — 하나도 인용하지 않은 답은 화면이 「찾아본 자료」로 접는다(P-133).
+    assert only[0]["cited"] is True and all(s["cited"] is False for s in only[1:])
+    assert not any(s["cited"] for s in plain), "인용이 없는 답은 모두 cited=False"
+
+
+def test_a_source_title_in_the_answer_counts_as_cited_but_short_titles_do_not():
+    from app.ai.assistant import results
+    from app.ai.assistant import turn as turn_mod
+
+    docs = ({"type": "document", "id": "d-1", "title": "해외 출장 체크리스트", "route": "/knowledge/d-1"},
+            {"type": "document", "id": "d-2", "title": "회의록", "route": "/knowledge/d-2"})
+    execution = results.ok("search_documents", [{"n": 1}, {"n": 2}], total=2, sources=docs)
+    out = turn_mod._sources([execution], "해외 출장 체크리스트를 보면 됩니다. 회의록에는 없습니다.")
+    assert [(s["id"], s["cited"]) for s in out] == [("d-1", True), ("d-2", False)]
 
 
 def test_a_tool_failure_then_a_refused_last_round_closes_with_the_found_sources(client, db, space, assistant, posted):

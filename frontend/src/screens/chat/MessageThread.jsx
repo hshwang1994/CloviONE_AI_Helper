@@ -22,7 +22,7 @@ import {
 } from "../chat-helpers.js";
 import { BUBBLE_MAX } from "./layout.js";
 import { RichText } from "./RichText.jsx";
-import { SourceList, messageSources, visibleSources } from "./SourceList.jsx";
+import { SourceList, citesSources, messageSources, visibleSources } from "./SourceList.jsx";
 
 /* 「확인한 내용」 한 줄 — 도구 이름과 검색어를 문장으로 말하고, 서버가 센 수가 있으면 뒤에 「(25건 중 8건)」을 붙인다(D-567). */
 function checkedLine(tool) {
@@ -46,6 +46,7 @@ export function Message({
   const failed = m.processing_status === "failed";
   const [copied, setCopied] = useState("");
   const [showChecked, setShowChecked] = useState(false);
+  const [showSearched, setShowSearched] = useState(false);
   const isUser = m.role === "user";
   const isAssistant = m.role === "assistant";
   const content = m.content || "";
@@ -56,6 +57,8 @@ export function Message({
   const linkable = visibleSources(sources);
   const keyLinks = new Map(linkable.filter((s) => s.type === "ticket" && s.key).map((s) => [s.key, s.route]));
   const routeLinks = new Set(linkable.map((s) => s.route));
+  /* 답이 아무 출처도 인용하지 않았으면(찾지 못함 · 뜻만 가까운 문서) 「참고한 자료」가 아니라 접힌 「찾아본 자료」다(P-133). */
+  const searchedOnly = linkable.length > 0 && !citesSources(st);
   const tools = isAssistant && !errorNotice ? checkedTools(st) : [];
   const words = isAssistant && st.notice === "no_results" ? searchedWords(st) : [];
   const elapsed = isAssistant && !errorNotice ? elapsedLabel(st) : null;
@@ -113,9 +116,21 @@ export function Message({
             도구를 쓸 수 없어 검색 결과로만 답했습니다.
           </Typography>
         ) : null}
-        {showSources && sources.length ? (
+        {showSources && sources.length && !searchedOnly ? (
           <Box sx={{ mt: 1.5, pt: 1.25, borderTop: 1, borderColor: "divider" }}>
             <SourceList sources={sources} />
+          </Box>
+        ) : null}
+        {showSources && searchedOnly ? (
+          <Box sx={{ mt: 1 }}>
+            <Button size="sm" variant="ghost" aria-expanded={showSearched} onClick={() => setShowSearched((v) => !v)}>
+              {showSearched ? "찾아본 자료 접기" : `찾아본 자료 ${linkable.length}개 보기`}
+            </Button>
+            {showSearched ? (
+              <Box sx={{ mt: 0.75 }}>
+                <SourceList sources={sources} title="찾아본 자료" note="답을 찾는 동안 살펴봤지만 답에는 쓰지 않은 자료입니다." />
+              </Box>
+            ) : null}
           </Box>
         ) : null}
         {tools.length ? (

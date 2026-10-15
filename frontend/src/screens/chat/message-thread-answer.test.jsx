@@ -135,3 +135,32 @@ describe("입력 중 말풍선", () => {
     expect(screen.getAllByText(/사내 문서를 찾고 있습니다/).length).toBeGreaterThan(0);
   });
 });
+
+/* P-133 — 답이 아무 출처도 인용하지 않으면(찾지 못함 · 뜻만 가까운 문서) 출처 묶음은 「참고한 자료」가 아니라 접힌 「찾아본 자료」다. */
+describe("인용하지 않은 출처", () => {
+  const NEAR = [
+    { type: "document", id: "d7", title: "출장비 정산 안내", route: "/knowledge/d7", cited: false },
+    { type: "document", id: "d8", title: "해외 출장 체크리스트", route: "/knowledge/d8", cited: false },
+  ];
+
+  it("하나도 인용하지 않은 답은 「찾아본 자료」를 접어 두고, 펼치면 그 뜻을 한 문장으로 말한다", async () => {
+    const user = userEvent.setup();
+    renderMessage(answer({ kind: "assistant", notice: "no_results", sources: NEAR }, "사내 문서에서 2031년 우주 출장 규정을 찾지 못했습니다."));
+    expect(screen.queryByRole("heading", { name: "참고한 자료" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "출장비 정산 안내" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "찾아본 자료 2개 보기" }));
+    expect(screen.getByRole("heading", { name: "찾아본 자료" })).toBeInTheDocument();
+    expect(screen.getByText("답을 찾는 동안 살펴봤지만 답에는 쓰지 않은 자료입니다.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "출장비 정산 안내" })).toHaveAttribute("href", "#/knowledge/d7");
+    expect(screen.getByRole("button", { name: "찾아본 자료 접기" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("하나라도 인용했거나 인용 표시가 없는 옛 답이면 그대로 「참고한 자료」다", () => {
+    const { unmount } = renderMessage(answer({ kind: "assistant", sources: [{ ...NEAR[0], cited: true }, NEAR[1]] }, "[출장비 정산 안내](/knowledge/d7)를 보세요."));
+    expect(screen.getByRole("heading", { name: "참고한 자료" })).toBeInTheDocument();
+    unmount();
+    renderMessage(answer({ kind: "assistant", sources: NEAR.map(({ cited, ...rest }) => rest) }));
+    expect(screen.getByRole("heading", { name: "참고한 자료" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /찾아본 자료/ })).toBeNull();
+  });
+});
