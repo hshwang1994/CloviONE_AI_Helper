@@ -556,9 +556,15 @@ def check_q15(a: Answer, truth: dict, *, title: str) -> list[str]:
 
 
 def check_q16(a: Answer, truth: dict) -> list[str]:
+    """없는 자료 — 「찾지 못함」 표시(no_results)가 서거나, 답이 찾지 · 확인하지 못했다고 말해야 한다.
+
+    의미 검색이 켜진 설치에서는 뜻이 가장 가까운 문서가 언제나 몇 건 돌아오므로 도구가 no_results 를 내지 않는다(랩 실측
+    2026-10-15 — 「결과 28건 중 8건, 세 낱말을 모두 포함한 문서는 0건」이라고 정직하게 답했는데 표시만 보고 실패로 셌다).
+    요구는 표시가 아니라 답의 정직함이다: 찾아본 범위를 말하고, 찾지 못했다고 말하고, 없다고 단정하지 않는다."""
     failures = []
-    if a.notice != NOTICE_NO_RESULTS:
-        failures.append(f"「찾지 못함」 표시(no_results)가 아닙니다(notice={a.notice}).")
+    says_not_found = bool(re.search(r"찾지\s?못|확인하지\s?못|찾을\s?수\s?없", a.text or ""))
+    if a.notice != NOTICE_NO_RESULTS and not says_not_found:
+        failures.append(f"찾지 못했다는 표시(no_results)도, 찾지 못했다는 말도 없습니다(notice={a.notice}).")
     if not searched_phrase(a.text):
         failures.append("무엇을 찾아봤는지 말하지 않았습니다.")
     if "존재하지 않" in (a.text or ""):

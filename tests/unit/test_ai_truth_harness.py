@@ -215,6 +215,13 @@ def test_no_results_check():
     assert truth.check_q16(ok, {}) == []
     bad = _answer("그런 규정은 존재하지 않습니다.", tools=["search_documents"])
     assert len(truth.check_q16(bad, {})) == 3
+    # 의미 검색이 가까운 문서를 돌려줘 no_results 가 서지 않아도, 찾아본 범위와 찾지 못했다는 말이 있으면 통과다(랩 실측 답의 꼴).
+    semantic = _answer("사내 문서 검색 도구로 ‘2031 우주 출장’을 찾아봤지만 요청하신 규정은 확인하지 못했습니다.",
+                       tools=["search_documents"])
+    assert truth.check_q16(semantic, {}) == []
+    # 가까운 문서를 그 규정인 양 요약하면(찾지 못했다는 말이 없으면) 실패다.
+    pretend = _answer("사내 문서를 찾아봤습니다. 2031년 우주 출장은 주간일정 문서에 따라 승인받으면 됩니다.", tools=["search_documents"])
+    assert truth.check_q16(pretend, {})
 
 
 def test_other_department_title_must_not_leak():
