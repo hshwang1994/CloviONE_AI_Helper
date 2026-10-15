@@ -188,8 +188,18 @@ def _finish(db: Session, job: Job, ctx: WorkerContext, payload: dict, *, convers
     db.flush()
 
 
+def _conversation_alive(db: Session, conversation_id: str) -> bool:
+    """대화가 아직 있는가 — 답을 만드는 동안 사람이 대화를 지웠을 수 있다(다른 트랜잭션의 커밋을 본다)."""
+    return db.execute(select(Conversation.id).where(Conversation.id == conversation_id)).first() is not None
+
+
 def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
     payload = parse_payload(job)
+    if payload.get("purged"):
+        # 대화를 지우며 잡의 내용을 걷었다(`app/chat/service.py::purge_conversation_job_payloads`) — 할 일이 없다.
+        # 실패로 올리면 지운 사람에게 「요청 처리에 실패했습니다」 알림이 간다.
+        logger.info("chat job %s: 지운 대화의 잡이라 건너뜀", job.id)
+        return
     requester = payload.get("requester") or {}
     if not requester.get("email"):
         raise PermanentJobError("requester가 없는 payload: 위조 또는 손상")
@@ -228,6 +238,11 @@ def handle_chat_message(db: Session, job: Job, ctx: WorkerContext) -> None:
         env=env, screen_context=payload.get("screen_context"), today=home_service.local_today(ctx.settings, now),
         job_id=job.id, progress=progress,
     )
+    if not _conversation_alive(db, conversation.id):
+        logger.info("chat job %s: 답을 만드는 동안 대화가 지워져 조용히 끝냄", job.id)
+        strip_attachment_bytes(job, payload)
+        db.flush()
+        return
     text, failed = _texts(reply, had_attachments=had_attachments)
     stored = dict(reply.structured)
     if had_attachments:

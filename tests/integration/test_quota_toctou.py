@@ -140,6 +140,11 @@ def test_the_queue_reservation_clears_when_the_job_finishes(client, login_as, db
     job = db.execute(select(Job).where(Job.job_type == "chat_message")).scalars().first()
     assert job is not None
     job.status = STATUS_SUCCEEDED
+    # 워커가 하는 그대로 사람 메시지도 끝낸다 — 기다리는 답이 남아 있으면 같은 대화의 다음 전송은 409 다(대화당 대기 하나).
+    from app.conversations.models import PROC_DONE, Message
+
+    for message in db.execute(select(Message).where(Message.conversation_id == conv_id)).scalars():
+        message.processing_status = PROC_DONE
     db.commit()
 
     # 잡이 끝났고(예약 해제) 아직 아무것도 기록되지 않았으니 다시 한 칸이 남는다.

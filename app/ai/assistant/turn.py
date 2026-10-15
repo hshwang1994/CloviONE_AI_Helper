@@ -211,6 +211,11 @@ def progress_writer(db: Session, message, *, clock):
         now: datetime = clock.now()
         current["progress"] = {"label": label, "at": now.isoformat()}
         message.structured_payload_json = json.dumps(current, ensure_ascii=False)
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            # 대화가 지워져 행이 없으면 커밋이 실패한다 — 세션을 되돌려 놓아야 차례의 나머지(사용 기록)가 이어진다.
+            db.rollback()
+            raise
 
     return write

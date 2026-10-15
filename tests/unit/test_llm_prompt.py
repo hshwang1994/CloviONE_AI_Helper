@@ -176,3 +176,14 @@ def test_the_assistant_format_line_asks_for_source_routes_and_no_tables():
     assert "표와 # 머리글은 쓰지 않습니다" in slot.format_line
     assert "몇 건 중 몇 건" in slot.instruction
     assert slot.format_line.endswith(".")
+
+
+def test_user_turn_limit_covers_the_send_limit():
+    """보내기 한도까지 쓴 질문이 모델에 통째로 간다 — 4,000 이던 때에는 4,001 ~ 5,000자의 뒤가 조용히 잘렸다."""
+    from app.core.config import Settings
+    from app.core.search_text import MAX_QUESTION_CHARS, normalize_question
+
+    limit = Settings().max_message_length
+    assert prompt.MAX_USER_TURN_CHARS >= limit
+    assert MAX_QUESTION_CHARS >= limit
+    assert len(normalize_question("가" * limit)) == limit

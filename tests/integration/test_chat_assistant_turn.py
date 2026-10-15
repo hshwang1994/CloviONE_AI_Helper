@@ -570,3 +570,60 @@ def test_only_list_tools_carry_a_total_for_the_checked_lines():
     assert rows["get_ticket"]["total"] is None
     assert rows["search_documents"]["total"] is None
     assert rows["my_work"]["total"] is None and rows["my_work"]["ok"] is False
+
+
+# ── 답을 만드는 동안 지운 대화 ─────────────────────────────────────────────────
+
+
+def test_deleting_a_conversation_mid_turn_sends_no_failure_notification(client, db, assistant, posted, chatter):
+    """답을 만드는 동안 사람이 대화를 지우면 처리기는 조용히 끝난다 — 예전에는 걷힌 행에 답을 쓰다 실패해
+    지운 사람에게 「요청 처리에 실패했습니다」 알림이 갔다."""
+    from app.jobs.models import STATUS_SUCCEEDED, Job
+    from app.notifications.models import Notification
+
+    def delete_meanwhile(request):
+        r = client.delete(f"/api/conversations/{posted['conversation_id']}", headers={"X-CSRF-Token": posted["csrf"]})
+        assert r.status_code == 200
+        return "답입니다."
+
+    worker = assistant(ScriptedToolAdapter([delete_meanwhile]))
+    _send(client, posted, "안녕")
+    worker.run_once()
+
+    db.expire_all()
+    job = db.execute(select(Job).where(Job.conversation_id == posted["conversation_id"])).scalar_one()
+    assert job.status == STATUS_SUCCEEDED
+    assert _rows(db, posted["conversation_id"]) == []
+    assert db.execute(select(Notification).where(Notification.user_id == chatter.id)).scalars().all() == []
+
+
+def test_a_queued_reply_of_a_deleted_conversation_is_cancelled(client, db, assistant, posted):
+    """대기 중인 답 잡은 대화를 지울 때 취소된다 — 걷힌 페이로드로 돌지 않고 AI 사용 한도의 대기 몫도 놓는다."""
+    from app.jobs.models import STATUS_CANCELLED, Job
+
+    assistant(ScriptedToolAdapter(["돌지 않는 답"]))
+    _send(client, posted, "기다리는 질문")
+    r = client.delete(f"/api/conversations/{posted['conversation_id']}", headers={"X-CSRF-Token": posted["csrf"]})
+    assert r.status_code == 200
+    db.expire_all()
+    job = db.execute(select(Job).where(Job.conversation_id == posted["conversation_id"])).scalar_one()
+    assert job.status == STATUS_CANCELLED
+    assert json.loads(job.payload_json).get("purged") is True
+
+
+def test_a_purged_payload_finishes_quietly(db, assistant, chatter, fake_clock):
+    """지운 대화의 잡이 이미 워커 손에 있었어도(걷힌 페이로드) 실패로 올리지 않는다."""
+    from app.jobs import repository as jobs_repo
+    from app.jobs.models import STATUS_SUCCEEDED
+    from app.notifications.models import Notification
+
+    worker = assistant(ScriptedToolAdapter(["쓰이지 않는 답"]))
+    job = jobs_repo.enqueue(db, job_type="chat_message", now=fake_clock.now(), user_id=chatter.id,
+                            payload={"conversation_id": "gone", "message_id": "gone", "purged": True},
+                            conversation_id=None, message_id="gone", idempotency_key="chatmsg:gone:gone")
+    db.commit()
+    worker.run_once()
+    db.expire_all()
+    db.refresh(job)
+    assert job.status == STATUS_SUCCEEDED
+    assert db.execute(select(Notification).where(Notification.user_id == chatter.id)).scalars().all() == []

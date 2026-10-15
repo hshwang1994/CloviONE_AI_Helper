@@ -126,3 +126,40 @@ def test_xss_payload_stored_verbatim_but_page_renders_via_js_only(client, login_
     # embed message content server-side (rendering is textContent-only JS).
     page = client.get("/")
     assert xss not in page.text
+
+
+def test_retry_never_recovers_another_conversations_attachments(client, login_as, make_user, db):
+    """다시 시도는 그 대화의 잡에서만 첨부를 되찾는다. 메시지 id 는 대화 안에서만 유일해, id 하나로 찾던 때에는 같은
+    id 를 쓴 다른 사람 대화의 이미지 바이트를 집어 제 잡에 싣고 원래 잡의 바이트를 지웠다."""
+    from sqlalchemy import select
+
+    from app.conversations.models import PROC_FAILED, Message
+    from app.jobs.models import Job
+    from tests.integration.test_chat_api import PNG_B64
+
+    shared_id = "m-shared-id-0000000001"
+    make_user("victim-att@goodmit.co.kr")
+    victim = login_as("user", email="victim-att@goodmit.co.kr")
+    v_conv = client.post("/api/conversations", json={}, headers={"X-CSRF-Token": victim}).json()["conversation"]["id"]
+    assert client.post(f"/api/conversations/{v_conv}/messages", headers={"X-CSRF-Token": victim}, json={
+        "content": "내 화면 오류", "client_message_id": shared_id,
+        "attachments": [{"filename": "secret.png", "media_type": "image/png", "data": PNG_B64}],
+    }).status_code == 202
+
+    make_user("taker-att@goodmit.co.kr")
+    taker = login_as("user", email="taker-att@goodmit.co.kr")
+    t_conv = client.post("/api/conversations", json={}, headers={"X-CSRF-Token": taker}).json()["conversation"]["id"]
+    sent = client.post(f"/api/conversations/{t_conv}/messages", headers={"X-CSRF-Token": taker},
+                       json={"content": "같은 id 질문", "client_message_id": shared_id})
+    assert sent.status_code == 202
+    row = db.get(Message, sent.json()["message"]["id"])
+    row.processing_status = PROC_FAILED
+    db.commit()
+
+    r = client.post(f"/api/messages/{row.id}/retry", json={}, headers={"X-CSRF-Token": taker})
+    assert r.status_code == 200, r.text
+    db.expire_all()
+    retried = db.get(Job, r.json()["job_id"])
+    assert "attachments" not in json.loads(retried.payload_json)
+    victim_job = db.execute(select(Job).where(Job.conversation_id == v_conv)).scalar_one()
+    assert json.loads(victim_job.payload_json)["attachments"][0]["data"] == PNG_B64

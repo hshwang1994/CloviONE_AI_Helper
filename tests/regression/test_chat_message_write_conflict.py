@@ -114,7 +114,7 @@ def test_post_message_write_conflict_retries_then_succeeds(client, user_csrf, db
     from app.jobs.models import Job
 
     job = db.get(Job, r.json()["job_id"])
-    assert job.idempotency_key == f"chatmsg:{CLIENT_MSG_ID}"
+    assert job.idempotency_key == f"chatmsg:{conv['id']}:{CLIENT_MSG_ID}"
 
 
 def test_post_message_write_conflict_retry_does_not_duplicate_the_job(
@@ -136,7 +136,7 @@ def test_post_message_write_conflict_retry_does_not_duplicate_the_job(
     assert r.status_code == 202
 
     matching = db.execute(
-        select(Job).where(Job.idempotency_key == f"chatmsg:{CLIENT_MSG_ID}")
+        select(Job).where(Job.idempotency_key == f"chatmsg:{conv['id']}:{CLIENT_MSG_ID}")
     ).scalars().all()
     assert len(matching) == 1
 

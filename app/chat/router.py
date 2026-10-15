@@ -182,7 +182,7 @@ def delete_conversation_endpoint(
     user: User = Depends(get_current_user),
 ):
     conversation = get_owned_conversation(db, user, conversation_id)
-    delete_conversation(db, conversation)
+    delete_conversation(db, conversation, now=request.app.state.clock.now())
     return {"ok": True}
 
 

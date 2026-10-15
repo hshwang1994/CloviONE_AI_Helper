@@ -8,15 +8,16 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session, aliased
 
 from app.conversations.models import (
     PROC_DONE,
     PROC_FAILED,
     PROC_PENDING,
+    PROC_PROCESSING,
     ROLE_ASSISTANT_MSG,
     ROLE_USER_MSG,
     Conversation,
@@ -40,6 +41,24 @@ AUTO_TITLE_MAX_CHARS = 60
 # 다시 요청한다(오프셋을 이어붙이지 않는 이유는 router의 get_conversations 주석 참고).
 DEFAULT_CONVERSATION_LIST_LIMIT = 100
 MAX_CONVERSATION_LIST_LIMIT = 1000
+#: 답을 기다리는 사람 메시지가 이 시간 안에 상태가 바뀌었으면 같은 대화의 새 전송 · 다시 시도를 막는다. 화면이 응답을
+#: 「지연」으로 보는 기준(`chat-helpers.js::STALL_MS`)과 같은 10분이라, 잡을 잃은 메시지가 대화를 영영 잠그지 않는다.
+PENDING_REPLY_WINDOW = timedelta(minutes=10)
+
+
+class ReplyPendingError(ConflictError):
+    """같은 대화에 아직 답을 기다리는 질문이 있다. 화면만 막던 때에는 탭 둘에서 보낸 질문의 잡 둘이 함께 돌아 답이 섞였다."""
+
+    code = "reply_pending"
+    default_message = "앞 질문의 답을 만드는 중입니다. 답이 온 뒤에 보내 주세요."
+
+
+def chat_job_key(conversation_id: str, client_message_id: str) -> str:
+    """답 잡의 멱등 키. 메시지 id 는 대화 안에서만 유일하므로 대화 id 를 함께 싣는다.
+
+    예전 키(`chatmsg:{메시지 id}`)는 전역이라 다른 대화에서 같은 id 를 쓰면 `enqueue` 가 남의 잡을 돌려주고 새 메시지는
+    잡 없이 대기에 갇혔다."""
+    return f"chatmsg:{conversation_id}:{client_message_id}"
 
 
 def auto_title(content: str) -> str:
@@ -87,7 +106,7 @@ def list_conversations(
         own_messages = (
             select(Message.conversation_id)
             .join(mine, mine.id == Message.conversation_id)
-            .where(mine.user_id == user.id, like_folded(Message.content, pattern))
+            .where(mine.user_id == user.id, Message.deleted_at.is_(None), like_folded(Message.content, pattern))
         )
         stmt = stmt.where(
             or_(
@@ -163,13 +182,26 @@ def purge_conversation_job_payloads(db: Session, conversation_ids) -> int:
     return len(rows)
 
 
-def delete_conversation(db: Session, conversation: Conversation) -> None:
+def delete_conversation(db: Session, conversation: Conversation, *, now: datetime) -> None:
     """Hard-delete a conversation and its messages (owner-checked by caller).
 
     예전에는 러너에도 삭제를 알려 그쪽 미러(`conversation_state`)를 지웠다(AI-16).
     S11 이 러너를 걷어내면서 지울 미러가 없어졌다 — 대화 내용은 이제 이 DB 밖으로
     나간 적이 없으므로 여기서 지우면 끝이다.
+
+    아직 대기 중인 답 잡은 취소한다. 남겨 두면 걷힌 페이로드로 돌다 실패해 지운 사람에게 「요청 처리에 실패했습니다」
+    알림이 갔고, AI 사용 한도의 대기 몫도 그대로 잡고 있었다. 이미 도는 잡은 처리기가 마지막에 대화가 없음을 보고
+    조용히 끝난다(`app/jobs/handlers/chat_message.py`).
     """
+    from app.jobs.models import STATUS_CANCELLED, STATUS_QUEUED, Job
+
+    db.execute(
+        update(Job)
+        .where(Job.conversation_id == conversation.id, Job.job_type == JOB_TYPE_CHAT_MESSAGE,
+               Job.status == STATUS_QUEUED)
+        .values(status=STATUS_CANCELLED, finished_at=now, started_at=None, updated_at=now)
+        .execution_options(synchronize_session=False)
+    )
     purge_conversation_job_payloads(db, [conversation.id])
     db.execute(delete(Message).where(Message.conversation_id == conversation.id))
     db.delete(conversation)
@@ -246,9 +278,12 @@ def post_user_message(
         )
     ).scalar_one_or_none()
     if existing is not None:
-        # Duplicate submit (double-click / refresh) — return the original.
-        job = jobs_repo.get_by_idempotency_key(db, f"chatmsg:{client_message_id}")
+        # Duplicate submit (double-click / refresh) — return the original. 키를 바꾸기 전에 만든 잡은 옛 키로 찾는다.
+        job = (jobs_repo.get_by_idempotency_key(db, chat_job_key(conversation.id, client_message_id))
+               or jobs_repo.get_by_idempotency_key(db, f"chatmsg:{client_message_id}"))
         return existing, job
+
+    ensure_no_pending_reply(db, conversation, now=now)
 
     message = Message(
         conversation_id=conversation.id,
@@ -277,9 +312,26 @@ def post_user_message(
         user_id=user.id,
         conversation_id=conversation.id,
         message_id=client_message_id,
-        idempotency_key=f"chatmsg:{client_message_id}",
+        idempotency_key=chat_job_key(conversation.id, client_message_id),
     )
     return message, job
+
+
+def ensure_no_pending_reply(db: Session, conversation: Conversation, *, now: datetime) -> None:
+    """대화당 기다리는 답은 하나다. 대화 행을 잠그고, 상태가 `PENDING_REPLY_WINDOW` 안에 바뀐 대기 · 처리 중 사람 메시지가
+    있으면 `ReplyPendingError` 다. 잠금은 같은 대화로 동시에 들어온 두 요청이 둘 다 「없음」을 보고 지나가지 않게 한다."""
+    db.execute(select(Conversation.id).where(Conversation.id == conversation.id).with_for_update())
+    waiting = db.execute(
+        select(Message.id).where(
+            Message.conversation_id == conversation.id,
+            Message.role == ROLE_USER_MSG,
+            Message.deleted_at.is_(None),
+            Message.processing_status.in_((PROC_PENDING, PROC_PROCESSING)),
+            Message.updated_at >= now - PENDING_REPLY_WINDOW,
+        ).limit(1)
+    ).first()
+    if waiting is not None:
+        raise ReplyPendingError()
 
 
 def _user_structured(attachment_names: list | None, screen_context: dict | None) -> str | None:
@@ -343,7 +395,7 @@ def _reenqueue(
     message.error_code = None
     db.flush()
 
-    attachments = _recover_attachments_for_retry(db, message.message_id)
+    attachments = _recover_attachments_for_retry(db, conversation.id, message.message_id)
     return jobs_repo.enqueue(
         db,
         job_type=JOB_TYPE_CHAT_MESSAGE,
@@ -353,7 +405,7 @@ def _reenqueue(
         user_id=user.id,
         conversation_id=conversation.id,
         message_id=message.message_id,
-        idempotency_key=f"chatmsg:{message.message_id}:{tag}:{now.strftime('%Y%m%d%H%M%S%f')}",
+        idempotency_key=f"{chat_job_key(conversation.id, message.message_id)}:{tag}:{now.strftime('%Y%m%d%H%M%S%f')}",
     )
 
 
@@ -366,6 +418,7 @@ def retry_message(
     conversation = get_owned_conversation(db, user, message.conversation_id)
     if message.role != ROLE_USER_MSG or message.processing_status != PROC_FAILED:
         raise ConflictError("실패한 요청만 다시 시도할 수 있습니다.")
+    ensure_no_pending_reply(db, conversation, now=now)
 
     # 이전 실패 안내(error_notice)는 재시도로 무효가 된다. 지우지 않으면 재시도가 성공해도
     # '연결에 문제가 있어 완료하지 못했습니다'가 성공 답변과 함께 남아 사실과 반대되는 상태를
@@ -461,7 +514,9 @@ def set_message_feedback(
     return message
 
 
-def _recover_attachments_for_retry(db: Session, message_id: str) -> list[dict] | None:
+def _recover_attachments_for_retry(db: Session, conversation_id: str, message_id: str) -> list[dict] | None:
+    """그 대화의 그 메시지 잡에서만 첨부를 되찾는다. 메시지 id 는 대화 안에서만 유일해, id 하나로 찾으면 같은 id 를 쓴
+    다른 대화의 이미지를 집을 수 있었다."""
     import json as _json
 
     from app.jobs.handlers.chat_message import strip_attachment_bytes
@@ -470,7 +525,8 @@ def _recover_attachments_for_retry(db: Session, message_id: str) -> list[dict] |
     rows = (
         db.execute(
             select(Job)
-            .where(Job.message_id == message_id, Job.job_type == JOB_TYPE_CHAT_MESSAGE)
+            .where(Job.conversation_id == conversation_id, Job.message_id == message_id,
+                   Job.job_type == JOB_TYPE_CHAT_MESSAGE)
             .order_by(Job.created_at.desc())
         )
         .scalars()

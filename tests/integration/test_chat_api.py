@@ -158,7 +158,7 @@ def test_post_message_returns_202_and_enqueues_job(client, user_csrf, db):
     payload = json.loads(job.payload_json)
     assert payload["requester"]["email"] == "user@goodmit.co.kr"
     assert payload["content"] == "내 할당 티켓 보여줘"
-    assert job.idempotency_key == f"chatmsg:{CLIENT_MSG_ID}"
+    assert job.idempotency_key == f"chatmsg:{conv['id']}:{CLIENT_MSG_ID}"
 
 
 def test_duplicate_client_message_id_not_duplicated(client, user_csrf, db):
@@ -207,6 +207,67 @@ def test_client_message_id_reuse_across_conversations_is_not_a_conflict(
     )
     assert r2.status_code == 202, r2.text
     assert r2.json()["message"]["content"] == "내 메시지, 같은 id"
+    # 같은 id 라도 대화마다 제 잡이 있다 — 예전 전역 키는 남의 잡을 돌려주고 이 메시지는 잡 없이 대기에 갇혔다.
+    assert r2.json()["job_id"] and r2.json()["job_id"] != r.json()["job_id"]
+
+
+def _send(client, csrf, conv_id, text, mid):
+    return client.post(f"/api/conversations/{conv_id}/messages",
+                       json={"content": text, "client_message_id": mid}, headers=_headers(csrf))
+
+
+def test_second_send_while_reply_pending_is_409(client, user_csrf, db):
+    """대화당 기다리는 답은 하나다 — 탭 둘에서 같은 대화로 보내면 잡 둘이 함께 돌아 답이 섞였다."""
+    conv = _new_conversation(client, user_csrf)
+    assert _send(client, user_csrf, conv["id"], "첫 질문", "m-first-0000000001").status_code == 202
+    r = _send(client, user_csrf, conv["id"], "둘째 질문", "m-second-000000001")
+    assert r.status_code == 409
+    assert r.json()["error"]["code"] == "reply_pending"
+
+    from app.conversations.models import Message
+    from app.jobs.models import Job
+
+    assert db.query(Message).filter(Message.conversation_id == conv["id"]).count() == 1
+    assert db.query(Job).filter(Job.conversation_id == conv["id"]).count() == 1
+    # 다른 대화는 막히지 않는다.
+    other = _new_conversation(client, user_csrf)
+    assert _send(client, user_csrf, other["id"], "다른 대화 질문", "m-other-0000000001").status_code == 202
+
+
+def test_duplicate_submit_while_pending_returns_original(client, user_csrf):
+    """같은 초안을 다시 보낸 것(응답 유실 뒤 재전송)은 대기 가드보다 먼저 원래 메시지를 돌려준다."""
+    conv = _new_conversation(client, user_csrf)
+    first = _send(client, user_csrf, conv["id"], "같은 질문", CLIENT_MSG_ID)
+    again = _send(client, user_csrf, conv["id"], "같은 질문", CLIENT_MSG_ID)
+    assert first.status_code == again.status_code == 202
+    assert again.json()["message"]["id"] == first.json()["message"]["id"]
+    assert again.json()["job_id"] == first.json()["job_id"]
+
+
+def test_stale_pending_does_not_block(client, user_csrf, db, app):
+    """잡을 잃고 10분 넘게 대기에 남은 메시지가 대화를 영영 잠그지 않는다(화면의 지연 판정과 같은 기준)."""
+    from datetime import timedelta
+
+    from sqlalchemy import update
+
+    from app.conversations.models import Message
+
+    conv = _new_conversation(client, user_csrf)
+    assert _send(client, user_csrf, conv["id"], "오래된 질문", "m-stale-0000000001").status_code == 202
+    long_ago = app.state.clock.now() - timedelta(minutes=11)
+    db.execute(update(Message).where(Message.conversation_id == conv["id"]).values(updated_at=long_ago))
+    db.commit()
+    assert _send(client, user_csrf, conv["id"], "새 질문", "m-fresh-0000000001").status_code == 202
+
+
+def test_list_conversations_q_ignores_deleted_messages(client, user_csrf, db):
+    """지운 메시지의 글로는 대화가 찾히지 않는다(제목에는 그 낱말이 없다)."""
+    conv = client.post("/api/conversations", json={"title": "검색 시험"}, headers=_headers(user_csrf)).json()["conversation"]
+    r = _send(client, user_csrf, conv["id"], "지워질 고유낱말 qzxv", "m-deleted-00000001")
+    assert r.status_code == 202
+    assert client.get("/api/conversations", params={"q": "qzxv"}).json()["total"] == 1
+    assert client.delete(f"/api/messages/{r.json()['message']['id']}", headers=_headers(user_csrf)).status_code == 200
+    assert client.get("/api/conversations", params={"q": "qzxv"}).json()["total"] == 0
 
 
 def test_first_message_sets_conversation_title(client, user_csrf):

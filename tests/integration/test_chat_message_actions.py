@@ -200,3 +200,30 @@ def test_regenerate_unknown_message_returns_404(client, login_as):
     csrf = login_as("user")
     r = client.post("/api/messages/does-not-exist/regenerate", headers=_headers(csrf))
     assert r.status_code == 404
+
+
+# ── 대화당 기다리는 답 하나 ─────────────────────────────────────────────────
+
+
+def test_retry_blocked_while_another_reply_pending(client, login_as, db):
+    """다시 시도도 새 전송과 같은 규칙이다 — 같은 대화에 기다리는 답이 있으면 409 `reply_pending` 이고 잡을 만들지 않는다."""
+    from app.conversations.models import PROC_FAILED
+    from app.jobs.models import Job
+
+    csrf = login_as("user")
+    conv = _new_conversation(client, csrf)
+    failed = client.post(f"/api/conversations/{conv['id']}/messages",
+                         json={"content": "실패한 질문", "client_message_id": "m-failed-000000001"},
+                         headers=_headers(csrf)).json()["message"]["id"]
+    row = db.get(Message, failed)
+    row.processing_status = PROC_FAILED
+    db.commit()
+    assert client.post(f"/api/conversations/{conv['id']}/messages",
+                       json={"content": "기다리는 질문", "client_message_id": "m-waiting-00000001"},
+                       headers=_headers(csrf)).status_code == 202
+    jobs_before = db.query(Job).filter(Job.conversation_id == conv["id"]).count()
+
+    r = client.post(f"/api/messages/{failed}/retry", json={}, headers=_headers(csrf))
+    assert r.status_code == 409
+    assert r.json()["error"]["code"] == "reply_pending"
+    assert db.query(Job).filter(Job.conversation_id == conv["id"]).count() == jobs_before
