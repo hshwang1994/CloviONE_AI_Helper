@@ -62,7 +62,10 @@ class SysopsClient:
     def socket_path(self) -> str:
         return self._path
 
-    def call(self, action: str, params: dict | None = None) -> HelperReply:
+    def call(self, action: str, params: dict | None = None, *, timeout: int | None = None) -> HelperReply:
+        """`timeout` 은 이 호출만의 기다림 상한이다. 대표 주소 바꾸기(D-573)는 인증서 · nginx · 뒷단 유닛 재시작 · 자체 확인까지 한
+        번에 해서 기본 90초를 넘길 수 있다 — nginx 의 `proxy_read_timeout`(180초)보다는 짧게 준다."""
+        wait = timeout or self._timeout
         if _AF_UNIX is None:
             # Windows 개발 머신. 조용히 실패하지 말고 이유를 말한다.
             return HelperReply.unavailable(
@@ -75,7 +78,7 @@ class SysopsClient:
             return HelperReply.unavailable(STATUS_UNREACHABLE, str(exc))
 
         conn = socket.socket(_AF_UNIX, socket.SOCK_STREAM)
-        conn.settimeout(self._timeout)
+        conn.settimeout(wait)
         try:
             conn.connect(self._path)
             conn.sendall(payload)
@@ -103,7 +106,7 @@ class SysopsClient:
             )
         except (TimeoutError, socket.timeout):
             return HelperReply.unavailable(
-                STATUS_UNREACHABLE, f"시스템 설정 도우미가 {self._timeout}초 안에 답하지 않았습니다."
+                STATUS_UNREACHABLE, f"시스템 설정 도우미가 {wait}초 안에 답하지 않았습니다."
             )
         except OSError as exc:
             return HelperReply.unavailable(

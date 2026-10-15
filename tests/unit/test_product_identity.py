@@ -202,3 +202,6 @@ def test_the_nginx_template_serves_the_certificate_the_installer_writes():
     text = NGINX_CONF.read_text(encoding="utf-8")
     assert f"ssl_certificate     {product.TLS_DIR}/__DNS_NAME__.crt" in text
     assert f"ssl_certificate_key {product.TLS_DIR}/__DNS_NAME__.key" in text
+    # server_name 은 대표 이름 + 별칭 자리다(D-573) — :80 · :443 두 블록 모두. 인증서 경로는 대표 이름 하나 그대로다.
+    assert text.count("server_name __SERVER_NAMES__;") == 2
+    assert "server_name __DNS_NAME__;" not in text

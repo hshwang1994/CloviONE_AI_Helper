@@ -36,6 +36,12 @@ sudo /opt/clovirassist/deploy/install.sh install --dns-name <host> --bind-ip <IP
 안 주면 nginx 의 속도 제한이 그 프록시 주소 하나에 걸려 **사용자 전원이 한 예산을 나눈다**(근거와 실측은
 `docs/NGINX_AND_CAPACITY.md`). 한 번 주면 manifest 가 기억하므로 업그레이드 때 다시 줄 필요가 없고, `none` 을 주면 지운다.
 
+대표 이름(`--dns-name`) 말고도 같은 서비스를 열 이름이 있으면 `--alias-name <name[,name…]>` 로 함께 준다(다섯 개까지, D-573).
+별칭은 대표 이름과 **같은 server 블록**이 받고 같은 인증서의 SAN 에 들어간다 — 리디렉션하지 않으므로 옛 이름의 즐겨찾기와 검증
+스크립트가 그대로 열린다. 알림 메일 · 링크의 주소(`APP_BASE_URL`)는 언제나 대표 이름 하나다. 한 번 주면 manifest 의 `alias_names`
+가 기억하고, `none` 을 주면 지운다. 이름이 이 서버에서 안 풀리면 설치는 계속하고 알림만 남긴다. 운영 중에 대표 이름을 바꾸는 일은
+설치 명령 대신 관리 화면이 한다(§12 「서비스 주소」).
+
 **사용자가 손으로 만드는 디렉터리도, 복사하는 파일도 없다.** `git clone` 이 `/opt/clovirassist` 를
 만들고, 그 안의 `deploy/install.sh` 가 나머지 전부(`/etc/clovirassist` · `/var/lib/clovirassist` ·
 `/var/backups/clovirassist` · venv · systemd · nginx · TLS)를 만든다.
@@ -94,7 +100,10 @@ sudo /var/tmp/stage/app-src/deploy/install.sh install --source bundle --offline 
 메일 구성 요소만 건너뛴다.
 
 설치본에는 `installed_manifest.json`(source kind · git remote · ref · commit · Release 태그 · VERSION ·
-alembic head · PG/extension 버전 · DNS 이름 · 바인드 주소 · 앞단 프록시 목록 · 설치 시각 · Stage 결과)을 남긴다.
+alembic head · PG/extension 버전 · DNS 이름 · 별칭 목록(`alias_names`) · 바인드 주소 · 앞단 프록시 목록 · AI 상태(`with_ai`) ·
+설치 시각 · Stage 결과)을 남긴다. 이 파일은 언제나 엄격한 JSON 이다 — 문자열의 줄바꿈 · 탭은 공백으로, CR 과 나머지 제어 문자는
+걷는다(Windows 체크아웃에서 보낸 `VERSION` 의 CR 이 그대로 들어가 파이썬이 못 읽은 일이 있었다, 2026-10-15). 그 전에 쓴 매니페스트는
+제품이 너그럽게 읽는다. 대표 이름 · 별칭은 관리 화면의 서비스 주소 바꾸기도 이 파일에 쓰므로 다음 `upgrade` 가 그대로 이어 받는다.
 
 ---
 
@@ -127,6 +136,12 @@ sendmail …)이 있거나 제품 표지가 없는 Postfix 설정이 이미 있�
 sha256 은 제품 카탈로그(`app/ai/catalog.py`)가 고정한다. 받은 파일이 그 값과 다르면 캐시에 놓지 않는다. 제품(웹, 워커)은
 모델 호스트로 나가지 않는다 — 바깥 허용 목록에 그 호스트가 없다.
 
+**업그레이드는 AI 상태를 이어 간다(D-570).** `upgrade` 와 `ai` 에 AI 옵션이 하나도 없으면 지금 상태(manifest 의 `with_ai`, 또는 env 의
+`AI_ENABLED=true`)를 그대로 쓴다 — 예전에는 옵션 없는 `upgrade`(배포 스크립트가 그렇게 돈다)가 `AI_ENABLED=false` 를 써서 깔려 있던
+의미 검색을 조용히 껐다. 끄는 것은 `--without-ai` 로만 한다. `install` 의 뜻은 그대로다(옵션이 곧 상태). `sudo clovirassist ai` 는
+모델과 런타임을 확인한 뒤 색인 유닛과 함께 **떠 있는** web · 배치 · 대화형 유닛도 다시 시작한다 — web 은 부팅 때 AI 연결을 만들고
+다시 뜨기 전까지 「모델이 없다」고 말한다. 꺼져 있던 유닛은 켜지 않는다.
+
 `upgrade` 는 git 설치면 `installed_manifest.json` 의 remote 를 읽어 스스로 `git fetch` → 원하는 tag checkout → 재설치하고
 (`--ref v<다음>`), Release 설치면 다음 Release 를 받아 확인한 뒤 재설치한다(`--release v<다음>`). **사용자가 Source 위치를
 다시 알려 줄 필요가 없다.** Release 설치에 다음 버전을 주지 않은 업그레이드는 거절한다.
@@ -152,8 +167,8 @@ sha256 은 제품 카탈로그(`app/ai/catalog.py`)가 고정한다. 받은 파�
 | 12 | **AI Component** ✅ | 모델 캐시 디렉터리 · (`--with-ai` 일 때) `requirements-ai.txt` 설치 · 모델 파일 배치(`--ai-model-dir` 나 번들, 또는 `--download-model` 이면 카탈로그가 고정한 체크섬으로 받아 확인) · **제품 CLI 로 로드 검증**(`ai_cli status` 의 종료코드가 계약이고, `ai_cli selftest` 가 실제로 벡터를 만들어 길이까지 본다). AI 를 끄고 설치하면 캐시 자리만 만들고 **OK** 다 (D-259) | 켰는데 못 쓰면 **멈춘다**. 어느 파일이 없거나 틀렸는지는 로그가 말한다 |
 | 13 | systemd unit 생성/설치 | **지금 여섯**: `clovirassist-web` · `-worker` · `-worker-conversational` · `-scheduler` · `-index` · `-privhelper`. `-index` 는 S9 이 넣었다(P-18 · D-257). 소스에 레인이 있는데 유닛이 없으면 이 Stage 가 막는다. 운영 명령 `/usr/local/bin/clovirassist` 도 여기서 깐다 | |
 | 14 | `systemctl enable` + 의존 순서 | §6 | |
-| 15 | **TLS** | 인증서 존재 확인 또는 자체 서명 생성. **CN/SAN = `--dns-name`**. 있으면 SAN 이 그 이름을 담는지까지 본다(있다 ≠ 맞다) | |
-| 16 | nginx | 템플릿 치환 + **미치환 플레이스홀더 거부** + 앞단 프록시 신뢰 목록(`/etc/clovirassist/nginx/realip.conf`, `--upstream-proxy`) + `nginx -t` + `server_name` 중복 검사 | 목록을 줬는데 nginx 에 realip 모듈이 없으면 멈춘다 |
+| 15 | **TLS** | 인증서 존재 확인 또는 자체 서명 생성. **CN = `--dns-name`, SAN = 대표 이름 + 별칭 전부 + 바인드 주소**(D-573). 있으면 SAN 이 그 이름을 모두 담는지까지 본다(있다 ≠ 맞다). 이름이 빠진 인증서가 **자체 서명이면** 이름을 더해 새로 만든다 | 이름이 빠진 인증서가 남이 발급한 것이면 바꾸지 않고 멈춘다(36) |
+| 16 | nginx | 템플릿 치환(`__SERVER_NAMES__` = 대표 이름 + 별칭, 인증서 경로의 `__DNS_NAME__` = 대표 이름) + **미치환 플레이스홀더 거부** + 앞단 프록시 신뢰 목록(`/etc/clovirassist/nginx/realip.conf`, `--upstream-proxy`) + `nginx -t` + 이름마다 `server_name` 블록이 우리 둘(:80 · :443)뿐인지 정확한 이름으로 센다 | 목록을 줬는데 nginx 에 realip 모듈이 없으면 멈춘다. 다른 vhost 가 같은 이름을 들면 멈춘다 |
 | 17 | 기동 + **Health Check** | 순서대로 기동 후 `/healthz` `/readyz` + DB + Storage + AI probe | 어느 컴포넌트가 왜 실패했는지 표시 |
 | 18 | 설치 검증 | **`install.sh verify` 를 그대로 실행**하고 `installed_manifest.json` 을 확정한다. 옛 `validate-clovirone-web-assistant.sh` 는 부르지 않는다 — 옛 slug 설치 전용이고 n8n 활성 단언이 박혀 있어 S14 가 지웠다(§9). 새 설치의 검증 정본은 `verify` 하나다 | |
 
@@ -436,3 +451,13 @@ Storage Provider 가 이 시점 제품에 없다. S22 가 전 Component 로 다�
   않는다(BACKLOG P-112).
 - **TLS**: 설치가 `--dns-name` 으로 자체 서명 인증서를 만든다. 브라우저 경고를 없애려면 설정 > 설정의 OS와 서비스 동작
   탭에서 신뢰된 인증서와 개인키로 바꾼다(키와 인증서가 한 쌍인지 확인한 뒤에만 바꾼다).
+- **서비스 주소(대표 이름 바꾸기, D-573)**: 설정 > 설정의 OS와 서비스 동작 탭 맨 위 「서비스 주소」가 대표 주소 · 지금 접속한 주소 ·
+  함께 쓰는 주소(별칭) · 인증서 · 확인 넷(DNS · HTTPS · 웹 서버 · 서비스 설정)을 보인다. DNS 는 **이 서버가 쓰는 해석기 기준**이고, 메일
+  설정의 「비교할 공개 DNS」를 넣었으면 공개 답을 따로 정보로 보인다(공개 DNS 를 완료로 표시하지 않는다). 「주소 바꾸기」는 새 주소 ·
+  함께 쓸 주소(기본으로 지금 대표 주소가 들어간다) · 인증서 방식(자체 서명 새로 만들기 · 지금 인증서 유지 · PEM 붙여 넣기)을 받아 미리
+  확인한 뒤 특권 도우미의 `domain.apply` 로 적용한다. 순서는 인증서 → nginx vhost → `nginx -t` → nginx reload → env(`APP_BASE_URL` ·
+  `TLS_CERT_PATH`) · 매니페스트(`dns_name` · `alias_names`) → 자체 확인(이 서버 443 에 새 이름으로 TLS 를 맺어 `/healthz` · `/login`) →
+  배치 · 대화형 · 예약 · 색인 유닛 재시작 → (고르면) 3초 뒤 웹 서버 재시작(`systemd-run`, 약 3초 동안 접속이 끊긴다)이다. 자체 확인까지
+  어느 단계가 실패하면 파일을 되돌리고 nginx 를 옛 설정으로 다시 읽힌다. 새 주소로는 한 번 다시 로그인한다(로그인은 주소마다 따로 유지된다).
+  사내 DNS · 공개 DNS 와 외부 인증서는 바뀌지 않는다 — 담당자의 일이다. 적용 기록은 감사(`system_action/domain.apply`)에 남고 인자는 남지
+  않는다. 같은 값은 설치 명령으로도 줄 수 있다(`--dns-name` · `--alias-name`, §1).

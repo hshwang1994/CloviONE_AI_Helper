@@ -15,9 +15,10 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from app.core import product
+from app.sysops import domain_files
 from app.sysops import validate as v
 from app.sysops.actions import Action, ActionOutcome, register
 from app.sysops.runner import Runner
@@ -30,10 +31,14 @@ NGINX = "/usr/sbin/nginx"
 DF = "/usr/bin/df"
 
 # 제어할 수 있는 유닛의 전부. 이름을 자유롭게 받으면 헬퍼가 **임의 서비스 제어기**가 된다.
+# 대화형 워커와 색인 레인도 여기 있다(M3) — 대표 도메인을 바꾸면 `APP_BASE_URL` 을 읽는 모든 뒷단 유닛을 다시 시작해야 하고,
+# 서비스 화면이 그 둘의 상태도 보여 준다.
 MANAGED_UNITS = (
     product.WEB_UNIT,
     product.WORKER_UNIT,
+    product.WORKER_CONVERSATIONAL_UNIT,
     product.SCHEDULER_UNIT,
+    product.INDEX_UNIT,
     "nginx.service",
     "systemd-timesyncd.service",
     "systemd-resolved.service",
@@ -72,7 +77,27 @@ def _resolve_tls_paths_for(configured: str) -> tuple[str, str, str, str]:
             str(tls_dir / ".staged.crt"), str(tls_dir / ".staged.key"))
 
 
+# 이 프로세스가 **시작될 때** 본 값. 아래 `tls_paths()` 의 마지막 폴백이자, env 파일이 없는 개발 · 시험 환경의 값이다.
 CERT_PATH, KEY_PATH, CERT_STAGE, KEY_STAGE = _resolve_tls_paths_for(os.environ.get("TLS_CERT_PATH", ""))
+
+
+def _read_env_file() -> str | None:
+    """env 파일 글. 헬퍼는 root 라 읽을 수 있고, 없으면(개발 머신) None. 시험은 이 함수를 바꿔 끼운다(`tests/unit/test_sysops_tls_paths.py`)."""
+    try:
+        return Path(product.ENV_FILE).read_text(encoding="utf-8")
+    except (OSError, ValueError):
+        return None
+
+
+def configured_cert_path(env_text: str | None) -> str:
+    """지금 env 파일이 말하는 `TLS_CERT_PATH`. 없으면 프로세스 환경(유닛의 `EnvironmentFile=` 이 준 값)."""
+    return (domain_files.env_get(env_text, "TLS_CERT_PATH") if env_text else None) or os.environ.get("TLS_CERT_PATH", "")
+
+
+def tls_paths(env_text: str | None) -> tuple[str, str, str, str]:
+    """**호출마다** env 파일을 다시 본다(M3). `domain.apply` 가 `TLS_CERT_PATH` 를 새 이름으로 바꾸면 헬퍼를 다시 띄우지 않아도
+    다음 `cert.install` 이 새 경로에 쓴다 — import 시점 상수만 보면 옛 이름의 파일을 갈아 끼우고 「교체했다」고 말한다."""
+    return _resolve_tls_paths_for(configured_cert_path(env_text))
 
 
 def _value(runner: Runner, argv: list[str]) -> str:
@@ -144,6 +169,46 @@ def _read_proxy(runner: Runner) -> dict:
     return out
 
 
+MANIFEST_FILE = domain_files.MANIFEST_FILE
+
+
+def _read_quietly(runner: Runner, path: str) -> str | None:
+    """조회 화면용 읽기 — 못 읽으면 None 이다. 파일 하나 때문에 시스템 정보 전체가 실패로 바뀌지 않는다(`_read_dns` 와 같은 규칙)."""
+    try:
+        return runner.read_text(path)
+    except (OSError, ValueError):
+        return None
+
+
+def domain_state(runner: Runner) -> dict:
+    """서비스 주소의 정본(D-c) 한 벌 — env `APP_BASE_URL` · `TLS_CERT_PATH` 와 설치 매니페스트 `dns_name` · `alias_names` · `bind_ip` ·
+    `upstream_proxies`. 파일 둘만 읽는다(DNS · openssl · nginx 는 `domain.preview` 의 일이다). `system.info` 가 매 화면 진입에 부르므로
+    싸야 한다."""
+    env_text = _read_quietly(runner, product.ENV_FILE)
+    manifest = domain_files.parse_manifest(_read_quietly(runner, MANIFEST_FILE))
+    app_base_url = domain_files.env_get(env_text, "APP_BASE_URL") or ""
+    dns_name = str(manifest.get("dns_name") or "").strip().lower() or None
+    canonical = domain_files.host_from_url(app_base_url) or dns_name
+    cert_path = configured_cert_path(env_text) or (domain_files.cert_paths(product.TLS_DIR, canonical)[0] if canonical else "")
+    return {
+        "canonical": canonical,
+        "app_base_url": app_base_url,
+        "dns_name": dns_name,
+        "aliases": domain_files.split_names(manifest.get("alias_names")),
+        "bind_ip": str(manifest.get("bind_ip") or "").strip(),
+        "upstream_proxies": domain_files.split_names(manifest.get("upstream_proxies")),
+        "cert_path": cert_path,
+        "env_readable": env_text is not None,
+        "manifest_readable": bool(manifest),
+        "_env_text": env_text,
+        "_manifest": manifest,
+    }
+
+
+def _public_domain(state: dict) -> dict:
+    return {k: val for k, val in state.items() if not k.startswith("_")}
+
+
 def _perform_info(runner: Runner, _params: dict) -> ActionOutcome:
     """읽기 전용. 하나가 없어도 나머지는 준다 — 전부 아니면 아무것도가 되면 진단에 못 쓴다."""
     units = {}
@@ -171,10 +236,12 @@ def _perform_info(runner: Runner, _params: dict) -> ActionOutcome:
         # 정직했지만 답은 아니었다. 이 콘솔이 쓴 드롭인을 그대로 읽어 준다.
         "dns": _read_dns(runner),
         "proxy": _read_proxy(runner),
+        # 서비스 주소(M3) — 화면의 「서비스 주소」 카드가 대표 주소 · 별칭 · 인증서 경로를 여기서 읽는다. DNS 조회는 하지 않는다.
+        "domain": _public_domain(domain_state(runner)),
     }
     # 못 읽은 항목은 빈 문자열로 남는다. 화면이 "확인하지 못했습니다" 라고 말하도록
     # 어떤 항목이 비었는지 함께 알린다 (§불변 6: 없는 것을 있는 척하지 않는다).
-    # dns/proxy 는 dict 라 이 판정에 안 걸린다 — 그쪽은 자기 `source` 로 상태를 말한다.
+    # dns/proxy/domain 은 dict 라 이 판정에 안 걸린다 — 그쪽은 자기 `source` 로 상태를 말한다.
     data["unavailable"] = sorted(k for k, val in data.items() if val == "")
     return ActionOutcome(ok=True, detail="시스템 정보를 읽었습니다.", data=data)
 
@@ -262,9 +329,12 @@ def _pem(value: object, *, kind: str) -> str:
 
 
 def _normalize_cert(params: Mapping) -> dict:
+    """경로도 여기서 **한 번** 푼다(M3, D-573). 엔진의 백업(`touches`)과 실제 쓰기(`perform`)가 같은 값을 받아야 한다 — 둘이 env 파일을
+    따로 읽으면 그 사이에 바뀐 값 하나로 엉뚱한 파일을 되돌리고 진짜 대상은 깨진 채 남는다."""
     return {
         "certificate": _pem(params.get("certificate"), kind="인증서"),
         "private_key": _pem(params.get("private_key"), kind="개인키"),
+        "paths": tls_paths(_read_env_file()),
     }
 
 
@@ -273,38 +343,51 @@ def _modulus(runner: Runner, argv: list[str]) -> str:
     return got.stdout.strip() if got.ok else ""
 
 
+def _validate_pair(runner: Runner, certificate: str, private_key: str, *, cert_stage: str, key_stage: str) -> str | None:
+    """PEM 쌍을 **임시 자리**에 쓰고 검사한다. 실패하면 임시 파일을 지우고 문구를 돌려준다(값은 싣지 않는다). 성공이면 `None` 이고
+    임시 파일은 남는다 — 호출자가 SAN 을 더 보거나 실제 자리로 옮긴 뒤 지운다(`cert.install` · `domain.apply` 둘이 쓴다)."""
+    runner.write_text(cert_stage, certificate, mode=0o644)
+    runner.write_text(key_stage, private_key, mode=0o600)
+
+    def _cleanup() -> None:
+        runner.remove(cert_stage)
+        runner.remove(key_stage)
+
+    cert_ok = runner.run([OPENSSL, "x509", "-noout", "-in", cert_stage])
+    if not cert_ok.ok:
+        _cleanup()
+        return "인증서를 읽을 수 없습니다(형식 오류)."
+
+    key_ok = runner.run([OPENSSL, "pkey", "-noout", "-in", key_stage])
+    if not key_ok.ok:
+        _cleanup()
+        return "개인키를 읽을 수 없습니다(형식 오류이거나 암호가 걸려 있습니다)."
+
+    cert_pub = _modulus(runner, [OPENSSL, "x509", "-noout", "-pubkey", "-in", cert_stage])
+    key_pub = _modulus(runner, [OPENSSL, "pkey", "-pubout", "-in", key_stage])
+    if not cert_pub or not key_pub or cert_pub != key_pub:
+        _cleanup()
+        return "인증서와 개인키가 한 쌍이 아닙니다."
+    return None
+
+
 def _perform_cert(runner: Runner, params: dict) -> ActionOutcome:
     """검사를 **전부 통과한 뒤에야** 실제 경로로 옮긴다.
 
     순서가 핵심이다. 실제 경로에 먼저 쓰고 검사하면, 검사에 실패한 짧은 순간에 nginx 가
     재시작될 경우 뜨지 않는다. 임시 이름으로 쓰고 검사한 뒤 옮기면 그 창이 없다.
+    경로는 호출 시점의 env 파일에서 푼다(`tls_paths`, `_normalize_cert` 가 한 번 푼 값) — 대표 도메인을 바꾼 뒤에도 nginx 가 실제로 읽는
+    파일에 쓴다.
     """
-    runner.write_text(CERT_STAGE, params["certificate"], mode=0o644)
-    runner.write_text(KEY_STAGE, params["private_key"], mode=0o600)
+    cert_path, key_path, cert_stage, key_stage = params["paths"]
+    why = _validate_pair(runner, params["certificate"], params["private_key"], cert_stage=cert_stage, key_stage=key_stage)
+    if why:
+        return ActionOutcome(ok=False, detail=why)
 
-    def _cleanup() -> None:
-        runner.remove(CERT_STAGE)
-        runner.remove(KEY_STAGE)
-
-    cert_ok = runner.run([OPENSSL, "x509", "-noout", "-in", CERT_STAGE])
-    if not cert_ok.ok:
-        _cleanup()
-        return ActionOutcome(ok=False, detail="인증서를 읽을 수 없습니다(형식 오류).")
-
-    key_ok = runner.run([OPENSSL, "pkey", "-noout", "-in", KEY_STAGE])
-    if not key_ok.ok:
-        _cleanup()
-        return ActionOutcome(ok=False, detail="개인키를 읽을 수 없습니다(형식 오류이거나 암호가 걸려 있습니다).")
-
-    cert_pub = _modulus(runner, [OPENSSL, "x509", "-noout", "-pubkey", "-in", CERT_STAGE])
-    key_pub = _modulus(runner, [OPENSSL, "pkey", "-pubout", "-in", KEY_STAGE])
-    if not cert_pub or not key_pub or cert_pub != key_pub:
-        _cleanup()
-        return ActionOutcome(ok=False, detail="인증서와 개인키가 한 쌍이 아닙니다.")
-
-    runner.write_text(CERT_PATH, params["certificate"], mode=0o644)
-    runner.write_text(KEY_PATH, params["private_key"], mode=0o600)
-    _cleanup()
+    runner.write_text(cert_path, params["certificate"], mode=0o644)
+    runner.write_text(key_path, params["private_key"], mode=0o600)
+    runner.remove(cert_stage)
+    runner.remove(key_stage)
 
     checked = runner.run([NGINX, "-t"], timeout=30)
     if not checked.ok:
@@ -315,12 +398,18 @@ def _perform_cert(runner: Runner, params: dict) -> ActionOutcome:
     if not reloaded.ok:
         return ActionOutcome(ok=False, detail=f"nginx 를 다시 읽지 못했습니다: {reloaded.stderr.strip()[:300]}")
 
-    subject = _value(runner, [OPENSSL, "x509", "-noout", "-subject", "-in", CERT_PATH])
-    not_after = _value(runner, [OPENSSL, "x509", "-noout", "-enddate", "-in", CERT_PATH])
+    subject = _value(runner, [OPENSSL, "x509", "-noout", "-subject", "-in", cert_path])
+    not_after = _value(runner, [OPENSSL, "x509", "-noout", "-enddate", "-in", cert_path])
     return ActionOutcome(
         ok=True, detail="인증서를 교체하고 nginx 를 다시 읽었습니다.", changed=True,
         data={"subject": subject, "not_after": not_after},
     )
+
+
+def _cert_touches(params: dict) -> tuple[str, ...]:
+    """엔진이 백업할 파일 — `_perform_cert` 가 쓰는 것과 **같은 값**(`_normalize_cert` 가 푼 `paths`)이다."""
+    cert_path, key_path, _, _ = params["paths"]
+    return (cert_path, key_path)
 
 
 register(Action(
@@ -329,5 +418,5 @@ register(Action(
     mutating=True,
     normalize=_normalize_cert,
     perform=_perform_cert,
-    touches=lambda _p: (CERT_PATH, KEY_PATH),
+    touches=_cert_touches,
 ))

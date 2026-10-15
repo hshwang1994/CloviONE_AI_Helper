@@ -172,4 +172,6 @@ def execute(
 
 # 구현을 등록시키기 위한 import. 파일 끝에 둔 이유는 순환 import 를 피하기 위해서다 —
 # 구현 모듈이 이 파일의 `Action` 과 `register` 를 쓴다.
-from app.sysops import actions_mailrelay, actions_secrets, actions_service, actions_system  # noqa: E402,F401  (등록 부작용)
+from app.sysops import (  # noqa: E402,F401  (등록 부작용)
+    actions_domain, actions_mailrelay, actions_secrets, actions_service, actions_system,
+)

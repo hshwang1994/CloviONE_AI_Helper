@@ -10,6 +10,7 @@ import {
 } from "../ui/kit.jsx";
 import { SettingList, SettingRow } from "../ui/adminKit.jsx";
 import { pairTracks } from "../ui/density.js";
+import { ServiceAddressCard } from "./system/ServiceAddressCard.jsx";
 
 /* 운영 콘솔 - OS와 서비스 (§S, 9-6/9-7/9-8 · 지시 33 · 34 · 43).
  *
@@ -26,9 +27,14 @@ import { pairTracks } from "../ui/density.js";
  * 프록시는 어디에도 없었다. 그래서 이 화면은 "무엇을 바꿀 수 있는가"만 말하고 "무엇이
  * 설정돼 있는가"는 말하지 않았다.
  *
- * 항목마다 **이름 · 지금 값 · 그것이 무엇인지 · 바꾸는 동작**을 한 줄에 묶는다. 지금 값을
- * 읽을 수 없는 항목(DNS·프록시)은 **모른다고 말한다** - 빈칸으로 두면 "설정 안 됨"으로
- * 읽힌다. 도우미의 `system.info` 가 그 둘을 아직 안 주기 때문이고, 그 사실 자체가 정보다.
+ * 항목마다 **이름 · 지금 값 · 그것이 무엇인지 · 바꾸는 동작**을 한 줄에 묶는다. DNS · 프록시는
+ * 도우미의 `system.info` 가 이 콘솔이 쓴 드롭인을 읽어 준다(`source`: console · unset · unreadable) —
+ * 「지정하지 않음」과 「읽지 못함」은 다른 사실이라 따로 말한다. 빈칸으로 두면 "설정 안 됨"으로 읽힌다.
+ *
+ * ## 서비스 주소는 맨 위 한 판이다 (D-574)
+ *
+ * 대표 주소 · 지금 접속한 주소 · 별칭 · 인증서 · 확인 넷이 `system/ServiceAddressCard.jsx` 한 판에 선다.
+ * 호스트 이름은 그것과 다른 값이다(이 서버가 자신을 부르는 이름) — 설명이 둘을 섞지 않는다.
  *
  * ## 재시작은 설정 변경과 같은 무게가 아니다 (지시 43)
  *
@@ -82,6 +88,8 @@ const UNIT_ROLES = {
 
 /* 도우미가 없을 때 서비스 한 줄의 설명 — 그 자리가 무엇을 다루는지만 말한다. 읽지 못한다는 사실은 안내 상자가 말한다. */
 const SERVICES_ROLE = "웹 서버와 백그라운드 작업처럼 포털을 이루는 서비스가 실행 중인지 보고 재시작합니다.";
+/* 도우미가 없을 때 서비스 주소 한 줄 — 무엇을 다루는 자리인지만 말한다(D-574). */
+const ADDRESS_ROLE = "알림 메일과 링크가 쓰는 대표 주소와 함께 쓰는 주소를 보고 바꿉니다.";
 
 /* 이 탭의 `?` 도움말 — 그릇(`settings/SettingsShell.jsx`)이 제목 옆에 그린다(D-453).
    예전에는 어디에도 안 쓰이는 상수였다. */
@@ -182,8 +190,23 @@ export function outcomeText(result) {
   return result.detail || "적용하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
-/** 지금 값을 못 읽는 항목은 **모른다고** 말한다. 빈칸은 "설정 안 됨"으로 읽힌다. */
-const UNKNOWN = "서버에서만 확인할 수 있습니다";
+/** DNS · 프록시 줄의 값 — 이 콘솔이 쓴 드롭인을 읽은 결과(`system.info` 의 `dns` · `proxy`). 지정하지 않은 것과 읽지 못한 것을
+ *  가른다. 도우미가 없으면 줄은 값 없이 선다(위 안내 상자가 한 번 말한다, D-501). */
+export function dnsRow(dns) {
+  if (!dns || dns.source === "unreadable") return { value: "확인하지 못했습니다", muted: true, note: null };
+  if (dns.configured && (dns.servers || []).length) {
+    return { value: dns.servers.join(", "), muted: false, note: dns.search ? `검색 도메인은 ${dns.search}입니다.` : null };
+  }
+  return { value: "지정하지 않음", muted: true, note: "이 화면에서 지정하지 않아 서버의 기본 설정을 씁니다." };
+}
+
+export function proxyRow(proxy) {
+  if (!proxy || proxy.source === "unreadable") return { value: "확인하지 못했습니다", muted: true, note: null };
+  if (proxy.configured && proxy.url) {
+    return { value: proxy.url, muted: false, note: proxy.no_proxy ? `예외는 ${proxy.no_proxy}입니다.` : null };
+  }
+  return { value: "지정하지 않음", muted: true, note: "이 화면에서 지정하지 않아 바깥으로 곧바로 나갑니다." };
+}
 
 export function certificateText(cert) {
   if (!cert || !cert.known) return "확인하지 못했습니다";
@@ -195,6 +218,12 @@ export function certificateText(cert) {
   return cert.self_signed ? life + ", 자체 서명 인증서입니다" : life;
 }
 
+/* systemd 상태 낱말의 우리말 — 「inactive」 같은 원문이 값 자리에 그대로 섰다(캡처 m4-svc-2). 모르는 낱말은 원문 그대로 둔다. */
+export const UNIT_STATE_WORD = {
+  active: "실행 중", inactive: "멈춤", failed: "실패", activating: "시작하는 중", deactivating: "멈추는 중",
+  reloading: "다시 읽는 중", unknown: "알 수 없음",
+};
+
 /** 서비스 한 줄 — 이름 · 지금 상태 · 무엇을 하는 서비스인지 · 가능한 동작. */
 function ServiceRow({ unit, state, onControl, disabled, last }) {
   const good = state === "active";
@@ -202,7 +231,7 @@ function ServiceRow({ unit, state, onControl, disabled, last }) {
     <SettingRow
       last={last}
       label={UNIT_LABELS[unit] || unit}
-      value={<Badge value={good ? "실행 중" : state || "알 수 없음"} kind={good ? "ok" : "warn"} />}
+      value={<Badge value={UNIT_STATE_WORD[state] || state || "알 수 없음"} kind={good ? "ok" : "warn"} />}
       description={UNIT_ROLES[unit]}
       action={good ? (
         /* 재시작은 서비스 영향 등급이다(지시 43) - 실행 중인 서비스에서는 앞줄에 두지 않는다.
@@ -310,12 +339,14 @@ export function SystemOps({ embedded = false } = {}) {
     ) : null
   );
 
+  const dns = dnsRow(info.dns);
+  const proxy = proxyRow(info.proxy);
   const rows = [
     {
       key: "hostname", label: "호스트 이름",
       value: known(info.hostname),
       tone: usable && info.hostname ? undefined : "muted",
-      description: "이 서버가 자신을 부르는 이름입니다. 인증서와 메일 발신 주소가 이 이름을 씁니다.",
+      description: "이 서버가 자신을 부르는 이름입니다. 접속 주소, 인증서, 메일 서버 이름(HELO)과는 별개이며, 접속 주소는 위 「서비스 주소」에서, 메일 서버 이름은 메일 설정에서 정합니다.",
       action: changeButton("hostname.set"),
     },
     {
@@ -336,18 +367,18 @@ export function SystemOps({ embedded = false } = {}) {
       action: changeButton("ntp.set", "서버 지정"),
     },
     {
-      /* 도우미가 있어도 DNS · 프록시의 지금 값은 아직 안 준다 — 그때는 모른다고 말한다. 도우미가 없으면 위 안내 상자가 말한다. */
+      /* 도우미가 이 콘솔이 쓴 드롭인을 읽어 준다(`dnsRow`). 도우미가 없으면 위 안내 상자가 말한다. */
       key: "dns", label: "DNS 서버",
-      value: usable ? UNKNOWN : null,
-      tone: "muted",
-      description: "도메인 이름을 주소로 바꿀 때 물어보는 서버입니다." + (usable ? " 지금 지정된 값은 도우미가 아직 알려 주지 않습니다." : ""),
+      value: usable ? dns.value : null,
+      tone: usable && !dns.muted ? undefined : "muted",
+      description: ["도메인 이름을 주소로 바꿀 때 물어보는 서버입니다.", usable ? dns.note : null].filter(Boolean).join(" "),
       action: changeButton("dns.set"),
     },
     {
       key: "proxy", label: "아웃바운드 프록시",
-      value: usable ? UNKNOWN : null,
-      tone: "muted",
-      description: "포털이 바깥으로 나갈 때 거치는 서버입니다." + (usable ? " 지금 지정된 값은 도우미가 아직 알려 주지 않습니다." : ""),
+      value: usable ? proxy.value : null,
+      tone: usable && !proxy.muted ? undefined : "muted",
+      description: ["포털이 바깥으로 나갈 때 거치는 서버입니다.", usable ? proxy.note : null].filter(Boolean).join(" "),
       action: changeButton("proxy.set"),
     },
     {
@@ -395,6 +426,8 @@ export function SystemOps({ embedded = false } = {}) {
           서비스 묶음이 오른쪽 판. 왼쪽이 설명이 길어 폭을 더 받는다(가중치 선언, D-333).
           도우미가 없으면 판 하나다(D-501). 줄마다 값과 단추가 빠져 이름과 설명만 남고, 서비스는 읽을 것이 없어 오른쪽 판이
           왼쪽 판 높이만큼 빈 채로 섰다 — 서비스도 같은 판의 한 줄(무엇을 다루는 자리인가)로 선다. */}
+      {usable ? <ServiceAddressCard system={data} /> : null}
+
       {usable ? (
         <Box sx={pairTracks("minmax(0, 1.15fr) minmax(0, 0.85fr)")}>
           <Card>
@@ -423,6 +456,8 @@ export function SystemOps({ embedded = false } = {}) {
       ) : (
         <Card>
           <SettingList title="시스템 설정" sx={{ mt: 0 }}>
+            {/* 서비스 주소는 맨 위다 — 도우미가 있을 때 판이 맨 위에 서고, 호스트 이름 설명이 「위 「서비스 주소」」를 가리킨다. */}
+            <SettingRow label="서비스 주소" description={ADDRESS_ROLE} />
             {rows.map((r) => (
               <SettingRow
                 key={r.key} label={r.label} value={r.value} description={r.description}

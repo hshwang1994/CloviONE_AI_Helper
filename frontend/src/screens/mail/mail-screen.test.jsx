@@ -9,17 +9,21 @@ import "@testing-library/jest-dom/vitest";
 /* 메일 화면 — 「운영 › 메일」 한 화면, 탭 셋 (계획 M1 · M2 · M3, D-546 · D-548 · D-549 · D-554 · D-555).
  *
  * qa-contract-replaced-by: frontend/src/screens/mail-status.test.jsx
+ * qa-contract-change: 설정 탭이 다섯 구획(상태 요약 · 기본 설정 · 전달 방법 설정 · 연결과 발송 확인 · 문제 해결과 고급)이 되면서 머리의 확인 단추 둘이 ④ 줄로, 진행 띠가 상태 요약 안의 일곱 단계 목록으로 옮겼다(D-574). 같은 성질을 새 자리에서 잰다.
  *
  * 옛 시험은 「메일 발송」 화면의 상태 탭(문제 목록 · 속성 줄 · 발송 현황 카드 · 최근 실패 표 · 메일로 보내는 알림)을 쟀다. 그 화면은 설정 ·
  * 발송 기록 · 알림 메일 세 탭이 됐고, 같은 성질을 새 자리에서 잰다:
  *   1) 서버가 준 상태 낱말과 한 문장이 상태 면에 서고, 마지막 확인의 단계 줄이 보인다. 원문(상태 코드 · 실패 종류)은 기술 정보 안이다.
  *   2) 설정은 이 화면에서 쓴다 - 보안 연결을 바꾸면 기본 포트가 따라오고, 저장 본문에 비밀 칸 이름이 없으며 비밀번호는 같은 저장에 실린다.
  *      저장하면 서버가 연 연결 확인을 지켜본다.
- *   3) 저장하지 않은 수정 내용이 있으면 머리의 「연결 확인」 · 「시험 메일 보내기」가 꺼진다.
- *   4) 설정 권한이 없는 역할은 같은 배치의 읽기 전용 값과 한 줄 안내를 본다. 운영 권한이 없는 역할에게는 머리 동작이 없다.
+ *   3) 저장하지 않은 수정 내용이 있으면 ④ 「연결과 발송 확인」의 「연결 확인」 · 「시험 메일 보내기」가 꺼지고 까닭이 그 구획에 선다.
+ *      화면 머리에는 두 단추가 없다.
+ *   4) 설정 권한이 없는 역할은 같은 다섯 구획의 읽기 전용 값과 한 줄 안내를 본다. 운영 권한이 없는 역할에게는 확인 단추가 없다.
  *   5) 시험 메일 창은 내 주소가 기본값이고, 설정 권한이 없으면 칸이 읽기 전용이다. 결과는 「접수」로 말하고 「도착」이라고 하지 않는다.
  *   6) 발송 기록 탭은 상태별 수를 한 줄로 보이고 목록을 서버에서 받는다. 알림 메일 탭의 스위치는 허용 목록 전체를 설정 API 로 저장한다.
  *   7) 메일 모양 미리 보기는 빈 sandbox 틀 안의 HTML 과 평문 보기를 바꾼다.
+ *   8) 다섯 구획(D-574): h2 다섯이 순서대로 서고, 고른 방법의 칸만 서며, 「지금 할 일」과 일곱 단계는 상태 요약 판 안이다. 「문제 해결과
+ *      고급」은 처음에 닫혀 있고 열면 고급 칸과 받은 편지함 아이콘 안내가 선다.
  */
 
 const apiMock = vi.fn();
@@ -138,6 +142,14 @@ function renderScreen(path = "/mail") {
 const calls = (method, prefix) => apiMock.mock.calls.filter(([p, o]) => String(p).startsWith(prefix)
   && ((o && o.method) || "GET") === method);
 
+/* ④ 「연결과 발송 확인」 구획(머리 제목에서 거슬러 올라간 section). */
+function checksSection() {
+  return screen.getByRole("heading", { name: "연결과 발송 확인" }).closest("section");
+}
+
+const H2_ORDER = ["상태 요약", "기본 설정", "전달 방법 설정", "연결과 발송 확인", "문제 해결과 고급"];
+const h2Names = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+
 describe("메일 화면 — 상태 면", () => {
   it("서버의 상태 낱말 · 한 문장 · 최근 확인 · 단계 줄을 보이고, 원문은 기술 정보 안이다", async () => {
     renderScreen();
@@ -188,18 +200,34 @@ describe("메일 화면 — 설정 탭", () => {
     await waitFor(() => expect(calls("GET", "/api/admin/mail/verify/job-1").length).toBeGreaterThan(0));
   });
 
-  it("저장하지 않은 수정 내용이 있으면 머리 동작이 꺼지고 까닭이 이어진다", async () => {
+  it("저장하지 않은 수정 내용이 있으면 ④ 의 확인 단추가 꺼지고 까닭이 그 구획에 선다", async () => {
     const user = userEvent.setup();
     renderScreen();
     await screen.findByTestId("mail-settings-form");
-    const check = screen.getByRole("button", { name: "연결 확인" });
+    const checks = checksSection();
+    const check = within(checks).getByRole("button", { name: "연결 확인" });
     expect(check).toBeEnabled();
     await user.clear(screen.getByLabelText(/서버 주소/));
     await user.type(screen.getByLabelText(/서버 주소/), "smtp.changed");
-    expect(screen.getByRole("button", { name: "연결 확인" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "시험 메일 보내기" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "연결 확인" }).getAttribute("aria-describedby")).toBe("mail-dirty-hint");
+    expect(within(checks).getByRole("button", { name: "연결 확인" })).toBeDisabled();
+    expect(within(checks).getByRole("button", { name: "시험 메일 보내기" })).toBeDisabled();
+    expect(within(checks).getByRole("button", { name: "연결 확인" }).getAttribute("aria-describedby")).toBe("mail-dirty-hint");
+    expect(within(checks).getByText("저장한 뒤에 확인할 수 있습니다.")).toHaveAttribute("id", "mail-dirty-hint");
     expect(screen.getByText("저장하지 않은 수정 내용이 있습니다.")).toBeInTheDocument();
+  });
+
+  it("두 확인 단추는 화면 머리가 아니라 ④ 「연결과 발송 확인」에 한 번씩만 선다", async () => {
+    renderScreen();
+    await screen.findByTestId("mail-settings-form");
+    expect(screen.getAllByRole("button", { name: "연결 확인" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "시험 메일 보내기" })).toHaveLength(1);
+    const checks = checksSection();
+    expect(within(checks).getByRole("button", { name: "연결 확인" })).toBeInTheDocument();
+    expect(within(checks).getByRole("button", { name: "시험 메일 보내기" })).toBeInTheDocument();
+    // 정상 상태에서 다음 할 일이 시험 메일이면 그 단추가 이 구획의 주 동작이다(구획당 주 단추 하나).
+    expect(within(checks).getByRole("button", { name: "시험 메일 보내기" }).className).toMatch(/MuiButton-containedPrimary/);
+    expect(within(checks).getByRole("button", { name: "연결 확인" }).className).not.toMatch(/MuiButton-contained/);
+    expect(checks.querySelectorAll(".MuiButton-containedPrimary")).toHaveLength(1);
   });
 
   it("인증서 확인을 끄면 저장 전에 확인을 받는다", async () => {
@@ -225,7 +253,7 @@ describe("메일 화면 — 설정 탭", () => {
     expect(calls("GET", "/api/admin/mail/settings")).toHaveLength(0);
   });
 
-  it("운영 권한이 없으면 머리 동작이 없다", async () => {
+  it("운영 권한이 없으면 확인 단추가 없다", async () => {
     authRole = "auditor";
     current = status({ capabilities: { can_configure: false, can_operate: false } });
     renderScreen();
@@ -309,16 +337,39 @@ describe("메일 화면 — 발송 기록 · 알림 메일", () => {
 });
 
 describe("메일 화면 — 안내 흐름 (D-560)", () => {
-  it("진행 띠가 일곱 단계와 다음 할 일을 보이고 「이동」이 머리 동작을 연다", async () => {
+  it("상태 요약 판이 일곱 단계와 「지금 할 일」을 보이고, 「이동」은 ④ 의 그 줄 단추로 초점을 옮긴다", async () => {
     const user = userEvent.setup();
     renderScreen();
-    const strip = await screen.findByTestId("mail-progress");
-    expect(within(strip).getAllByRole("listitem")).toHaveLength(7);
-    expect(strip.querySelector('[data-step="test_sent"]')).toHaveAttribute("aria-current", "step");
-    expect(strip.querySelectorAll('[data-step-state="done"]')).toHaveLength(5);
-    expect(within(strip).getByText("시험 메일을 보내세요.")).toBeInTheDocument();
-    await user.click(within(strip).getByRole("button", { name: "이동" }));
-    expect(await screen.findByRole("dialog", { name: "시험 메일 보내기" })).toBeInTheDocument();
+    const card = await screen.findByTestId("mail-state");
+    const steps = within(card).getByTestId("mail-steps");
+    expect(steps.tagName).toBe("OL");
+    expect(steps.querySelectorAll("li[data-step-state]")).toHaveLength(7);
+    expect(steps.querySelector('[data-step="test_sent"]')).toHaveAttribute("aria-current", "step");
+    expect(steps.querySelectorAll('[data-step-state="done"]')).toHaveLength(5);
+    expect(within(steps.querySelector('[data-step="enable"]')).getByText("끝남")).toBeInTheDocument();
+    expect(within(steps.querySelector('[data-step="inbox_confirmed"]')).getByText("아직")).toBeInTheDocument();
+    const next = card.querySelector(".k-mail-next");
+    expect(next).not.toBeNull();
+    expect(next).toHaveTextContent("지금 할 일");
+    expect(within(next).getByText("시험 메일을 보내세요.")).toBeInTheDocument();
+    // 「지금 할 일」 상자가 이미 말한 문장은 단계 목록이 다시 쓰지 않는다.
+    expect(within(card).getAllByText("시험 메일을 보내세요.")).toHaveLength(1);
+    await user.click(within(next).getByRole("button", { name: "이동" }));
+    // 이동은 누르지 않는다 — 그 줄의 단추에 초점만 둔다(창이 열리지 않는다).
+    expect(document.activeElement).toBe(within(checksSection()).getByRole("button", { name: "시험 메일 보내기" }));
+    expect(screen.queryByRole("dialog", { name: "시험 메일 보내기" })).toBeNull();
+  });
+
+  it("막힌 단계는 그 문장을 이름 아래에 달고, 「지금 할 일」이 막힘이면 주의 톤이다", async () => {
+    const blocked = { key: "inbox_confirmed", label: "받은 편지함 확인", state: "blocked",
+      hint: "수신측이 거부했습니다. 진단의 요청문을 담당자에게 보낸 뒤 시험 메일을 다시 보내세요.", anchor: "action:inbox" };
+    current = status({ progress: { ...PROGRESS, steps: [...PROGRESS.steps.slice(0, 6), blocked], next: PROGRESS.next } });
+    renderScreen();
+    const steps = await screen.findByTestId("mail-steps");
+    const row = steps.querySelector('[data-step="inbox_confirmed"]');
+    expect(row).toHaveAttribute("data-step-state", "blocked");
+    expect(within(row).getByText("막힘")).toBeInTheDocument();
+    expect(within(row).getByText(/수신측이 거부했습니다/)).toBeInTheDocument();
   });
 
   it("접수된 시험 메일은 받은 편지함 확인을 묻고 「받았습니다」가 기록 API 로 간다", async () => {
@@ -334,6 +385,10 @@ describe("메일 화면 — 안내 흐름 (D-560)", () => {
     const ask = await screen.findByTestId("mail-inbox-confirm");
     expect(ask).toHaveTextContent("받은 편지함(정크함 포함)에서 확인했습니까?");
     expect(ask.textContent).not.toMatch(/도착했습니다/);
+    // 받은 편지함 단추는 ④ 「연결과 발송 확인」의 셋째 줄이다.
+    expect(checksSection().contains(ask)).toBe(true);
+    expect(ask).toHaveAttribute("data-check-row", "inbox");
+    expect(within(ask).getByRole("button", { name: "못 받았습니다" })).toBeEnabled();
     await user.click(within(ask).getByRole("button", { name: "받았습니다" }));
     await waitFor(() => expect(calls("POST", "/api/admin/mail/inbox-confirm")).toHaveLength(1));
     expect(calls("POST", "/api/admin/mail/inbox-confirm")[0][1].body).toEqual({ delivery_id: "d1", received: true });
@@ -385,5 +440,114 @@ describe("메일 화면 — 안내 흐름 (D-560)", () => {
     const radios = within(screen.getByRole("radiogroup", { name: "보내는 방법" })).getAllByRole("radio");
     expect(radios[0]).toHaveAccessibleName(/로컬 릴레이/);
     expect(radios[0]).toHaveTextContent("메일 계정이 필요 없습니다.");
+  });
+});
+
+describe("메일 화면 — 다섯 구획 (D-574)", () => {
+  it("설정 탭은 h2 다섯이 순서대로 서고, 상태 요약만 독립된 판이다", async () => {
+    renderScreen();
+    await screen.findByTestId("mail-settings-form");
+    expect(h2Names()).toEqual(H2_ORDER);
+    const card = screen.getByTestId("mail-state");
+    expect(within(card).getByRole("heading", { level: 2, name: "상태 요약" })).toBeInTheDocument();
+    const form = screen.getByTestId("mail-settings-form");
+    for (const name of H2_ORDER.slice(1)) {
+      expect(form.contains(screen.getByRole("heading", { level: 2, name }))).toBe(true);
+    }
+  });
+
+  it("상태 요약의 사실 띠는 보내는 방법 · 보내는 주소 · 최근 시험 메일 · 받은 편지함을 말하고, 없는 것은 없다고 말한다", async () => {
+    renderScreen();
+    const facts = await screen.findByRole("group", { name: "메일 발송 사실" });
+    expect(within(facts).getByText("보내는 방법")).toBeInTheDocument();
+    expect(within(facts).getByText("외부 SMTP")).toBeInTheDocument();
+    expect(within(facts).getByText("noreply@goodmit.co.kr")).toBeInTheDocument();
+    expect(within(facts).getByText("아직 없음")).toBeInTheDocument();
+    expect(within(facts).getByText("기록 없음")).toBeInTheDocument();
+  });
+
+  it("전달 방법 설정에는 고른 방법의 칸만 선다 - 외부 SMTP 면 로컬 릴레이 칸이 없다", async () => {
+    renderScreen();
+    const form = await screen.findByTestId("mail-settings-form");
+    const method = within(form).getByRole("heading", { name: "전달 방법 설정" }).closest("section");
+    expect(within(method).getByRole("radiogroup", { name: "메일 서비스" })).toBeInTheDocument();
+    expect(within(method).getByLabelText(/서버 주소/)).toHaveValue("smtp.internal");
+    expect(within(method).getByRole("checkbox", { name: "서버 인증서 확인" })).toBeInTheDocument();
+    expect(within(method).queryByRole("radiogroup", { name: "전달 방식" })).toBeNull();
+    expect(screen.queryByTestId("relay-component")).toBeNull();
+  });
+
+  it("문제 해결과 고급은 처음에 닫혀 있고, 열면 고급 칸과 받은 편지함 아이콘 안내가 선다", async () => {
+    const user = userEvent.setup();
+    current = status({ help: { inbox_icon: [
+      { provider: "Microsoft 365", what: "보내는 주소의 공유 사서함에 사진을 넣습니다.", who: "받는 쪽 메일 관리자", external: true,
+        note: "SPF 와 DKIM 이 통과해야 보입니다." },
+      { provider: "Gmail", what: "BIMI 레코드와 인증된 로고가 필요합니다.", who: "도메인 DNS 담당자", external: true },
+      { provider: "ClovirAssist", what: "메일 본문 머리에 제품 표식을 넣습니다.", who: "이 서버", external: false },
+    ] } });
+    renderScreen();
+    await screen.findByTestId("mail-settings-form");
+    const toggle = screen.getByRole("button", { name: "문제 해결과 고급" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("응답 대기 시간(초)")).toBeNull();
+    expect(screen.queryByTestId("mail-inbox-icon-help")).toBeNull();
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("응답 대기 시간(초)")).toHaveValue(20);
+    expect(screen.getByLabelText("사설 CA 인증서")).toBeInTheDocument();
+    const help = screen.getByTestId("mail-inbox-icon-help");
+    const rows = help.querySelectorAll("li[data-inbox-provider]");
+    expect(rows).toHaveLength(3);
+    expect(within(rows[0]).getByText("외부")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("하는 사람: 받는 쪽 메일 관리자")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("SPF 와 DKIM 이 통과해야 보입니다.")).toBeInTheDocument();
+    expect(within(rows[2]).queryByText("외부")).toBeNull();
+    // 고급 칸도 같은 저장에 실린다.
+    await user.clear(screen.getByLabelText("응답 대기 시간(초)"));
+    await user.type(screen.getByLabelText("응답 대기 시간(초)"), "45");
+    expect(screen.getByText("저장하지 않은 수정 내용이 있습니다.")).toBeInTheDocument();
+  });
+
+  it("받은 편지함 아이콘 안내가 없는 서버면 그 자리를 그리지 않는다", async () => {
+    const user = userEvent.setup();
+    current = status({ help: { inbox_icon: [] } });
+    renderScreen();
+    await screen.findByTestId("mail-settings-form");
+    await user.click(screen.getByRole("button", { name: "문제 해결과 고급" }));
+    expect(screen.getByLabelText("응답 대기 시간(초)")).toBeInTheDocument();
+    expect(screen.queryByTestId("mail-inbox-icon-help")).toBeNull();
+    expect(screen.queryByRole("heading", { name: "받은 편지함 아이콘" })).toBeNull();
+  });
+
+  it("읽기 전용 화면의 로컬 릴레이는 고른 전달 방식의 값만 보이고, 고급 값은 접기 안이다", async () => {
+    const user = userEvent.setup();
+    authRole = "admin";
+    const relay = { delivery: "direct", helo_name: "mail.goodmit.co.kr", dkim_enabled: true, dkim_selector: "ca1",
+      compare_resolvers: ["8.8.8.8"], transport_overrides: [{ domain: "goodmit.co.kr", host: "mx.goodmit.co.kr" }],
+      smarthost: { host: "", port: 587, security: "starttls", username: "" } };
+    current = status({ capabilities: { can_configure: false, can_operate: false },
+      summary: { ...status().summary, mode: "local_relay", relay } });
+    renderScreen();
+    const view = await screen.findByTestId("mail-settings-readonly");
+    expect(within(view).getByText("인터넷으로 직접 전달합니다.")).toBeInTheDocument();
+    expect(within(view).getByText("mail.goodmit.co.kr")).toBeInTheDocument();
+    expect(within(view).getByText("사용, 선택자 ca1")).toBeInTheDocument();
+    expect(within(view).queryByText("상위 SMTP 서버")).toBeNull();
+    expect(within(view).queryByText("8.8.8.8")).toBeNull();
+    await user.click(within(view).getByRole("button", { name: "문제 해결과 고급" }));
+    expect(within(view).getByText("8.8.8.8")).toBeInTheDocument();
+    expect(within(view).getByText("1개")).toBeInTheDocument();
+    expect(within(checksSection()).queryByRole("button")).toBeNull();
+  });
+
+  it("읽기 전용 화면도 같은 다섯 구획이고, 운영 권한이 있으면 ④ 에 확인 단추가 선다", async () => {
+    authRole = "admin";
+    current = status({ capabilities: { can_configure: false, can_operate: true } });
+    renderScreen();
+    await screen.findByTestId("mail-settings-readonly");
+    expect(h2Names()).toEqual(H2_ORDER);
+    const checks = checksSection();
+    expect(within(checks).getByRole("button", { name: "연결 확인" })).toBeEnabled();
+    expect(within(checks).getByRole("button", { name: "시험 메일 보내기" })).toBeEnabled();
   });
 });

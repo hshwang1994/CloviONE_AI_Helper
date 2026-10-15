@@ -65,13 +65,64 @@ def test_falls_back_to_the_product_ssl_dir_when_the_env_var_is_unset():
     assert "clovirone" not in cert
 
 
-def test_the_registered_action_touches_whatever_this_process_resolved_at_import():
-    """`touches=` 는 등록 시점에 평가된다 - 엔진의 백업/롤백이 실제로 쓰는 파일과
-    `_perform_cert` 가 쓰는 파일이 같은 상수를 봐야 한다(그렇지 않으면 실패 시 엉뚱한
-    파일이 되돌아가고 진짜 대상은 그대로 깨진 채 남는다). 이 프로세스가 어떤 `TLS_CERT_PATH`
-    로 시작됐든(보통은 비어 있다, 테스트 환경) `touches()`는 그 시점의 모듈 상수와 항상
-    같아야 한다."""
+def test_the_registered_action_touches_whatever_this_call_resolved(monkeypatch):
+    """엔진의 백업/롤백 대상(`touches`)과 `_perform_cert` 가 쓰는 파일이 **같은 값**이어야 한다 — 그렇지 않으면 실패 시 엉뚱한
+    파일이 되돌아가고 진짜 대상은 그대로 깨진 채 남는다. 둘 다 `_normalize_cert` 가 한 번 푼 `paths` 를 받는다(M3, D-573)."""
+    from app.sysops.actions import get_action
+
+    monkeypatch.setattr(mod, "_read_env_file", lambda: "TLS_CERT_PATH=/etc/clovirassist/tls/a.example.com.crt\n")
+    action = get_action("cert.install")
+    params = action.normalize({"certificate": PEM_CERT, "private_key": PEM_KEY})
+    assert action.touches(params) == ("/etc/clovirassist/tls/a.example.com.crt", "/etc/clovirassist/tls/a.example.com.key")
+
+
+PEM_CERT = "-----BEGIN CERTIFICATE-----\nAAA\n-----END CERTIFICATE-----"
+PEM_KEY = "-----BEGIN PRIVATE KEY-----\nBBB\n-----END PRIVATE KEY-----"
+
+
+def test_paths_follow_the_env_file_on_every_call_not_the_import_time_value(monkeypatch):
+    """대표 주소를 바꾸면(`domain.apply`) env 의 `TLS_CERT_PATH` 가 새 이름의 파일로 바뀐다. 헬퍼를 다시 띄우지 않아도 다음
+    `cert.install` 이 그 파일에 써야 한다 — import 시점 상수만 보면 옛 이름의 파일을 갈아 끼우고 「교체했다」고 말한다."""
     from app.sysops.actions import get_action
 
     action = get_action("cert.install")
-    assert action.touches({}) == (mod.CERT_PATH, mod.KEY_PATH)
+    env = {"text": "TLS_CERT_PATH=/etc/clovirassist/tls/old.example.internal.crt\n"}
+    monkeypatch.setattr(mod, "_read_env_file", lambda: env["text"])
+    first = action.normalize({"certificate": PEM_CERT, "private_key": PEM_KEY})["paths"][0]
+    env["text"] = "APP_BASE_URL=https://new.example.com\nTLS_CERT_PATH=/etc/clovirassist/tls/new.example.com.crt\n"
+    second = action.normalize({"certificate": PEM_CERT, "private_key": PEM_KEY})["paths"][0]
+    assert first.endswith("old.example.internal.crt") and second.endswith("new.example.com.crt")
+
+
+def test_without_an_env_file_the_process_environment_is_the_fallback(monkeypatch):
+    monkeypatch.setattr(mod, "_read_env_file", lambda: None)
+    monkeypatch.setenv("TLS_CERT_PATH", "/etc/clovirassist/tls/from-unit.example.com.crt")
+    assert mod.tls_paths(None)[0] == "/etc/clovirassist/tls/from-unit.example.com.crt"
+    monkeypatch.delenv("TLS_CERT_PATH")
+    from app.core import product
+
+    assert mod.tls_paths(None)[0] == f"{product.SSL_FALLBACK_DIR}/server.crt"
+
+
+def test_cert_install_writes_where_the_env_file_points(monkeypatch):
+    """끝에서 끝까지 — 가짜 시스템에서 `cert.install` 이 env 가 가리키는 새 경로에 쓰고 그 경로만 되돌릴 대상으로 잡는다."""
+    from datetime import datetime, timezone
+
+    from app.sysops import actions as engine
+    from tests.fakes.sysops import FakeRunner
+
+    crt, key = "/etc/clovirassist/tls/new.example.com.crt", "/etc/clovirassist/tls/new.example.com.key"
+    stage_crt, stage_key = "/etc/clovirassist/tls/.staged.crt", "/etc/clovirassist/tls/.staged.key"
+    monkeypatch.setattr(mod, "_read_env_file", lambda: f"TLS_CERT_PATH={crt}\n")
+    runner = FakeRunner({crt: "old cert", key: "old key"})
+    runner.reply(["/usr/bin/openssl", "x509", "-noout", "-in", stage_crt])
+    runner.reply(["/usr/bin/openssl", "pkey", "-noout", "-in", stage_key])
+    runner.reply(["/usr/bin/openssl", "x509", "-noout", "-pubkey", "-in", stage_crt], out="PUB")
+    runner.reply(["/usr/bin/openssl", "pkey", "-pubout", "-in", stage_key], out="PUB")
+    runner.reply(["/usr/sbin/nginx", "-t"])
+    runner.reply(["/usr/bin/systemctl", "reload", "nginx.service"])
+    result = engine.execute(runner, "cert.install", {"certificate": PEM_CERT, "private_key": PEM_KEY},
+                            backup_root="/var/backups/x", now=datetime(2026, 10, 15, tzinfo=timezone.utc))
+    assert result.ok, result.detail
+    assert runner.files[crt].startswith("-----BEGIN CERTIFICATE-----") and runner.modes[key] == 0o600
+    assert stage_crt not in runner.files and stage_key not in runner.files

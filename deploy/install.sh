@@ -105,6 +105,10 @@ BIND_IP="${BIND_IP:-}"
 # 나눈다 — 같은 프록시를 지나는 스캐너가 하루 1만 건의 429 를 만들던 날 실제 사용자 요청도
 # 429 를 맞았다(2026-09-21 실측, docs/NGINX_AND_CAPACITY.md). `none` 은 기록된 값을 지운다.
 UPSTREAM_PROXIES="${UPSTREAM_PROXIES:-}"
+# 함께 쓰는 이름(별칭, 쉼표 구분, D-573). 대표 이름(--dns-name)과 같은 server 블록이 받고 인증서 SAN 에 함께 들어간다 — 리디렉션이
+# 없어 옛 이름의 즐겨찾기 · 검증 스크립트가 그대로 열린다. 한 번 주면 manifest 가 기억하고(`alias_names`), `none` 은 기록된 값을
+# 지운다. 관리 화면의 「서비스 주소 바꾸기」(특권 헬퍼 domain.apply)도 같은 manifest 키를 쓰므로 다음 upgrade 가 그 값을 이어 받는다.
+ALIAS_NAMES="${ALIAS_NAMES:-}"
 
 SOURCE_KIND=""            # git | bundle | local
 GIT_REMOTE="${GIT_REMOTE:-}"
@@ -120,6 +124,8 @@ PURGE=0
 # 켜려면 임베딩 모델 파일 465MB 가 서버에 들어와 있어야 한다. `--ai-model-dir` 를 주면
 # 「켠다」는 뜻이므로 함께 켜진다.
 WITH_AI=0
+# AI 를 끄는 명시 옵션(D-570). upgrade 에 AI 옵션이 하나도 없으면 지금 상태를 이어 간다(resolve_with_ai) — 끄는 것은 이 옵션으로만 한다.
+WITHOUT_AI=0
 AI_MODEL_DIR="${AI_MODEL_DIR:-}"
 # 로컬 릴레이 구성 요소(Postfix · OpenDKIM, D-551)를 빼고 설치한다 - 특수 설치 예외다. 기본은 설치하고 꺼 둔다.
 WITHOUT_MAIL_RELAY=0
@@ -178,7 +184,11 @@ stage_line() {
 
 json_str() {
   local s="${1:-}"
-  s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; s="${s//$'\n'/ }"; s="${s//$'\t'/ }"
+  # 줄바꿈 · 탭은 공백으로 바꾸고, CR 과 나머지 제어 문자는 걷는다 — 날 제어 문자가 든 문자열은 엄격한 JSON 이 아니다. Windows
+  # 체크아웃에서 보낸 VERSION 의 CR 이 매니페스트에 그대로 들어가 파이썬 `json.load` 가 「Invalid control character」 로 못 읽었다
+  # (랩 2026-10-15). 읽는 쪽(app/sysops/domain_files.parse_manifest)도 옛 매니페스트를 너그럽게 읽는다.
+  s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; s="${s//$'\n'/ }"; s="${s//$'\t'/ }"; s="${s//$'\r'/}"
+  s="$(printf '%s' "$s" | tr -d '\000-\037\177')"
   printf '"%s"' "$s"
 }
 
@@ -344,6 +354,9 @@ ai-cli, first-admin-code 는 제품 안의 도구입니다(clovirassist --help).
   --upstream-proxy <ip[,cidr…]>
                         앞단 역방향 프록시 주소. nginx 가 그 뒤의 실제 사용자 주소로 속도 제한을
                         건다. 한 번 주면 manifest 가 기억하고, none 을 주면 지운다
+  --alias-name <name[,name…]>
+                        대표 이름과 함께 받을 이름(별칭, 다섯 개까지). 같은 server 블록과 인증서 SAN 에
+                        들어가고 리디렉션하지 않는다. 한 번 주면 manifest 가 기억하고, none 을 주면 지운다
   --source git|bundle|local|release
   --release <tag>       GitHub Release 로 설치하거나 업그레이드한다(예: v1.2.0). 받은 묶음은
                         SHA256SUMS 와 맞아야만 푼다. Release 에서 받은 install.sh 는 기본이 자기 태그다
@@ -355,6 +368,7 @@ ai-cli, first-admin-code 는 제품 안의 도구입니다(clovirassist --help).
   --with-ai             AI Component 를 함께 설치한다(임베딩 런타임 + 모델 로드 검증)
   --ai-model-dir <dir>  임베딩 모델 파일이 있는 디렉터리. 주면 --with-ai 가 함께 켜진다
   --download-model      임베딩 모델을 설치 중에 받는다. 제품이 고정한 체크섬과 맞아야 쓴다. --with-ai 가 함께 켜진다
+  --without-ai          AI Component 를 끈다. upgrade 와 ai 는 AI 옵션이 없으면 지금 AI 상태를 그대로 이어 간다
   --without-mail-relay  로컬 릴레이 구성 요소(Postfix · OpenDKIM)를 깔지 않는다. 기본은 깔고 꺼 둔다
   --mail-debs <dir>     오프라인 설치에서 메일 구성 요소 .deb 가 든 디렉터리. 기본은 wheelhouse 옆의 debs/
   --inject-failure <n>  Stage n 에서 일부러 멈춘다(리허설 전용)
@@ -391,6 +405,7 @@ while [ $# -gt 0 ]; do
     --dns-name) DNS_NAME="${2:-}"; shift 2 ;;
     --bind-ip) BIND_IP="${2:-}"; shift 2 ;;
     --upstream-proxy) UPSTREAM_PROXIES="${2:-}"; shift 2 ;;
+    --alias-name) ALIAS_NAMES="${2:-}"; shift 2 ;;
     --source) SOURCE_KIND="${2:-}"; shift 2 ;;
     --git-remote) GIT_REMOTE="${2:-}"; shift 2 ;;
     --ref) GIT_REF="${2:-}"; shift 2 ;;
@@ -404,6 +419,7 @@ while [ $# -gt 0 ]; do
     --ai-model-dir) AI_MODEL_DIR="${2:-}"; WITH_AI=1; shift 2 ;;
     # 모델을 받는 것도 「AI 를 켠다」는 뜻이다. 위와 같은 이유로 함께 켠다.
     --download-model) DOWNLOAD_MODEL=1; WITH_AI=1; shift ;;
+    --without-ai) WITHOUT_AI=1; shift ;;
     --without-mail-relay) WITHOUT_MAIL_RELAY=1; shift ;;
     --mail-debs) MAIL_DEBS="${2:-}"; shift 2 ;;
     --inject-failure) INJECT_FAILURE="${2:-}"; shift 2 ;;
@@ -416,6 +432,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+if [ "$WITHOUT_AI" = 1 ] && [ "$WITH_AI" = 1 ]; then
+  echo "--without-ai 는 --with-ai · --ai-model-dir · --download-model 과 함께 줄 수 없습니다"; exit 64
+fi
 [ "${EUID:-$(id -u)}" -eq 0 ] || die "root 권한이 필요합니다: sudo $SCRIPT_PATH $SUBCOMMAND …" 1
 STARTED_AT="$(date -Is)"
 
@@ -544,6 +563,18 @@ stage_0_preflight() {
   # S3 이 죽은 이름을 들고 있던 APP_BASE_URL 로 알림 링크가 전부 깨져 있던 것을 찾았다.
   if [ -n "$DNS_NAME" ] && ! getent hosts "$DNS_NAME" >/dev/null 2>&1; then
     note "$DNS_NAME 이 이 서버에서 안 풀립니다 — 알림 메일·공유 링크가 열리지 않습니다"
+  fi
+  # 별칭(D-573)은 nginx 설정과 인증서에 그대로 들어간다 — 이름이 아닌 글자를 받으면 vhost 문법이 깨진다. 안 풀리는 별칭은 실패가
+  # 아니라 알림이다(대표 이름과 같은 규칙).
+  if [ -n "$ALIAS_NAMES" ]; then
+    local _alias _alias_count=0
+    for _alias in ${ALIAS_NAMES//,/ }; do
+      _alias_count=$((_alias_count + 1))
+      alias_name_ok "$_alias" || fail "--alias-name 의 $_alias 를 도메인 이름으로 읽을 수 없습니다" \
+        "점이 든 도메인 이름을 쉼표로 이어 주십시오(예: old.example.internal). IP 주소는 받지 않습니다" 11 || return $?
+      getent hosts "$_alias" >/dev/null 2>&1 || note "$_alias 이 이 서버에서 안 풀립니다 — 이 이름은 DNS 에 넣은 뒤에 열립니다"
+    done
+    [ "$_alias_count" -le 5 ] || fail "--alias-name 은 다섯 개까지입니다(지금 ${_alias_count}개)" "꼭 필요한 이름만 남기십시오" 11 || return $?
   fi
 
   # 포트 충돌. 우리 유닛이 이미 물고 있는 것은 충돌이 아니다(재실행).
@@ -1373,9 +1404,10 @@ stage_11_storage() {
 # AI 설정 두 줄을 env 에 반영한다. Stage 8 과 `ai` 서브커맨드가 **같은 함수**를 부른다 —
 # 두 자리에 각자 적으면 한쪽만 고치는 날이 오고, 그때 「모델은 넣었는데 안 켜진다」가 된다.
 #
-# 기존 값을 존중하지 않는 것이 의도다: `--with-ai` 없이 다시 설치하는 것은 「AI 를 끄고
+# 기존 값을 존중하지 않는 것이 의도다: `--with-ai` 없이 다시 **설치**하는 것은 「AI 를 끄고
 # 설치한다」는 뜻이고, 그때 env 에 옛 `AI_ENABLED=true` 가 남아 있으면 모델도 런타임도
-# 없이 켜진 상태가 된다.
+# 없이 켜진 상태가 된다. upgrade · ai 는 이 함수 앞에서 `resolve_with_ai` 가 지금 상태를
+# `WITH_AI` 에 옮겨 둔다(D-570) — 옵션 없는 upgrade 가 의미 검색을 끄지 않는다.
 ai_env_apply() {
   if [ "$WITH_AI" = 1 ]; then
     env_set AI_ENABLED "true"
@@ -1548,23 +1580,38 @@ stage_14_enable() {
 # Stage 15 — TLS (nginx 보다 **먼저**)
 # ═════════════════════════════════════════════════════════════════════════════
 stage_15_tls() {
-  local crt="$TLS_DIR/$DNS_NAME.crt" key="$TLS_DIR/$DNS_NAME.key"
+  local crt="$TLS_DIR/$DNS_NAME.crt" key="$TLS_DIR/$DNS_NAME.key" n missing="" san="" regen=0
+  # SAN 은 이름 전부(대표 이름 + 별칭) 다음에 주소 하나다(D-573). 관리 화면의 자체 서명 만들기
+  # (app/sysops/domain_files.self_signed_argv)와 같은 모양이다.
+  for n in $(tls_names); do san="${san:+$san,}DNS:$n"; done
+  san="$san,IP:$BIND_IP"
   if [ -f "$crt" ] && [ -f "$key" ]; then
     # 이름이 어긋난 인증서를 그대로 두면 브라우저가 막는다. **있다** 가 아니라 **맞다** 를 본다.
-    if ! openssl x509 -in "$crt" -noout -ext subjectAltName 2>/dev/null | grep -q "DNS:$DNS_NAME"; then
-      fail "기존 인증서의 SAN 에 $DNS_NAME 이 없습니다($crt)" \
-        "그 파일을 치우고 다시 실행하면 자체서명으로 새로 만듭니다" 36 || return $?
+    for n in $(tls_names); do cert_has_name "$crt" "$n" || missing="${missing:+$missing }$n"; done
+    if [ -n "$missing" ]; then
+      # 자체 서명이면 우리가 만든 것이다 — 이름을 더해 새로 만든다. 남이 발급한 인증서는 바꾸지 않고 멈춘다.
+      if cert_self_signed "$crt"; then
+        regen=1
+        log "자체 서명 인증서의 SAN 에 $missing 이 없어 새로 만듭니다"
+      else
+        fail "기존 인증서의 SAN 에 $missing 이 없습니다($crt)" \
+          "그 이름이 든 인증서로 바꾸거나(관리 화면 › 서비스 주소), --alias-name 에서 그 이름을 빼십시오" 36 || return $?
+      fi
+    else
+      _reason="기존 인증서 사용 · 만료 $(openssl x509 -in "$crt" -noout -enddate | sed 's/notAfter=//')"
     fi
-    _reason="기존 인증서 사용 · 만료 $(openssl x509 -in "$crt" -noout -enddate | sed 's/notAfter=//')"
   else
+    regen=1
+  fi
+  if [ "$regen" = 1 ]; then
     # S3 이 서버를 고칠 때 쓴 것과 **같은 openssl 호출**이다. 설치처와 저장소가 어긋나지
     # 않게 이 모양을 유지한다.
     openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 \
       -keyout "$key" -out "$crt" -days 365 -nodes \
       -subj "/CN=$DNS_NAME" \
-      -addext "subjectAltName=DNS:$DNS_NAME,IP:$BIND_IP" >>"$LOG" 2>&1 \
+      -addext "subjectAltName=$san" >>"$LOG" 2>&1 \
       || { fail "자체서명 인증서를 만들 수 없습니다" "openssl 출력을 확인하십시오" 36 || return $?; }
-    _reason="자체서명 ECDSA P-256 생성(CN/SAN=$DNS_NAME, IP:$BIND_IP, 365일)"
+    _reason="자체서명 ECDSA P-256 생성(CN=$DNS_NAME, SAN=$san, 365일)"
   fi
   chmod 0600 "$key"; chmod 0644 "$crt"; chown root:root "$key" "$crt"
   env_set TLS_CERT_PATH "$crt"
@@ -1612,6 +1659,73 @@ resolve_upstream_proxies() {
   return 0
 }
 
+# 별칭 한 칸이 도메인 이름인가(D-573) — 라벨은 영문 · 숫자 · 하이픈, 점이 하나 이상, 마지막 라벨에 글자가 있다(IP 주소를 이름으로
+# 받지 않는다). 관리 화면 쪽 검증(app/sysops/validate.fqdn + actions_domain._host)과 같은 규칙이다.
+alias_name_ok() {
+  local n="$1"
+  [ -n "$n" ] && [ "${#n}" -le 253 ] || return 1
+  printf '%s' "$n" | grep -Eq '^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$' || return 1
+  printf '%s' "${n##*.}" | grep -Eq '[A-Za-z]' || return 1
+  return 0
+}
+
+# install · upgrade 가 별칭 목록을 정한다(D-573) — 주지 않았으면 manifest 가 기억한 값이고(관리 화면의 서비스 주소 바꾸기가 쓴 값도
+# 거기 있다), `none` 은 기억한 값을 지운다. 소문자로 맞추고 대표 이름 · 중복 · 끝점은 버린다. 재실행이 조용히 목록을 비우면 옛 이름이
+# 그날부터 안 열린다 — 앞단 프록시 목록과 같은 이유다.
+resolve_alias_names() {
+  [ -n "$ALIAS_NAMES" ] || ALIAS_NAMES="$(jq_get alias_names)"
+  [ "$ALIAS_NAMES" = "none" ] && ALIAS_NAMES=""
+  local dns out="" a
+  dns="$(printf '%s' "$DNS_NAME" | tr 'A-Z' 'a-z')"
+  for a in ${ALIAS_NAMES//,/ }; do
+    a="$(printf '%s' "$a" | tr 'A-Z' 'a-z')"; a="${a%.}"
+    [ -n "$a" ] && [ "$a" != "$dns" ] || continue
+    case ",$out," in *",$a,"*) continue ;; esac
+    out="${out:+$out,}$a"
+  done
+  ALIAS_NAMES="$out"
+  return 0
+}
+
+# upgrade · ai 가 AI 상태를 이어 간다(D-570). 예전에는 `--with-ai` 없이 돈 upgrade 가 Stage 8(`ai_env_apply`)에서 `AI_ENABLED=false`
+# 를 써 의미 검색을 조용히 껐다 — 런타임과 모델이 깔린 랩에서 실제로 그랬다(scripts/deploy-upgrade.sh 는 AI 옵션을 주지 않는다).
+# AI 옵션이 하나도 없으면 지금 상태(manifest `with_ai`, 또는 env 의 `AI_ENABLED=true`)를 그대로 쓰고, 끄는 것은 `--without-ai`
+# 로만 한다. install 은 이 함수를 부르지 않는다 — install 의 뜻은 예전 그대로(옵션이 곧 상태)다.
+resolve_with_ai() {
+  if [ "$WITHOUT_AI" = 1 ]; then WITH_AI=0; return 0; fi
+  [ "$WITH_AI" = 1 ] && return 0
+  if [ "$(jq_get with_ai)" = 1 ] || grep -qE '^AI_ENABLED="?true"?[[:space:]]*$' "$ENV_FILE" 2>/dev/null; then
+    WITH_AI=1
+  fi
+  return 0
+}
+
+# 인증서 SAN 과 nginx server_name 에 설 이름 — 대표 이름 다음에 별칭(D-573). 두 자리가 같은 목록을 써야 한다.
+tls_names() {
+  printf '%s' "$DNS_NAME"
+  local a
+  for a in ${ALIAS_NAMES//,/ }; do printf ' %s' "$a"; done
+}
+
+# 인증서 파일이 그 이름을 SAN 에 들고 있는가 — 「DNS:이름」 한 칸이 정확히 같아야 한다(뒤에 글자가 더 붙은 이름은 아니다).
+cert_has_name() {
+  openssl x509 -in "$1" -noout -ext subjectAltName 2>/dev/null | tr ',' '\n' | sed 's/^[[:space:]]*//' | grep -qxF "DNS:$2"
+}
+
+# 자체 서명인가(발급자 == 주체). 관리 화면의 판정(app/sysops/domain_files.parse_x509)과 같은 규칙이다.
+cert_self_signed() {
+  local subj iss
+  subj="$(openssl x509 -in "$1" -noout -subject 2>/dev/null | sed 's/^subject=//')"
+  iss="$(openssl x509 -in "$1" -noout -issuer 2>/dev/null | sed 's/^issuer=//')"
+  [ -n "$subj" ] && [ "$subj" = "$iss" ]
+}
+
+# 설정 덤프(표준 입력)에서 server_name 줄 중 그 이름을 **한 칸으로** 든 줄의 수. 예전의 `grep -cE "…\b$DNS_NAME\b"` 는 점을 아무
+# 글자로 읽고, 접미사가 같은 다른 이름(www.example.com 과 example.com)도 세었다.
+server_name_blocks() {
+  awk -v n="$1" '$1 == "server_name" { for (i = 2; i <= NF; i++) { t = $i; sub(/;$/, "", t); if (t == n) { c++; break } } } END { print c + 0 }'
+}
+
 stage_16_nginx() {
   local site="/etc/nginx/sites-available/$NGINX_SITE"
   # 앞단 프록시 신뢰 목록을 먼저 쓴다. vhost 는 이 파일을 `include …/realip*.conf` 로 읽는다 —
@@ -1633,10 +1747,13 @@ stage_16_nginx() {
   } >"$ETC_DIR/nginx/realip.conf"
   chmod 0644 "$ETC_DIR/nginx/realip.conf"
 
-  sed -e "s/__BIND_IP__/$BIND_IP/g" -e "s/__DNS_NAME__/$DNS_NAME/g" \
+  # `__SERVER_NAMES__` 는 대표 이름 + 별칭(공백 구분)이고 인증서 경로의 `__DNS_NAME__` 은 대표 이름 하나다(D-573). 관리 화면의
+  # 서비스 주소 바꾸기(app/sysops/domain_files.render_vhost)가 같은 치환을 한다.
+  local server_names; server_names="$(tls_names)"
+  sed -e "s/__BIND_IP__/$BIND_IP/g" -e "s/__SERVER_NAMES__/$server_names/g" -e "s/__DNS_NAME__/$DNS_NAME/g" \
     "$APP_DIR/deploy/nginx/$SLUG.conf" >"$site"
   # 치환이 남았으면 잘못된 vhost 를 nginx 에 물리지 않는다 — `nginx -t` 는 이걸 못 잡는다.
-  if grep -q '__BIND_IP__\|__DNS_NAME__' "$site"; then
+  if grep -q '__BIND_IP__\|__DNS_NAME__\|__SERVER_NAMES__' "$site"; then
     rm -f "$site"
     fail "vhost 템플릿 치환이 남았습니다" "--dns-name·--bind-ip 값을 확인하십시오" 35 || return $?
   fi
@@ -1656,11 +1773,15 @@ stage_16_nginx() {
     nginx -t >>"$LOG" 2>&1 && log "우리 vhost 를 빼니 기존 설정은 정상입니다"
     fail "nginx -t 가 실패했습니다" "$LOG 의 nginx 출력을 보십시오. 우리 vhost 는 이미 해제했습니다" 35 || return $?
   fi
-  # 같은 이름을 두 server 블록이 들면 nginx 는 경고만 내고 **첫 번째가 조용히 이긴다.**
-  local nsrv; nsrv="$(nginx -T 2>/dev/null | grep -cE "^[[:space:]]*server_name[[:space:]].*\b$DNS_NAME\b" || true)"
-  [ "${nsrv:-0}" = 2 ] || { fail "server_name $DNS_NAME 을 든 블록이 ${nsrv}개입니다(:80·:443 둘이어야 합니다)" \
-      "다른 vhost 가 같은 이름을 들고 있습니다. nginx -T 로 찾으십시오" 35 || return $?; }
-  _reason="vhost $site · server_name 블록 2개"
+  # 같은 이름을 두 server 블록이 들면 nginx 는 경고만 내고 **첫 번째가 조용히 이긴다.** 대표 이름과 별칭 모두 우리 블록 둘
+  # (:80 · :443)에만 서야 한다.
+  local n nsrv
+  for n in $server_names; do
+    nsrv="$(nginx -T 2>/dev/null | server_name_blocks "$n")"
+    [ "${nsrv:-0}" = 2 ] || { fail "server_name $n 을 든 블록이 ${nsrv}개입니다(:80·:443 둘이어야 합니다)" \
+        "다른 vhost 가 같은 이름을 들고 있습니다. nginx -T 로 찾으십시오" 35 || return $?; }
+  done
+  _reason="vhost $site · server_name ${server_names// /,} · 블록 2개"
   return 0
 }
 
@@ -1719,7 +1840,8 @@ write_manifest() {
   # Release 로 설치했으면 그 태그를, 아니면 전에 기록한 태그를 그대로 둔다(같은 Release 를 다시 돌린 경우).
   local release_tag=""
   if [ "$SOURCE_KIND" = release ]; then release_tag="${RELEASE_TAG:-$(jq_get release_tag)}"; fi
-  ver="$(cat "$APP_DIR/VERSION" 2>/dev/null || echo unknown)"
+  # CR 을 걷는다 — Windows 체크아웃에서 보낸 VERSION 은 CRLF 다(json_str 머리말).
+  if [ -f "$APP_DIR/VERSION" ]; then ver="$(tr -d '\r' <"$APP_DIR/VERSION" | head -1)"; else ver="unknown"; fi
   head="$(alembic_current_db)"
   local pgver extver
   pgver="$(psql_super 'show server_version' 2>/dev/null || echo '?')"
@@ -1747,6 +1869,8 @@ write_manifest() {
     printf '  "dns_name": %s,\n' "$(json_str "$DNS_NAME")"
     printf '  "bind_ip": %s,\n' "$(json_str "$BIND_IP")"
     printf '  "upstream_proxies": %s,\n' "$(json_str "$UPSTREAM_PROXIES")"
+    printf '  "alias_names": %s,\n' "$(json_str "$ALIAS_NAMES")"
+    printf '  "with_ai": %s,\n' "$(json_str "$WITH_AI")"
     printf '  "installed_at": %s,\n' "$(json_str "$(date -Is)")"
     printf '  "installer_log": %s,\n' "$(json_str "$LOG")"
     printf '  "stages": [%s]\n' "$joined"
@@ -1803,8 +1927,20 @@ do_verify() {
   vchk "서브되는 인증서 CN 이 $DNS_NAME" "grep -q 'subject=.*CN *= *$DNS_NAME' <<<\"$cert_text\""
   vchk "서브되는 인증서 SAN 에 $DNS_NAME" "grep -q 'DNS:$DNS_NAME' <<<\"$cert_text\""
 
-  local nsrv; nsrv="$(nginx -T 2>/dev/null | grep -cE "^[[:space:]]*server_name[[:space:]].*\b$DNS_NAME\b" || true)"
+  local nsrv; nsrv="$(nginx -T 2>/dev/null | server_name_blocks "$DNS_NAME")"
   vchk "server_name 블록이 :80·:443 둘뿐(현재 ${nsrv:-0})" "[ '${nsrv:-0}' = 2 ]"
+
+  # 별칭(D-573)도 같은 블록이 받고 같은 인증서가 이름을 들고 있어야 한다 — 이름마다 --resolve 로 이 서버를 찔러 TLS 검증까지 한다.
+  local aliases="${ALIAS_NAMES:-$(jq_get alias_names)}" a a_text
+  [ "$aliases" = none ] && aliases=""
+  for a in ${aliases//,/ }; do
+    vchk "healthz via nginx · 별칭 $a (TLS 검증)" "curl -fsS --cacert '$crt' --resolve $a:443:$BIND_IP https://$a/healthz"
+    a_text="$(echo | openssl s_client -connect "$BIND_IP:443" -servername "$a" 2>/dev/null | \
+      openssl x509 -noout -ext subjectAltName 2>/dev/null || true)"
+    vchk "서브되는 인증서 SAN 에 별칭 $a" "tr ',' '\n' <<<\"$a_text\" | sed 's/^[[:space:]]*//' | grep -qxF 'DNS:$a'"
+    nsrv="$(nginx -T 2>/dev/null | server_name_blocks "$a")"
+    vchk "별칭 $a 의 server_name 블록이 :80·:443 둘뿐(현재 ${nsrv:-0})" "[ '${nsrv:-0}' = 2 ]"
+  done
 
   # 앞단 프록시를 기록해 둔 설치처는 nginx 가 그 목록을 실제로 읽고 있어야 한다 — 파일만 있고 vhost 가
   # 안 읽으면 속도 제한이 다시 프록시 주소 하나에 걸린다.
@@ -1838,7 +1974,7 @@ jq_get() {
 # ═════════════════════════════════════════════════════════════════════════════
 do_version() {
   echo "ClovirAssist ($SLUG)"
-  echo "  VERSION       : $(cat "$APP_DIR/VERSION" 2>/dev/null || echo '(설치 안 됨)')"
+  echo "  VERSION       : $( [ -f "$APP_DIR/VERSION" ] && tr -d '\r' <"$APP_DIR/VERSION" | head -1 || echo '(설치 안 됨)')"
   if [ -d "$APP_DIR/.git" ]; then
     echo "  git ref       : $(git -C "$APP_DIR" describe --tags --always 2>/dev/null || echo '?')"
     echo "  git commit    : $(git -C "$APP_DIR" rev-parse HEAD 2>/dev/null || echo '?')"
@@ -2212,13 +2348,15 @@ case "$SUBCOMMAND" in
   preflight)
     open_log
     resolve_upstream_proxies
+    resolve_alias_names
     run_stage 0 PREFLIGHT stage_0_preflight
     say "PREFLIGHT_OK"
     ;;
   install)
     open_log
     resolve_upstream_proxies
-    log "=== install 시작 (dns=$DNS_NAME bind=$BIND_IP proxies=${UPSTREAM_PROXIES:-없음} source=${SOURCE_KIND:-auto}) ==="
+    resolve_alias_names
+    log "=== install 시작 (dns=$DNS_NAME aliases=${ALIAS_NAMES:-없음} bind=$BIND_IP proxies=${UPSTREAM_PROXIES:-없음} source=${SOURCE_KIND:-auto}) ==="
     # 기존 설치 위에 다시 도는 install 은 되돌릴 지점을 먼저 만든다.
     if [ -f "$ENV_FILE" ] || legacy_present; then
       take_snapshot; say "스냅샷: $SNAPSHOT_DIR"
@@ -2241,7 +2379,9 @@ case "$SUBCOMMAND" in
     [ -n "$DNS_NAME" ] || DNS_NAME="$(jq_get dns_name)"
     [ -n "$BIND_IP" ] || BIND_IP="$(jq_get bind_ip)"
     resolve_upstream_proxies
-    log "=== upgrade 시작 (ref=${GIT_REF:-<현재>} remote=${GIT_REMOTE:-<현재>} proxies=${UPSTREAM_PROXIES:-없음}) ==="
+    resolve_alias_names
+    resolve_with_ai
+    log "=== upgrade 시작 (ref=${GIT_REF:-<현재>} remote=${GIT_REMOTE:-<현재>} dns=$DNS_NAME aliases=${ALIAS_NAMES:-없음} proxies=${UPSTREAM_PROXIES:-없음} ai=$WITH_AI) ==="
     take_snapshot; say "스냅샷: $SNAPSHOT_DIR"
     say "  실패하면 되돌리기: $SCRIPT_PATH rollback --target $SNAPSHOT_DIR"
     if [ -n "$GIT_REF" ] && [ -d "$APP_DIR/.git" ]; then
@@ -2269,8 +2409,15 @@ case "$SUBCOMMAND" in
              run_stage 1 APT stage_1_apt
              say "MAIL_RELAY_OK ${MAIL_RELAY_NOTE:-} log=$LOG" ;;
   ai)        open_log
+             resolve_with_ai
              ai_env_apply
              run_stage 12 AI stage_12_ai
              systemctl restart "$INDEX_UNIT" >>"$LOG" 2>&1 || log "색인 유닛 재시작 실패"
+             # 색인 레인만이 아니라 web · 배치 · 대화형도 다시 띄운다(D-570) — web 은 부팅 때 AI 게이트웨이를 만들고, 다시 뜨기 전까지
+             # 「모델이 없다」고 계속 말한다. 꺼져 있던 유닛은 켜지 않는다(대화형 레인은 설정에 따라 꺼져 있는 것이 정상이다, D-118).
+             for u in "$WEB_UNIT" "$WORKER_UNIT" "$WORKER_CONV_UNIT"; do
+               unit_active "$u" || continue
+               systemctl restart "$u" >>"$LOG" 2>&1 || log "$u 재시작 실패"
+             done
              say "AI_OK log=$LOG" ;;
 esac

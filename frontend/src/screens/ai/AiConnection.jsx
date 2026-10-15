@@ -13,14 +13,15 @@ import {
 } from "../../ui/kit.jsx";
 import { SettingRow, SettingRows } from "../../ui/adminKit.jsx";
 import { SecretField } from "../../ui/SecretField.jsx";
-import { AiStatusCard } from "./AiStatusCard.jsx";
+import { AiChecks, AiStatusCard } from "./AiStatusCard.jsx";
 import { ChatGptLogin } from "./ChatGptLogin.jsx";
 import { MODELS_KEY, ModelPicker } from "./ModelPicker.jsx";
 
-/* AI 연결 (계획 A3 · A8, D-539 · D-540) — `/ai-connection`, 시스템 관리자만.
+/* AI 연결 (계획 A3 · A8 · M4, D-539 · D-540 · D-574) — `/ai-connection`, 시스템 관리자만.
  *
- * 한 열 흐름이다: 짧은 연결 상태 면(카드는 이것 하나) → 한 판 위의 구획 넷(제공자와 인증 · 모델 · 실행 옵션 · AI 기능, 머리와
- * 1px 선으로만 나뉜다). 옛 화면의 「2/3 폼 + 1/3 설명 판」과 「저장해야 적용되는 주 스위치」로 돌아가지 않는다.
+ * 한 열 흐름의 여섯 구획이다: ① 현재 상태(짧은 연결 상태 면, 카드) → 한 판 위의 구획 다섯(② 제공자와 인증 · ③ 모델 · ④ 실행
+ * 옵션 · ⑤ AI 기능 · ⑥ 확인과 오류, 머리와 1px 선으로만 나뉜다). 옛 화면의 「2/3 폼 + 1/3 설명 판」과 「저장해야 적용되는 주
+ * 스위치」로 돌아가지 않는다. [지금 확인] 은 ⑥ 에 하나뿐이다 — 최근 확인 · 최근 성공 시각과 막힌 까닭이 그 곁에 선다.
  *
  * ## 사람이 누르는 단추가 줄었다 (D-539)
  *
@@ -38,6 +39,8 @@ import { MODELS_KEY, ModelPicker } from "./ModelPicker.jsx";
  */
 
 export const AI_ADMIN_KEY = ["ai-admin"];
+/* 구획 제목 글자의 id — 「다음 할 일」이 그 구획으로 간다(`scrollTo`). */
+const SECTION_IDS = { provider: "ai-section-provider", model: "ai-section-model", features: "ai-section-features", checks: "ai-section-checks" };
 const POLL_MS = 1500;
 const VERIFY_LIMIT_MS = 90_000;
 
@@ -102,9 +105,6 @@ export function AiConnection() {
   const [switchError, setSwitchError] = React.useState(null);
   const [switching, setSwitching] = React.useState(false);
   /* 「다음 할 일」이 가리키는 구획. 감싸는 상자는 `display: contents` 라 판의 줄 간격을 바꾸지 않는다. */
-  const providerSection = React.useRef(null);
-  const modelSection = React.useRef(null);
-  const featureSection = React.useRef(null);
 
   const saveConfig = useMutation({
     mutationFn: (body) => api("/api/admin/ai/config", { method: "PUT", body }),
@@ -171,28 +171,32 @@ export function AiConnection() {
     setChoice({ provider: target.key, auth_method: method.key });
   }
 
-  function scrollTo(ref) {
-    const box = ref.current;
-    const el = box && (box.firstElementChild || box);
+  /* 「다음 할 일」이 가리키는 구획 — 제목 글자의 id 로 찾아 그 구획의 머리로 간다. 예전에는 구획마다 `display: contents` 상자를
+     둘러 ref 를 달았는데, 그 상자가 구획 사이의 형제 규칙(`.k-form-section + .k-form-section`, 판 안 26px)을 끊어 여섯 구획이
+     14px 로 붙어 섰다(캡처 m4-1). 메일 설정과 같은 방식이다. */
+  function scrollTo(id) {
+    const title = typeof document !== "undefined" ? document.getElementById(id) : null;
+    const el = title && (title.closest(".k-form-section") || title);
     if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "start", behavior: "smooth" });
   }
 
-  /* 상태 면의 「다음 할 일」 — 서버가 준 자리(`next.action`)로 간다. 동작이 하나뿐인 자리(확인 · 켜기)는 바로 한다. */
+  /* 상태 면의 「다음 할 일」 — 서버가 준 자리(`next.action`)로 간다. 동작이 하나뿐인 자리(확인 · 켜기)는 바로 한다. 확인은 ⑥ 의
+     단추가 하는 일이라 결과가 서는 그 구획으로 함께 간다. */
   function goNext(action) {
-    if (action === "verify") { verify.mutate(); return; }
+    if (action === "verify") { verify.mutate(); scrollTo(SECTION_IDS.checks); return; }
     if (action === "enable") { if (!config.generation_enabled) generation.mutate({ value: true }); return; }
     if (action === "api_key") {
       const target = chosenProvider || currentProvider || providers[0];
       if (target) pick(target.key, "api_key");
-      scrollTo(providerSection);
+      scrollTo(SECTION_IDS.provider);
       return;
     }
     if (action === "login" || action === "paste") {
       pick("openai", "chatgpt");
-      scrollTo(providerSection);
+      scrollTo(SECTION_IDS.provider);
       return;
     }
-    scrollTo(action === "model" ? modelSection : providerSection);
+    scrollTo(action === "model" ? SECTION_IDS.model : SECTION_IDS.provider);
   }
 
   /* 고른 연결을 지금 연결로 — 그 연결의 모델 목록을 받아, 지금 모델이 그 목록에 있으면 두고 없으면 추천을 쓴다. */
@@ -240,15 +244,11 @@ export function AiConnection() {
     <Box className="c-screen">
       <PageHeader area="AI" title="AI 연결" help="AI 제공자에 연결하고 AI 기능을 켜고 끕니다." />
 
-      <AiStatusCard
-        data={data} onVerify={() => verify.mutate()} onNext={goNext} verifying={verify.isPending || watch.verifying}
-        timedOut={watch.timedOut}
-      />
+      <AiStatusCard data={data} onNext={goNext} timedOut={watch.timedOut} />
 
-      {/* 설정은 한 판 위의 구획 넷이다 - 머리와 선으로만 나뉘고 카드를 두르지 않는다(F7 카드 규율, D-527). */}
+      {/* 설정과 확인은 한 판 위의 구획 다섯이다 - 머리와 선으로만 나뉘고 카드를 두르지 않는다(F7 카드 규율, D-527). */}
       <Card stack data-testid="ai-connection-form">
-        <Box ref={providerSection} sx={{ display: "contents" }}>
-        <FormSection titleAs="h2" title="제공자와 인증">
+        <FormSection titleAs="h2" title={<span id={SECTION_IDS.provider}>제공자와 인증</span>}>
           {chosenProvider ? (
             <FieldRow columns={["auto", "auto"]}>
               <Field label="제공자" fit>
@@ -311,16 +311,13 @@ export function AiConnection() {
           ) : null}
           {switchError ? <Callout tone="danger" compact>{switchError}</Callout> : null}
         </FormSection>
-        </Box>
 
-        <Box ref={modelSection} sx={{ display: "contents" }}>
-        <FormSection titleAs="h2" title="모델">
+        <FormSection titleAs="h2" title={<span id={SECTION_IDS.model}>모델</span>}>
           <ModelPicker
             config={config} method={currentMethod} saving={saveConfig.isPending}
             onSave={saveModel} onAutoPicked={announcePick}
           />
         </FormSection>
-        </Box>
 
         <FormSection titleAs="h2" title="실행 옵션">
           <FieldRow
@@ -356,8 +353,7 @@ export function AiConnection() {
           </FieldRow>
         </FormSection>
 
-        <Box ref={featureSection} sx={{ display: "contents" }}>
-        <FormSection titleAs="h2" title="AI 기능">
+        <FormSection titleAs="h2" title={<span id={SECTION_IDS.features}>AI 기능</span>}>
           {/* 설정 줄은 괘선 목록이다 - 구획 머리 선 바로 아래 첫 줄은 윗선을 두 번 긋지 않는다. 모두 누르는 즉시 저장된다. */}
           <SettingRows>
             <SettingRow
@@ -389,9 +385,12 @@ export function AiConnection() {
             ))}
           </SettingRows>
         </FormSection>
-        </Box>
 
-        {saveFailure ? <Callout tone="danger" compact>{saveFailure}</Callout> : null}
+        {/* ⑥ 확인과 오류 — 이 화면의 하나뿐인 [지금 확인] · 최근 시각 · 막힌 까닭 · 저장 실패가 한 구획에 선다. */}
+        <AiChecks
+          data={data} onVerify={() => verify.mutate()} verifying={verify.isPending || watch.verifying} problem={saveFailure}
+          titleId={SECTION_IDS.checks}
+        />
       </Card>
     </Box>
   );

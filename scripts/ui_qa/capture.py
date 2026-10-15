@@ -29,7 +29,8 @@ from .routes import Route
 # 제품 이름이 바뀐 뒤에도 전부 옛 호스트(`clovirone-ai.gooddi.lab`)를 가리켰다 — 그중 하나가
 # 검색 3중 구조를 재는 유일한 프로브라, 돌려도 canonical 호스트를 한 번도 치지 않았다
 # (W5 조사 F-W5D-129). 값 하나를 한 곳에 두면 이름이 바뀌는 날 고칠 자리도 한 곳이다.
-DEFAULT_BASE_URL = os.environ.get("UI_QA_BASE_URL", "https://clovirassist.gooddi.lab")
+# 랩의 대표 주소는 공개 이름이다(D-573) — 옛 사내 이름(`clovirassist.gooddi.lab`)은 리디렉션 없는 별칭으로 남아 그대로 열린다.
+DEFAULT_BASE_URL = os.environ.get("UI_QA_BASE_URL", "https://clovirassist.goodmit.co.kr")
 
 REACT_INDEX = Path(__file__).resolve().parents[2] / "app" / "static" / "react" / "index.html"
 

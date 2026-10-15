@@ -19,9 +19,11 @@ class _FakeClient:
     def __init__(self, reply: HelperReply) -> None:
         self.reply = reply
         self.calls: list[tuple[str, dict]] = []
+        self.timeouts: list[int | None] = []
 
-    def call(self, action, params=None):
+    def call(self, action, params=None, *, timeout=None):
         self.calls.append((action, dict(params or {})))
+        self.timeouts.append(timeout)
         return self.reply
 
     def probe(self):
@@ -228,3 +230,114 @@ def test_a_garbled_helper_reply_is_a_failed_reply_not_a_500(client, login_as, mo
     body = r.json()
     assert body["ok"] is False and body["available"] is False, body
     assert body["detail"] == "응답을 해석할 수 없습니다.", body["detail"]
+
+
+# ── 대표 서비스 주소 (계획 M3, D-573) ─────────────────────────────────────────
+#
+# 화면이 「지금 접속한 주소」를 대표 주소 · 별칭과 견주고, 미리 확인(읽기)은 감사에 남지 않으며, 적용은 범용 경로로 감사에 남되 인자
+# (붙여 넣은 개인키가 들 수 있다)는 남지 않는다. 시스템 관리자가 아니면 둘 다 403 이다.
+
+DOMAIN_INFO = {"canonical": "new.example.com", "dns_name": "new.example.com", "aliases": ["old.example.internal"],
+               "bind_ip": "10.0.0.5", "cert_path": "/etc/clovirassist/tls/new.example.com.crt"}
+
+
+@pytest.fixture()
+def domain_helper(client):
+    fake = _FakeClient(HelperReply(
+        available=True, status=STATUS_OK, ok=True, changed=True,
+        detail="대표 주소를 new.example.com로 바꿨습니다.",
+        data={"domain": DOMAIN_INFO, "checks": [{"key": "dns", "state": "ok"}], "can_apply": True},
+    ))
+    client.app.state.sysops_client = fake
+    yield fake
+    client.app.state.sysops_client = None
+
+
+def _audit_rows(db, object_id=None):
+    from sqlalchemy import select
+
+    from app.core.audit import AuditLog
+
+    db.expire_all()
+    q = select(AuditLog).where(AuditLog.object_type == "system_setting")
+    if object_id:
+        q = q.where(AuditLog.object_id == object_id)
+    return db.execute(q).scalars().all()
+
+
+def test_the_overview_says_which_address_this_request_came_in_on(client, login_as, domain_helper):
+    login_as("system_admin")
+    body = client.get("/api/admin/system").json()
+    assert body["request"]["host"] == "testserver", body["request"]
+    assert body["request"]["scheme"] == "http", "앞단이 말하지 않으면 요청 자체의 scheme 이다"
+    assert body["domain"] == DOMAIN_INFO, "도우미가 준 서비스 주소를 화면에 넘기지 않았다"
+    # 앞단 nginx 가 X-Forwarded-Proto 를 덮어 쓰고, 앞단 프록시(에지)는 X-Forwarded-Host 를 붙일 수 있다.
+    forwarded = client.get("/api/admin/system", headers={"X-Forwarded-Host": "Old.Example.Internal:443",
+                                                         "X-Forwarded-Proto": "https"}).json()
+    assert forwarded["request"]["host"] == "old.example.internal"
+    assert forwarded["request"]["url"] == "https://old.example.internal:443"
+
+
+def test_the_domain_preview_reaches_the_helper_and_is_not_audited(client, login_as, db, domain_helper):
+    login_as("system_admin")
+    before = len(_audit_rows(db))
+    r = client.get("/api/admin/system/domain", params={"host": "new.example.com", "aliases": "old.example.internal",
+                                                      "resolvers": "8.8.8.8"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert domain_helper.calls[-1] == ("domain.preview", {"host": "new.example.com", "aliases": "old.example.internal",
+                                                         "resolvers": "8.8.8.8"})
+    assert body["preview"]["can_apply"] is True and body["recent_applies"] == []
+    assert len(_audit_rows(db)) == before, "읽기 전용 미리 확인이 감사에 남았다"
+
+
+def test_a_bad_preview_host_is_a_422_without_reaching_the_helper(client, login_as, domain_helper):
+    login_as("system_admin")
+    r = client.get("/api/admin/system/domain", params={"host": "10.0.0.5"})
+    assert r.status_code == 422, r.text
+    assert domain_helper.calls == []
+
+
+def test_domain_apply_is_audited_without_its_arguments_and_shows_up_as_a_recent_apply(client, login_as, db, domain_helper):
+    csrf = login_as("system_admin")
+    params = {"host": "new.example.com", "aliases": ["old.example.internal"], "restart_web": True,
+              "cert": {"strategy": "provided", "certificate": "-----BEGIN CERTIFICATE-----\nX\n-----END CERTIFICATE-----",
+                       "private_key": "-----BEGIN PRIVATE KEY-----\nDOMAINKEYSENTINEL\n-----END PRIVATE KEY-----"}}
+    r = client.post("/api/admin/system/domain.apply", json={"params": params}, headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 200, r.text
+    assert r.json()["ok"] is True
+    assert domain_helper.calls[-1][0] == "domain.apply"
+    assert domain_helper.timeouts[-1] and domain_helper.timeouts[-1] > 90, "주소 바꾸기는 기본 90초보다 오래 기다려야 한다"
+    rows = _audit_rows(db, "domain.apply")
+    assert len(rows) == 1 and rows[0].action == "system_action"
+    blob = str(rows[0].after_json) + str(rows[0].before_json)
+    assert "DOMAINKEYSENTINEL" not in blob and "old.example.internal" not in blob, f"인자가 감사에 남았다: {blob}"
+    recent = client.get("/api/admin/system/domain").json()["recent_applies"]
+    assert len(recent) == 1 and recent[0]["ok"] is True
+    assert recent[0]["detail"] == "대표 주소를 new.example.com로 바꿨습니다."
+    assert recent[0]["at"]
+
+
+def test_an_invalid_domain_apply_is_refused_before_the_helper(client, login_as, db, domain_helper):
+    csrf = login_as("system_admin")
+    r = client.post("/api/admin/system/domain.apply", json={"params": {"host": "new.example.com/path", "cert": {"strategy": "keep"}}},
+                    headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 422, r.text
+    assert domain_helper.calls == [] and _audit_rows(db, "domain.apply") == []
+
+
+def test_domain_apply_needs_the_csrf_token(client, login_as, domain_helper):
+    login_as("system_admin")
+    r = client.post("/api/admin/system/domain.apply", json={"params": {"host": "new.example.com", "cert": {"strategy": "keep"}}})
+    assert r.status_code == 403, r.text
+    assert domain_helper.calls == []
+
+
+@pytest.mark.parametrize("role", ["admin", "user"])
+def test_only_the_system_admin_can_see_or_change_the_service_address(client, login_as, domain_helper, role):
+    csrf = login_as(role)
+    assert client.get("/api/admin/system/domain").status_code == 403
+    r = client.post("/api/admin/system/domain.apply", json={"params": {"host": "new.example.com", "cert": {"strategy": "keep"}}},
+                    headers={"X-CSRF-Token": csrf})
+    assert r.status_code == 403
+    assert domain_helper.calls == []

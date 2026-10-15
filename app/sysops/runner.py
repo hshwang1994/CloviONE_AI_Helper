@@ -48,6 +48,9 @@ ALLOWED_BINARIES = frozenset({
     "/usr/sbin/postconf",
     "/usr/sbin/postqueue",
     "/usr/bin/journalctl",
+    # 대표 주소를 바꾼 뒤 웹 서버를 몇 초 뒤에 다시 시작한다(D-573, `actions_domain.restart_argv`). 요청을 처리하는 프로세스가 자기를
+    # 곧바로 재시작하면 응답을 못 보낸다 - systemd 의 일회성 타이머에 맡긴다. 인자는 `systemctl restart <관리 대상 유닛>` 하나로 고정이다.
+    "/usr/bin/systemd-run",
 })
 
 

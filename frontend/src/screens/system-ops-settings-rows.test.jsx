@@ -78,10 +78,11 @@ describe("OS와 서비스 — 지금 값과 바꾸는 동작이 한 줄에 있�
   });
 
   it("읽을 수 없는 값은 빈칸이 아니라 '모른다'로 말한다", async () => {
+    // 도우미가 DNS 값을 주지 않은 응답(옛 도우미) — 빈칸 대신 「확인하지 못했습니다」다.
     renderScreen();
     await screen.findByText("DNS 서버");
     const row = rowOf("DNS 서버");
-    expect(within(row).getByText("서버에서만 확인할 수 있습니다")).toBeInTheDocument();
+    expect(within(row).getByText("확인하지 못했습니다")).toBeInTheDocument();
   });
 
   it("인증서는 만료까지 남은 날을 값으로 말한다", async () => {

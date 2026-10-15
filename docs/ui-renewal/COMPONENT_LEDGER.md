@@ -43,7 +43,11 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 클로비 패널(고정 측면 판) | `AssistantPanel` | `app/AssistantPanel.jsx` | 모달 아님(`position:fixed`, 본문 불변 · 백드롭 없음), 폭 28.75rem · 넓게 45rem(저장) · xs 100%, Esc · 닫기 · 초점 복귀, 전체 화면 `/chat` 과 같은 부품(D-557) | 1 | — | `assistant-panel.test`, `assistant_panel_e2e.py` |
 | 채팅 입력 줄 | `Composer` | `screens/chat/Composer.jsx` | 한 줄 34 · 최대 6줄 · Enter 전송 · Shift+Enter 줄바꿈 · IME 가드 · 보조 줄(안내 · 글자 수 · 진행 문구 · 경과) · 보내는 중 단추만 비활성(D-557) | 2 | — | `composer.test` |
 | 채팅 말풍선 목록 | `MessageList` | `screens/chat/MessageList.jsx` | 내 말풍선 오른쪽 · 클로비 왼쪽 · 날짜 구분선 · 진행 말풍선 · 오류 말풍선 · 바닥 근처(80px)만 자동 따라가기 + 「새 답」 단추 · 얼굴(마스코트 24 · `UserAvatar sm`) (D-557) | 2 | — | `message-list.test` |
-| 메일 설정 진행 띠 | `ProgressStrip` | `screens/mail/ProgressStrip.jsx` | 서버 `progress` 의 일곱 단계 칩(done · current · todo · blocked) + 「다음 할 일」 한 문장 + [이동](anchor), 좁은 칸 두 줄(D-560) | 1 | — | `mail-screen.test` |
+| 메일 설정 일곱 단계 | `MailSteps` | `screens/mail/MailSteps.jsx` | 서버 `progress` 일곱 단계 번호 목록(`li[data-step-state]`), 컨테이너 질의 1 · 4+3 · 7열(auto 칸), 지금 · 막힘 줄에 힌트, 모바일 한 줄. 「지금 할 일」은 상태 요약(①) 안이다(D-574) | 1 | — | `mail-screen.test` |
+| 받은 편지함 아이콘 안내 | `InboxIconHelp` | `screens/mail/InboxIconHelp.jsx` | `help.inbox_icon[{provider, what, who, external, note}]`, 바깥 일은 「외부」 태그, 비면 그리지 않음(D-572 · D-574) | 1 | — | `mail-screen.test` |
+| 서비스 주소 판 | `ServiceAddressCard` | `screens/system/ServiceAddressCard.jsx` | 대표 · 지금 접속 · 함께 쓰는 주소, 인증서, 확인 넷(`DotLabel`, 공개 DNS 는 정보 문장), 최근 적용 · 오류, 「고급」 `Disclosure` + `TechRows`, 판 60rem 이상 두 열(D-573 · D-574) | 1 | — | `service-address-card.test` |
+| 서비스 주소 바꾸기 | `DomainChangeDialog` | `screens/system/DomainChangeDialog.jsx` | `Modal lg` 상태 기계(입력 → 미리 확인 → 적용 → 결과), 인증서 `ChoiceCards`, `fail` 이면 적용 꺼짐, `useConfirm`, 지연 재시작 뒤 `/healthz` 폴링(D-573) | 1 | — | `service-address-card.test` |
+| AI 확인과 오류 | `AiChecks` | `screens/ai/AiStatusCard.jsx` | 하나뿐인 「지금 확인」, 최근 확인 · 성공, 막힌 까닭, 의미 검색 상태 낱말과 서버 명령 안내(D-570 · D-574) | 1 | — | `ai-connection.test` |
 | 선택 묶음 | `SelectionBar`(별칭 `BulkActions`) | `ui/kit.jsx`, `ui/bulkSelect.jsx` | role=toolbar 「일괄 작업」, 「N{단위} 선택」 · 일괄 동작 30 · 「해제」, 선택 0 이면 안 그림, `data-list-selection`(채움 하나는 이 묶음 몫) | 0(표가 그린다) | 목록 화면 조합 | `bulk-actions-toolbar-role`, `list-surface` |
 | 구획 제목 | `SectionTitle` | `ui/kit.jsx` | 1.0625rem/700 + 설명 | 21 | 모든 절 | `heading-order` |
 | 모달 | `Modal` | `ui/kit.jsx` | 제목 17/700 · 닫기 30 · 모서리 8 · 발 ActionFooter, `tone=danger` 표지 | 24 | 팝오버와 모달 | `modal-*`, `handoff-kit-contract` |
@@ -217,13 +221,9 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 | `screens/dev/KitGallery.jsx` | `MenuList` | 열린 팝오버 항목 붙박이 견본 | 대조표가 실제 `overflowMenuItems` 를 열린 채로 세우는 틀이다 |
 | `app/CommandPalette.jsx` | `Dialog` · `DialogContent` · `LinearProgress` | 명령 팔레트(Ctrl+K) 창과 찾는 중 줄 | 머리 · 발 · 제목이 없는 검색 창이라 모달 3단 계약과 다르다(계획 §0-11 대장 예외) |
 | `app/LoginHandoff.jsx` | `LinearProgress` | 로그인 넘김 진행 줄 | 화면 전체가 넘어가는 동안의 진행 표시라 단추 `loading` 자리가 없다(계획 §0-11 대장 예외) |
-| `screens/GameRoom.jsx` | `Paper` | 놀이방 진행 현황 줄(카운트다운 · 제출 현황) | 게임 무대는 판 · 표 · 폼과 다른 놀이 면이다(계획 표 2 「게임 무대 면 · 알약 — 대장 예외 묶음」) |
-| `screens/game-room/GameStage.jsx` | `Paper` | 팀 결과 · 사다리 결과 · 숫자와 가위바위보 공개 타일(승자 강조 · 떠오르는 움직임) | 게임 무대 면이다(위와 같은 묶음) |
-| `screens/game-room/ResultPanel.jsx` | `Paper` | 공통 결과 판(D-563) — 게임판 위에 겹치는 반투명 면 · 당첨자 카드 · 순위 줄 | 게임 무대 면이다(위와 같은 묶음) |
-| `screens/game-room/marble/MarbleStage.jsx` | `Paper` | 구슬 레이스 순위 레일(D-564) — 판 옆에 서는 무대 면 | 게임 무대 면이다(위와 같은 묶음) |
+| `screens/game-room/GameStage.jsx` | `Paper` | 사다리 옛 결과(열 정보가 없는 상태 행)의 도착 줄 — 판(D-575)은 `BoardFrame` 이 서고 결과 발표는 `ResultDialog`(D-576)다 | 게임 무대는 판 · 표 · 폼과 다른 놀이 면이다(계획 표 2 「게임 무대 면 · 알약 — 대장 예외 묶음」) |
 | `screens/game-room/RpsViews.jsx` | `Paper` | 가위바위보 선택 줄 · 대진 줄 | 게임 무대 면이다(위와 같은 묶음) |
 | `screens/game-room/Scoreboard.jsx` | `Paper` | 순위 줄(자동 번호 · 점수) | 게임 무대 면이다(위와 같은 묶음) |
-| `screens/game-room/StageShared.jsx` | `Paper` | 결과 무대(축하 그림 + 클로비) | 게임 무대 면이다(위와 같은 묶음) |
 
 ## 0-5. 카드 발 · 모달 발의 주인은 하나다
 

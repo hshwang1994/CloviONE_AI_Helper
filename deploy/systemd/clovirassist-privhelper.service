@@ -74,7 +74,9 @@ UMask=0027
 # (`EBUSY`). 랩에서 `/etc/opendkim.conf` 를 적어 둔 채 DKIM 을 켜자 `os.replace('/etc/opendkim.conf.new', '/etc/opendkim.conf')`
 # 가 「Device or resource busy」 로 죽어 로컬 릴레이 적용이 통째로 실패했다(2026-10-12). `/etc/hosts` 는 헬퍼가 통째로 바꿔 쓰지
 # 않고 제자리에서 고치므로 그대로다(`tests/unit/test_privhelper_unit_paths.py` 가 예외 목록을 들고 있다).
-ReadWritePaths=/etc/hosts /etc/systemd /etc/ssl/clovirassist /etc/clovirassist/tls /etc/clovirassist/secrets /var/log/clovirassist /var/backups/clovirassist /run/clovirassist -/etc/postfix -/etc/opendkim
+# `/etc/clovirassist` · `/etc/nginx`: 대표 서비스 주소 바꾸기(domain.apply, D-573)가 env 파일 · 설치 매니페스트 · nginx vhost 를 쓴다.
+# 둘 다 **디렉터리**로 적는다 — env 파일이나 vhost 파일 하나를 적으면 위 🔴 의 EBUSY 가 난다.
+ReadWritePaths=/etc/hosts /etc/systemd /etc/ssl/clovirassist /etc/clovirassist/tls /etc/clovirassist/secrets /var/log/clovirassist /var/backups/clovirassist /run/clovirassist -/etc/postfix -/etc/opendkim /etc/clovirassist /etc/nginx
 
 [Install]
 WantedBy=multi-user.target
