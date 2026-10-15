@@ -6,6 +6,11 @@
 
     .venv/Scripts/python.exe scripts/ui_qa/build_bundle.py            # 잠금 → vite build → 바꿔 끼우기
     .venv/Scripts/python.exe scripts/ui_qa/build_bundle.py --wait 900 # 잠금을 최대 900초 기다린다(기본 1200)
+    .venv/Scripts/python.exe scripts/ui_qa/build_bundle.py --clean    # 커밋할 번들 — 옛 자산을 넘겨 담지 않는다
+
+기본은 바로 전 번들의 `assets/` 파일 가운데 새 빌드에 없는 것을 새 디렉터리로 넘겨 담는다. 자산 이름은 내용 해시라 겹치지 않고,
+다른 작업자가 캡처하는 도중에 바꿔 끼워도 그 페이지가 늦게 부르는 옛 조각(lazy chunk)이 404 가 되지 않는다. 저장소에 커밋할
+번들은 `--clean` 으로 만든다.
 """
 from __future__ import annotations
 
@@ -73,6 +78,21 @@ def build(out_dir: Path) -> None:
         raise SystemExit("[build_bundle] 빌드 결과에 index.html 이 없습니다")
 
 
+def carry_previous_assets(out_dir: Path, serve_dir: Path) -> int:
+    """전 번들의 자산 중 새 빌드에 없는 것을 새 디렉터리로 복사한다(이름이 내용 해시라 겹치지 않는다)."""
+    old_assets = serve_dir / "assets"
+    new_assets = out_dir / "assets"
+    if not old_assets.is_dir() or not new_assets.is_dir():
+        return 0
+    carried = 0
+    for f in old_assets.iterdir():
+        target = new_assets / f.name
+        if f.is_file() and not target.exists():
+            shutil.copy2(f, target)
+            carried += 1
+    return carried
+
+
 def swap(out_dir: Path, serve_dir: Path) -> None:
     backup = serve_dir.with_name(serve_dir.name + ".previous")
     if backup.exists():
@@ -94,10 +114,15 @@ def swap(out_dir: Path, serve_dir: Path) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--wait", type=int, default=1200, help="잠금을 기다리는 최대 초")
+    ap.add_argument("--clean", action="store_true", help="옛 자산을 넘겨 담지 않는다(커밋할 번들)")
     args = ap.parse_args()
     with BuildLock(LOCK_FILE, args.wait):
         started = time.monotonic()
         build(TMP_DIR)
+        if not args.clean:
+            n = carry_previous_assets(TMP_DIR, SERVE_DIR)
+            if n:
+                print(f"[build_bundle] 전 번들 자산 {n}개를 넘겨 담았습니다(--clean 이면 담지 않음)")
         swap(TMP_DIR, SERVE_DIR)
         print(f"[build_bundle] BUNDLE_BUILT {SERVE_DIR} ({time.monotonic() - started:.0f}s)")
     return 0
