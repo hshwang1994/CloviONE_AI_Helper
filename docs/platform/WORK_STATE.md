@@ -23,7 +23,8 @@
 | A1 ~ A10 AI(세기 계약 · 도구 17 · 문서 단위 검색 · 프로젝트 후보 · 순위 · 파서 판 2 · 고정 틀 규칙 · 출처 일치 링크 · 의미 검색 상태 · 진실 하네스) | `e367460f` · `dc904a46` | D-567 ~ D-570 |
 | M3 대표 주소(도우미 `domain.preview/apply` · 별칭 · 인증서 전략 · 지연 재시작 · 설치기 `--alias-name`) · M4 설정 화면(서비스 주소 판 · 메일 다섯 구획 · AI 여섯 구획) · 설치기 AI 상태 보존 | `93404873` · `e8c1cbbc` · `f0321fd0` · `4fd16a13` | D-573 · D-574 · D-570 |
 | G1 ~ G8 놀이(방 껍데기 · 툴바 · 결과 대화 상자 · 전체 화면 · 신원 스냅샷과 얼굴 · 구슬 원본 재현 · 판 넷 · 오픈소스 고지 · 하네스) · 구슬 카메라 미니맵 오른쪽 자리 | `11d36b9d` · `81088d6d` | D-575 ~ D-579 |
-| 문서 · 증거 · 번들 | `32aab42a` · `c5d5da57` · `e51506e9` · 이 커밋 | — |
+| 문서 · 증거 · 번들 | `32aab42a` · `c5d5da57` · `e51506e9` · `64c58058` | — |
+| 후속(같은 날 오후) — 에지 앞단 프록시 신뢰(P-143) · 구슬 원본 대조(당첨 뒤 20배 빨리 감기 · 원본 슬로 모션 규칙 · 이른 제출 대기) · 찾아본 자료(P-133) · 화면 길잡이 링크 · 이번 주 경계(P-139) · 태그 · 분류 · 공간 변경 색인(P-138) · kit 줄 동작 · 모달 초점 · 접기 제목(P-134 ~ P-137) · 하네스(P-140) · 증거 정정(P-142) | `66263c12` · `84778051` · `1b1a133c` · `504e4590` · `5e20ad4a` · `daf08266` · `188d99c0` · 번들 `308750cd` · `f4b52991` | D-580 · D-581 |
 
 - 잰 것: 정적 전량 `STATIC_CHECKS_OK`(최종 `e51506e9`, 깨끗한 작업 트리), vitest 전량 512 파일 4,405 중 4,401 → 남은 넷(대비 계약 시험이 옛 파일을
   찾음)을 고친 뒤 그 파일 178 통과, 백엔드 전량 회귀 `FULL_REGRESSION_OK`(`run_full_regression.sh`, `4fd16a13` — unit · regression · security · integration 네 청크)와
@@ -40,6 +41,15 @@
     `EVIDENCE/mail/2026-10-15-lab-relay-e2e-3.md`).
   - 놀이 — 사용자 계정으로 구슬 레이스 한 판(fill · 판 1240×821 · 레일 바닥 = 판 바닥 · 페이지 굴림 0 · 슬로 모션 · 미니맵 · 결과 대화 상자 · 축포 →
     방 파함, `dist/ui-qa-lab/r20-games`).
+- 후속(배포 `308750cd` 17:03 · `f4b52991` 17:23, 둘 다 Stage 0 ~ 18 OK · `VERIFY_OK` · 두 이름 `DEPLOY_VERIFY_OK` · 에지 새 자산 200):
+  - 에지가 실제 주소를 덧붙이고 위조 값은 무시됨을 확인한 뒤 `--upstream-proxy 10.100.64.96` — 로그인 감사 IP 가 사용자별이다
+    (`EVIDENCE/ops/2026-10-15-domain-cutover.md`).
+  - 구슬 — 호스팅된 원본을 띄워 대조했다. 당첨까지는 비슷했고(원본 약 24초 · 우리 25.7초), 당첨 뒤 결과까지 우리만 6개 9.8초 · 100개 94.7초를
+    기다렸다. 이제 랩 20개 경주에서 1.1초다(D-580, `EVIDENCE/ui/2026-10-15-games-room-layout.md` §11).
+  - AI — 찾지 못한 답의 출처 8개가 모두 `cited: false` 로 접힌 「찾아본 자료」, 답 안 마크다운 글자 없음, 태그만 바꾼 문서가 12.4초 만에
+    새 태그로 찾힘(D-581 · P-138, `EVIDENCE/ai/2026-10-15-lab-truth.md` 「후속」).
+  - 잰 것 — vitest 전량 512 파일 4,420 통과(kit 변경 뒤), 표적 pytest · vitest, 두 브라우저 지문 confirmed(바퀴), `--perf` 100개 p95 16.7ms,
+    `KIT_MEASURE_SELFTEST_OK`, 정적 dev 검사.
 - 사람이 해야 하는 것(완료로 표시하지 않는다):
   ① 받은 편지함 확인 — 13:12 KST 시험 메일(Message-ID `<179203753563.66435.16500499612322647244@goodmit.co.kr>`)이 받은 편지함 · 정크 · 격리 중
     어디였는지, 새 틀이 PC Outlook · 새 Outlook/OWA · 모바일 Gmail · 모바일 Outlook · 다크에서 어떻게 보이는지(캡처). 메일 설정 ④ 의 「받았습니다 ·
@@ -179,14 +189,15 @@
 
 ## CHECKPOINT
 
-- checkpoint_at: **2026-10-15** (후속 개선 회차 — 메일 발송 품질 · 대표 주소 · 설정 화면 · AI 사내 데이터 검색 · 게임 UI/UX, D-567 ~ D-579,
+- checkpoint_at: **2026-10-15** (후속 개선 회차 — 메일 발송 품질 · 대표 주소 · 설정 화면 · AI 사내 데이터 검색 · 게임 UI/UX, D-567 ~ D-581,
   마이그레이션 없음. 그 전 체크포인트는 2026-10-12 기능 개선 회차 D-556 ~ D-566)
 - phase: **F — Acceptance 완료(S22) 뒤의 일반 개발**(CLAUDE.md §7.0)
 - session: 사용자 지시서(열 절)와 계획 승인 — 구현 → 표적 검증 → 문서 → 커밋 → 랩 배포 → 실측. 사람이 필요한 것만 남겨 맨 위 절에 적었다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`e51506e9`** (2026-10-15 14:23 KST) — 마이그레이션 없음, Stage 18 VERIFY_OK, `verify_deploy.sh` 두 이름 DEPLOY_VERIFY_OK. 스냅샷
-  `/var/backups/clovirassist/20261015-142305`(그 전 `20261015-130128` = `e8c1cbbc`). 15:07 에 같은 코드로 `upgrade --upstream-proxy 10.100.64.96` 을 한 번 더 했다(스냅샷 `20261015-150715`). 되돌리려면 `sudo clovirassist rollback`. 랩 값 —
+- deployed: **`f4b52991`** (2026-10-15 17:23 KST) — 마이그레이션 없음, Stage 18 VERIFY_OK, `verify_deploy.sh` 두 이름 DEPLOY_VERIFY_OK. 스냅샷
+  `/var/backups/clovirassist/20261015-172353`(그 전 `20261015-165942` = `e51506e9` + 프록시, `20261015-142305` = `e51506e9`). 15:07 부터
+  `upstream_proxies=10.100.64.96` 이 매니페스트에 있어 upgrade 가 유지한다. 되돌리려면 `sudo clovirassist rollback`. 랩 값 —
   대표 주소 `https://clovirassist.goodmit.co.kr`(별칭 `clovirassist.gooddi.lab`, 새 자체 서명 인증서 `dist/ops/clovirassist.goodmit.co.kr.crt`),
   `AI_ENABLED=true` · 매니페스트 `with_ai=1`, AI 는 ChatGPT 계정 · `gpt-6.1-sol` · 도구 호출 사용 가능, 메일은 발송 켬 · 로컬 릴레이 · 직접 전달 ·
   DKIM 서명(서버 이름은 아직 `clovirassist.gooddi.lab` — DNS 담당자의 A 레코드 뒤에 바꾼다). 로컬 `dist/ops/server.env` 의 `BASE_URL` · `DNS_NAME` 은
@@ -290,8 +301,9 @@
 
 ## 다음 시작점
 
-1. 되돌려야 하면 두 길이다: `bash scripts/deploy-upgrade.sh 3dfc8ef7`(코드만 — `0030` 마이그레이션은 `downgrade()` 가 정확히 되돌리므로
-   필요하면 `alembic downgrade 0029` 를 함께 돌린다) · 서버에서 `sudo bash /opt/clovirassist/deploy/install.sh rollback --target <스냅샷>`.
-2. 속도 제한을 실제 사용자 주소로 걸 것인지 정한다(D-499 — `--upstream-proxy`). 지금은 배선만 있고 동작은 예전과 같다.
-3. BACKLOG P-97 ~ P-107 — 이 회차가 범위 밖으로 돌린 발견들이다.
-4. 다음 릴리스에 P-94(`0031`, `sprints.project_id` 삭제).
+1. 사람이 할 일 넷(맨 위 절의 ① ~ ④)이 들어오면 — DNS 레코드 뒤 메일 설정의 서버 이름(HELO)을 `clovirassist-mail.goodmit.co.kr` 로 바꾸고 준비
+   점검 · 시험 메일을 다시 한다. 사내 DNS 가 에지 안쪽 주소로 바뀌면 사내 PC 에서 경고 없이 열리는지 본다.
+2. 되돌려야 하면 `sudo clovirassist rollback`(스냅샷 `20261015-172353` 의 앞) 또는 `bash scripts/deploy-upgrade.sh <커밋>`. 이번 회차는
+   마이그레이션이 없다.
+3. BACKLOG 의 남은 것 — P-132(일반 계정으로 AI 권한 제한 한 문항) · P-128(구슬 스킬 · 녹화 · 새 원본의 항아리 확대 구역) · P-141(티켓 1만 건
+   전 본문 검색 색인) · P-126 · P-129 · P-120 ~ P-125, 그 전 회차가 돌린 P-97 ~ P-107, 다음 릴리스의 P-94(`0031`, `sprints.project_id` 삭제).
