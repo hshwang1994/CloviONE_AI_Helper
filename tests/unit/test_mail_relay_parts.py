@@ -277,7 +277,15 @@ def test_merged_spf_drops_a_term_that_is_not_a_domain():
         domain="x.com", egress_ip=IP, current_spf=current, dkim_selector="ca1", dkim_public="", dkim_enabled=False,
         from_address="noreply@x.com", helo="mail.x.com")}
     assert records["spf"]["value"] == f"v=spf1 ip4:{IP} include:spf.protection.outlook.com -all"
-    assert "google-site-verification" in records["spf"]["note"] and records["spf"]["note"].endswith("원인입니다.")
+    assert "google-site-verification" in records["spf"]["note"] and "원인입니다." in records["spf"]["note"]
+    # 사이트 소유 확인 값은 지우라는 뜻이 아니다 — 따로 선 TXT 로 남길 값을 그대로 말한다(담당자가 지우면 소유 확인이 깨진다).
+    assert records["spf"]["note"].endswith("TXT 레코드(google-site-verification=QY1DgLBO55)로 남겨 두세요.")
+    # 사이트 확인 값이 아닌 깨진 항목에는 그 문장을 붙이지 않는다.
+    other = "v=spf1 include:spf.protection.outlook.com include:not_a_domain -all"
+    plain = {r["key"]: r for r in rr.records_for(
+        domain="x.com", egress_ip=IP, current_spf=other, dkim_selector="ca1", dkim_public="", dkim_enabled=False,
+        from_address="noreply@x.com", helo="mail.x.com")}
+    assert "남겨 두세요" not in plain["spf"].get("note", "")
     # 제안한 레코드는 오류가 아니다.
     fixed = FakeDns(txt={"x.com": [records["spf"]["value"]], "spf.protection.outlook.com": ["v=spf1 ip4:40.92.0.0/15 -all"]})
     assert rr.spf_check(fixed, "x.com", IP)[0] == "pass"

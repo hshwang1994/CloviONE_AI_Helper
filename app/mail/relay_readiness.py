@@ -601,6 +601,12 @@ def records_for(*, domain: str, egress_ip: str | None, current_spf: str | None, 
             if broken:
                 note = ("기존 SPF 에서 도메인이 아닌 항목(" + ", ".join(t if len(t) <= 60 else t[:57] + "..." for t in broken)
                         + ")을 뺐습니다. 이 항목이 레코드 오류의 원인입니다.")
+                # 사이트 소유 확인 값(google-site-verification= 등)은 SPF 의 include 가 아니라 따로 선 TXT 레코드여야 확인이 된다.
+                # 빼라고만 하면 담당자가 그 값을 지워 버려 다른 서비스의 소유 확인이 깨진다 — 남겨 둘 자리를 함께 말한다.
+                verification = [t.split(":", 1)[-1] for t in broken if "verification=" in t.lower()]
+                if verification:
+                    note += (" 이 값은 사이트 소유 확인 값이므로 지우지 말고 같은 이름에 따로 TXT 레코드(" + ", ".join(
+                        v if len(v) <= 60 else v[:57] + "..." for v in verification) + ")로 남겨 두세요.")
         else:
             value = f"v=spf1 ip4:{egress_ip} ~all"
         spf = {"key": "spf", "name": domain, "type": "TXT", "value": value}
