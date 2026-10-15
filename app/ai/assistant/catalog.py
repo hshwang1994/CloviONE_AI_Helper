@@ -91,6 +91,8 @@ class MyWorkArgs(_ShowArgs):
     project: str | None = Field(default=None, max_length=100)
     statuses: list[TicketStatus] | None = Field(default=None, max_length=6)
     updated_within_days: int | None = Field(default=None, ge=1, le=365)
+    completed: Literal["this_week"] | None = None
+    completed_within_days: int | None = Field(default=None, ge=1, le=365)
     sort: TicketSort | None = None
     offset: int | None = Field(default=None, ge=0, le=MAX_LIST_OFFSET)
 
@@ -285,7 +287,8 @@ REGISTRY: tuple[Tool, ...] = (
         "my_work", "내 업무", "내 업무를 확인하고 있습니다.",
         "묻는 사람 자신의 티켓을 봅니다. assigned 는 맡은 것, requested 는 요청한 것, watching 은 지켜보는 것, "
         "due_this_week 는 이번 주 마감, overdue 는 마감이 지난 것입니다. 「내가 담당하는」 「내 티켓」 같은 질문에 씁니다. "
-        "상태, 프로젝트, 검색어로 좁힐 수 있고 total 이 전체 건수입니다.",
+        "상태, 프로젝트, 검색어로 좁힐 수 있고 total 이 전체 건수입니다. 「이번 주에 끝낸」 「최근 며칠 안에 끝낸」 티켓은 "
+        "completed 나 completed_within_days 로 봅니다.",
         MyWorkArgs, {
             "view": _choice(("assigned", "requested", "watching", "due_this_week", "overdue"), "볼 목록."),
             "include_done": _flag("끝난 티켓도 넣을지. 비우면 진행 중인 것만 봅니다."),
@@ -293,6 +296,9 @@ REGISTRY: tuple[Tool, ...] = (
             "project": _text("프로젝트 코드나 이름.", nullable=True),
             "statuses": _choices(readers.TICKET_STATUSES, _STATUSES),
             "updated_within_days": _number("최근 며칠 안에 바뀐 티켓만 볼지(1에서 365)."),
+            "completed": _choice(("this_week",), "this_week 면 이번 주(월요일부터)에 끝낸 티켓만 봅니다. 끝난 티켓도 봅니다.",
+                                 nullable=True),
+            "completed_within_days": _number("최근 며칠 안에 끝낸 티켓만 볼지(1에서 365). 주면 끝난 티켓도 봅니다."),
             "sort": _choice(readers.TICKET_SORTS, _TICKET_SORT, nullable=True),
             "offset": _number(_OFFSET),
             "show": _flag(_SHOW_TEXT),
@@ -414,7 +420,8 @@ REGISTRY: tuple[Tool, ...] = (
     Tool(
         "work_summary", "업무 요약", "업무 현황을 모으고 있습니다.",
         "묻는 사람의 업무 현황을 모읍니다. today 는 오늘, standup 은 스탠드업(최근 끝낸 것, 오늘 할 것, 막힌 것), "
-        "this_week 는 이번 주입니다.",
+        "this_week 는 이번 주 스프린트 창의 요약입니다. 그 요약의 완료 수는 이번 주가 마감인 일 중 끝낸 것이라, 이번 주에 "
+        "끝낸 티켓의 수와 목록은 my_work 의 completed 로 봅니다.",
         SummaryArgs, {"period": _choice(("today", "standup", "this_week"), "모을 기간.")}, readers.work_summary,
     ),
 )

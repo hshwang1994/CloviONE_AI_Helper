@@ -81,6 +81,33 @@ def test_doc_items_prefer_the_shown_block_over_sources():
     assert chat._doc_items_of(old) == [("d9", "출처 문서")]
 
 
+def test_doc_items_read_ref_and_the_project_card_documents():
+    """서버 블록의 항목 id 는 `ref` 다 — `id` 를 읽으면 빈 id 로 문서를 찾는다(랩 r22-chat-after B④). 보인 프로젝트 카드의
+    연결 문서도 「보인 문서」다(E⑫ 「방금 찾은 문서 중 첫 번째」)."""
+    r = chat.Reply(text="", structured={"results": [
+        {"id": "r1", "tool": "search_documents", "kind": "document", "shown": True,
+         "items": [{"ref": "d1", "title": "블록 문서"}]},
+        {"id": "r2", "tool": "project_activity", "kind": "project_summary", "shown": True,
+         "items": [{"ref": "p1", "name": "프로젝트", "documents": {"total": 8, "items": [{"ref": "d7", "title": "연결 문서"}]}}]},
+    ]}, message_id="m", seconds=1.0)
+    assert chat._doc_items_of(r) == [("d1", "블록 문서"), ("d7", "연결 문서")]
+
+
+def test_page_titles_read_the_block_envelope():
+    assert chat.page_titles({"block": {"items": [{"title": "가"}, {"title": "나"}]}}) == ["가", "나"]
+    assert chat.page_titles({"items": [{"title": "옛 모양"}]}) == ["옛 모양"]
+    assert chat.page_titles(None) == []
+
+
+def test_cited_ticket_keys_count_as_mentioned():
+    r = chat.Reply(text="파라미터 유실을 고쳤습니다.", structured={"sources": [
+        {"type": "ticket", "id": "t1", "key": "SFVHJG-18", "route": "/tickets/t1", "cited": True},
+        {"type": "ticket", "id": "t2", "key": "SFVHJG-6", "route": "/tickets/t2", "cited": False},
+        {"type": "document", "id": "d1", "route": "/knowledge/d1", "cited": True},
+    ]}, message_id="m", seconds=1.0)
+    assert chat.cited_ticket_keys(r) == ["SFVHJG-18"]
+
+
 def test_scenarios_cover_the_fourteen_questions():
     questions = [t.question for s in chat.SCENARIOS for t in s.turns]
     fixed = [q for q in questions if isinstance(q, str)]

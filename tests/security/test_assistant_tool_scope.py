@@ -297,11 +297,16 @@ def test_project_arguments_out_of_scope_look_missing_and_candidates_stay_in_scop
         missing = _body(_run(app, wider["a1"], tool, **args))
         assert by_id == by_code == missing, tool
         assert by_id["error"] == "not_found", tool
-    ambiguous = _body(_run(app, wider["a1"], "project_activity", project="공용 이름 프로젝트"))
+    found = _run(app, wider["a1"], "project_activity", project="공용 이름 프로젝트")
+    ambiguous = _body(found)
     assert ambiguous["error"] == "ambiguous"
     names = {c["name"] for c in ambiguous["candidates"]}
     assert names == {"공용 이름 프로젝트 가", "공용 이름 프로젝트 나"}, "보이지 않는 프로젝트가 후보에 섰다"
     assert "공용 이름 프로젝트 다" not in json.dumps(ambiguous, ensure_ascii=False)
+    # 후보는 출처로도 실린다(답이 후보를 링크로 걸면 화면이 그 경로를 확인해 링크로 그린다) — 같은 범위 안의 것만이다.
+    assert {s["title"] for s in found.sources} == names
+    assert all(s["type"] == "project" and s["route"].startswith("/projects/") for s in found.sources)
+    assert "공용 이름 프로젝트 다" not in json.dumps(list(found.sources), ensure_ascii=False)
 
 
 def test_project_activity_of_my_project_is_built_from_visible_records(app, wider):

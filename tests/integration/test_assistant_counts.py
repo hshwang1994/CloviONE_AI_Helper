@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -246,6 +246,30 @@ def test_this_week_on_a_monday_dawn_is_the_same_week_for_the_screen_and_the_tool
     expected = {"월요일 마감", "이번 주 일요일 마감"}
     assert {i["title"] for i in tool["items"]} == expected
     assert {t["title"] for t in screen["items"]} == expected, "화면이 지난주를 이번 주로 셌다"
+
+
+def test_my_work_completed_this_week_is_the_kst_calendar_week(app, db, people, resources, make_ticket, fake_clock):
+    """「이번 주에 끝낸 내 티켓」은 월요일 0시(KST)부터 끝낸 것이다. 업무 요약의 「이번 주 완료」는 이번 주가 마감인 일 중
+    끝낸 것이라 다른 수다 — 랩(2026-10-15)에서 이번 주에 하나 끝냈는데 요약을 보고 0건이라고 답했다."""
+    a1 = people["a1"]
+    project = resources["projects"]["a1"]
+    now = fake_clock.now()  # 2026-07-14(화) 00:00 UTC = 09:00 KST
+    rows = {
+        "monday": make_ticket(project=project, title="월요일 새벽 끝냄", status="완료", assignees=[a1.id]),
+        "today": make_ticket(project=project, title="오늘 끝냄", status="완료", assignees=[a1.id], due="2026-08-30"),
+        "sunday": make_ticket(project=project, title="지난 일요일 밤 끝냄", status="완료", assignees=[a1.id]),
+        "open": make_ticket(project=project, title="아직 진행", status="진행", assignees=[a1.id]),
+    }
+    rows["monday"].completed_at = datetime(2026, 7, 12, 15, 30)   # 월 00:30 KST
+    rows["today"].completed_at = now - timedelta(hours=1)          # 화 08:00 KST — 마감은 다음 달이다
+    rows["sunday"].completed_at = datetime(2026, 7, 12, 14, 30)   # 일 23:30 KST — 지난주
+    db.commit()
+    week = _body(_run(app, a1, "my_work", view="assigned", completed="this_week"))
+    assert {i["title"] for i in week["items"]} == {"월요일 새벽 끝냄", "오늘 끝냄"} and week["total"] == 2
+    recent = _body(_run(app, a1, "my_work", view="assigned", completed_within_days=1))
+    assert {i["title"] for i in recent["items"]} == {"오늘 끝냄"}
+    both = _body(_run(app, a1, "my_work", view="assigned", completed="this_week", completed_within_days=30))
+    assert both["total"] == 2, "둘 다 주면 더 좁은 쪽이다"
 
 
 def test_project_activity_counts_every_status_and_skips_the_trash(app, db, tickets_world, make_space,

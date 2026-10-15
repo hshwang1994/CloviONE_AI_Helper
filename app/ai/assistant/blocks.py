@@ -23,6 +23,8 @@ from app.ai.assistant import readers
 MAX_BLOCKS = 4
 MAX_ITEMS = 10
 TITLE_CHARS = 120
+#: 프로젝트 현황 카드에 서는 연결 문서 줄 수 — 도구가 싣는 만큼(최근 수정 여섯)이다.
+SUMMARY_DOCUMENTS = 6
 #: 기억에 싣는 제목 길이와 기억 전체의 글자 상한(앞 두 차례).
 MEMORY_TITLE_CHARS = 60
 MEMORY_TURNS = 2
@@ -98,10 +100,25 @@ def _summary_item(item: dict) -> dict:
         out["tickets"] = {k: tickets.get(k) for k in ("total", "open", "overdue_open", "blocked", "status_counts")}
     done = [r for r in (item.get("recent_completed") or []) if isinstance(r, dict)][:5]
     if done:
-        out["recent_completed"] = [{k: _clip(r.get(k), TITLE_CHARS) for k in ("key", "title", "completed_at", "route")}
-                                   for r in done]
+        out["recent_completed"] = [_with_ref(r, {k: _clip(r.get(k), TITLE_CHARS)
+                                                 for k in ("key", "title", "completed_at", "route")}) for r in done]
         out["recent_completed_total"] = item.get("recent_completed_total")
+    documents = item.get("documents") if isinstance(item.get("documents"), dict) else {}
+    doc_rows = [d for d in (documents.get("items") or []) if isinstance(d, dict) and d.get("route")][:SUMMARY_DOCUMENTS]
+    if doc_rows:
+        out["documents"] = {
+            "total": documents.get("total"),
+            "items": [_with_ref(d, {k: _clip(d.get(k), TITLE_CHARS) for k in ("title", "updated_at", "route")})
+                      for d in doc_rows],
+        }
     return out
+
+
+def _with_ref(row: dict, kept: dict) -> dict:
+    """카드에 선 줄의 출처 id — 「보인 것」 표시와 참고 자료 판의 겹침 빼기가 쓴다(`shown_keys`)."""
+    if row.get("ref"):
+        kept["ref"] = str(row["ref"])
+    return kept
 
 
 def _items(kind: str, items) -> list[dict]:
@@ -204,6 +221,14 @@ def shown_keys(blocks) -> set[tuple[str, str]]:
         for item in block.get("items") or ():
             if item.get("ref"):
                 out.add((source_type, str(item["ref"])))
+            if block.get("kind") == "project_summary":
+                # 카드 안에 선 끝낸 일 · 연결 문서도 화면에 보인 자료다.
+                for row in item.get("recent_completed") or ():
+                    if row.get("ref"):
+                        out.add(("ticket", str(row["ref"])))
+                for row in (item.get("documents") or {}).get("items") or ():
+                    if row.get("ref"):
+                        out.add(("document", str(row["ref"])))
     return out
 
 

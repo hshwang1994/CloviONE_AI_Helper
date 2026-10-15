@@ -119,6 +119,23 @@ def _since(ctx: ToolContext, days: int | None) -> datetime | None:
     return ctx.now - timedelta(days=int(days)) if days else None
 
 
+def _completed_from(ctx: ToolContext, completed: str | None, days: int | None) -> datetime | None:
+    """「끝낸 날」 조건의 시작 — naive UTC 순간. `this_week` 는 이번 주 월요일 0시(KST 달력, 마감의 「이번 주」와 같은 주)다.
+    둘 다 오면 더 늦은 쪽(더 좁은 쪽)이다."""
+    from app.home import service as home_service
+
+    starts: list[datetime] = []
+    if completed == "this_week":
+        monday = ctx.today - timedelta(days=ctx.today.weekday())
+        start, _end = home_service.window_utc_bounds(ctx.settings, monday.isoformat(),
+                                                     (monday + timedelta(days=7)).isoformat())
+        starts.append(start)
+    since = _since(ctx, days)
+    if since is not None:
+        starts.append(since)
+    return max(starts) if starts else None
+
+
 def _created_from(ctx: ToolContext, days: int | None) -> str | None:
     """「N일 안에 만든」의 시작 날짜 — 티켓 목록의 생성일 조건과 같은 꼴(KST 달력일, 오늘을 첫날로 센다)."""
     return (ctx.today - timedelta(days=int(days) - 1)).isoformat() if days else None
@@ -275,6 +292,7 @@ def _project_failure(tool: str, candidates) -> results.Execution:
              "status": PROJECT_STATUS_KO.get(p.status, p.status), "route": project_route(p.id)}
             for p in shown
         ]},
+        sources=tuple(_project_source(p) for p in shown),
     )
 
 
@@ -605,7 +623,8 @@ def my_work(ctx: ToolContext, args) -> results.Execution:
     view = args.view
     due = {"due_this_week": "this_week", "overdue": "overdue"}.get(view)
     statuses = list(args.statuses or [])
-    if statuses:
+    completed_from = _completed_from(ctx, getattr(args, "completed", None), getattr(args, "completed_within_days", None))
+    if statuses or completed_from is not None:
         active = False
     else:
         active = True if due else not bool(args.include_done)
@@ -618,7 +637,7 @@ def my_work(ctx: ToolContext, args) -> results.Execution:
     sort_key, order = _ticket_sort(args.sort, due)
     query = SimpleNamespace(
         q=args.query or None, status=statuses or None, due=due, project_id=[project_id] if project_id else None,
-        sort=sort_key, order=order, updated_from=_since(ctx, args.updated_within_days),
+        sort=sort_key, order=order, updated_from=_since(ctx, args.updated_within_days), completed_from=completed_from,
     )
     offset = _offset(args)
     page = PageSpec(offset=offset, limit=LIST_LIMIT)

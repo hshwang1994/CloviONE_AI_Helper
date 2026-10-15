@@ -185,6 +185,11 @@ def block_titles(block: dict | None) -> list[str]:
     return [str(i.get("title") or "") for i in (block or {}).get("items") or [] if isinstance(i, dict)]
 
 
+def cited_ticket_keys(r: Reply) -> list[str]:
+    """답 글이 인용한 티켓 출처의 키 — 서버가 경로 · 키 · 제목이 글에 있을 때 `cited` 를 단다."""
+    return [str(s.get("key")) for s in r.sources if s.get("type") == "ticket" and s.get("cited") and s.get("key")]
+
+
 def shown_ticket_keys(r: Reply) -> list[str]:
     return [str(i.get("key")) for b in r.shown() if b.get("kind") == "ticket"
             for i in b.get("items") or [] if isinstance(i, dict) and i.get("key")]
@@ -281,8 +286,7 @@ def judge_a1(ctx: Ctx, r: Reply) -> list[Check]:
     if r.message_id and block.get("id"):
         status, body = ctx.api.get(f"/api/messages/{r.message_id}/results/{block['id']}", offset=PAGE)
         _total2, page2 = my_docs_page(ctx, PAGE)
-        got = [str(i.get("title") or "") for i in (body or {}).get("items") or [] if isinstance(i, dict)] \
-            if isinstance(body, dict) else []
+        got = page_titles(body)
         out.append(check("쪽 넘기기 = 둘째 쪽", status == 200 and got == [i.get("title") or "" for i in page2],
                          f"상태 {status}, {got[:2]}"))
     return out
@@ -312,12 +316,27 @@ def judge_a3(ctx: Ctx, r: Reply) -> list[Check]:
     return out
 
 
+def page_titles(body) -> list[str]:
+    """쪽 넘기기 응답(`{"block": {...items}}`)의 제목들."""
+    block = body.get("block") if isinstance(body, dict) and isinstance(body.get("block"), dict) else body
+    items = block.get("items") if isinstance(block, dict) else None
+    return [str(i.get("title") or "") for i in items or [] if isinstance(i, dict)]
+
+
 def _doc_items_of(r: Reply) -> list[tuple[str, str]]:
-    """(id, 제목) — 보인 문서 블록이 있으면 그 항목, 없으면 인용된 문서 출처."""
+    """(id, 제목) — 보인 문서 블록(또는 보인 프로젝트 카드의 연결 문서)이 있으면 그 항목, 없으면 인용된 문서 출처.
+
+    블록 항목의 id 칸은 `ref` 다(서버 `blocks.FIELDS`). 예전에는 `id` 를 읽어 빈 id 로 문서를 찾았고, 「내 문서 중 VMware」의
+    항목이 모두 남의 문서처럼 세어졌다(랩 2026-10-15 r22-chat-after B④ 0/8)."""
     out: list[tuple[str, str]] = []
     for block in r.shown():
+        rows = []
         if block.get("kind") == "document":
-            out += [(str(i.get("id") or ""), str(i.get("title") or "")) for i in block.get("items") or []]
+            rows = block.get("items") or []
+        elif block.get("kind") == "project_summary":
+            for card in block.get("items") or []:
+                rows += ((card.get("documents") or {}).get("items") or []) if isinstance(card, dict) else []
+        out += [(str(i.get("ref") or i.get("id") or ""), str(i.get("title") or "")) for i in rows if isinstance(i, dict)]
     if out:
         return out
     for s in r.sources:
@@ -425,7 +444,7 @@ def judge_d9(ctx: Ctx, r: Reply) -> list[Check]:
         return [na("최근 해결한 문제", "프로젝트가 없습니다.")]
     items, _t, _p = ctx.api.pages("/api/tickets/team", project_id=project.get("id"), active="false", status="완료")
     keys = [t.get("key") for t in items if t.get("key")]
-    mentioned = keys_mentioned(r.text, keys) + [k for k in shown_ticket_keys(r) if k in keys]
+    mentioned = keys_mentioned(r.text, keys) + [k for k in shown_ticket_keys(r) + cited_ticket_keys(r) if k in keys]
     others = [k for k in KEY_RE.findall(r.text) + shown_ticket_keys(r) if k not in keys]
     # 「해결한 문제」는 제목이 아니라 내용을 묻는다 — 티켓 본문을 하나 이상 읽어야 한다(지시서 5.1 · 5.4).
     return [check("티켓 본문을 읽음", "get_ticket" in r.tool_names, ",".join(r.tool_names)),

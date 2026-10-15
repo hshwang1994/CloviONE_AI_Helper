@@ -78,6 +78,27 @@ def test_project_summary_card_keeps_the_numbers_not_the_reports():
     assert "weekly_reports" not in card and "members" not in card
 
 
+def test_project_card_carries_linked_documents_and_its_rows_count_as_shown():
+    """답이 「연결 문서 8건 중 6건을 표시했다」고 말한 그 문서가 카드에 선다(랩 2026-10-15 — 카드에 없는데 표시했다고 말했다).
+    카드에 선 끝낸 일 · 문서는 출처에서 「보인 것」이라 참고 자료 판에 겹쳐 서지 않는다."""
+    docs = [{"ref": f"d{i}", "title": f"연결 문서 {i}", "updated_at": "2026-09-0%d" % (i + 1), "route": f"/knowledge/d{i}",
+             "author": "누구"} for i in range(8)]
+    item = {"ref": "p1", "code": "SFVHJG", "name": "SK하이닉스", "route": "/projects/p1",
+            "recent_completed": [{"ref": "t1", "key": "SFVHJG-1", "title": "끝낸 일", "completed_at": "2026-10-01",
+                                  "route": "/tickets/t1"}],
+            "documents": {"total": 8, "items": docs}}
+    [block] = blocks.build([_ok("project_activity", [item], args={"project": "SFVHJG", "show": True})], owner_id="u1")
+    card = block["items"][0]
+    assert card["documents"]["total"] == 8
+    assert [d["title"] for d in card["documents"]["items"]] == [f"연결 문서 {i}" for i in range(blocks.SUMMARY_DOCUMENTS)]
+    assert set(card["documents"]["items"][0]) == {"ref", "title", "updated_at", "route"}, "작성자 같은 칸은 싣지 않는다"
+    assert card["recent_completed"][0]["ref"] == "t1"
+    assert blocks.shown_keys([block]) == {("project", "p1"), ("ticket", "t1")} | {
+        ("document", f"d{i}") for i in range(blocks.SUMMARY_DOCUMENTS)}
+    [hidden] = blocks.build([_ok("project_activity", [item], args={"project": "SFVHJG"})], owner_id="u1")
+    assert blocks.shown_keys([hidden]) == set(), "보이지 않은 카드의 줄은 「보인 것」이 아니다"
+
+
 def test_same_call_twice_is_one_block_and_blocks_are_capped():
     same = _ok("my_documents", DOCS[:1], args={"show": True})
     assert len(blocks.build([same, same], owner_id="u1")) == 1

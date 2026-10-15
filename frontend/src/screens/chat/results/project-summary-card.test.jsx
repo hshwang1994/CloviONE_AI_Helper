@@ -49,6 +49,18 @@ describe("프로젝트 현황 카드", () => {
     expect(screen.queryByText("넷째 항목은 보이지 않는다")).toBeNull();
   });
 
+  it("연결 문서를 「N건 중 M건」과 함께 링크로 세운다 — 답이 표시했다고 말하는 그 목록이다", () => {
+    renderCard({ ...PROJECT, documents: { total: 8, items: [
+      { ref: "d1", title: "하이닉스", route: "/knowledge/d1", updated_at: "2026-09-04T00:00:00" },
+      { ref: "d2", title: "포털 연동 가이드", route: "/knowledge/d2", updated_at: "2026-09-01T00:00:00" },
+      { ref: "d3", title: "바깥 주소", route: "https://evil.example/d3" },
+    ] } });
+    expect(screen.getByText("연결 문서 (8건 중 3건)")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "하이닉스" })).toHaveAttribute("href", "#/knowledge/d1");
+    expect(screen.queryByRole("link", { name: "바깥 주소" })).toBeNull();
+    expect(screen.getByText("바깥 주소")).toBeInTheDocument();
+  });
+
   it("앱 안 경로일 때만 「프로젝트 열기」가 선다", () => {
     const { unmount } = renderCard(PROJECT);
     expect(screen.getByRole("link", { name: "프로젝트 열기" })).toHaveAttribute("href", "#/projects/p1");

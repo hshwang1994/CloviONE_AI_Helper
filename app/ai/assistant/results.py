@@ -148,8 +148,11 @@ def fit(content: str, limit: int, *, cut_note: str) -> str:
 
 
 def error(tool: str, code: str, message: str | None = None, *, query: str | None = None,
-          extra: dict | None = None) -> Execution:
+          extra: dict | None = None, sources: tuple = ()) -> Execution:
+    """실패 봉투. ``sources`` 는 실패여도 도구가 권한 안에서 찾은 것(예: 이름이 겹친 프로젝트 후보)이다 — 답이 그 후보를
+    링크로 걸면 화면이 그 경로를 출처로 확인해 링크로 그린다(없으면 글자로 남았다)."""
     body = {"ok": False, "tool": tool, "error": code, "message": message or MESSAGES[code]}
     for key, value in (extra or {}).items():
         body.setdefault(key, value)
-    return Execution(tool=tool, content=json.dumps(body, ensure_ascii=False, default=str), ok=False, query=query)
+    return Execution(tool=tool, content=json.dumps(body, ensure_ascii=False, default=str), ok=False, query=query,
+                     sources=tuple(sources))
