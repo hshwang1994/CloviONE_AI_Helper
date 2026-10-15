@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
@@ -136,14 +136,23 @@ describe("사다리타기 결과 화면 - 캐시된 다른 방으로 전환", ()
 
     renderRooms(qc);
 
-    // 첫 방 사다리에서 마지막 이름(지훈, 인덱스 3)을 고른다.
+    // 끝난 방을 처음 열면 결과 대화 상자가 열린다(D-576) — 닫고 판의 사다리에서 고른다.
     const user = userEvent.setup();
+    const closeDialog = async () => {
+      const dialog = await screen.findByRole("dialog");
+      const closes = within(dialog).getAllByRole("button", { name: "닫기" });
+      await user.click(closes[closes.length - 1]);
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    };
+    await closeDialog();
+    // 첫 방 사다리에서 마지막 이름(지훈, 인덱스 3)을 고른다.
     const chip = await screen.findByRole("button", { name: "지훈" });
     await user.click(chip);
     expect(await screen.findByText("4등", { selector: "b" })).toBeInTheDocument();
 
     // 인원이 더 적은(2명) 두 번째 방으로 넘어간다 - 이미 캐시돼 있어 스켈레톤을 거치지 않는다.
     await user.click(screen.getByRole("button", { name: "다른 방으로 이동(테스트용)" }));
+    await closeDialog();
 
     expect(await screen.findByRole("heading", { name: "두 번째 사다리" })).toBeInTheDocument();
     // 새 방은 아직 아무도 고르지 않은 상태여야 한다 - 이전 방의 선택(인덱스 3)이 새 방의

@@ -39,6 +39,9 @@ export const AVATAR_SIZE = {
    * 글 덩어리보다 커서 사람이 아니라 사진이 주인공으로 읽힌다. 72px 은 글 세 줄과
    * 키가 맞는다. */
   xl: "4.5rem",
+  /** 결과 대화 상자의 영웅 자리 — 당첨자 한 명의 얼굴. 96px 은 제목(1.75rem)과 배지 아래에 혼자 서는 그림이라 이름보다
+   *  커도 사람이 주인공으로 읽힌다(`screens/game-room/ResultDialog.jsx`). */
+  hero: "6rem",
 };
 
 /** `person` 은 서버가 주는 identity dict 다(`app/core/people.py::identity`). */

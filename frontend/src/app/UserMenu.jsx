@@ -12,6 +12,7 @@ import { applyTheme, readTheme, storeTheme, clearBootTheme } from "./theme-store
 import { clearBootAccent, useThemeMode } from "../ui/ThemeModeProvider.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
 import { OrgPath, PATH_SEP, pathText } from "../ui/OrgPath.jsx";
+import { OpenSourceNoticesModal } from "./OpenSourceNotices.jsx";
 
 /* 사용자 메뉴 — 이름/아바타를 누르면 내 프로필·비밀번호 변경·로그아웃.
  * 로그아웃이 없던 것이 큰 공백이었다(공용 PC 보안).
@@ -97,6 +98,8 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
   const nav = useNavigate();
   /* 로그아웃 실패 문장 — 메뉴 안에 남고, 다시 누르면 걷힌다. */
   const [logoutFailure, setLogoutFailure] = React.useState("");
+  /* 오픈소스 고지(D-579) — 제품에 들어간 바깥 코드의 출처를 어느 화면에서나 본다. */
+  const [noticesOpen, setNoticesOpen] = React.useState(false);
   const { identifyAccentUser } = useThemeMode();
 
   React.useEffect(() => {
@@ -214,6 +217,7 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
           { key: "my-stats", label: "내 업무량", onClick: () => nav("/my-stats") },
           { key: "activity", label: "내 활동", onClick: () => nav("/activity") },
           { key: "password", label: "비밀번호 변경", href: "/change-password" },
+          { key: "notices", label: "오픈소스 고지", divider: true, onClick: () => setNoticesOpen(true) },
           { key: "logout", label: busy ? "로그아웃 중…" : "로그아웃", tone: "danger", disabled: busy, onClick: logout },
         ], (it) => { if (it.key !== "logout") setAnchor(null); })}
         {logoutFailure ? (
@@ -222,6 +226,7 @@ export function UserMenu({ name, userId, avatarUrl, me }) {
           </Box>
         ) : null}
       </Menu>
+      <OpenSourceNoticesModal open={noticesOpen} onClose={() => setNoticesOpen(false)} />
     </>
   );
 }

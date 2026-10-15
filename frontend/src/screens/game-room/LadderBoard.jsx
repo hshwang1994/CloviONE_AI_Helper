@@ -3,13 +3,17 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { draw } from "./constants.js";
 import { StageHint } from "./StageShared.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
+import { UserAvatar } from "../../ui/UserAvatar.jsx";
+import { FONT_SIZE, FONT_WEIGHT, RADIUS } from "../../ui/theme.js";
+import { personOf } from "./people.js";
 
-/* GameRoom.jsx 구조 분리(2026-08)로 값 변경 없이 이 파일로 옮겼다. */
 /* 사다리(아미다쿠지) 시각화. 서버가 확정한 세로줄·가로줄·도착지를 정직하게 그리고,
  * 위쪽 이름을 누르면 그 사람의 경로를 따라 내려가는 선을 강조한다. 좌표는 열을 균등 분할한
- * 중심(그리드 1fr 칩과 정렬)으로 잡는다. 선은 non-scaling-stroke로 늘려도 굵기 유지. */
-export function LadderBoard({ result, highlightUserId }) {
+ * 중심(그리드 1fr 칩과 정렬)으로 잡는다. 선은 non-scaling-stroke로 늘려도 굵기 유지.
+ *
+ * 판으로 설 때(`height` 를 주면) 사다리가 판 높이를 채운다 — 판 아래가 비지 않는다. 열 머리는 얼굴 + 이름이고(D-577), 처음에는
+ * 내 경로가 강조돼 있다. 결과 대화 상자의 「사다리」 상세는 높이를 주지 않은 같은 부품이다. */
+export function LadderBoard({ result, highlightUserId, people, height }) {
   const cols = result.columns || [];
   const outcomes = result.outcomes || [];
   const rungs = result.rungs || [];
@@ -36,32 +40,37 @@ export function LadderBoard({ result, highlightUserId }) {
     return { points: pts.map((p) => p[0].toFixed(2) + "," + p[1].toFixed(2)).join(" "), end: col };
   }
   const selPath = sel != null ? pathFor(sel) : null;
-  const gridSx = { display: "grid", gridTemplateColumns: `repeat(${n}, 1fr)`, gap: 0.5 };
+  const gridSx = { display: "grid", gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`, gap: 0.5 };
   const chipSx = (on, outcome) => ({
-    display: "block", textAlign: "center", px: 0.5, py: 0.75, borderRadius: 1.5,
+    display: "flex", flexDirection: outcome ? "row" : "column", alignItems: "center", justifyContent: "center", gap: 0.5,
+    textAlign: "center", px: 0.5, py: outcome ? 0.75 : 0.625, borderRadius: `${RADIUS.sm}px`,
     border: 1, borderColor: on ? "primary.main" : "divider",
-    bgcolor: on ? "primary.main" : (outcome ? "action.hover" : "background.paper"),
+    bgcolor: on ? "primary.main" : (outcome ? "background.inset" : "background.paper"),
     color: on ? "primary.contrastText" : "text.primary",
     font: "inherit", fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold, minWidth: 0,
-    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
     cursor: outcome ? "default" : "pointer",
     "&:hover": outcome ? undefined : { borderColor: "primary.main" },
   });
+  const nameSx = { maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+  const fill = height != null;
 
   return (
-    <Box sx={{ display: "grid", gap: 1 }}>
+    <Box data-ladder-board="" sx={{ display: "grid", gap: 1, width: "100%" }}>
       <Box sx={gridSx}>
         {cols.map((c, i) => (
           <Box component="button" type="button" key={c.user_id}
             aria-pressed={sel === i}
             sx={chipSx(sel === i, false)}
-            onClick={() => setSel(sel === i ? null : i)}>{c.name}</Box>
+            onClick={() => setSel(sel === i ? null : i)}>
+            <UserAvatar person={personOf(people, c.user_id) || c} name={c.name} size="sm" />
+            <Box component="span" title={c.name} sx={nameSx}>{c.name}</Box>
+          </Box>
         ))}
       </Box>
       <Box
         component="svg" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="사다리"
         sx={(t) => ({
-          width: "100%", height: { xs: "14rem", md: "18rem", xxl: "22rem" }, display: "block",
+          width: "100%", height: fill ? `${Math.max(160, Math.round(height))}px` : { xs: "14rem", md: "18rem", xxl: "22rem" }, display: "block",
           "& .ladder-v": { stroke: t.palette.divider, strokeWidth: 2 },
           "& .ladder-r": { stroke: t.palette.text.secondary, strokeWidth: 2 },
           "& .ladder-p": {
@@ -82,7 +91,9 @@ export function LadderBoard({ result, highlightUserId }) {
       </Box>
       <Box sx={gridSx}>
         {outcomes.map((o, i) => (
-          <Box component="span" key={i} sx={chipSx(!!(selPath && selPath.end === i), true)}>{o}</Box>
+          <Box component="span" key={i} title={o} sx={chipSx(!!(selPath && selPath.end === i), true)}>
+            <Box component="span" sx={nameSx}>{o}</Box>
+          </Box>
         ))}
       </Box>
       {sel != null && selPath ? (

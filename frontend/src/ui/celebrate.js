@@ -72,16 +72,32 @@ function celebrateBurst(options) {
   confetti({ zIndex: CONFETTI_Z, ...options });
 }
 
-export function celebrate() {
+/* 전체 화면(Fullscreen API)인 요소는 그 **밖**의 캔버스를 가린다 — canvas-confetti 의 기본 캔버스는 `document.body` 에 붙으므로
+   전체 화면인 놀이방에서는 축포가 통째로 안 보였다. 그래서 부르는 쪽이 자기 루트 안의 캔버스를 넘길 수 있다(`celebrate({ canvas })`).
+   캔버스마다 발사기를 한 번만 만든다(`confetti.create` 는 캔버스에 자기 크기 · 루프를 건다 — 발사마다 만들면 루프가 겹친다).
+   워커는 쓰지 않는다 — `useWorker` 는 캔버스를 OffscreenCanvas 로 넘겨 그 뒤로 메인 스레드가 그 캔버스를 다시 못 쓴다. */
+const canvasFiring = new WeakMap();
+function firingFor(canvas) {
+  if (!canvas || typeof confetti.create !== "function") return confetti;
+  let fire = canvasFiring.get(canvas);
+  if (!fire) {
+    fire = confetti.create(canvas, { resize: true, useWorker: false });
+    canvasFiring.set(canvas, fire);
+  }
+  return fire;
+}
+
+export function celebrate({ canvas } = {}) {
   if (!celebrationEnabled || !takeBurstSlot()) return;
+  const fire = firingFor(canvas);
   const base = {
     spread: 74, startVelocity: 45, ticks: 200,
     origin: { y: 0.55 },
     zIndex: CONFETTI_Z,
   };
-  confetti({ ...base, particleCount: 90 });
-  window.setTimeout(() => confetti({ ...base, particleCount: 55, angle: 60, origin: { x: 0, y: 0.62 } }), 140);
-  window.setTimeout(() => confetti({ ...base, particleCount: 55, angle: 120, origin: { x: 1, y: 0.62 } }), 260);
+  fire({ ...base, particleCount: 90 });
+  window.setTimeout(() => fire({ ...base, particleCount: 55, angle: 60, origin: { x: 0, y: 0.62 } }), 140);
+  window.setTimeout(() => fire({ ...base, particleCount: 55, angle: 120, origin: { x: 1, y: 0.62 } }), 260);
 }
 
 /** 시험 전용 — 겹침 방지 기억을 비운다. 제품 코드에서는 부르지 않는다. */

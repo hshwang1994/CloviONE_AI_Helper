@@ -5,6 +5,9 @@
  * - 멈춘 구슬(5초 동안 거의 안 움직임)은 seed 난수의 충격으로 흔든다 — 원본의 STUCK_DELAY.
  * - 결승선(goalY) 을 지난 구슬은 50 스텝 뒤에 세계에서 뺀다(원본은 벽시계 500ms — 결정성을 위해 스텝으로 센다).
  * - 회전 장애물의 각은 2π 로 접는다 — 각이 끝없이 커지면 sin · cos 의 인수 축소 범위를 넘어 결정성 보장을 잃는다.
+ * - 깨지는 장애물(`props.life > 0`, 비눗방울 · 밤을 달리다의 튕기는 원): 스텝 뒤 접촉 목록의 **첫 접촉**이 닿아 있으면 그 장애물은
+ *   사라진 것이 되고(그리기 · 미니맵이 건너뛴다) 다음 스텝을 밟기 전에 몸을 세계에서 뺀다 — 원본 physics-box2d.ts 의 step 과 같은
+ *   순서다(뒤에서부터 훑고, 지울 몸은 다음 스텝 머리에서 지운다). D-578.
  *
  * 🔴 이 모듈은 `determinism.js` 가 먼저 평가된 뒤에 planck 를 들여와야 한다(`race.js` 의 import 순서). */
 
@@ -52,8 +55,12 @@ export { spawnPosition } from "./layout.js";
 
 export function createWorld(stage, marbles, rng) {
   const world = new World({ gravity: new Vec2(0, 10) });
-  const entities = (stage.entities || []).map((entity, index) => ({ index, entity, body: makeEntityBody(world, entity) }));
+  const entities = (stage.entities || []).map((entity, index) => ({
+    index, entity, body: makeEntityBody(world, entity), life: (entity.props && entity.props.life) || -1, gone: false,
+  }));
   const kinematic = entities.filter((e) => e.entity.type === "kinematic");
+  const breakable = entities.filter((e) => e.life > 0);
+  let doomed = [];
   const bodies = marbles.map((m) => {
     const body = world.createBody({ type: "dynamic", position: new Vec2(m.x, m.y), bullet: false });
     body.createFixture(new Circle(MARBLE_RADIUS), { density: 1 + rng.next(), friction: 0.2, restitution: 0 });
@@ -66,8 +73,22 @@ export function createWorld(stage, marbles, rng) {
     entities,
     /* 한 스텝. 결승선을 넘은 구슬의 열쇠를 돌려준다(순서대로). */
     advance(goalY) {
+      // 지난 스텝에 닿은 깨지는 장애물을 이 스텝 전에 뺀다(원본의 deleteCandidates).
+      if (doomed.length) {
+        for (const e of doomed) world.destroyBody(e.body);
+        doomed = [];
+      }
       step += 1;
       world.step(STEP_SECONDS, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
+      for (let i = breakable.length - 1; i >= 0; i -= 1) {
+        const e = breakable[i];
+        if (e.gone) continue;
+        const edge = e.body.getContactList();
+        if (edge && edge.contact && edge.contact.isTouching()) {
+          e.gone = true;
+          doomed.push(e);
+        }
+      }
       const crossed = [];
       for (const m of bodies) {
         if (!m.body) continue; // 이미 세계에서 뺀 구슬
@@ -118,7 +139,11 @@ export function createWorld(stage, marbles, rng) {
       });
     },
     entityAngles() {
-      return entities.map((e) => e.body.getAngle());
+      return entities.map((e) => (e.gone ? 0 : e.body.getAngle()));
+    },
+    /* 사라진 장애물 표시(엔티티 순서) — 깨지는 장애물만 참이 된다. */
+    entityGone() {
+      return entities.map((e) => e.gone);
     },
   };
   return api;

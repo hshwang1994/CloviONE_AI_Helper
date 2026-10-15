@@ -14,6 +14,8 @@ import { failureText } from "../lib/failure.js";
 import { Badge, Button, Callout, Card, EmptyState, ErrorState, Modal, ModalFooter, PageHeader, Skeleton, useConfirm, useToast, Surface, FieldLabel } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
 import { TILE_PADDING } from "../ui/density.js";
+import { STATUS_LABELS, STATUS_KIND } from "./game-room/constants.js";
+import { STAGE_KEYS, STAGE_LABELS } from "./game-room/marble/engine/stages/labels.js";
 
 /* 팀 공간 > 놀이 (§5). 한 페이지에서 모든 게임방을 보고, 여기서 방을 만든다(별도 페이지 분리
  * 안 함). 목록은 3초 폴링으로 새 방을 실시간처럼 보여준다. 첫 게임=랜덤 추첨.
@@ -23,8 +25,6 @@ import { TILE_PADDING } from "../ui/density.js";
  * MUI 폼 컨트롤로 옮겨 테마 하나를 따르게 한다. 카드 격자는 auto-fill이라 4K에서 열이 늘어난다. */
 
 export const GAME_LABELS = { random_draw: "랜덤 추첨", quick_vote: "빠른 투표", team_split: "랜덤 팀 나누기", number: "숫자 눈치", ladder: "사다리타기", rps: "가위바위보", quiz: "실시간 퀴즈", marble_race: "구슬 레이스" };
-const STATUS_LABELS = { waiting: "대기 중", playing: "진행 중", finished: "결과 확인 중" };
-const STATUS_KIND = { waiting: "info", playing: "warn", finished: "ok" };
 
 const MAX_OPTIONS = 8;
 const MAX_QUESTIONS = 20;
@@ -128,6 +128,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
   const [marbleWinners, setMarbleWinners] = useState(1);
   const [marblePickLast, setMarblePickLast] = useState(false);
   const [marbleSpeed, setMarbleSpeed] = useState(1);
+  const [marbleMap, setMarbleMap] = useState("wheel");
   React.useEffect(() => {
     if (open) {
       setGameType("random_draw"); setTitle(""); setMaxPlayers(8); setWinners(1); setTeams(2); setNumMax(10);
@@ -138,7 +139,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
       // 재실행을 건너뛴다) timer가 잘못된 값으로 굳어, 아무것도 안 바꾸고 열자마자 닫아도
       // dirty가 거짓으로 true가 되어 확인 대화상자가 새로 열 때마다 떴다.
       setAiTopic(""); setAiCount(5); setSpectators(true); setTimer(0); setRpsMode("single");
-      setMarbleNames(""); setMarbleWinners(1); setMarblePickLast(false); setMarbleSpeed(1);
+      setMarbleNames(""); setMarbleWinners(1); setMarblePickLast(false); setMarbleSpeed(1); setMarbleMap("wheel");
       // 닫혀도 자리를 지키는 모달이라 요청 상태가 남는다 — 다시 열 때 지난 결과를 걷는다.
       genAi.reset(); create.reset();
     }
@@ -198,7 +199,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
             : isQuiz
               ? { questions: cleanQuiz, timer_seconds: timerVal }
               : isMarble
-                ? { participants: marbleNameList.map((name) => ({ name })), winners: Number(marbleWinners) || 1, pick_last: marblePickLast, speed: Number(marbleSpeed) || 1 }
+                ? { participants: marbleNameList.map((name) => ({ name })), winners: Number(marbleWinners) || 1, pick_last: marblePickLast, speed: Number(marbleSpeed) || 1, map: marbleMap }
                 : { winners: Number(winners) || 1 };
 
   const create = useMutation({
@@ -232,7 +233,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
     Number(timer) !== defaultTimer ||
     Number(aiCount) !== 5 ||
     rpsMode !== "single" ||
-    marbleNames.trim().length > 0 || Number(marbleWinners) !== 1 || marblePickLast || Number(marbleSpeed) !== 1 ||
+    marbleNames.trim().length > 0 || Number(marbleWinners) !== 1 || marblePickLast || Number(marbleSpeed) !== 1 || marbleMap !== "wheel" ||
     !spectators;
 
   // 하단 '취소' 버튼 전용 닫기 경로. `Modal`의 `dirty` prop은 X 아이콘·Esc·바깥 클릭에서
@@ -396,7 +397,14 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
                 helperText="2명부터 100명까지, 이름은 24자까지입니다. 방을 연 뒤에도 방장이 설정에서 고칠 수 있습니다."
               />
             </Box>
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
+            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" } }}>
+              <Box sx={{ minWidth: 0 }}>
+                <FieldLabel id="gr-marble-map-label">경주 판</FieldLabel>
+                <TextField SelectProps={{ labelId: "gr-marble-map-label" }} id="gr-marble-map" select size="small" fullWidth
+                  value={marbleMap} onChange={(e) => setMarbleMap(e.target.value)}>
+                  {STAGE_KEYS.map((k) => <MenuItem key={k} value={k}>{STAGE_LABELS[k]}</MenuItem>)}
+                </TextField>
+              </Box>
               <Box sx={{ minWidth: 0 }}>
                 <FieldLabel htmlFor="gr-marble-winners">당첨 인원</FieldLabel>
                 <TextField id="gr-marble-winners" type="number" size="small" fullWidth

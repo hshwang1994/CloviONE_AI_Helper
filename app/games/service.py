@@ -69,6 +69,43 @@ def _timer_from_config(config: dict, game_type: str, now: datetime) -> tuple[int
     return timer, (now + timedelta(seconds=timer)).isoformat()
 
 
+#: 상태의 신원 스냅샷 열쇠(D-577). 시작할 때 구성원 전원의 이름 · 얼굴을 박는다 — `leave_room` 이 구성원 행을 지우므로
+#: 끝난 뒤 나간 사람의 얼굴은 `members` 로는 못 푼다. 초기화(`reset_room`)가 상태를 비울 때 함께 걷힌다.
+PEOPLE_KEY = "people"
+
+
+def people_snapshot(db: Session, room: GameRoom) -> dict:
+    """구성원 전원(관전자 포함)의 `{user_id: {name, avatar_url, avatar_default_key}}` — 얼굴 질의는 한 번이다."""
+    from app.core.people import avatar_map
+
+    rows = repository.members(db, room.id)
+    amap = avatar_map(db, [m.user_id for m in rows])
+    out: dict[str, dict] = {}
+    for m in rows:
+        face = amap.get(m.user_id) or {}
+        out[m.user_id] = {"name": m.display_name, "avatar_url": face.get("url"),
+                          "avatar_default_key": face.get("default_key")}
+    return out
+
+
+def state_people(room: GameRoom) -> dict:
+    """저장된 상태의 신원 스냅샷. 없거나 모양이 틀리면 빈 지도다."""
+    try:
+        state = json.loads(room.state_json or "{}")
+    except (TypeError, ValueError):
+        return {}
+    people = state.get(PEOPLE_KEY) if isinstance(state, dict) else None
+    return people if isinstance(people, dict) else {}
+
+
+def _stamp_people(db: Session, room: GameRoom) -> None:
+    """시작 직후 한 번 — 게임별 시작 함수가 쓴 상태에 신원 스냅샷을 더한다(같은 요청 안의 직접 쓰기 뒤라 CAS 가 필요 없다)."""
+    state = json.loads(room.state_json or "{}")
+    state[PEOPLE_KEY] = people_snapshot(db, room)
+    room.state_json = json.dumps(state, ensure_ascii=False)
+    db.flush()
+
+
 # PA-RC-0008: 이전엔 이름 없는 상수 5(지터 없음)였다 — 공용 기본값으로 통일한다.
 _APPEND_EVENT_RETRIES = DEFAULT_WRITE_CONFLICT_RETRIES
 
@@ -122,7 +159,12 @@ def _cas_update_state(db: Session, room: GameRoom, mutate) -> dict:
     함수 뒤에 온다) `db.rollback()` 으로 스냅샷을 새로 떠도 잃을 다른 변경이 없다."""
     for _ in range(5):
         old_json = room.state_json or "{}"
-        new_state = mutate(json.loads(old_json))
+        old_state = json.loads(old_json)
+        carried = old_state.get(PEOPLE_KEY) if isinstance(old_state, dict) else None
+        new_state = mutate(old_state)
+        # 결과를 새 사전으로 확정하는 갈래(투표 · 숫자 · 가위바위보 · 토너먼트)도 신원 스냅샷을 잃지 않는다(D-577).
+        if carried is not None and isinstance(new_state, dict) and PEOPLE_KEY not in new_state:
+            new_state = {**new_state, PEOPLE_KEY: carried}
         new_json = json.dumps(new_state, ensure_ascii=False)
         try:
             result = db.execute(
@@ -347,6 +389,13 @@ def start_game(db: Session, room: GameRoom, user: User, *, now: datetime) -> Gam
     # 무한 재추첨할 수 있었다(§13.1 공정성 훼손). 다시 하려면 반드시 초기화(reset)를 거친다.
     if room.status != ROOM_WAITING:
         raise ConflictError("이미 시작했거나 끝난 방입니다. 다시 하려면 먼저 초기화하세요.")
+    room = _start_by_type(db, room, user, now=now)
+    # 신원 스냅샷(D-577) — 결과가 나온 뒤 누가 나가도 판 · 결과 대화 상자 · 채팅이 그 사람의 얼굴과 이름을 푼다.
+    _stamp_people(db, room)
+    return room
+
+
+def _start_by_type(db: Session, room: GameRoom, user: User, *, now: datetime) -> GameRoom:
     if room.game_type == GAME_RANDOM_DRAW:
         return _run_random_draw(db, room, user, now=now)
     if room.game_type == GAME_TEAM_SPLIT:
@@ -377,8 +426,10 @@ def _run_random_draw(db: Session, room: GameRoom, user: User, *, now: datetime) 
     rng = secrets.SystemRandom()
     winners = rng.sample(players, winners_n)  # 서버가 공정하게 확정(§13.1)
     result = [{"user_id": m.user_id, "name": m.display_name} for m in winners]
+    # 추첨 대상(지금 있던 참여자) — 판이 「누구 중에서 뽑혔는가」를 그리고 결과 문장이 「n명 중 k명」을 센다(D-576).
+    pool = [{"user_id": m.user_id, "name": m.display_name} for m in players]
     room.status = ROOM_FINISHED
-    room.state_json = json.dumps({"result": result}, ensure_ascii=False)
+    room.state_json = json.dumps({"result": result, "pool": pool}, ensure_ascii=False)
     db.flush()
     _append_event(db, room, EV_START, actor_id=user.id, payload={}, now=now)
     _append_event(db, room, EV_RESULT, actor_id=user.id, payload={"winners": result}, now=now)
@@ -1142,7 +1193,10 @@ def next_quiz(db: Session, room: GameRoom, user: User, *, now: datetime) -> Game
                   "winners": [b["name"] for b in board if b["score"] == top and top > 0],
                   "winner_ids": [b["user_id"] for b in board if b["score"] == top and top > 0]}
         room.status = ROOM_FINISHED
-        room.state_json = json.dumps({"result": result}, ensure_ascii=False)
+        final = {"result": result}
+        if isinstance(state.get(PEOPLE_KEY), dict):
+            final[PEOPLE_KEY] = state[PEOPLE_KEY]  # 신원 스냅샷은 결과와 함께 남는다(D-577)
+        room.state_json = json.dumps(final, ensure_ascii=False)
         db.flush()
         _append_event(db, room, EV_RESULT, actor_id=user.id, payload=result, now=now)
         return room
@@ -1195,8 +1249,10 @@ def _score_view(scores: dict, state: dict) -> list[dict]:
 
 def public_state(room: GameRoom, user_id: str) -> dict:
     """클라이언트에 내려줄 안전한 상태. 숫자 눈치는 진행 중 남의 선택을 감추고 제출 여부/수만
-    노출한다(반전의 재미 + 눈치 게임 본질). 그 외 게임/상태는 state_json 그대로."""
+    노출한다(반전의 재미 + 눈치 게임 본질). 그 외 게임/상태는 state_json 그대로.
+    신원 스냅샷은 응답 최상위 `people` 로 따로 나가므로(`router.room_state`) 여기서는 뺀다 — 같은 값을 두 자리에 싣지 않는다."""
     state = json.loads(room.state_json or "{}")
+    state.pop(PEOPLE_KEY, None)
     if room.game_type == GAME_NUMBER and room.status == ROOM_PLAYING:
         picks = state.get("picks", {})
         return {

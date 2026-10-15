@@ -7,8 +7,10 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { Button, Callout, FieldLabel, Modal, ModalFooter } from "../../../ui/kit.jsx";
+import { KO_WORD_BREAK } from "../../../ui/theme.js";
+import { STAGE_KEYS, STAGE_LABELS } from "./engine/stages/labels.js";
 
-/* 방장의 경주 설정 — 참가자 · 당첨 인원 · 꼴찌 당첨 · 배속 (D-564). 대기 중에만 연다.
+/* 방장의 경주 설정 — 참가자 · 경주 판 · 당첨 인원 · 꼴찌 당첨 · 배속 (D-564 · D-578). 대기 중에만 연다.
  *
  * 참가자는 한 줄에 한 명이다(붙여 넣기로 여럿). 비워 두면 시작할 때 방 구성원이 참가자다. 이름이 겹치면 서버가 422 와
  * 「(2)」 제안을 돌려주고, 여기서는 그 제안을 한 번에 적용할 수 있다. 검증의 정본은 서버(`app/games/marble.py`)다 — 여기
@@ -41,6 +43,7 @@ export function MarbleSettingsModal({ open, onClose, config, members, mutations,
   const [winners, setWinners] = React.useState(1);
   const [pickLast, setPickLast] = React.useState(false);
   const [speed, setSpeed] = React.useState(1);
+  const [map, setMap] = React.useState("wheel");
   const [problem, setProblem] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
   const players = (members || []).filter((m) => m.role !== "spectator");
@@ -51,13 +54,15 @@ export function MarbleSettingsModal({ open, onClose, config, members, mutations,
     setWinners(current.winners || 1);
     setPickLast(!!current.pick_last);
     setSpeed(current.speed || 1);
+    setMap(current.map || "wheel");
     setProblem(null);
     setBusy(false);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const names = parseNames(text);
   const dirty = text !== (current.participants || []).map((p) => p.name).join("\n")
-    || Number(winners) !== (current.winners || 1) || pickLast !== !!current.pick_last || Number(speed) !== (current.speed || 1);
+    || Number(winners) !== (current.winners || 1) || pickLast !== !!current.pick_last || Number(speed) !== (current.speed || 1)
+    || map !== (current.map || "wheel");
   const fillMembers = () => setText(players.map((m) => m.name).join("\n"));
   const applySuggestions = (map) => {
     setText(names.map((n) => (map[n] ? map[n] : n)).join("\n"));
@@ -79,7 +84,7 @@ export function MarbleSettingsModal({ open, onClose, config, members, mutations,
         return uid ? { name, user_id: uid } : { name };
       });
       await mutations.marbleParticipants.mutateAsync({ participants });
-      await mutations.marbleConfig.mutateAsync({ winners: Number(winners) || 1, pick_last: !!pickLast, speed: Number(speed) || 1 });
+      await mutations.marbleConfig.mutateAsync({ winners: Number(winners) || 1, pick_last: !!pickLast, speed: Number(speed) || 1, map });
       onSaved && onSaved();
       onClose();
     } catch (e) {
@@ -110,7 +115,14 @@ export function MarbleSettingsModal({ open, onClose, config, members, mutations,
             <Button size="sm" onClick={fillMembers} disabled={!players.length}>방 구성원 이름으로 채우기</Button>
           </Stack>
         </Box>
-        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" } }}>
+          <Box sx={{ minWidth: 0 }}>
+            <FieldLabel id="marble-map-label">경주 판</FieldLabel>
+            <TextField SelectProps={{ labelId: "marble-map-label" }} id="marble-map" select size="small" fullWidth
+              value={map} onChange={(e) => setMap(e.target.value)}>
+              {STAGE_KEYS.map((k) => <MenuItem key={k} value={k}>{STAGE_LABELS[k]}</MenuItem>)}
+            </TextField>
+          </Box>
           <Box sx={{ minWidth: 0 }}>
             <FieldLabel htmlFor="marble-winners">당첨 인원</FieldLabel>
             <TextField id="marble-winners" type="number" size="small" fullWidth
@@ -128,6 +140,10 @@ export function MarbleSettingsModal({ open, onClose, config, members, mutations,
           control={<Checkbox checked={pickLast} onChange={(e) => setPickLast(e.target.checked)} />}
           label="꼴찌로 들어온 구슬이 당첨"
         />
+        {/* 결과의 뜻 한 줄(D-564) — 예전 「정보」 대화 상자에 있던 문장이다. 출처 고지는 사용자 메뉴의 「오픈소스 고지」로 갔다(D-579). */}
+        <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
+          모든 화면이 같은 seed 로 같은 경주를 계산하고 서버가 결과를 대조합니다. 「확인됨」은 서로 다른 화면의 결과가 일치했다는 뜻이고, 계산이 조작되지 않았다는 증명은 아닙니다.
+        </Typography>
         {problem ? (
           <Callout tone="danger" compact>
             <Box sx={{ display: "grid", gap: 1 }}>

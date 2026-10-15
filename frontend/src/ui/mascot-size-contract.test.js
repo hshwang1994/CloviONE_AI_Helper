@@ -142,7 +142,7 @@ describe("클로비 크기 계약", () => {
     /* 반례. 잠금에 없는 경로가 오면 `hfrac=1` 이라 박스가 «보이는 크기» 그대로다.
        이 값이 1 보다 작으면 모르는 자산이 조용히 커지고, 1 보다 크면 조용히 작아진다. */
     expect(hfracOf("/static/brand/mascot/없는-자산.png")).toBe(1);
-    expect(mascotBoxPx("gameCelebrate", "/없는/경로.png")).toBe(MASCOT_PLACE.gameCelebrate.visible);
+    expect(mascotBoxPx("chatStatus", "/없는/경로.png")).toBe(MASCOT_PLACE.chatStatus.visible);
   });
 });
 

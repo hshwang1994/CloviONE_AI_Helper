@@ -11,23 +11,30 @@ import { describe, it, expect, afterEach, vi } from "vitest";
  *   6) 지문은 서버(`app/games/marble.py::digest_of`)와 같은 글의 SHA-256 이다.
  */
 
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { atan2, cos, hypot, isInstalled, selfTest, sin, stats } from "./determinism.js";
-import { createRace, MAX_STEPS, STEP_MS } from "./race.js";
+import { createRace, MAX_STEPS, STEP_MS, slowmoQuant, SLOWMO_MIN } from "./race.js";
 import { raceDigest, sha256Hex } from "./sha256.js";
 import { ProgressMap } from "./progressMap.js";
 import { WHEEL } from "./stages/wheel.js";
+import { STAGES, STAGE_KEYS } from "./stages/index.js";
 import { createRng } from "./rng.js";
 
 function participants(n) {
   return Array.from({ length: n }, (_, i) => ({ key: `n:${String(i).padStart(3, "0")}`, name: `참가자 ${i + 1}` }));
 }
 
+/* 슬로 모션이 한 스텝의 논리 시간을 최대 1/0.25 배로 늘리므로(D-578) 상한은 물리 스텝 상한의 네 배 논리 시간이다. */
+const LOGICAL_CAP_MS = (MAX_STEPS / SLOWMO_MIN + 1000) * STEP_MS;
+
 function runToEnd(race, raceId, chunkMs) {
   let t = 0;
   while (!race.finished) {
-    t += chunkMs;
+    t += typeof chunkMs === "function" ? chunkMs() : chunkMs;
     race.stepTo(t, raceId);
-    if (t > (MAX_STEPS + 1000) * STEP_MS) break;
+    if (t > LOGICAL_CAP_MS) break;
   }
   return race.result;
 }
@@ -109,5 +116,104 @@ describe("경주", () => {
     expect(map.distanceAt(12, WHEEL.goalY + 0.5)).toBe(0);
     expect(map.distanceAt(12, 2)).toBeGreaterThan(50);
     expect(map.distanceAt(12, 100)).toBeLessThan(map.distanceAt(12, 2));
+  });
+});
+
+describe("슬로 모션 — 엔진의 시간 매핑 (D-578)", () => {
+  /* 물리 스텝은 언제나 10ms 이고 바뀌는 것은 한 스텝이 쓰는 논리 시간뿐이다 — 그래서 순위 · 완주 스텝 · 지문이 슬로 모션과 무관하다.
+     논리 시간 L 에서 정확히 max{k : T_k ≤ L} 스텝이고, T_k 는 모든 브라우저에서 같은 상태 S_k 로만 정해진다. */
+  it("켜고 끄고 순위 · 완주 스텝 · 지문이 같다", () => {
+    const on = runToEnd(createRace({ stage: WHEEL, participants: participants(16), seed: "slow-1", winners: 2 }), "s1", 100);
+    const off = runToEnd(createRace({ stage: WHEEL, participants: participants(16), seed: "slow-1", winners: 2, slowmo: false }), "s1", 100);
+    expect(on.ranking).toEqual(off.ranking);
+    expect(on.finish_steps).toEqual(off.finish_steps);
+    expect(on.digest).toBe(off.digest);
+  }, 60_000);
+
+  it("논리 시간을 무작위로 나눠 불러도 결과가 같다(프레임률 · 입장 시각과 무관)", () => {
+    const base = runToEnd(createRace({ stage: WHEEL, participants: participants(12), seed: "split", winners: 1, pickLast: true }), "r5", 1000);
+    const rng = createRng("splits");
+    const jitter = runToEnd(createRace({ stage: WHEEL, participants: participants(12), seed: "split", winners: 1, pickLast: true }), "r5", () => 1 + rng.int(400));
+    expect(jitter).toEqual(base);
+  }, 60_000);
+
+  it("T_k 는 스텝마다 늘고 L 을 넘지 않으며, 스텝 수는 논리 시간에 단조다", () => {
+    const race = createRace({ stage: WHEEL, participants: participants(10), seed: "mono", winners: 1 });
+    let lastSteps = 0;
+    let lastT = 0;
+    let slowSteps = 0;
+    for (let L = 0; !race.finished && L < LOGICAL_CAP_MS; L += 37) {
+      const before = race.step;
+      race.stepTo(L, "r6");
+      expect(race.step).toBeGreaterThanOrEqual(lastSteps);
+      expect(race.logicalMs).toBeGreaterThanOrEqual(lastT);
+      expect(race.logicalMs).toBeLessThanOrEqual(L + 1e-9);
+      if (race.step > before && race.logicalMs - lastT > (race.step - before) * STEP_MS + 1e-9) slowSteps += 1;
+      lastSteps = race.step;
+      lastT = race.logicalMs;
+    }
+    expect(race.finished).toBe(true);
+    expect(slowSteps).toBeGreaterThan(0); // 결승 근처에서 실제로 느려졌다
+    expect(race.logicalMs).toBeGreaterThan(race.step * STEP_MS);
+  }, 60_000);
+
+  it("배속은 0.25 ~ 1 이고 0.05 단위다", () => {
+    expect([0, 1, 3, 3.6, 6, 9, 12, 40].map(slowmoQuant)).toEqual([5, 5, 5, 6, 10, 15, 20, 20]);
+    const race = createRace({ stage: WHEEL, participants: participants(8), seed: "ts", winners: 1 });
+    const seen = new Set();
+    for (let L = 0; !race.finished && L < LOGICAL_CAP_MS; L += 50) {
+      race.stepTo(L, "r7");
+      const ts = race.snapshot().timeScale;
+      expect(ts).toBeGreaterThanOrEqual(0.25);
+      expect(ts).toBeLessThanOrEqual(1);
+      expect(Math.abs(ts * 20 - Math.round(ts * 20))).toBeLessThan(1e-9);
+      seen.add(ts);
+    }
+    expect(seen.size).toBeGreaterThan(2);
+  }, 60_000);
+
+  it("비눗방울 판 — 두 실행이 같은 스텝에 같은 장애물을 뺀다", () => {
+    const a = createRace({ stage: STAGES.bubble, participants: participants(20), seed: "pop", winners: 1 });
+    const b = createRace({ stage: STAGES.bubble, participants: participants(20), seed: "pop", winners: 1 });
+    let removed = 0;
+    for (let L = 0; !a.finished && L < LOGICAL_CAP_MS; L += 100) {
+      a.stepTo(L, "r8");
+      b.stepTo(L, "r8");
+      expect(b.step).toBe(a.step);
+      const ga = a.snapshot().entityGone;
+      expect(b.snapshot().entityGone).toEqual(ga);
+      removed = ga.filter(Boolean).length;
+    }
+    expect(removed).toBeGreaterThan(0);
+    expect(b.result).toEqual(a.result);
+  }, 120_000);
+
+  it("판마다 20개 구슬이 상한 안에 끝난다", () => {
+    for (const key of STAGE_KEYS) {
+      const result = runToEnd(createRace({ stage: STAGES[key], participants: participants(20), seed: `cap-${key}`, winners: 1 }), "r9", 1000);
+      expect(result.ranking).toHaveLength(20);
+      expect(Math.max(...result.finish_steps)).toBeLessThan(MAX_STEPS);
+    }
+  }, 240_000);
+
+  it("항아리 · 비눗방울 · 밤을 달리다도 100개 구슬이 상한 안에 끝난다(기본 목록의 조건)", () => {
+    for (const key of ["pot", "bubble", "yoru"]) {
+      const race = createRace({ stage: STAGES[key], participants: participants(100), seed: `cap100-${key}`, winners: 3 });
+      const result = runToEnd(race, "r10", 2000);
+      expect(result.ranking).toHaveLength(100);
+      expect(Math.max(...result.finish_steps)).toBeLessThan(MAX_STEPS);
+      // 1배속 벽시계 = 끝난 경주의 논리 시간(슬로 모션 포함). 240초 안이어야 기본 목록에 선다.
+      expect(race.logicalMs).toBeLessThan(MAX_STEPS * STEP_MS);
+    }
+  }, 600_000);
+
+  it("판 열쇠가 서버의 MAPS 와 같다", () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const py = fs.readFileSync(path.resolve(here, "../../../../../../app/games/marble.py"), "utf-8");
+    const m = /^MAPS = \(([^)]*)\)/m.exec(py);
+    expect(m).not.toBeNull();
+    const server = m[1].split(",").map((x) => x.trim().replace(/^"|"$/g, "")).filter(Boolean);
+    expect(STAGE_KEYS).toEqual(server);
+    expect(Object.keys(STAGES)).toEqual(STAGE_KEYS); // 이름 목록(labels.js)과 자료 목록이 같다
   });
 });

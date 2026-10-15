@@ -108,7 +108,6 @@ export const MASCOT_PLACE = {
   chatStatus:    { visible: 40,  context: "inline" },
   chatWelcome:   { visible: 132, context: "inline", live: true },
   loginHandoff:  { visible: 144, context: "hero" },
-  gameCelebrate: { visible: 96,  context: "inline" },
   /* 빈 화면·오류 화면의 그림. 마스코트 포즈가 아니라 `ART` 일러스트가 앉는 자리지만
      여백 문제도 판정 밴드도 같아서 같은 표에서 다룬다(`kit.jsx` 가 쓴다).
      `emptyPage` 만 `empty_state` 밴드다 — 그 밴드의 위쪽 절반("빈 공간을 캐릭터로 때우는가")은

@@ -3,10 +3,14 @@
 프런트 번들의 라이브러리(React, MUI 등)는 각 패키지의 `LICENSE` 가 `node_modules` 에 있고 여기 다시 적지 않는다. 이 문서는
 **코드나 자료를 옮겨 왔거나, 고지 유지를 조건으로 하는 것**만 적는다.
 
+앱 안에서는 사용자 메뉴의 「오픈소스 고지」(`frontend/src/app/OpenSourceNotices.jsx`, D-579)가 같은 목록을 한 문장씩 보인다. 이 문서의
+`## ` 머리마다 그 화면에 항목이 하나 있어야 한다 — `frontend/src/app/open-source-notices.test.jsx` 가 둘을 대조한다.
+
 ## 구슬 레이스 — Marble Roulette (lazygyu), MIT
 
-구슬 레이스(`frontend/src/screens/game-room/marble/`)는 https://github.com/lazygyu/roulette 의 물리 규칙, 경주 판 자료, 순위 계산을
-바탕으로 했다. 기준 커밋과 라이선스 전문, 상표 고지("Marble Roulette"™ · "마블 룰렛"™ 은 lazygyu 의 상표)는
+구슬 레이스(`frontend/src/screens/game-room/marble/`)는 https://github.com/lazygyu/roulette 의 물리 규칙, 경주 판 자료(「Wheel of
+fortune」 · 「Pot of greed」 · 「BubblePop」 · 「Yoru ni Kakeru」 — 제품 안 이름은 운명의 바퀴 · 탐욕의 항아리 · 비눗방울 · 밤을 달리다),
+순위 계산을 바탕으로 했다. 기준 커밋과 라이선스 전문, 상표 고지("Marble Roulette"™ · "마블 룰렛"™ 은 lazygyu 의 상표)는
 `frontend/src/screens/game-room/marble/ATTRIBUTION.md` 에 있다. 제품 안 이름은 「구슬 레이스」만 쓴다.
 
 ## planck 1.5.0 — Box2D 의 JavaScript 이식, MIT
@@ -48,3 +52,10 @@ Permission to use, copy, modify, and distribute this
 software is freely granted, provided that this notice
 is preserved.
 ```
+
+## DiceBear — 기본 아바타 스타일, CC0 1.0
+
+사진이 없는 사람의 기본 얼굴(`frontend/src/ui/DefaultAvatar.jsx`)은 DiceBear(https://www.dicebear.com)의 `@dicebear/core` 로 브라우저
+안에서 그린다. 쓰는 스타일 다섯(lorelei · notionists · open-peeps · pixel-art · thumbs)은 모두 CC0 1.0 이라 표시 의무가 없지만, 출처를
+앱의 「오픈소스 고지」와 여기에 함께 적는다. 스타일이 스스로 신고하는 라이선스는 `default-avatar-keys-match-backend.test.js` 가 실행 때
+다시 읽어 확인한다.

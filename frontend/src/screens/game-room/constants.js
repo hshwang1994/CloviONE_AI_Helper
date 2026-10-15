@@ -5,7 +5,9 @@ import { keyframes } from "@mui/system";
  * 있던 지역 RPS_LABELS/RPS_EMOJI와 RpsTournamentLive가 쓰던 T_RPS_LABELS/T_RPS_EMOJI는 완전히
  * 같은 값(["가위","바위","보"] / ["✌️","✊","✋"])이었다 — 옮기며 하나로 합쳤다. */
 
-export const STATUS_LABELS = { waiting: "대기 중", playing: "진행 중", finished: "결과 확인 중" };
+/* `finished` 는 「종료」다 — 목록(`Games.jsx`) · 방 툴바 · 결과 대화 상자가 같은 낱말을 쓴다. 예전의 「결과 확인 중」은 구슬 레이스의
+   확인 창(`verifying`)과 뜻이 겹쳐 끝난 방이 아직 확인 중인 것처럼 읽혔다. */
+export const STATUS_LABELS = { waiting: "대기 중", playing: "진행 중", finished: "종료" };
 export const STATUS_KIND = { waiting: "info", playing: "warn", finished: "ok" };
 export const ROLE_LABELS = { host: "방장", player: "참여", spectator: "관전" };
 

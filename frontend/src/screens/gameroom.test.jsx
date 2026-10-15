@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
@@ -16,8 +16,8 @@ import "@testing-library/jest-dom/vitest";
  * 동시에 '동작 최소화'는 **연출만** 끄는 것이지 정보를 끄는 게 아니다 — 당첨자 이름은 어떤
  * 설정에서도 똑같이 보여야 한다.
  *
- * 발표 단위(D-563): 축포는 **결과가 확정되는 순간**(진행 중 → 종료) 한 번이다. 이미 끝난 방을 열거나 새로고침한 사람은
- * 발표를 본 것이 아니므로 결과만 보이고 축포가 없다. 같은 결과를 폴링으로 다시 받아도 다시 터지지 않는다.
+ * 발표 단위(D-563 · D-576): 축포는 **결과가 확정되는 순간**(진행 중 → 종료) 한 번이다. 이미 끝난 방을 열거나 새로고침한 사람은
+ * 발표를 본 것이 아니므로 결과 대화 상자가 공개 상태로 바로 열리고 축포가 없다. 같은 결과를 폴링으로 다시 받아도 다시 터지지 않는다.
  */
 
 const apiMock = vi.fn();
@@ -114,7 +114,7 @@ describe("축포는 OS 설정과 무관하게 터진다", () => {
 
     // 결과는 폴링 한 바퀴(1.2초) 뒤 발표 전환(0.8초)을 거쳐 공개된다.
     // ('박개발'은 참여자 목록에도 있으므로 여러 번 나온다 — 당첨 자리에 나오는지가 요점이다.)
-    expect(await screen.findByText("당첨", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText("당첨을 축하합니다!", {}, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getAllByText("박개발").length).toBeGreaterThan(1);
     await waitFor(() => expect(confettiMock).toHaveBeenCalled(), { timeout: 3000 });
     // 뒤 두 발은 예약된 타이머다 — 여기서 걷지 않으면 다음 시험 도중에 발사된다.
@@ -126,7 +126,7 @@ describe("축포는 OS 설정과 무관하게 터진다", () => {
     playingThenFinished();
     renderRoom();
 
-    await screen.findByText("당첨", {}, { timeout: 5000 });
+    await screen.findByText("당첨을 축하합니다!", {}, { timeout: 5000 });
     await waitFor(() => expect(confettiMock).toHaveBeenCalled(), { timeout: 3000 });
     // 축포는 가운데 → 왼쪽 → 오른쪽으로 나눠 터진다(뒤 두 발은 예약된 타이머다).
     await sleep(400);
@@ -142,7 +142,7 @@ describe("축포는 OS 설정과 무관하게 터진다", () => {
     delete window.matchMedia;
     playingThenFinished();
     renderRoom();
-    await screen.findByText("당첨", {}, { timeout: 5000 });
+    await screen.findByText("당첨을 축하합니다!", {}, { timeout: 5000 });
     await waitFor(() => expect(confettiMock).toHaveBeenCalled(), { timeout: 3000 });
     await sleep(400);
   });
@@ -152,7 +152,7 @@ describe("발표 단위 (D-563)", () => {
   it("이미 끝난 방을 열면 결과는 바로 보이지만 축포는 없다 — 발표를 본 것이 아니다", async () => {
     setMatchMedia(false);
     renderRoom();
-    expect(await screen.findByText("당첨")).toBeInTheDocument();
+    expect(await screen.findByText("당첨을 축하합니다!")).toBeInTheDocument();
     expect(document.querySelector('[data-result-panel="revealed"]')).not.toBeNull();
     await sleep(1500);
     expect(confettiMock).not.toHaveBeenCalled();
@@ -163,8 +163,44 @@ describe("발표 단위 (D-563)", () => {
     playingThenFinished();
     renderRoom();
     expect(await screen.findByText(/결과를 발표합니다/, {}, { timeout: 4000 })).toBeInTheDocument();
-    expect(screen.queryByText("당첨")).toBeNull();
-    expect(await screen.findByText("당첨", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.queryByText("당첨을 축하합니다!")).toBeNull();
+    expect(await screen.findByText("당첨을 축하합니다!", {}, { timeout: 3000 })).toBeInTheDocument();
+    await sleep(400);
+  });
+});
+
+describe("결과 대화 상자의 다시 열기 · 초기화 (D-576)", () => {
+  it("닫았다가 [결과 보기]로 다시 열면 발표 · 축포 없이 공개 상태 그대로다", async () => {
+    setMatchMedia(false);
+    playingThenFinished();
+    renderRoom();
+    await screen.findByText("당첨을 축하합니다!", {}, { timeout: 5000 });
+    await waitFor(() => expect(confettiMock).toHaveBeenCalled(), { timeout: 3000 });
+    await sleep(400);
+    const fired = confettiMock.mock.calls.length;
+    const closes = within(screen.getByRole("dialog")).getAllByRole("button", { name: "닫기" });
+    fireEvent.click(closes[closes.length - 1]);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "결과 보기" }));
+    expect(await screen.findByText("당첨을 축하합니다!")).toBeInTheDocument();
+    expect(document.querySelector('[data-result-panel="revealed"]')).not.toBeNull();
+    await sleep(1200);
+    expect(confettiMock.mock.calls.length).toBe(fired);
+  });
+
+  it("초기화 뒤 새 결과(새 열쇠)는 다시 발표하고 축포를 쏜다 — 처음 연 방의 지난 결과는 쏘지 않는다", async () => {
+    setMatchMedia(false);
+    const waiting = { ...FINISHED_DRAW, room: { ...FINISHED_DRAW.room, status: "waiting" }, state: {}, seq: 3, result_seq: null };
+    const again = { ...FINISHED_DRAW, seq: 5, result_seq: 5 };
+    const seq = [FINISHED_DRAW, waiting];
+    let n = 0;
+    apiMock.mockImplementation(() => { n += 1; return Promise.resolve(seq[n - 1] || again); });
+    renderRoom();
+    await screen.findByText("당첨을 축하합니다!");
+    expect(confettiMock).not.toHaveBeenCalled(); // 지난 결과 — 발표를 본 것이 아니다
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), { timeout: 4000 }); // 초기화 → 닫힘
+    expect(await screen.findByText(/결과를 발표합니다/, {}, { timeout: 4000 })).toBeInTheDocument();
+    await waitFor(() => expect(confettiMock).toHaveBeenCalled(), { timeout: 3000 });
     await sleep(400);
   });
 });
@@ -181,7 +217,7 @@ describe("승자가 없는 결과에는 축포를 쓰지 않는다", () => {
     let n = 0;
     apiMock.mockImplementation(() => { n += 1; return Promise.resolve(n === 1 ? teamPlaying : teamFinished); });
     renderRoom();
-    expect(await screen.findByText("1팀", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect((await screen.findAllByText("1팀", {}, { timeout: 5000 })).length).toBeGreaterThan(0);
     await sleep(600);
     expect(confettiMock).not.toHaveBeenCalled();
   });

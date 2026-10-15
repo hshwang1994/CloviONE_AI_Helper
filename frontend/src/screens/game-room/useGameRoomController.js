@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { alpha } from "@mui/material/styles";
@@ -6,8 +6,13 @@ import { api } from "../../lib/api.js";
 import { failureText } from "../../lib/failure.js";
 import { useGuardedMutation } from "../../lib/useGuardedMutation.js";
 import { useConfirm, useToast } from "../../ui/kit.jsx";
+import { RADIUS } from "../../ui/theme.js";
 import { celebrate, deriveCelebrateKey, deriveResultKey } from "./celebration.js";
 import { useCountdown } from "./timeUtils.js";
+import { useRevealMachine } from "./revealMachine.js";
+import { buildPeople } from "./people.js";
+import { deriveRoomStatus, participantSummary } from "./roomStatus.js";
+import { useMarbleRoom } from "./marble/useMarbleRoom.js";
 
 /* 채팅 패널에 흘려보낼 이벤트: 대화 그 자체 + 사람이 읽을 수 있는 안내문이 달린 system 이벤트
  * (예: 방장이 나가 다른 참여자에게 위임될 때 app/games/service.py::leave_room 이 남기는
@@ -127,7 +132,7 @@ export function useGameRoomController(id) {
     mutationFn: (option) => api(`/api/games/rooms/${id}/quiz-answer`, { method: "POST", body: { option } }),
     onSuccess: () => state.refetch(),
   });
-  const reveal = useMutation({
+  const reveal_ = useMutation({
     mutationFn: () => api(`/api/games/rooms/${id}/reveal`, { method: "POST" }),
     onSuccess: () => state.refetch(),
   });
@@ -186,7 +191,7 @@ export function useGameRoomController(id) {
     [pick, "숫자를 내지 못했습니다. 다시 시도해 주세요."],
     [rps, "내지 못했습니다. 다시 시도해 주세요."],
     [quizAnswer, "답을 내지 못했습니다. 다시 시도해 주세요."],
-    [reveal, "정답을 공개하지 못했습니다. 다시 시도해 주세요."],
+    [reveal_, "정답을 공개하지 못했습니다. 다시 시도해 주세요."],
     [nextQ, "다음으로 넘어가지 못했습니다. 다시 시도해 주세요."],
     [marbleFinish, "경주 결과를 올리지 못했습니다. 다시 시도해 주세요."],
     [marbleAttest, "경주 결과를 올리지 못했습니다. 다시 시도해 주세요."],
@@ -196,8 +201,8 @@ export function useGameRoomController(id) {
   );
   const chatFailure = failureText([chat, "메시지를 보내지 못했습니다. 다시 시도해 주세요."]);
 
-  /* 발표 열쇠 — 방 id + 결과 번호(`result_seq`, D-563). 결과 판(`ResultPanel`)이 이 열쇠로 「발표 전환 → 당첨자 공개」를
-   * 한 번 돌리고, 공개되는 순간 `celebrateOnReveal` 을 부른다. 축포는 열쇠당 한 번이다.
+  /* 발표 열쇠 — 방 id + 결과 번호(`result_seq`, D-563). 결과 대화 상자의 상태 기계(`revealMachine.js`, D-576)가 이 열쇠로
+   * 「발표 → 당첨자 공개」를 한 번 돌리고, 공개되는 순간 축포를 한 번 쏜다(승자가 있는 결과만).
    *
    * 🔴 이 방을 **처음 열었을 때 본 열쇠**는 「지난 결과」다 — 이미 끝난 방에 늦게 들어오거나 새로고침한 사람은 발표를 본 것이
    * 아니므로 전환 없이 결과만 보이고 축포도 없다(`instant`). 그 뒤 값이 실제로 달라진 때만 발표한다. 훅 순서 유지를 위해
@@ -205,17 +210,25 @@ export function useGameRoomController(id) {
   const resultKey = deriveResultKey(state.data);
   const roomKeyRef = useRef(null);
   const firstKeyRef = useRef(undefined);
-  const firedKeyRef = useRef(null);
-  /* 렌더 중에 정한다 — 결과 판은 데이터가 온 그 렌더에 마운트되므로, effect 로 미루면 첫 렌더가 「처음 본 열쇠」를 모른 채
-     발표 전환을 시작한다. 방이 바뀌면 그 방의 첫 열쇠를 새로 본다. */
-  if (roomKeyRef.current !== id) { roomKeyRef.current = id; firstKeyRef.current = undefined; firedKeyRef.current = null; }
+  /* 렌더 중에 정한다 — 데이터가 온 그 렌더에 기계가 「처음 본 열쇠」를 알아야 늦게 들어온 사람에게 발표 전환을 시작하지 않는다.
+     방이 바뀌면 그 방의 첫 열쇠를 새로 본다. */
+  if (roomKeyRef.current !== id) { roomKeyRef.current = id; firstKeyRef.current = undefined; }
   if (state.data && firstKeyRef.current === undefined) firstKeyRef.current = resultKey;
   const hasWinners = deriveCelebrateKey(state.data) != null;
-  const celebrateOnReveal = (key) => {
-    if (!key || firedKeyRef.current === key || !hasWinners) return;
-    firedKeyRef.current = key;
-    celebrate();
-  };
+  /* 축포 캔버스 — 전체 화면일 때만 방의 루트 안에 선다(`GameRoom.jsx` 의 겹침 슬롯). 전체 화면인 요소는 그 밖의 캔버스를 가린다.
+     없으면 `celebrate()` 가 문서의 기본 캔버스에 쏜다. */
+  const celebrateCanvasRef = useRef(null);
+  const reveal = useRevealMachine({
+    key: resultKey,
+    instant: resultKey != null && resultKey === firstKeyRef.current,
+    hasWinners,
+    fire: () => celebrate({ canvas: celebrateCanvasRef.current || undefined }),
+  });
+  /* 신원 지도(D-577) — 서버의 스냅샷(`people`) 위에 지금 구성원. 판 · 대화 상자 · 채팅의 모든 얼굴이 이것으로 풀린다. */
+  const people = useMemo(() => buildPeople(state.data), [state.data]);
+  /* 구슬 레이스(D-564 · D-578) — 경주 계산 · 참가자 · 확정 결과. 판(캔버스) · 순위 레일 · 툴바 · 결과 대화 상자가 함께 읽으므로
+     방 단위로 한 번 돈다(판 안에 두면 레일이 판을 거쳐야 순위를 안다). 구슬 방이 아니면 아무것도 돌리지 않는다. */
+  const marble = useMarbleRoom({ data: state.data, mutations: { marbleFinish, marbleAttest } });
 
   // 방이 사라지면(방장이 파함 → 404, 또는 closed 표시) 목록으로 돌려보낸다. 한 번만.
   const notFound = state.isError && state.error && state.error.status === 404;
@@ -303,9 +316,11 @@ export function useGameRoomController(id) {
   const quizResult = isQuiz ? (gstate.result || null) : null;
   const quizPlaying = isQuiz && room.status === "playing" ? gstate : null;
   const canQuizAnswer = isQuiz && room.status === "playing" && gstate.phase === "answering" && you.in_room && you.role !== "spectator";
+  /* 이름은 신원 지도에서 — 진행 중에 나간 사람의 점수 줄도 이름과 얼굴이 남는다(D-577). */
   const nameOf = {};
+  Object.values(people).forEach((p) => { nameOf[p.user_id] = p.name; });
   members.forEach((m) => { nameOf[m.user_id] = m.name; });
-  const liveScores = (quizPlaying?.scores || []).map((s) => ({ name: nameOf[s.user_id] || "?", score: s.score }));
+  const liveScores = (quizPlaying?.scores || []).map((s) => ({ user_id: s.user_id, name: nameOf[s.user_id] || "?", score: s.score }));
   const voteResult = isVote ? (gstate.result || null) : null;
   // 빠른 투표 진행 중: state.votes(uid→선택지 index)로 라이브 집계 + 내 선택 표시.
   const voteOptions = isVote ? (gstate.options || voteResult?.options || []) : [];
@@ -329,9 +344,36 @@ export function useGameRoomController(id) {
 
   const sendChat = () => { const t = draft.trim(); if (t && !chat.isPending) chat.mutate(t); };
 
+  /* 상태의 정본 하나(G2) — 툴바가 이것만 그린다. 구슬 레이스는 서버의 단계 · 무결성이 방 상태보다 정확한 말이다. */
+  const status = deriveRoomStatus({ room, gstate, you });
+  const summary = participantSummary({ room, gstate, members, marble: marble.isMarble ? { finishedCount: marble.finishedCount } : null });
+  /* 툴바의 동작 — 방장 · 참가자 · 관전자, 단계마다 다르다. 같은 판정이 판 아래 · 툴바 두 곳에 있으면 갈라진다(예전의 판 아래 동작 줄). */
+  const startLabel = isMarble ? "경주 시작" : isVote ? "투표 시작" : isTeam ? "팀 나누기" : isNumber ? "숫자 눈치 시작"
+    : isLadder ? "사다리 타기" : isRps ? "가위바위보 시작" : isQuiz ? "퀴즈 시작" : "추첨 시작";
+  let primary = null;
+  if (isHost && room.status === "waiting") {
+    primary = { key: "start", label: startLabel, onClick: () => start.mutate(), pending: start.isPending };
+  } else if (isHost && (isVote || isNumber || isRps) && room.status === "playing") {
+    primary = { key: "finish", label: isVote ? "투표 종료" : isTournament ? "이 라운드 마감" : "결과 공개", onClick: () => finish.mutate(), pending: finish.isPending };
+  } else if (isHost && isQuiz && room.status === "playing" && quizPlaying?.phase === "answering") {
+    primary = { key: "reveal", label: "정답 공개", onClick: () => reveal_.mutate(), pending: reveal_.isPending };
+  } else if (isHost && isQuiz && room.status === "playing" && quizPlaying?.phase === "revealed") {
+    primary = { key: "next", label: (quizPlaying.round || 0) + 1 >= quizPlaying.total ? "결과 보기" : "다음 문제", onClick: () => nextQ.mutate(), pending: nextQ.isPending };
+  } else if (isHost && room.status === "finished") {
+    primary = { key: "reset", label: "다시 하기", onClick: () => reset.mutate(), pending: reset.isPending };
+  }
+  const actions = {
+    primary,
+    ready: canReady ? { key: "ready", label: you.ready ? "준비 해제" : "준비", on: !!you.ready, onClick: () => ready.mutate(!you.ready), pending: ready.isPending } : null,
+    /* 끝난 결과가 있고 대화 상자가 닫혀 있으면 누구나 다시 연다(재발표 · 축포 없음). */
+    showResult: room.status === "finished" && reveal.key != null && !reveal.open,
+    settings: isMarble && isHost && marble.waiting,
+    disband: isHost,
+  };
+
   const voteOptionSx = (mine, correct, preview) => ({
     width: "100%", display: "flex", alignItems: "center", gap: 1.5, textAlign: "left",
-    px: 2, py: 1.5, borderRadius: 2, cursor: preview ? "default" : "pointer",
+    px: 2, py: 1.5, borderRadius: `${RADIUS.md}px`, cursor: preview ? "default" : "pointer",
     border: 1, borderColor: correct ? "success.main" : mine ? "primary.main" : "divider",
     bgcolor: (t) => (correct ? alpha(t.palette.success.main, 0.12)
       : mine ? alpha(t.palette.primary.main, 0.12) : t.palette.background.paper),
@@ -353,8 +395,8 @@ export function useGameRoomController(id) {
     room, you, members, gstate, chatMsgs,
     isVote, isTeam, isDraw, isNumber, isLadder, isRps, isQuiz, isMarble, isHost, isTournament,
     serverNow: state.data.now || null,
-    revealPlan: { key: resultKey, instant: resultKey != null && resultKey === firstKeyRef.current },
-    celebrateOnReveal,
+    people, reveal, marble, celebrateCanvasRef,
+    status, summary, actions,
     canReady, canVote, canPick, canRps, canQuizAnswer,
     drawWinners, teams, ladderAssignments, numResult, rpsResult,
     quizResult, quizPlaying, liveScores,
@@ -363,7 +405,7 @@ export function useGameRoomController(id) {
     remaining,
     draft, setDraft, numDraft, setNumDraft, sendChat, voteOptionSx,
     chatLogRef,
-    mutations: { join, ready, start, vote, finish, pick, rps, quizAnswer, reveal, nextQ, reset, leave, disband, chat, marbleParticipants, marbleConfig, marbleFinish, marbleAttest },
+    mutations: { join, ready, start, vote, finish, pick, rps, quizAnswer, reveal: reveal_, nextQ, reset, leave, disband, chat, marbleParticipants, marbleConfig, marbleFinish, marbleAttest },
     actionFailure, chatFailure,
     disbandWithConfirm,
   };

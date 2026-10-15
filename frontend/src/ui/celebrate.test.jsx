@@ -9,7 +9,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render } from "@testing-library/react";
 
 const confettiSpy = vi.fn();
-vi.mock("canvas-confetti", () => ({ default: (...a) => confettiSpy(...a) }));
+const createSpy = vi.fn();
+const canvasFireSpy = vi.fn();
+vi.mock("canvas-confetti", () => {
+  const fn = (...a) => confettiSpy(...a);
+  fn.create = (...a) => { createSpy(...a); return (...b) => canvasFireSpy(...b); };
+  return { default: fn };
+});
 
 import {
   celebrateIfCleared, useCelebrateOnCleared, resetBurstCooldown,
@@ -28,6 +34,8 @@ beforeEach(() => {
   // 그 기억은 모듈 전역이라 시험 사이에 새므로 여기서 비운다.
   resetBurstCooldown();
   confettiSpy.mockClear();
+  createSpy.mockClear();
+  canvasFireSpy.mockClear();
   vi.useFakeTimers();
 });
 afterEach(() => {
@@ -236,5 +244,42 @@ describe("축하 효과 스위치 (D-563)", () => {
     expect(isCelebrationEnabled()).toBe(true);
     celebrate();
     expect(confettiSpy).toHaveBeenCalled();
+  });
+});
+
+/* ── 전체 화면의 축포 (D-575) ───────────────────────────────────────────────
+ *
+ * 전체 화면인 요소는 그 밖의 캔버스를 가린다 — 놀이방은 자기 루트 안의 캔버스를 넘긴다(`celebrate({ canvas })`). 캔버스마다 발사기를
+ * 한 번만 만들고(`confetti.create(canvas, { resize: true, useWorker: false })`), 겹침 방지와 「축하 효과」 스위치는 그대로 함께 쓴다. */
+describe("캔버스를 넘기면 그 캔버스에 쏜다", () => {
+  it("발사기는 캔버스마다 한 번 — 워커 없이 크기를 따라간다", () => {
+    const canvas = document.createElement("canvas");
+    celebrate({ canvas });
+    vi.runAllTimers();
+    expect(createSpy).toHaveBeenCalledTimes(1);
+    expect(createSpy).toHaveBeenCalledWith(canvas, { resize: true, useWorker: false });
+    expect(canvasFireSpy).toHaveBeenCalledTimes(3);
+    expect(confettiSpy).not.toHaveBeenCalled();
+    resetBurstCooldown();
+    celebrate({ canvas });
+    expect(createSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("겹침 방지는 문서의 축포와 함께 쓴다", () => {
+    celebrate({ canvas: document.createElement("canvas") });
+    celebrate();
+    expect(confettiSpy).not.toHaveBeenCalled();
+  });
+
+  it("「축하 효과」를 끄면 캔버스에도 쏘지 않는다", () => {
+    setCelebrationEnabled(false);
+    try {
+      celebrate({ canvas: document.createElement("canvas") });
+      vi.runAllTimers();
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(canvasFireSpy).not.toHaveBeenCalled();
+    } finally {
+      setCelebrationEnabled(true);
+    }
   });
 });

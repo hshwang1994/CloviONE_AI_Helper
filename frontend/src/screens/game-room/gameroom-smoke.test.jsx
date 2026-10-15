@@ -8,7 +8,7 @@ import "@testing-library/jest-dom/vitest";
 /* 게임방 구조 분리(2026-08) 스모크 테스트.
  *
  * gameroom.test.jsx는 축포/접근성 계약만 다루고, "당첨자가 확정된 랜덤 추첨"과 "팀 나누기"
- * 결과 화면만 렌더한다 — GameStage.jsx의 quick_vote/waiting 분기, RoomSidebar/MembersList/
+ * 결과 화면만 렌더한다 — GameStage.jsx의 quick_vote/waiting 분기, RoomRail/MembersList/
  * ChatPanel은 그 테스트로는 한 번도 렌더되지 않는다. 이 파일에서 값 변경 없이 GameRoom.jsx를
  * game-room/ 아래 여러 파일로 옮기며 조립 배선(누구에게 어떤 prop을 넘기는지)이 가장 틀리기
  * 쉬운 지점이었다 — 그 배선이 살아있는지 최소한으로 확인한다. */
@@ -69,21 +69,27 @@ describe("게임방 구조 분리 스모크", () => {
   it("대기 중인 빠른 투표 방을 배선 그대로 렌더한다(무대·참여자·채팅·액션 버튼)", async () => {
     renderRoom();
 
-    // 무대(GameStage) 위 배지 — 게임 종류/상태 라벨.
+    // 툴바(RoomToolbar) — 게임 종류 · 상태 라벨. 상태 낱말은 페이지에 한 번이다(D-575).
     expect(await screen.findByText("빠른 투표")).toBeInTheDocument();
-    expect(screen.getByText("대기 중")).toBeInTheDocument();
+    expect(screen.getAllByText("대기 중")).toHaveLength(1);
+    expect(screen.getByText("참여 1/8")).toBeInTheDocument();
 
-    // 참여자 레일(RoomSidebar → MembersList).
-    expect(screen.getByText("참여자 1명")).toBeInTheDocument();
-    expect(screen.getByText("김운영")).toBeInTheDocument();
-    expect(screen.getByText("방장")).toBeInTheDocument();
+    // 판(BoardFrame → VoteBoard) — 대기 중에도 판이 선다(질문 · 보기 미리 보기).
+    expect(document.querySelector('[data-vote-board="waiting"]')).not.toBeNull();
 
-    // 채팅 레일(RoomSidebar → ChatPanel) — 메시지가 없을 때의 안내문(kit EmptyState, DS-14).
+    // 참여자 레일(RoomRail → MembersRows). 인원수는 툴바가 말하므로 머리글은 「참여자」뿐이다.
+    expect(screen.getByRole("heading", { name: "참여자" })).toBeInTheDocument();
+    expect(screen.getAllByText("김운영").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("방장").length).toBeGreaterThan(0);
+
+    // 채팅 레일(RoomRail → ChatPanel) — 메시지가 없을 때의 안내문(kit EmptyState, DS-14).
     expect(screen.getByText("아직 메시지가 없습니다")).toBeInTheDocument();
     expect(screen.getByText("먼저 인사해 보세요.")).toBeInTheDocument();
 
-    // 방장 + 대기 상태 → 시작 버튼.
+    // 방장 + 대기 상태 → 툴바의 시작 버튼 · 나가기 · 넘침(방 파하기).
     expect(screen.getByRole("button", { name: "투표 시작" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "나가기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "방 동작 더 보기" })).toBeInTheDocument();
   });
 });
 

@@ -237,3 +237,29 @@ def test_host_only_result_is_announced_with_that_mark_and_the_digest_matches_pyt
     done = _state(client, rid)
     assert done["state"]["integrity"] == {"status": "host_only", "agree": 0, "disagree": 0, "source": "host", "submissions": 1}
     assert done["state"]["announceable"] is True
+
+
+def test_start_snapshots_people(app, client, login_as, make_user):
+    """D-577 — 경주를 시작하면 구성원 전원의 신원이 상태에 박혀, 결과 뒤 나간 참가자의 구슬도 얼굴로 그린다."""
+    rid, csrf, c2, csrf2 = _room_with_two(app, client, login_as, make_user)
+    leaver_id = c2.get("/api/me").json()["user"]["id"]
+    assert client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf}).status_code == 200
+    assert c2.post(f"/api/games/rooms/{rid}/leave", headers={"X-CSRF-Token": csrf2}).status_code == 200
+    st = _state(client, rid)
+    assert leaver_id in st["people"] and st["people"][leaver_id]["name"]
+    assert leaver_id in {p["user_id"] for p in st["state"]["participants"]}
+    assert "people" not in st["state"]
+
+
+def test_map_choices(app, client, login_as, make_user):
+    """D-578 — 경주 판은 네 개(바퀴 · 항아리 · 비눗방울 · 밤을 달리다)이고 고른 판이 경주에 박힌다. 모르는 판은 422."""
+    rid, csrf, c2, csrf2 = _room_with_two(app, client, login_as, make_user)
+    h = {"X-CSRF-Token": csrf}
+    assert marble.MAPS == ("wheel", "pot", "bubble", "yoru")
+    for key in marble.MAPS:
+        r = client.put(f"/api/games/rooms/{rid}/marble/config", json={"map": key}, headers=h)
+        assert r.status_code == 200 and r.json()["config"]["map"] == key, r.text
+    assert client.put(f"/api/games/rooms/{rid}/marble/config", json={"map": "moon"}, headers=h).status_code == 422
+    assert _state(client, rid)["state"]["config"]["map"] == "yoru"
+    assert client.post(f"/api/games/rooms/{rid}/start", headers=h).status_code == 200
+    assert _state(client, rid)["state"]["map"] == "yoru"

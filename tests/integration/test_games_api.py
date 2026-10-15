@@ -1128,3 +1128,51 @@ def test_vote_quiz_and_tournament_results_carry_ids_not_only_labels(app, client,
     match = fin["state"]["result"]["rounds"][0][0]
     assert match["winner"] == other_id and {match["a"], match["b"]} == {me_id, other_id}
     assert fin["state"]["result"]["champion"]["user_id"] == other_id
+
+
+def test_people_snapshot_survives_leaving(app, client, login_as, make_user):
+    """D-577 — 시작할 때 구성원 전원의 신원(이름 · 얼굴)을 상태에 박는다. 결과 뒤 방을 나간 사람도 `people` 로 풀리고,
+    추첨 대상(`pool`)은 「n명 중 k명」을 셀 수 있게 남는다. 같은 값을 `state` 안에 두 번 싣지 않는다."""
+    csrf = login_as("user", email="pshost@goodmit.co.kr")
+    rid = _create(client, csrf, title="신원 스냅샷", config={"winners": 2})["id"]
+    make_user("psleave@goodmit.co.kr")
+    c2, csrf2 = _login_other(app, "psleave@goodmit.co.kr")
+    with c2:
+        assert c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": csrf2}).status_code == 200
+        leaver_id = c2.get("/api/me").json()["user"]["id"]
+        assert client.post(f"/api/games/rooms/{rid}/start", headers={"X-CSRF-Token": csrf}).status_code == 200
+        assert c2.post(f"/api/games/rooms/{rid}/leave", headers={"X-CSRF-Token": csrf2}).status_code == 200
+    st = client.get(f"/api/games/rooms/{rid}/state?since=0").json()
+    host_id = st["you"]["user_id"]
+    assert leaver_id not in {m["user_id"] for m in st["members"]}, "나간 사람은 구성원 목록에서 빠진다"
+    people = st["people"]
+    assert set(people) == {host_id, leaver_id}
+    assert people[leaver_id]["name"] and people[leaver_id]["user_id"] == leaver_id
+    assert {"avatar_url", "avatar_default_key"} <= set(people[leaver_id])
+    winners = {w["user_id"] for w in st["state"]["result"]}
+    assert winners == {host_id, leaver_id} and winners <= set(people), "나간 당첨자도 얼굴이 풀린다"
+    assert {p["user_id"] for p in st["state"]["pool"]} == {host_id, leaver_id}
+    assert "people" not in st["state"], "신원은 최상위 people 한 자리에만 싣는다"
+    # 초기화하면 스냅샷이 걷히고 지금 있는 사람만 남는다.
+    assert client.post(f"/api/games/rooms/{rid}/reset", headers={"X-CSRF-Token": csrf}).status_code == 200
+    assert set(client.get(f"/api/games/rooms/{rid}/state?since=0").json()["people"]) == {host_id}
+
+
+def test_people_snapshot_survives_result_rewrites(app, client, login_as, make_user):
+    """결과를 새 사전으로 확정하는 갈래(투표 종료의 CAS)도 신원 스냅샷을 잃지 않는다(D-577)."""
+    csrf = login_as("user", email="pvhost@goodmit.co.kr")
+    rid = _create(client, csrf, title="투표 신원", game_type="quick_vote",
+                  config={"question": "점심", "options": ["국밥", "김밥"]})["id"]
+    make_user("pvp2@goodmit.co.kr")
+    c2, csrf2 = _login_other(app, "pvp2@goodmit.co.kr")
+    with c2:
+        assert c2.post(f"/api/games/rooms/{rid}/join", headers={"X-CSRF-Token": csrf2}).status_code == 200
+        voter_id = c2.get("/api/me").json()["user"]["id"]
+        h = {"X-CSRF-Token": csrf}
+        assert client.post(f"/api/games/rooms/{rid}/start", headers=h).status_code == 200
+        assert c2.post(f"/api/games/rooms/{rid}/vote", json={"option": 1}, headers={"X-CSRF-Token": csrf2}).status_code == 200
+        assert client.post(f"/api/games/rooms/{rid}/finish", headers=h).status_code == 200
+        assert c2.post(f"/api/games/rooms/{rid}/leave", headers={"X-CSRF-Token": csrf2}).status_code == 200
+    st = client.get(f"/api/games/rooms/{rid}/state?since=0").json()
+    assert st["room"]["status"] == "finished" and st["state"]["result"]["counts"] == [0, 1]
+    assert voter_id in st["people"], "투표를 확정한 뒤에도 나간 사람의 신원이 남는다"

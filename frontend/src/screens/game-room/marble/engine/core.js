@@ -3,13 +3,15 @@
  * 메시지를 받아 엔진을 돌리고 스냅샷을 전송할 모양으로 싼다. 워커(`worker.js`)도, 워커가 없을 때의 같은 스레드 갈래
  * (`client.js`)도 이 함수를 부르므로 두 갈래의 결과 · 모양이 갈라질 자리가 없다.
  *
- * 스냅샷 모양: { step, finished, finishedCount, positions(Float32Array n*3: x, y, angle), flags(Uint8Array n: 1 완주 · 2 사라짐),
- *               entityAngles(Float32Array), ranking(Int16Array 참가자 번호) } — 배열은 transferable 로 넘긴다. */
+ * 스냅샷 모양: { step, finished, finishedCount, timeScale, positions(Float32Array n*3: x, y, angle), flags(Uint8Array n: 1 완주 · 2 사라짐),
+ *               entityAngles(Float32Array), entityFlags(Uint8Array 엔티티 수: 1 사라진 장애물), ranking(Int16Array 참가자 번호) }
+ * — 배열은 transferable 로 넘긴다. `timeScale` 은 다음 스텝의 배속(슬로 모션이면 1 미만, D-578)이다. */
 
-import { STAGES } from "./stages/wheel.js";
+import { STAGES } from "./stages/index.js";
 
 export const FLAG_FINISHED = 1;
 export const FLAG_GONE = 2;
+export const ENTITY_GONE = 1;
 
 export function packSnapshot(snap, indexByKey) {
   const n = snap.positions.length;
@@ -25,21 +27,26 @@ export function packSnapshot(snap, indexByKey) {
   }
   const ranking = new Int16Array(snap.ranking.length);
   for (let i = 0; i < snap.ranking.length; i += 1) ranking[i] = indexByKey.get(snap.ranking[i]);
+  const gone = snap.entityGone || [];
+  const entityFlags = new Uint8Array(snap.entityAngles.length);
+  for (let i = 0; i < gone.length; i += 1) entityFlags[i] = gone[i] ? ENTITY_GONE : 0;
   return {
     type: "snapshot",
     step: snap.step,
     finished: snap.finished,
     finishedCount: snap.finishedCount,
+    timeScale: snap.timeScale == null ? 1 : snap.timeScale,
     positions,
     flags,
     entityAngles: Float32Array.from(snap.entityAngles),
+    entityFlags,
     ranking,
   };
 }
 
 export function transferables(msg) {
   return msg.type === "snapshot"
-    ? [msg.positions.buffer, msg.flags.buffer, msg.entityAngles.buffer, msg.ranking.buffer]
+    ? [msg.positions.buffer, msg.flags.buffer, msg.entityAngles.buffer, msg.entityFlags.buffer, msg.ranking.buffer]
     : [];
 }
 

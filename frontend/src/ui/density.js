@@ -407,3 +407,30 @@ export function fieldSpan({ wide = 12, mid = 2 } = {}) {
     [formFieldsFit(3)]: { gridColumn: `span ${Math.max(1, Math.min(12, wide))}` },
   };
 }
+
+/* ── 놀이방 껍데기 (게임 공통 G1) ─────────────────────────────────────────────
+ *
+ * 여덟 게임의 방이 같은 껍데기(`screens/game-room/GameRoomLayout.jsx`)를 쓴다 — 판(왼쪽)과 레일(참여자 · 채팅, 오른쪽). 두 열은
+ * 뷰포트가 아니라 **껍데기가 받은 폭**이 정한다(컨테이너 질의): 본문 폭 56rem(896px) 이상이면 두 열이고 그 아래는 판 아래로 레일이
+ * 흐른다. 사이드바 248 + 여백 48 을 빼면 1200 뷰포트의 본문은 904px 라 두 열이고, 1024 는 728px 라 흐름이다(태블릿 설계).
+ * 레일 폭은 세 단계(20 · 22 · 26rem)다 — 1920 에서 22rem, 2560 이상에서 26rem. */
+export const GAME_ROOM_CONTAINER = { containerType: "inline-size", containerName: "game-room" };
+export const GAME_ROOM_TRACK_MIN_REM = { two: 56, wide: 80, ultra: 120 };
+export const GAME_ROOM_TRACKS = {
+  base: "minmax(0, 1fr)",
+  two: "minmax(0, 1fr) 20rem",
+  wide: "minmax(0, 1fr) 22rem",
+  ultra: "minmax(0, 1fr) 26rem",
+};
+/** 껍데기 격자의 열 — 바닥은 한 열이고 컨테이너 폭이 문턱을 넘을 때마다 레일 폭이 선다. */
+export function gameRoomColumns() {
+  return {
+    gridTemplateColumns: GAME_ROOM_TRACKS.base,
+    [`@container game-room (min-width: ${GAME_ROOM_TRACK_MIN_REM.two}rem)`]: { gridTemplateColumns: GAME_ROOM_TRACKS.two },
+    [`@container game-room (min-width: ${GAME_ROOM_TRACK_MIN_REM.wide}rem)`]: { gridTemplateColumns: GAME_ROOM_TRACKS.wide },
+    [`@container game-room (min-width: ${GAME_ROOM_TRACK_MIN_REM.ultra}rem)`]: { gridTemplateColumns: GAME_ROOM_TRACKS.ultra },
+  };
+}
+/* 레일의 높이 예산 — 참여자 목록은 13rem 까지 서고 그 위는 안에서 굴린다(채팅을 밀어내지 않는다). 흐름 모드의 채팅 로그와 판의
+   천장은 창이 아니라 이 값이 정한다. */
+export const GAME_RAIL_BUDGET = { members: "13rem", flowChat: "22rem", flowBoardMax: "60vh", flowBoardMin: "22rem" };

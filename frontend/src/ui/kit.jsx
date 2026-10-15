@@ -3765,7 +3765,9 @@ function ModalActions({ children }) {
  * 이게 없어서 실제로 아팠던 자리: 퀴즈 방 만들기(최대 20문항)를 다 쓰고 Esc 나 바깥을 한 번
  * 누르면 **전부 사라졌다.** 되돌릴 방법도 없다. 확인 문구는 FormModal 과 같은 것을 쓴다 -
  * 같은 상황에 다른 말이 나오면 사용자는 다른 일이 일어난다고 읽는다. */
-export function Modal({ open, onClose, title, size = "md", children, footer, dirty = false, tone }) {
+/* `container` — 대화 상자를 어느 요소 안에 그리는가(MUI `Dialog` 의 포털 대상). 기본은 `document.body` 다. 전체 화면(Fullscreen API)은
+   그 요소 밖의 포털을 가리므로, 전체 화면인 방의 결과 대화 상자는 그 방의 루트를 넘긴다(`screens/game-room/GameRoomLayout.jsx`). */
+export function Modal({ open, onClose, title, size = "md", children, footer, dirty = false, tone, container }) {
   const titleId = React.useId();
   const confirm = useConfirm();
   const isFit = size === "fit";
@@ -3785,6 +3787,7 @@ export function Modal({ open, onClose, title, size = "md", children, footer, dir
       maxWidth={false}
       fullWidth={!isFit}
       aria-labelledby={titleId}
+      container={container}
       /* 모바일에서는 전체 화면 — 좁은 화면에서 폼이 잘려 스크롤조차 안 되던 문제.
        *
        * 폼 모달은 `width` 를 지정하지 않는다(M7). 예전에는 `sm` 이상에서 `width:"auto"` 였는데,

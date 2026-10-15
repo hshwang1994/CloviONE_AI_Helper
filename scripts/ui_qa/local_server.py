@@ -1019,6 +1019,30 @@ def _seed_w10(db, me, now) -> None:
                 role="host" if m == 0 else "player", ready=(m % 2 == 0),
                 joined_at=live - timedelta(minutes=r), last_seen=live))
 
+    # 구슬 레이스 대기 방(D-575 · D-578) — 방 껍데기의 기준 화면이다. 목록의 **가장 새 방**이라 `user_game-room` 캡처가 이 방을 찍는다
+    # (`routes.py`). 방장은 이 계정(툴바에 [설정] · [경주 시작]이 선다), 참가자는 방장 + 자유 이름 여섯, 당첨 1, 운명의 바퀴.
+    import json as _mjson
+
+    free = ("김하나", "이두리", "박세찬", "최네온", "정다섯", "한여섯")
+    marble_config = {
+        "participants": [{"key": f"u:{me.id}", "name": me.display_name, "user_id": me.id}]
+        + [{"key": f"n:seed{i}", "name": n, "user_id": None} for i, n in enumerate(free)],
+        "winners": 1, "pick_last": False, "map": "wheel", "speed": 1,
+    }
+    mroom = GameRoom(
+        title="점심 구슬 레이스", game_type="marble_race", host_user_id=me.id, status=ROOM_WAITING,
+        max_players=8, allow_spectators=True, org_id=DEFAULT_ORG_ID, event_seq=1, closed_at=None,
+        config_json=_mjson.dumps(marble_config, ensure_ascii=False), state_json="{}",
+        created_at=live + timedelta(seconds=1),
+    )
+    db.add(mroom)
+    db.flush()
+    db.add(GameRoomMember(room_id=mroom.id, user_id=me.id, display_name=me.display_name,
+                          role="host", joined_at=live, last_seen=live))
+    for person in [p for p in people if p.id != me.id][:2]:
+        db.add(GameRoomMember(room_id=mroom.id, user_id=person.id, display_name=person.display_name,
+                              role="player", joined_at=live, last_seen=live))
+
     # ── 승인 (`/my-approvals`) ──────────────────────────────────────────────
     # 세 칸이 서로 다른 것을 담는다(처리할 것 · 내가 올린 것 · 내가 처리한 것). 한 칸만
     # 채우면 나머지 둘의 빈 상태가 전부 같은 얼굴로 보이고, 그 얼굴이 맞는지 알 수 없다.

@@ -1,116 +1,92 @@
+import React from "react";
 import { useParams } from "react-router-dom";
-import Box from "@mui/material/Box";
-import Paper from "@mui/material/Paper";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import { Badge, Button, Callout, Card, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
-import { FONT_WEIGHT } from "../ui/theme.js";
+import { useTheme } from "@mui/material/styles";
+import { Callout, Card, ErrorState, PageHeader, Skeleton } from "../ui/kit.jsx";
 import { GAME_LABELS } from "./Games.jsx";
-import { STATUS_LABELS, STATUS_KIND } from "./game-room/constants.js";
 import { useGameRoomController } from "./game-room/useGameRoomController.js";
-import { Countdown } from "./game-room/StageShared.jsx";
 import { GameStage } from "./game-room/GameStage.jsx";
-import { RoomSidebar } from "./game-room/RoomSidebar.jsx";
+import { GameRoomLayout, useGameRoomMode } from "./game-room/GameRoomLayout.jsx";
+import { BoardFrame } from "./game-room/BoardFrame.jsx";
+import { RoomRail } from "./game-room/RoomRail.jsx";
+import { RoomToolbar } from "./game-room/RoomToolbar.jsx";
+import { ResultDialog } from "./game-room/ResultDialog.jsx";
+import { buildResultModel } from "./game-room/resultModel.jsx";
+import { useFullscreen } from "./game-room/useFullscreen.js";
+import { RankRail } from "./game-room/marble/RankRail.jsx";
+import { MarbleSettingsModal } from "./game-room/marble/MarbleSettingsModal.jsx";
+import { boardPalette } from "./game-room/marble/render/theme.js";
 
-/* 게임방(§5·§6·§13·§16.2). 폴링(1.2초)으로 방 상태·참여자·이벤트를 실시간처럼 흐르게 한다.
- * 결과(당첨자)는 서버가 확정해 내려준다(§13.1) — 클라이언트는 표현만 한다. 게임방 채팅은
- * 순수 내부 DB(외부로 안 나감, §13.2). 방에 들어오면 한 번 자동 입장(가득/진행 중이면 서버가 관전).
+/* 게임방(§5·§6·§13·§16.2) — 여덟 게임이 같은 껍데기 하나에 선다 (D-575).
  *
- * 2026-08 구조 분리: 원래 1,132줄이던 이 화면을 game-room/ 아래 여러 작은 파일로 나눴다
- * (게임 진행 상태 관리 훅 · 무대 렌더링 · 참여자/채팅 레일 · 게임 종류별 소품 컴포넌트).
- * 로직·마크업은 옮기기만 했고 바꾸지 않았다 — 이 파일은 그 조각들을 조립하는 얇은 껍데기다.
+ * 폴링(1.2초)으로 방 상태·참여자·이벤트를 실시간처럼 흐르게 하고, 결과(당첨자)는 서버가 확정해 내려준다(§13.1) — 클라이언트는
+ * 표현만 한다. 게임방 채팅은 순수 내부 DB(외부로 안 나감, §13.2). 방에 들어오면 한 번 자동 입장(가득/진행 중이면 서버가 관전).
  *
- * 2026-08 MUI 재설계: screens.css의 .game-* 규칙 169줄을 화면 안 sx로 옮겼다. 이 화면은 업무
- * 위험이 가장 낮은 화면이라 연출을 조금 더 얹는다 — 승자 확정 순간에 축포 + 축하 일러스트 +
- * 마스코트(love/success)를 함께 띄운다. 축포는 OS·브라우저 설정과 무관하게 언제나 터진다
- * (제품 결정 — `ui/motion.js` 머리말). */
+ * 조립: 머리(경로 · 제목) → 툴바(상태 정본 · 동작 한 줄, `RoomToolbar`) → 판(`BoardFrame` 안의 게임별 판) | 레일(참여자 · 채팅) →
+ * 결과 대화 상자(`ResultDialog`, D-576). 판은 대기 · 진행 · 종료 어느 상태에서도 같은 자리 같은 크기이고, 결과를 닫아도 마지막
+ * 장면으로 남는다. 전체 화면은 방 루트(`useFullscreen`)다 — 대화 상자와 축포 캔버스가 그 루트 안에 선다(전체 화면인 요소는 그 밖을
+ * 가린다). 축포는 OS·브라우저 설정과 무관하게 언제나 터진다(제품 결정 — `ui/motion.js` 머리말). */
 
 export function GameRoom() {
   const { id } = useParams();
   const c = useGameRoomController(id);
+  const rootRef = React.useRef(null);
+  const fs = useFullscreen(rootRef, { resetKey: id });
+  const mode = useGameRoomMode();
+  const theme = useTheme();
+  const palette = React.useMemo(() => boardPalette(theme), [theme]);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
 
   if (c.phase === "error") return <div className="c-screen"><ErrorState error={c.error} onRetry={c.refetch} /></div>;
   if (c.phase === "pending") return <div className="c-screen"><Card><Skeleton lines={6} /></Card></div>;
 
-  const {
-    room, you, submissionActive, remaining, activePlayers, submittedCount, waitingNames,
-    canReady, isHost, isVote, isTeam, isNumber, isLadder, isRps, isQuiz, isMarble, isTournament,
-    quizPlaying, mutations, actionFailure,
-  } = c;
-  const { ready, start, finish, reveal, nextQ, reset, disband, leave } = mutations;
+  const { room, isMarble, marble, actionFailure, mutations, reveal, isHost } = c;
+  const model = buildResultModel(c, palette);
+  const game = GAME_LABELS[room.game_type] || room.game_type;
+  /* 전체 화면(표준 API)이면 대화 상자를 방 루트 안에 그린다 — 문서의 포털은 전체 화면에 가려진다. 흉내 모드(iPhone)는 문서 위에
+     서므로 기본 포털(1300)이 루트(1250) 위에 그대로 뜬다. */
+  const dialogContainer = fs.active && !fs.pseudo ? rootRef.current : undefined;
+  const panes = isMarble
+    ? [{ key: "members", label: "참여자" }, { key: "rank", label: "순위", node: <RankRail c={c} maxHeight={mode === "fill" || fs.active ? undefined : "none"} /> }]
+    : null;
 
   return (
-    <div className="c-screen">
-      <PageHeader crumbRoot="팀 공간" area="놀이" title={room.title}
-        actions={<Button onClick={() => leave.mutate()} disabled={leave.isPending}>나가기</Button>} />
-
-      {/* 무대(왼쪽) + 참여자·채팅 레일(오른쪽). 좁은 화면에서는 한 열로 흐른다. */}
-      <Box sx={{
-        display: "grid", gap: 2, alignItems: "start",
-        gridTemplateColumns: { xs: "1fr", md: "minmax(0,1fr) 22rem", xxl: "minmax(0,1fr) 26rem" },
-      }}>
-        <Box component="section" sx={{ display: "grid", gap: 2, minWidth: 0 }}>
-          <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
-            <Badge value={GAME_LABELS[room.game_type] || room.game_type} kind="neutral" />
-            <Badge value={STATUS_LABELS[room.status] || room.status} kind={STATUS_KIND[room.status] || "neutral"} />
-            <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
-              참여 {room.player_count}/{room.max_players}
-            </Typography>
-            {you.role === "spectator" ? <Typography variant="body2" color="text.secondary">관전 중</Typography> : null}
-          </Stack>
-
-          {actionFailure ? <Callout tone="danger" compact>{actionFailure}</Callout> : null}
-
-          {/* 진행 현황: 카운트다운 + 제출/대기(모든 제출형 게임 공통) */}
-          {submissionActive || remaining != null ? (
-            <Paper variant="outlined" sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap", px: 1.5, py: 1.25 }}>
-              <Countdown remaining={remaining} />
-              {submissionActive ? (
-                <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap">
-                  <Typography variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, fontVariantNumeric: "tabular-nums" }}>
-                    제출 {submittedCount}/{activePlayers.length}
-                  </Typography>
-                  {waitingNames.length > 0
-                    ? <Typography variant="body2" color="text.secondary">대기 {waitingNames.join(", ")}</Typography>
-                    : <Typography variant="body2" color="success.main" sx={{ fontWeight: FONT_WEIGHT.semibold }}>모두 제출했습니다</Typography>}
-                </Stack>
-              ) : null}
-            </Paper>
-          ) : null}
-
+    <GameRoomLayout
+      ref={rootRef}
+      mode={mode}
+      fullscreen={fs.active}
+      pseudoFullscreen={fs.pseudo}
+      header={<PageHeader crumbRoot="팀 공간" area="놀이" title={room.title} />}
+      toolbar={<RoomToolbar c={c} fs={fs} onOpenSettings={() => setSettingsOpen(true)} />}
+      notice={actionFailure ? <Callout tone="danger" compact>{actionFailure}</Callout> : null}
+      board={(
+        <BoardFrame label={`${game} 판`}>
           <GameStage c={c} />
-
-          <Stack direction="row" gap={1} flexWrap="wrap">
-            {canReady ? (
-              <Button variant={you.ready ? "default" : "primary"} onClick={() => ready.mutate(!you.ready)} disabled={ready.isPending}>
-                {you.ready ? "준비 해제" : "준비"}
-              </Button>
-            ) : null}
-            {isHost && room.status === "waiting" ? (
-              <Button variant="primary" onClick={() => start.mutate()} disabled={start.isPending}>{isMarble ? "경주 시작" : isVote ? "투표 시작" : isTeam ? "팀 나누기" : isNumber ? "숫자 눈치 시작" : isLadder ? "사다리 타기" : isRps ? "가위바위보 시작" : isQuiz ? "퀴즈 시작" : "추첨 시작"}</Button>
-            ) : null}
-            {isHost && (isVote || isNumber || isRps) && room.status === "playing" ? (
-              <Button variant="primary" onClick={() => finish.mutate()} disabled={finish.isPending}>{isVote ? "투표 종료" : isTournament ? "이 라운드 마감" : "결과 공개"}</Button>
-            ) : null}
-            {isHost && isQuiz && room.status === "playing" && quizPlaying?.phase === "answering" ? (
-              <Button variant="primary" onClick={() => reveal.mutate()} disabled={reveal.isPending}>정답 공개</Button>
-            ) : null}
-            {isHost && isQuiz && room.status === "playing" && quizPlaying?.phase === "revealed" ? (
-              <Button variant="primary" onClick={() => nextQ.mutate()} disabled={nextQ.isPending}>
-                {(quizPlaying.round || 0) + 1 >= quizPlaying.total ? "결과 보기" : "다음 문제"}
-              </Button>
-            ) : null}
-            {isHost && room.status === "finished" ? (
-              <Button variant="primary" onClick={() => reset.mutate()} disabled={reset.isPending}>다시 하기</Button>
-            ) : null}
-            {isHost ? (
-              <Button variant="danger" disabled={disband.isPending} onClick={c.disbandWithConfirm}>방 파하기</Button>
-            ) : null}
-          </Stack>
-        </Box>
-
-        <RoomSidebar c={c} />
-      </Box>
-    </div>
+        </BoardFrame>
+      )}
+      rail={<RoomRail c={c} panes={panes} defaultPane={isMarble && !marble.waiting ? "rank" : "members"} />}
+      overlay={fs.active ? (
+        /* 축포 캔버스 — 전체 화면 동안만 루트 안에 선다(`celebrate({ canvas })`). 화면을 덮되 누르는 것은 통과시킨다. */
+        <canvas
+          ref={c.celebrateCanvasRef}
+          data-celebrate-canvas=""
+          aria-hidden="true"
+          style={{ position: "fixed", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 1320 }}
+        />
+      ) : null}
+    >
+      {model ? (
+        <ResultDialog
+          model={model} reveal={reveal} isHost={isHost}
+          onReplay={() => mutations.reset.mutate()} replayPending={mutations.reset.isPending}
+          container={dialogContainer} fullscreen={fs.active}
+        />
+      ) : null}
+      {isMarble && isHost && !fs.active ? (
+        <MarbleSettingsModal
+          open={settingsOpen && marble.waiting} onClose={() => setSettingsOpen(false)}
+          config={marble.config} members={c.members} mutations={mutations}
+        />
+      ) : null}
+    </GameRoomLayout>
   );
 }

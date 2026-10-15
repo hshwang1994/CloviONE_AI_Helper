@@ -233,6 +233,8 @@ USER_ROUTES: tuple[Route, ...] = (
     # 계획서의 명시 요구다. 그 구분은 캡처로만 확인된다.
     _u("user_search-empty", "/search?q=존재하지않는검색어zz", "통합 검색 — 결과 없음"),
     _u("user_games", "/games", "놀이"),
+    # 놀이방은 목록의 첫 방(가장 새 방)을 찍는다 — 로컬 서버가 구슬 레이스 대기 방을 가장 새 방으로 심는다(방 껍데기 D-575 의 기준
+    # 화면, `local_server.py`).
     _u("user_game-room", "/games", "놀이방",
        hash_template="/games/{id}", discover=("/api/games/rooms",), rediscover=True),
     # 내 정보(계획서 Phase 6 사용자 백로그) — 프로필 셀프서비스·업무량 통계·활동 피드.

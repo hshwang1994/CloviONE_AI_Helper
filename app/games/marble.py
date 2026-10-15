@@ -34,7 +34,7 @@ MAX_PARTICIPANTS = 100
 NAME_MAX = 24
 MAX_WINNERS = 10
 SPEEDS = (1, 2, 4)
-MAPS = ("wheel",)
+MAPS = ("wheel", "pot", "bubble", "yoru")  # 경주 판(D-578) — 100개 1배속 경주가 상한(240초) 안에 끝나는 판만(`engine.test.js` 가 잰다)
 #: 서버 시계로 잰 최소 경과(배속 1 기준). 이보다 빨리 온 결과는 경주를 돌리지 않은 것이다.
 MIN_RACE_SECONDS = 8
 VERIFY_WINDOW_HOST_SECONDS = 10

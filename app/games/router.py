@@ -88,6 +88,20 @@ def _member_view(m, user=None, *, now=None, avatar=None) -> dict:
     }
 
 
+def _people_view(snapshot: dict, rows, amap: dict) -> dict:
+    """`{user_id: {user_id, name, avatar_url, avatar_default_key}}` — 스냅샷 ∪ 구성원 행(구성원이 이긴다)."""
+    out: dict[str, dict] = {}
+    for uid, p in (snapshot or {}).items():
+        if isinstance(uid, str) and isinstance(p, dict):
+            out[uid] = {"user_id": uid, "name": p.get("name") or "", "avatar_url": p.get("avatar_url"),
+                        "avatar_default_key": p.get("avatar_default_key")}
+    for m in rows:
+        face = amap.get(m.user_id) or {}
+        out[m.user_id] = {"user_id": m.user_id, "name": m.display_name, "avatar_url": face.get("url"),
+                          "avatar_default_key": face.get("default_key")}
+    return out
+
+
 def _event_view(e) -> dict:
     try:
         payload = json.loads(e.payload_json or "{}")
@@ -162,15 +176,19 @@ def room_state(
         service.touch_presence(db, room, me, now=now)
     service.maybe_autoresolve(db, room, now=now)  # 마감 지난 타이머 게임을 서버가 자동 확정(방장 비의존)
     mem = repository.get_member(db, room.id, me.id)
-    active_members = [m for m in repository.members(db, room.id) if m.active]
+    rows = repository.members(db, room.id)
+    active_members = [m for m in rows if m.active]
     umap = repository.users_by_ids(db, [m.user_id for m in active_members])
     from app.core.people import avatar_map
 
-    amap = avatar_map(db, [m.user_id for m in active_members])
+    amap = avatar_map(db, [m.user_id for m in rows])
     return {
         "room": _room_summary(db, room),
         "state": service.public_state(room, me.id),
         "members": [_member_view(m, umap.get(m.user_id), now=now, avatar=amap.get(m.user_id)) for m in active_members],
+        # 신원 지도(D-577) — 시작 때 박은 스냅샷 위에 지금 구성원을 덮는다(지금 있는 사람이 이긴다 — 새 사진의 `?v=`).
+        # 판 · 결과 대화 상자 · 채팅의 모든 얼굴이 이것으로 풀린다 — 결과가 나온 뒤 방을 나간 사람도.
+        "people": _people_view(service.state_people(room), rows, amap),
         # 대화는 **방 안 사람에게만** (1순위 유출 #10). 로비 미리보기(방·멤버·진행 상태)는
         # 설계다 — `you.in_room` 과 `join(spectate=…)` 이 그걸 전제로 있다. 하지만 "무슨
         # 게임이 몇 명으로 돌아가는지" 를 보는 것과 "그 사람들이 무슨 말을 했는지" 를 읽는
