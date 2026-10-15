@@ -2,6 +2,7 @@
  * qa-contract-change: 판독 줄(MetricStrip)이 걷혀(핸드오프 RULES §6) 그 칸의 「주의」/「위험」 표지가 없어졌다. 같은 계약(심각도 낱말은 대비 보강 잉크 `.strong` 을 쓰고 좁은 칸에서 세로로 무너지지 않는다)을 지금 그 낱말을 나르는 배지(Badge)의 소스에서 잰다.
  * qa-contract-change: 티켓 표의 지역 제목 칸(MyTickets.jsx::TitleCell)이 kit 의 정본 `TitleCell` 로 올라갔다(UI 3차 조합 계약 C-3 — 게시판 · 휴지통 · 프로젝트 · 문서 표가 같은 제목 칸을 쓴다). QAH-03 계약(제목 링크는 대비 보강 색 primary.dark 이고 raw primary.main 을 inline sx 로 박지 않는다)을 kit 정의의 세 갈래(단추 · 앵커 · 링크색만)와 소비처 둘(티켓 · 휴지통)에서 잰다.
  * qa-contract-change: 사이드바 안 읽음 배지(NavBadge)와 AI 도우미 시작 예시(QuickPrompts)가 정본 부품(건수 칩 unread · 작은 단추)으로 옮겨졌다(핸드오프 계획 B-3). 두 자리의 손 색 단언을 「정본 부품을 쓴다 · 흰 글자나 raw .main 글자를 손으로 칠하지 않는다」로 옮기고, 건수 칩 unread 의 글자와 면 대비를 모든 모드 · accent 조합으로 더 잰다.
+ * qa-contract-change: 놀이방이 판 부품으로 나뉘고 결과가 대화 상자가 됐다(D-575 · D-576). 실시간 투표 수는 `boards/VoteBoard.jsx`, 퀴즈 「정답」은 `boards/QuizBoard.jsx` 로 옮겨졌고, 숫자 칸은 `...NUMERIC` 토큰을 펼친다. 옛 결과 무대(`StageShared.jsx::ResultStage`)의 결과 라벨은 그 무대와 함께 걷혔고, 같은 자리의 당첨 표지는 결과 대화 상자의 kit `Badge` 다 — 계약(작은 글자는 대비 보강 색 · raw `.main` 을 손으로 칠하지 않는다)은 그대로 새 자리에서 잰다.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -380,13 +381,13 @@ describe("QAH-05 — Board.jsx + game-room 6파일의 raw .main 소문자 텍스
     expect(src).toMatch(/color:\s*"primary\.dark"\s*}}>{a\.outcome}/);
   });
 
-  it("GameStage.jsx 실시간 투표 수가 primary.dark를 쓴다", () => {
-    const src = readSite(gameRoomDir, "GameStage.jsx");
-    expect(src).toMatch(/color:\s*"primary\.dark",\s*fontVariantNumeric:\s*"tabular-nums"\s*}}>\s*{liveCounts\[i\]}/);
+  it("boards/VoteBoard.jsx 실시간 투표 수가 primary.dark를 쓴다", () => {
+    const src = readSite(gameRoomDir, "boards", "VoteBoard.jsx");
+    expect(src).toMatch(/color:\s*"primary\.dark",\s*\.\.\.NUMERIC\s*}}>\s*{liveCounts\[i\]}/);
   });
 
-  it("GameStage.jsx 퀴즈 '정답' 표시가 success.strong을 쓴다", () => {
-    const src = readSite(gameRoomDir, "GameStage.jsx");
+  it("boards/QuizBoard.jsx 퀴즈 '정답' 표시가 success.strong을 쓴다", () => {
+    const src = readSite(gameRoomDir, "boards", "QuizBoard.jsx");
     expect(src).toMatch(/color:\s*"success\.strong"\s*}}>정답/);
   });
 
@@ -403,12 +404,13 @@ describe("QAH-05 — Board.jsx + game-room 6파일의 raw .main 소문자 텍스
 
   it("Scoreboard.jsx 점수 값이 primary.dark를 쓴다", () => {
     const src = readSite(gameRoomDir, "Scoreboard.jsx");
-    expect(src).toMatch(/color:\s*"primary\.dark",\s*fontVariantNumeric:\s*"tabular-nums"\s*}}>{s\.value}/);
+    expect(src).toMatch(/color:\s*"primary\.dark",\s*\.\.\.NUMERIC\s*}}>{s\.value}/);
   });
 
-  it("StageShared.jsx 결과 라벨이 primary.dark를 쓴다", () => {
-    const src = readSite(gameRoomDir, "StageShared.jsx");
-    expect(src).toMatch(/letterSpacing:\s*"0\.06em",\s*color:\s*"primary\.dark"\s*}}>{label}/);
+  it("ResultDialog.jsx 당첨 표지는 kit Badge 이고 raw primary.main 으로 칠하지 않는다", () => {
+    const src = readSite(gameRoomDir, "ResultDialog.jsx");
+    expect(src).toMatch(/<Badge value={model\.winnerLabel}/);
+    expect(src).not.toMatch(/color:\s*"primary\.main"[^}]*}}>\s*{model\.winnerLabel}/);
   });
 
   it("StageShared.jsx Countdown이 error.strong/primary.dark를 쓴다(urgent 삼항 양쪽 다)", () => {
