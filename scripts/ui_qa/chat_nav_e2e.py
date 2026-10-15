@@ -18,6 +18,7 @@ import argparse
 import json
 import sys
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -244,7 +245,7 @@ def steps(run: Run, *, local: bool, stamp: str, made: list[str], reply_timeout: 
     truth = run.thread_truth(c)
     run.record("이름 바꾸기: 서버에 그대로 저장됐다", truth.get("title") == new_title, f"«{truth.get('title')}»")
     run.consistent("이름 바꾸기: 머리 · 줄 · 탭 제목이 새 이름", c)
-    row_title = page.locator(f'[data-conversation-row="{c}"] [title]').first.get_attribute("title")
+    row_title = page.locator(f'[data-conversation-row="{c}"] a > span[title]').first.get_attribute("title")
     run.record("이름 바꾸기: 줄의 전체 제목(title)이 새 이름", row_title == new_title, f"«{row_title}»")
 
     # ── 보관 → 보관함 → 꺼내기 ─────────────────────────────────────────────────────────────────────────
@@ -269,14 +270,16 @@ def steps(run: Run, *, local: bool, stamp: str, made: list[str], reply_timeout: 
     run.record("꺼내기: 안내가 걷히고 대화 목록에 다시 선다", not st["banner"] and st["active"] == [c],
                f"안내 {st['banner']} · 고른 줄 {st['active']}")
 
-    # ── 검색 ─────────────────────────────────────────────────────────────────────────────────────────────
+    # ── 검색 — 화면의 줄이 서버의 같은 검색(제목과 내용)과 같은 대화들이다 ───────────────────────────────────────────
     token = stamp if not local else "VMware"
     box = page.locator('#main-content input[type="search"]').first
     box.fill(token)
     page.wait_for_timeout(1800)
-    titles = page.locator("[data-conversation-row] [title]").evaluate_all("(els) => els.map((e) => e.getAttribute('title'))")
-    run.record(f"검색: «{token}» 로 거른 줄만 남는다", bool(titles) and all(token.lower() in (t or "").lower() for t in titles)
-               or (local and bool(titles)), f"{len(titles)}줄")
+    rows = page.locator("[data-conversation-row]").evaluate_all("(els) => els.map((e) => e.getAttribute('data-conversation-row'))")
+    _status, found = run.get("/api/conversations?limit=100&q=" + token)
+    expect = [c["id"] for c in (found or {}).get("items") or []]
+    run.record(f"검색: «{token}» 로 거른 줄이 서버의 검색 결과와 같다", bool(rows) and sorted(rows) == sorted(expect),
+               f"화면 {len(rows)}줄 · 서버 {len(expect)}건")
     run.shot("05-search")
     box.fill("")
     page.wait_for_timeout(1200)
@@ -307,21 +310,26 @@ def steps(run: Run, *, local: bool, stamp: str, made: list[str], reply_timeout: 
 
     # ── 두 대화 동시 대기(랩) — 답이 제 대화에만 선다 ────────────────────────────────────────────────────────
     if not local:
+        # 두 질문은 서로 닮지 않은 무작위 낱말이다 — 「하나 둘」 · 「셋 넷」처럼 이어지는 말이면 답이 상대 낱말을 말해 섞인 것처럼 보인다.
+        word_a, word_b = "사과나무-" + uuid.uuid4().hex[:6], "바닷바람-" + uuid.uuid4().hex[:6]
         run.click_row(a)
         run.consistent("동시: A 를 연다", a)
-        page.get_by_role("textbox", name="메시지 입력").fill("[AI검증] 하나 둘")
+        page.get_by_role("textbox", name="메시지 입력").fill(f"[AI검증] {word_a} 라는 낱말을 그대로 되풀이해 줘")
         page.get_by_role("textbox", name="메시지 입력").press("Enter")
         page.wait_for_timeout(600)
         run.click_row(b)
-        page.get_by_role("textbox", name="메시지 입력").fill("[AI검증] 셋 넷")
+        page.get_by_role("textbox", name="메시지 입력").fill(f"[AI검증] {word_b} 라는 낱말을 그대로 되풀이해 줘")
         page.get_by_role("textbox", name="메시지 입력").press("Enter")
         both = wait_reply(run, a, timeout=reply_timeout) and wait_reply(run, b, timeout=reply_timeout)
         run.record("동시: 두 대화 모두 답을 받았다", both)
-        for cid, mine, other in ((a, "하나 둘", "셋 넷"), (b, "셋 넷", "하나 둘")):
+        for cid, mine, other in ((a, word_a, word_b), (b, word_b, word_a)):
             _, body = run.get(f"/api/conversations/{cid}/messages")
-            texts = [m.get("content") or "" for m in (body or {}).get("items") or []]
-            run.record(f"동시: {cid[:8]} 에는 제 질문만 있다",
-                       any(mine in t for t in texts) and not any(other in t for t in texts), f"{len(texts)}개")
+            items = (body or {}).get("items") or []
+            asked = [m.get("content") or "" for m in items if m.get("role") == "user"]
+            answered = [m.get("content") or "" for m in items if m.get("role") == "assistant"]
+            run.record(f"동시: {cid[:8]} 에는 제 질문과 그 답만 있다",
+                       any(mine in t for t in asked) and not any(other in t for t in asked + answered),
+                       f"질문 {len(asked)} · 답 {len(answered)}")
         run.consistent("동시: B 를 보는 화면은 B 의 답이다", b)
         run.click_row(a)
         run.consistent("동시: A 로 돌아오면 A 의 답이다", a)
