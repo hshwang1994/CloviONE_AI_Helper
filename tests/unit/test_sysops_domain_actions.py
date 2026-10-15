@@ -209,6 +209,25 @@ def test_an_old_template_without_the_alias_slot_blocks_the_apply(lab):
     assert lab.files[product.ENV_FILE] == ENV_TEXT
 
 
+def test_an_alias_the_hosts_file_maps_to_loopback_counts_as_this_server(lab, monkeypatch):
+    # 랩 실측(2026-10-15): Ubuntu 의 hosts 기본 줄(127.0.1.1 <옛 호스트 이름>) 때문에 옛 이름이 루프백으로 풀렸고, 점검이 「이 서버로
+    # 풀리지 않습니다」라고 거짓 경고를 냈다. 루프백은 이 서버 자신이다.
+    monkeypatch.setattr(ad, "DNS_FACTORY", lambda ns=None: FakeDns(
+        {NEW: ["203.0.113.10"]} if ns else {NEW: [BIND], OLD: ["127.0.1.1"]}))
+    result = run(lab, "domain.preview", {"host": NEW, "aliases": [OLD]})
+    dns = next(c for c in result.data["checks"] if c["key"] == "dns")
+    assert dns["state"] == "ok", dns
+    assert "풀리지 않습니다" not in dns["message"]
+    # 대표 이름 자체가 루프백이면 「이 서버 자신」이라고 말하되, 사내 DNS 답은 따로 보라고 남긴다.
+    monkeypatch.setattr(ad, "DNS_FACTORY", lambda ns=None: FakeDns({NEW: ["127.0.1.1"]}))
+    local = next(c for c in run(lab, "domain.preview", {"host": NEW}).data["checks"] if c["key"] == "dns")
+    assert local["state"] == "ok" and "hosts 항목" in local["message"] and "따로 확인하세요" in local["message"]
+    # 루프백이 아닌 다른 주소는 여전히 경고다(반례).
+    monkeypatch.setattr(ad, "DNS_FACTORY", lambda ns=None: FakeDns({NEW: [BIND], OLD: ["198.51.100.7"]}))
+    other = next(c for c in run(lab, "domain.preview", {"host": NEW, "aliases": [OLD]}).data["checks"] if c["key"] == "dns")
+    assert other["state"] == "warn" and "풀리지 않습니다" in other["message"]
+
+
 def test_dns_that_points_elsewhere_or_nowhere_is_a_warning_not_a_failure(lab, monkeypatch):
     monkeypatch.setattr(ad, "DNS_FACTORY", lambda ns=None: FakeDns({NEW: ["203.0.113.10"]}))
     result = run(lab, "domain.preview", {"host": NEW, "aliases": [OLD]})

@@ -272,12 +272,26 @@ def _lookup(name: str, dns) -> dict:
     return {"name": name, "answers": list(got.values), "error": got.error}
 
 
+def _is_loopback(address: str) -> bool:
+    try:
+        return ipaddress.ip_address(address).is_loopback
+    except ValueError:
+        return False
+
+
 def _dns_state(row: dict, bind_ip: str) -> str:
     if row["error"] in ("nxdomain", "noanswer"):
         return "warn"
     if row["error"]:
         return "unknown"
-    return "ok" if bind_ip and bind_ip in row["answers"] else "warn"
+    if bind_ip and bind_ip in row["answers"]:
+        return "ok"
+    # 이 서버의 hosts 항목이 자기 이름을 루프백(127.0.1.1 — Ubuntu 기본)으로 푸는 경우다. 이 서버 자신을 가리키므로 「이 서버로 풀리지
+    # 않는다」가 아니다. 다만 다른 컴퓨터가 보는 사내 DNS 답은 이 점검이 보지 못하므로 그 사실은 문장으로 남긴다(랩 실측 2026-10-15).
+    if row["answers"] and all(_is_loopback(a) for a in row["answers"]):
+        row["local"] = True
+        return "ok"
+    return "warn"
 
 
 def _dns_check(names: list[str], bind_ip: str, resolvers: list[str]) -> tuple[dict, dict]:
@@ -295,7 +309,10 @@ def _dns_check(names: list[str], bind_ip: str, resolvers: list[str]) -> tuple[di
 
     first = rows[0]
     host = first["name"]
-    if first["state"] == "ok":
+    if first["state"] == "ok" and first.get("local"):
+        message = (f"이 서버의 hosts 항목이 {_obj(host)} 이 서버 자신({', '.join(first['answers'])})으로 풉니다. "
+                   "다른 컴퓨터가 보는 사내 DNS 답은 이 점검이 보지 못하므로 따로 확인하세요.")
+    elif first["state"] == "ok":
         message = f"이 서버가 쓰는 DNS 가 {_obj(host)} 이 서버 주소({bind_ip})로 풉니다."
     elif first["error"] in ("nxdomain", "noanswer"):
         message = f"이 서버가 쓰는 DNS 에 {_subj(host)} 없습니다. DNS 담당자가 이름을 넣어야 사내에서 이 주소로 열립니다."
