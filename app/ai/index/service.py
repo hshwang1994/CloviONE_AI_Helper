@@ -38,7 +38,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -134,6 +134,24 @@ def enqueue(db: Session, document_id: str, *, now: datetime | None = None) -> Ai
     state.attempts = 0
     state.last_error = ""
     return state
+
+
+def enqueue_many(db: Session, document_ids, *, now: datetime | None = None) -> int:
+    """여러 문서를 한 문장으로 `pending` 으로 — 태그 · 분류 · 공간의 이름이 바뀌어 그 문서들의 첫 조각 자리 줄(D-568)이 낡았을 때다.
+
+    상태 행이 있는 문서만 바꾼다. 행이 없는 문서는 훑기(`sweep_stale`)의 첫 규칙이 맡는다. 고친 행 수를 돌려준다.
+    """
+    ids = list(dict.fromkeys(document_ids))
+    if not ids:
+        return 0
+    now = now or utcnow()
+    result = db.execute(
+        update(AiIndexState)
+        .where(AiIndexState.document_id.in_(ids))
+        .values(status=STATE_PENDING, queued_at=now, next_attempt_at=None, attempts=0, last_error="")
+        .execution_options(synchronize_session="fetch")
+    )
+    return int(result.rowcount or 0)
 
 
 def enqueue_all(db: Session, *, now: datetime | None = None) -> int:
@@ -366,8 +384,8 @@ def _metadata_line(db: Session, document: Document) -> str:
     """문서의 자리와 꼬리표 한 줄 — 「공간 인프라 운영, 분류 가이드, 태그 vmware nsx」(D-568).
 
     본문에 없는 말로도 문서를 찾게 한다: 사람은 「인프라 공간의 VMware 문서」처럼 공간 · 분류 · 태그로 기억한다. 그 셋은
-    조각 표에 열이 없고 생성 열로 만들 수도 없다(다른 표의 값이다) — 그래서 **첫 조각의 글**에 싣는다. 태그 · 분류만 바꾸면
-    문서 판이 안 오르므로 다음 색인(저장 · 파서 판 · 훑기) 때 따라온다.
+    조각 표에 열이 없고 생성 열로 만들 수도 없다(다른 표의 값이다) — 그래서 **첫 조각의 글**에 싣는다. 태그 · 분류 · 공간은
+    문서 판을 올리지 않으므로, 그 값을 바꾸는 자리(저장 · 이동 · 이름 바꾸기 · 지우기)가 색인 신호를 보낸다(P-138).
     """
     from app.knowledge import categories as categories_mod
     from app.knowledge import tags as tags_mod

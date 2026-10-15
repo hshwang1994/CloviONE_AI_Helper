@@ -129,6 +129,21 @@ def mark_stale(db: Session, document_id: str) -> None:
         logger.exception("색인 신호를 남기지 못했다 document_id=%s", document_id)
 
 
+def mark_stale_many(db: Session, document_ids) -> None:
+    """문서 여럿의 색인을 낡음으로 — 태그 · 분류 · 공간의 이름이 바뀌거나 태그 · 분류가 지워질 때다(P-138). `mark_stale` 과 같은
+    규칙이다: 같은 트랜잭션, SAVEPOINT 안, 실패해도 저장을 막지 않는다(훑기가 같은 일을 한다)."""
+    ids = [d for d in dict.fromkeys(document_ids) if d]
+    if not ids:
+        return
+    from app.ai.index import service as index_service
+
+    try:
+        with db.begin_nested():
+            index_service.enqueue_many(db, ids)
+    except Exception:  # noqa: BLE001 - 색인 신호 때문에 이름 바꾸기가 실패하지 않는다
+        logger.exception("색인 신호를 남기지 못했다 documents=%d", len(ids))
+
+
 def current(db: Session, document: Document) -> DocumentVersion | None:
     """지금 보여 주는 판.
 

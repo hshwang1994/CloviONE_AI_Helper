@@ -135,9 +135,17 @@ def rename(db: Session, category: DocumentCategory, name: str) -> DocumentCatego
         ).scalars().first()
         if clash is not None:
             raise ConflictError(f"같은 이름의 분류가 이미 있습니다: {clash.name}")
+    renamed = clean != category.name
     category.name = clean
     category.slug = slug
     db.flush()
+    if renamed:
+        # 분류 이름은 그 문서들의 AI 첫 조각 자리 줄에 있다(D-568) — 다시 색인한다(P-138).
+        from app.knowledge import versions
+
+        versions.mark_stale_many(db, db.execute(
+            select(Document.id).where(Document.category_id == category.id)
+        ).scalars().all())
     return category
 
 
@@ -149,9 +157,10 @@ def remove(db: Session, category: DocumentCategory) -> int:
     있어야 한다. UPDATE 를 직접 치는 이유는 수를 세는 김에 같은 트랜잭션에서 끊어
     ORM 캐시와 DB 가 어긋나지 않게 하기 위해서다.
     """
-    used = db.execute(
-        select(func.count()).select_from(Document).where(Document.category_id == category.id)
-    ).scalar_one()
+    from app.knowledge import versions
+
+    document_ids = list(db.execute(select(Document.id).where(Document.category_id == category.id)).scalars().all())
+    used = len(document_ids)
     db.execute(
         update(Document)
         .where(Document.category_id == category.id)
@@ -160,6 +169,7 @@ def remove(db: Session, category: DocumentCategory) -> int:
     )
     db.delete(category)
     db.flush()
+    versions.mark_stale_many(db, document_ids)  # 미분류가 된 문서의 AI 첫 조각 자리 줄을 고친다(P-138)
     return int(used)
 
 

@@ -404,6 +404,7 @@ def update_space(
         if key in fields and fields[key] is None:
             raise ValidationAppError(f"{label} 비워둘 수 없습니다.")
 
+    old_name = space.name
     for key in ("name", "description", "owner_kind", "owner_dept_id",
                 "owner_project_id", "confidential", "archived"):
         if key in fields:
@@ -412,6 +413,9 @@ def update_space(
     _settle_owner_pair(db, space)
     space.version += 1
     db.flush()
+    if space.name != old_name:
+        # 공간 이름은 그 안 문서들의 AI 첫 조각 자리 줄에 있다(D-568) — 다시 색인한다(P-138).
+        versions.mark_stale_many(db, db.execute(select(Document.id).where(Document.space_id == space.id)).scalars().all())
     return space
 
 
@@ -937,8 +941,11 @@ def save_document(
             mentions.sync(db, document, version.body)
             changed = True
 
+    meta_changed = False
     if tag_names is not None:
-        tags.set_for_document(db, document, tag_names)
+        before = {t.id for t in tags.of_document(db, document.id)}
+        after = {t.id for t in tags.set_for_document(db, document, tag_names)}
+        meta_changed = before != after
         changed = True
 
     if category_id is not UNSET:
@@ -948,6 +955,7 @@ def save_document(
         if next_id != document.category_id:
             document.category_id = next_id
             changed = True
+            meta_changed = True
 
     if changed:
         document.version += 1
@@ -958,7 +966,8 @@ def save_document(
     # 첫 청크 본문에 들어가므로(`app/ai/index/service.py::_document_units`) 신호가 없으면
     # 그 문서는 **옛 이름으로 계속 검색된다.** 판이 새로 생긴 경우는 `snapshot` 이 이미
     # 보냈으므로 여기서는 「제목은 바뀌었는데 판은 안 생긴」 자리만 메운다.
-    if title_changed and version is None:
+    # 태그 · 분류도 같다 — 첫 청크의 자리 줄(「공간 · 분류 · 태그」, D-568)에 들어가는데 판을 올리지 않는다(P-138).
+    if (title_changed or meta_changed) and version is None:
         versions.mark_stale(db, document.id)
 
     db.flush()
@@ -1012,6 +1021,7 @@ def move_document(
             document.space_id = new_space.id
             document.folder_id = None
             space_changed = True
+            versions.mark_stale(db, document.id)  # 공간 이름이 AI 첫 조각 자리 줄에 있다(D-568 · P-138)
         elif folder_id is not FOLDER_UNSET:
             _set_folder(db, user, document, folder_id)
     elif folder_id is not FOLDER_UNSET:

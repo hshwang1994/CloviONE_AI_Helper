@@ -477,3 +477,56 @@ def test_raising_the_parser_version_makes_every_indexed_document_stale(db, docum
     db.flush()
     assert index_service.sweep_stale(db, versions=index_service.current_versions(gateway)) == 1
     assert _state(db, document.id).status == STATE_PENDING
+
+
+# ── 자리 줄이 바뀌는 변경은 색인을 낡게 한다 (P-138) ─────────────────────────────────────────────────────────
+
+
+def test_renaming_or_removing_a_tag_or_category_reindexes_its_documents(db, document):
+    """태그 · 분류의 이름은 첫 조각 자리 줄에 있는데 문서 판을 올리지 않는다 — 바꾸면 그 문서들이 다시 색인된다."""
+    from app.knowledge import categories as categories_mod
+    from app.knowledge import tags as knowledge_tags
+
+    category = categories_mod.create(db, DEFAULT_ORG_ID, "보안 가이드")
+    document.category_id = category.id
+    knowledge_tags.set_for_document(db, document, ["vmware"])
+    db.flush()
+    _run(db, _gateway())
+    assert _state(db, document.id).status == STATE_OK
+
+    tag = knowledge_tags.of_document(db, document.id)[0]
+    knowledge_tags.rename(db, tag, "vsphere")
+    assert _state(db, document.id).status == STATE_PENDING
+    _run(db, _gateway())
+    line = _chunks(db, document.id)[0].text_body.split("\n")[1]
+    assert "vsphere" in line and "vmware" not in line
+    knowledge_tags.rename(db, tag, "vsphere")
+    assert _state(db, document.id).status == STATE_OK, "이름이 그대로면 다시 색인하지 않는다"
+
+    categories_mod.rename(db, category, "운영 가이드")
+    assert _state(db, document.id).status == STATE_PENDING
+    _run(db, _gateway())
+    assert "분류 운영 가이드" in _chunks(db, document.id)[0].text_body
+
+    categories_mod.remove(db, category)
+    knowledge_tags.remove(db, tag)
+    assert _state(db, document.id).status == STATE_PENDING
+    _run(db, _gateway())
+    assert _chunks(db, document.id)[0].text_body.split("\n")[1] == "공간 설계 공간"
+
+
+def test_renaming_a_space_reindexes_the_documents_inside(db, document, make_user):
+    from app.knowledge import service as knowledge_service
+
+    _run(db, _gateway())
+    assert _state(db, document.id).status == STATE_OK
+    admin = make_user("p138-admin@goodmit.co.kr", role="admin")
+    admin.admin_scope = "global"
+    db.flush()
+    space = db.get(KnowledgeSpace, document.space_id)
+    knowledge_service.update_space(db, admin, space.id, description="설명만 바꿨다")
+    assert _state(db, document.id).status == STATE_OK, "이름이 그대로면 다시 색인하지 않는다"
+    knowledge_service.update_space(db, admin, space.id, name="설계 운영 공간")
+    assert _state(db, document.id).status == STATE_PENDING
+    _run(db, _gateway())
+    assert _chunks(db, document.id)[0].text_body.split("\n")[1] == "공간 설계 운영 공간"

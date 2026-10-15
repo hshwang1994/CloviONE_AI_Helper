@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy import select
 
 from app.knowledge.models import Document, KnowledgeSpace
 from app.org.constants import DEFAULT_ORG_ID
@@ -194,3 +195,45 @@ def test_project_none_lists_only_common_documents(client, login_as, world):
         headers=_hdr(login_as),
     ).json()
     assert ghost["items"] == []
+
+
+def test_tag_category_and_space_changes_mark_the_ai_index_stale(client, login_as, world, db):
+    """태그 · 분류만 바꾼 저장과 다른 공간으로의 이동은 판을 올리지 않아도 AI 첫 조각의 자리 줄을 바꾼다(P-138)."""
+    from app.ai.models import STATE_OK, STATE_PENDING, AiIndexState
+    from app.knowledge import categories as categories_mod
+
+    hdr = _hdr(login_as)
+    made = client.post("/api/knowledge/documents", headers=hdr,
+                       json={"space_id": world["common_space"], "title": "태그 문서", "tag_names": ["Docker"]}).json()
+    doc_id = made["id"]
+
+    def state():
+        db.expire_all()
+        return db.execute(select(AiIndexState).where(AiIndexState.document_id == doc_id)).scalar_one()
+
+    def indexed():
+        row = state()
+        row.status = STATE_OK
+        db.commit()
+
+    def save(**body):
+        current = client.get(f"/api/knowledge/documents/{doc_id}", headers=hdr).json()
+        r = client.put(f"/api/knowledge/documents/{doc_id}", headers=hdr, json={"base_version": current["version"], **body})
+        assert r.status_code == 200, r.text
+
+    indexed()
+    save(tag_names=["Docker"])
+    assert state().status == STATE_OK, "태그가 그대로면 다시 색인하지 않는다"
+    save(tag_names=["Docker", "Kubernetes"])
+    assert state().status == STATE_PENDING
+
+    indexed()
+    category = categories_mod.create(db, DEFAULT_ORG_ID, "운영 가이드")
+    db.commit()
+    save(category_id=category.id)
+    assert state().status == STATE_PENDING
+
+    indexed()
+    moved = client.post(f"/api/knowledge/documents/{doc_id}/move", headers=hdr, json={"project_id": world["alpha"]})
+    assert moved.status_code == 200, moved.text
+    assert state().status == STATE_PENDING

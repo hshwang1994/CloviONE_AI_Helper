@@ -210,9 +210,17 @@ def rename(db: Session, tag: Tag, name: str) -> Tag:
         ).scalars().first()
         if clash is not None:
             raise ConflictError(f"같은 이름의 태그가 이미 있습니다: {clash.name}")
+    renamed = clean != tag.name
     tag.name = clean
     tag.slug = slug
     db.flush()
+    if renamed:
+        # 태그 이름은 그 문서들의 AI 첫 조각 자리 줄에 있다(D-568) — 다시 색인한다(P-138).
+        from app.knowledge import versions
+
+        versions.mark_stale_many(db, db.execute(
+            select(DocumentTag.document_id).where(DocumentTag.tag_id == tag.id)
+        ).scalars().all())
     return tag
 
 
@@ -223,12 +231,15 @@ def remove(db: Session, tag: Tag) -> int:
     남지 않는 것이 여기서 확인해야 하는 사실이고, 지운 연결 수를 돌려줘 화면이 「문서 3건에서
     뗐습니다」라고 말할 수 있게 한다.
     """
-    used = len(db.execute(
+    from app.knowledge import versions
+
+    document_ids = list(db.execute(
         select(DocumentTag.document_id).where(DocumentTag.tag_id == tag.id)
     ).scalars().all())
     db.delete(tag)
     db.flush()
-    return used
+    versions.mark_stale_many(db, document_ids)  # 뗀 태그가 AI 첫 조각 자리 줄에 남지 않게(P-138)
+    return len(document_ids)
 
 
 def document_org_id(db: Session, document: Document) -> str | None:
