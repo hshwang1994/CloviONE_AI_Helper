@@ -88,6 +88,14 @@ class Run:
         """대체 모드로 끝난 답의 수."""
         return sum(1 for c in self.chat if c.get("mode") == MODE_SEARCH_ONLY)
 
+    @property
+    def failed(self) -> list[dict]:
+        return [r for r in self.rows if r["verdict"] == "FAIL"] + [c for c in self.chat if c["verdict"] == "FAIL"]
+
+    def exit_code(self) -> int:
+        """실패가 하나라도 있으면 1 — 예전에는 늘 0 이라 자동화가 실패를 몰랐다(P-140)."""
+        return 1 if self.failed else 0
+
 
 # 옛 이름 — 이 파일 안의 호출부가 쓰던 이름을 그대로 둔다.
 _json = json_of
@@ -174,17 +182,22 @@ def measure_connection(client: httpx.Client, headers: dict, run: Run) -> dict:
     return shown
 
 
+#: 실제 목록 경로 — 내 티켓이 먼저, 없으면 팀 티켓. 예전에는 없는 `GET /api/tickets` 를 불러 늘 가짜 키 「ABC-1」을 물었다(P-140).
+TICKET_LIST_ROUTES = ("/api/tickets/mine", "/api/tickets/team")
+
+
 def _first_ticket_key(client: httpx.Client, headers: dict) -> str:
-    try:
-        r = client.get("/api/tickets", params={"limit": 5}, headers=headers)
-        body = _json(r)
-        items = body.get("items") if isinstance(body, dict) else None
-        for item in items or []:
-            key = item.get("key") or item.get("canonical_key")
-            if key:
-                return str(key)
-    except Exception:  # noqa: BLE001 - 티켓이 없으면 가짜 키로 묻는다(「찾지 못함」 갈래)
-        pass
+    for route in TICKET_LIST_ROUTES:
+        try:
+            r = client.get(route, params={"page_size": 5}, headers=headers)
+            body = _json(r)
+            items = body.get("items") if isinstance(body, dict) else None
+            for item in items or []:
+                key = item.get("key") or item.get("canonical_key")
+                if key:
+                    return str(key)
+        except Exception:  # noqa: BLE001 - 다음 목록을 본다. 둘 다 없으면 가짜 키로 「찾지 못함」 갈래를 묻는다
+            continue
     return "ABC-1"
 
 
@@ -292,10 +305,10 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_chat:
         measure_chat(client, headers, run, timeout=args.timeout, keep=args.keep)
     path = write_results(run, Path(args.out))
-    failed = [r for r in run.rows if r["verdict"] == "FAIL"] + [c for c in run.chat if c["verdict"] == "FAIL"]
+    failed = run.failed
     log(f"AI_LAB_E2E {'OK' if not failed else 'FAILED'} rows={len(run.rows)} chat={len(run.chat)} failed={len(failed)} "
         f"fallback={run.fallback_answers} → {path}")
-    return 0
+    return run.exit_code()
 
 
 if __name__ == "__main__":

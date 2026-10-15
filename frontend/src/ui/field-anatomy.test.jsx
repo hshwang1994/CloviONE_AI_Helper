@@ -131,6 +131,37 @@ describe("FieldRow — 한 줄의 칸들과 줄 단위 동작", () => {
   });
 });
 
+describe("FieldRow — 좁은 화면 (P-136)", () => {
+  /* jsdom 의 계산 스타일은 미디어 질의를 풀지 않는다 — 줄 뿌리 클래스에 걸린 규칙 자체를 읽는다. */
+  const rulesOf = (el) => {
+    const cls = [...el.classList].find((c) => c.startsWith("css-"));
+    return [...document.styleSheets].flatMap((sh) => [...sh.cssRules].map((r) => r.cssText))
+      .filter((t) => /^@media \(max-width:\s*599\.95px\)/.test(t) && t.includes(`.${cls}`));
+  };
+
+  it("줄 동작은 600px 아래에서 칸 묶음 아래로 내려가고, 빈 라벨 줄을 걷는다", () => {
+    const { container } = ui(
+      <FieldRow columns={["12rem", "12rem"]} action={<Button>저장</Button>}>
+        <Field label="제한 시간(초)" htmlFor="t"><TextField id="t" size="small" /></Field>
+        <Field label="동시 실행 수" htmlFor="c"><TextField id="c" size="small" /></Field>
+      </FieldRow>,
+    );
+    const row = container.querySelector("[data-field-row]");
+    expect(rulesOf(row).some((t) => /grid-template-columns:\s*minmax\(0,\s*1fr\)/.test(t)), "좁은 화면에서도 동작이 옆에 남았다").toBe(true);
+    expect(rulesOf(container.querySelector(".k-field-row-action")).some((t) => /k-field-row-action-spacer/.test(t) && /display:\s*none/.test(t))).toBe(true);
+    expect(rulesOf(container.querySelector(".k-field-row-action-slot")).some((t) => /grid-row:\s*1/.test(t))).toBe(true);
+  });
+
+  it("동작이 없는 줄에는 좁은 화면 규칙이 없다", () => {
+    const { container } = ui(
+      <FieldRow columns={["12rem"]}>
+        <Field label="값" htmlFor="v"><TextField id="v" size="small" /></Field>
+      </FieldRow>,
+    );
+    expect(rulesOf(container.querySelector("[data-field-row]"))).toEqual([]);
+  });
+});
+
 describe("FormSection — 카드가 아닌 폼 구획", () => {
   it("머리 · 1px 선 · 칸 목록이고 판(테두리 · 면)을 두르지 않는다", () => {
     const { container } = ui(

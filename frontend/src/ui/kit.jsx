@@ -3630,8 +3630,26 @@ export function ModalHeader({ title, onClose, titleId, tone }) {
 }
 /* 몸통은 **위 선 하나**만 긋는다. 아래 선은 발(`ActionFooter`)이 자기 면과 함께 긋는다 — 둘 다
  * 그으면 발 위에 2px 선이 서고, 「면 · 선 · 여백의 주인이 하나」라는 발 계약이 깨진다. */
+/* 모달의 몸 — 열릴 때 초점을 받는다(P-134). 스스로 열린 대화 상자(폴링이 결과를 가져온 순간 · 늦은 입장)에서는 MUI 초점 가두기가
+ * 판(Paper)에 초점을 주고, 전역 `:focus-visible` 고리가 판 전체를 둘렀다 — 결과 대화 상자가 먼저 고친 것을(D-576) 모든 모달에 건다.
+ * 안의 칸이 이미 초점을 받았으면(`autoFocus` · 확인 창의 취소) 건드리지 않는다. 이 효과는 대화 상자 안의 자식이라 같은 커밋의
+ * 초점 가두기보다 먼저 돈다 — 초점이 이미 안에 있으므로 가두기는 판으로 옮기지 않고, 닫을 때 돌아갈 자리도 그대로 잡는다.
+ * 몸은 스크롤 상자이기도 해서 초점을 받으면 화살표 키로 내용을 내릴 수 있다. */
 export function ModalBody({ children }) {
-  return <MuiDialogContent dividers sx={{ minWidth: 0, borderBottom: 0 }}>{children}</MuiDialogContent>;
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof document === "undefined") return;
+    const dialog = el.closest('[role="dialog"]');
+    if (dialog && dialog.contains(document.activeElement)) return;
+    try { el.focus({ preventScroll: true }); } catch (e) { /* 오래된 브라우저 */ }
+  }, []);
+  return (
+    <MuiDialogContent ref={ref} tabIndex={-1} dividers
+      sx={{ minWidth: 0, borderBottom: 0, outline: "none", "&:focus-visible": { outline: "none" } }}>
+      {children}
+    </MuiDialogContent>
+  );
 }
 /* 모달 모서리 반지름 — 사용자 지적 P4("전체적으로 눌렀을 때 라운드가 너무 크다").
  *
@@ -3944,21 +3962,29 @@ export function FieldRow({ children, action, columns, sx }) {
   return (
     <Box
       data-field-row=""
-      sx={{
+      sx={(t) => ({
         display: "grid",
         gridTemplateColumns: action ? (fixed ? "auto auto" : "minmax(0, 1fr) auto") : "minmax(0, 1fr)",
         justifyContent: fixed ? "start" : undefined,
         columnGap: FORM_FIELD_GAP,
         alignItems: "start",
         minWidth: 0,
+        /* 좁은 화면(< sm)에서는 줄 동작이 칸 묶음 아래로 내려간다 — 옆에 두면 칸이 눌렸다(AI 연결 「실행 옵션」 390, P-136). */
+        ...(action ? { [t.breakpoints.down("sm")]: { gridTemplateColumns: "minmax(0, 1fr)", justifyContent: "stretch", rowGap: 1.5 } } : {}),
         ...sx,
-      }}
+      })}
     >
       {fields}
       {action ? (
-        <Box className="k-field-row-action" sx={{ display: "grid", gridTemplateRows: FIELD_ROWS, minWidth: 0 }}>
-          <span aria-hidden="true" />
-          <Box className="k-field-row-action-slot" sx={{ gridRow: 2, display: "flex", alignItems: "flex-start", gap: 1 }}>
+        <Box className="k-field-row-action" sx={(t) => ({
+          display: "grid", gridTemplateRows: FIELD_ROWS, minWidth: 0,
+          /* 아래로 내려간 동작에는 라벨 줄을 비운 자리가 필요 없다. */
+          [t.breakpoints.down("sm")]: { gridTemplateRows: "auto", "& > .k-field-row-action-spacer": { display: "none" } },
+        })}>
+          <span className="k-field-row-action-spacer" aria-hidden="true" />
+          <Box className="k-field-row-action-slot" sx={(t) => ({
+            gridRow: 2, display: "flex", alignItems: "flex-start", gap: 1, [t.breakpoints.down("sm")]: { gridRow: 1 },
+          })}>
             {action}
           </Box>
         </Box>

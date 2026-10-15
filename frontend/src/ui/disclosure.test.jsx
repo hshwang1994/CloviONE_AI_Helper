@@ -58,6 +58,26 @@ describe("Disclosure — 닫힌 구획 하나", () => {
   });
 });
 
+describe("Disclosure 제목 단계 (P-137)", () => {
+  it("titleAs 를 주면 단추가 그 제목 요소 안에 서고, 제목의 이름은 단추 글자다", async () => {
+    const user = userEvent.setup();
+    ui(<Disclosure title="문제 해결과 고급" titleAs="h2" titleId="adv-title" summary="점검 하나가 남았습니다."><p>고급 칸</p></Disclosure>);
+    const heading = screen.getByRole("heading", { level: 2, name: "문제 해결과 고급" });
+    expect(heading.id).toBe("adv-title");
+    const toggle = screen.getByRole("button", { name: "문제 해결과 고급" });
+    expect(heading.contains(toggle)).toBe(true);
+    expect(heading.contains(screen.getByText("점검 하나가 남았습니다."))).toBe(false);
+    await user.click(toggle);
+    expect(screen.getByText("고급 칸")).toBeInTheDocument();
+  });
+
+  it("titleAs 가 없으면 제목 요소를 만들지 않는다", () => {
+    ui(<Disclosure title="고급"><p>값</p></Disclosure>);
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.getByRole("button", { name: "고급" })).toBeInTheDocument();
+  });
+});
+
 describe("TechRows — 이름 · 값 두 열", () => {
   it("값이 빈 줄은 그리지 않고, 줄이 없으면 아무것도 그리지 않는다", () => {
     const { container } = ui(<TechRows rows={[["상태 코드", "ok"], ["실패 종류", null], { name: "연속 실패", value: "" }, ["프록시", false]]} />);

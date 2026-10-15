@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 
 import {
   ActionFooter, Button, Callout, Card, ConfirmProvider, CountChip, DataTable, DotLabel, EmptyState, ErrorState,
-  FormFieldCell, FIELD_ROWS, ModalFooter, ModalHeader, Segmented, ToastProvider, useConfirm,
+  FormFieldCell, FIELD_ROWS, Modal, ModalFooter, ModalHeader, Segmented, ToastProvider, useConfirm,
 } from "./kit.jsx";
 import { FilterConditionLine, FilterSurface, FilterToggle, ToolbarRow } from "./FilterBar.jsx";
 import { EntityCombobox, FilterSelect, PickerOption, SearchBox, mineFirst } from "./filters.jsx";
@@ -158,6 +158,24 @@ describe("모달 머리와 발 · ActionFooter", () => {
     expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "취소" }));
     // 표지는 머리 줄에 서되 대화상자의 **이름**에는 섞이지 않는다 — 이름은 제목 글자 그대로다.
     expect(screen.getByRole("dialog", { name: "확인" })).toBe(dialog);
+  });
+});
+
+describe("모달의 초점 (P-134)", () => {
+  it("스스로 열린 모달은 판이 아니라 몸이 초점을 받고, 몸에는 초점 고리가 없다", () => {
+    ui(<Modal open title="결과 발표" onClose={() => {}}><p>당첨을 축하합니다.</p></Modal>);
+    const dialog = screen.getByRole("dialog");
+    const body = dialog.querySelector(".MuiDialogContent-root");
+    expect(document.activeElement).toBe(body);
+    expect(body.getAttribute("tabindex")).toBe("-1");
+    const cls = [...body.classList].find((c) => c.startsWith("css-"));
+    const rules = [...document.styleSheets].flatMap((sh) => [...sh.cssRules].map((r) => r.cssText));
+    expect(rules.some((t) => t.startsWith(`.${cls}:focus-visible`) && /outline:\s*none/.test(t)), "몸의 초점 고리를 지우지 않았다").toBe(true);
+  });
+
+  it("안의 칸이 이미 초점을 받았으면 몸이 가로채지 않는다", () => {
+    ui(<Modal open title="이름 바꾸기" onClose={() => {}}><input aria-label="새 이름" autoFocus /></Modal>);
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "새 이름" }));
   });
 });
 

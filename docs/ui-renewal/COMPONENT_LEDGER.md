@@ -235,7 +235,8 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 
 `ActionFooter` 가 면(`background.inset`) · 위 실선(`rule`) · 여백을 **한 요소**(`data-action-footer`)에서 그린다.
 `Modal` 이 받은 `footer` 가 이미 발이면 감싸지 않고(바깥이 물러난다), 발 안의 발은 맨 줄로 선다.
-`ModalBody` 는 위 선만 긋는다(아래 선은 발의 것). `kit_measure.py` 의 `footer_owner` 가 발마다 주인 수 1 을 잰다.
+`ModalBody` 는 위 선만 긋는다(아래 선은 발의 것). `kit_measure.py` 의 `footer_owner` 가 발마다 주인 수 1 을 잰다. 모달이 열릴 때는
+`ModalBody` 가 초점을 받는다(고리 없음, 안의 칸이 먼저 받았으면 그대로 — P-134).
 
 ## 0-6. 건수 칩 갈래 · 표 행 높이
 
@@ -720,7 +721,8 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
 
 - **컨트롤 높이 둘**: 34(`CONTROL.control`) · 30(`CONTROL.controlDense`). 입력은 `controlHeight` 변수 하나에서 나오고, 밀집 그릇
   (`densityVars("dense")` — 선택 발 `SelectionBar`)이 30 으로 낮춘다. 줄 칸(`filters.jsx` 의 칸 안 접두 칸)도 같은 변수다.
-- **폼 칸 = `Field`**(라벨 20 · 컨트롤 34 · 도움말 auto, 동작 칸, 폭 토큰), **줄 = `FieldRow`**(12칸 컨테이너 격자 또는 `columns`, 줄 동작 칸),
+- **폼 칸 = `Field`**(라벨 20 · 컨트롤 34 · 도움말 auto, 동작 칸, 폭 토큰), **줄 = `FieldRow`**(12칸 컨테이너 격자 또는 `columns`, 줄 동작 칸 —
+  600 아래에서는 칸 묶음 아래로 내려간다, P-136),
   **구획 = `FormSection`**(카드 아님, 머리 + 1px 선 + 칸 목록). `FormFieldCell` 은 `Field` 의 별칭이고 설정형 `FormField` 도 `Field` 로 그린다.
   소비처: 비밀 칸 · AI 설정 · 내 프로필 조용시간 · 사용자 일괄 가져오기 · 모든 `FormModal`. 조직 정합성 일괄 작업 줄은 선택 발의 칸 안
   접두 이름 칸이다.
@@ -739,6 +741,7 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   `scripts/ui_qa/fixtures/visual/{good,bad}.html`, 대조표 `scripts/ui_qa/visual_review.py`.
 - **접기 구획 = `Disclosure`**(`ui/Disclosure.jsx`, 2026-10-15): 제목 단추(컨트롤 높이 34, `aria-expanded` · `aria-controls`, 셰브론) + 한 줄 요약,
   몸은 열렸을 때만 그린다. 비제어(`defaultOpen`) · 제어(`open` + `onToggle`). 메일 설정의 홈메이드 토글 넷과 「서비스 주소」의 고급이 쓴다.
+  구획 제목이면 `titleAs`(+ `titleId`)가 단추를 그 제목 요소 안에 둔다(아코디언 꼴, P-137 — 메일 설정 ⑤ 의 숨은 h2 를 걷었다).
   기술 정보 한 줄은 그대로 `TechDetail`(`<details>`) 이다 — 둘은 다른 일이다.
 - **기술 정보 줄 = `TechRows`**(`kit.jsx`): 이름 · 값 두 열 `dl`, 빈 값 줄 생략, `labelWidth`. 메일 · AI 상태 면과 릴레이 구획이 각자 그리던
   `TechLine` 셋을 걷었다. **설정 줄 묶음 = `SettingRows`**(`adminKit.jsx`): 첫 줄의 위 선 · 위 여백을 지우는 그릇 — 같은 `sx` 다섯 복사를

@@ -242,6 +242,32 @@ def test_lab_harness_verdicts_fail_the_fallback_mode():
     assert lab.tools_verdict({"tools": "unknown"}) == "SKIPPED"
 
 
+def test_lab_harness_finds_a_real_ticket_key_from_the_list_routes():
+    """예전에는 없는 `GET /api/tickets` 를 불러 늘 「ABC-1」을 물었다(P-140). 내 티켓이 비면 팀 티켓을 본다."""
+    import httpx
+
+    def handler(request):
+        if request.url.path == "/api/tickets/mine":
+            return httpx.Response(200, json={"items": [], "total": 0})
+        if request.url.path == "/api/tickets/team":
+            return httpx.Response(200, json={"items": [{"key": "SFVHJG-24", "title": "x"}], "total": 1})
+        return httpx.Response(404, json={"error": "not_found"})
+
+    client = httpx.Client(base_url="https://lab.test", transport=httpx.MockTransport(handler))
+    assert "/api/tickets" not in lab.TICKET_LIST_ROUTES
+    assert lab._first_ticket_key(client, {}) == "SFVHJG-24"
+    empty = httpx.Client(base_url="https://lab.test", transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"items": []})))
+    assert lab._first_ticket_key(empty, {}) == "ABC-1"
+
+
+def test_lab_harness_exits_non_zero_when_anything_failed():
+    run = lab.Run("https://lab.test", "t")
+    run.row("overview", "PASS", {})
+    assert run.exit_code() == 0
+    run.chat.append({"key": "q1", "verdict": "FAIL"})
+    assert run.exit_code() == 1 and len(run.failed) == 1
+
+
 # ── 패러프레이즈 벤치 ───────────────────────────────────────────────────────
 
 

@@ -274,7 +274,7 @@ function MailChecks({ status, checks, verify, dirty, relayLocal, onOpenAdvanced 
   );
 }
 
-/* ⑤ 문제 해결과 고급 — 구획 머리는 화면 낭독기용 제목이고, 눈에 보이는 머리는 접기의 단추다(제목 단추 안에 제목 요소를 넣을 수 없다).
+/* ⑤ 문제 해결과 고급 — 구획 머리는 접기의 단추이고, 그 단추를 h2 가 감싼다(`Disclosure titleAs`, P-137).
    위 구획과는 선 하나로 갈린다(구획 머리의 선과 같은 선이다). */
 function AdvancedSection({ open, onToggle, summary, children }) {
   return (
@@ -282,8 +282,8 @@ function AdvancedSection({ open, onToggle, summary, children }) {
       component="section" id={SECTION_IDS.advanced} aria-labelledby="mail-advanced-title"
       sx={{ minWidth: 0, borderTop: 1, borderColor: "rule", pt: 1.5 }}
     >
-      <Typography component="h2" id="mail-advanced-title" className="sr-only">문제 해결과 고급</Typography>
-      <Disclosure id="mail-advanced" title="문제 해결과 고급" summary={summary} open={open} onToggle={onToggle}>
+      <Disclosure id="mail-advanced" title="문제 해결과 고급" titleAs="h2" titleId="mail-advanced-title"
+        summary={summary} open={open} onToggle={onToggle}>
         <Box sx={{ display: "grid", gap: 3, minWidth: 0 }}>{children}</Box>
       </Disclosure>
     </Box>

@@ -82,7 +82,8 @@ CONTRACT = {
     "searchSlotSteps": [[64, 20], [44, 16]],
     "table": {"head": 40, "row": 48, "group": 36, "footer": 44},
     "cardPadding": 20,
-    "modal": {"radius": 8, "titleSize": 17, "titleWeight": 700, "close": 30},
+    # 600 아래(MUI xs)의 kit 모달은 일부러 화면 전체를 덮는 시트다 — 모서리 0 이 맞다(P-135).
+    "modal": {"radius": 8, "titleSize": 17, "titleWeight": 700, "close": 30, "sheetBelow": 600},
     "floatingRadius": 8,
     "countChip": {"default": 20, "compact": 18},
     "picker": {"h": 32, "avatar": 22},
@@ -469,7 +470,9 @@ MEASURE_JS = r"""
     check('modal').checked++;
     const st = getComputedStyle(d);
     const problems = [];
-    if (!near(px(st.borderTopLeftRadius), C.modal.radius, 0.5)) problems.push('radius ' + st.borderTopLeftRadius);
+    const sheet = window.innerWidth < C.modal.sheetBelow && Math.abs(d.getBoundingClientRect().width - window.innerWidth) <= 1;
+    const wantRadius = sheet ? 0 : C.modal.radius;
+    if (!near(px(st.borderTopLeftRadius), wantRadius, 0.5)) problems.push((sheet ? 'sheet radius ' : 'radius ') + st.borderTopLeftRadius);
     const title = d.querySelector('h2, .MuiDialogTitle-root');
     if (title) {
       const ts = getComputedStyle(title);
@@ -804,6 +807,18 @@ SELFTEST_EXPECT_BAD = {
 }
 
 
+# 390 화면의 모달 견본 — 맞는 것: 화면 전체 시트 · 모서리 0. 틀린 것: 시트인데 모서리 8, 시트가 아닌데 모서리 0.
+SHEET_SELFTEST_HTML = """<!doctype html><html><body style="margin:0">
+<div id="sheet-good"><div class="MuiDialog-paper" style="position:fixed;inset:0;width:100vw;height:100vh;border-radius:0">
+  <h2 style="font-size:17px;font-weight:700;margin:0">제목</h2></div></div>
+<div id="sheet-bad">
+  <div class="MuiDialog-paper" style="position:fixed;inset:0;width:100vw;height:100vh;border-radius:8px">
+    <h2 style="font-size:17px;font-weight:700;margin:0">제목</h2></div>
+  <div class="MuiDialog-paper" style="position:fixed;left:20px;top:20px;width:300px;height:200px;border-radius:0">
+    <h2 style="font-size:17px;font-weight:700;margin:0">제목</h2></div>
+</div></body></html>"""
+
+
 def _merge(total: dict, page_result: dict, where: str) -> None:
     for name in ALL_CHECKS:
         got = page_result.get(name)
@@ -851,6 +866,11 @@ def selftest(args) -> int:
             for kind in ("good", "bad"):
                 v_page.set_content(visual_probes.fixture_html(kind), wait_until="load")
                 v_results[kind] = v_page.evaluate(VISUAL_JS, {**VISUAL_CONTRACT, "scope": None})
+            # 좁은 화면의 모달 시트(P-135) — 390 에서 화면 전체 시트는 모서리 0 이 맞고, 시트인데 둥글거나 시트가 아닌데 각진 것은 틀리다.
+            v_page.set_viewport_size({"width": 390, "height": 844})
+            v_page.set_content(SHEET_SELFTEST_HTML, wait_until="load")
+            sheet_good = v_page.evaluate(MEASURE_JS, {**CONTRACT, "scope": "#sheet-good"})
+            sheet_bad = v_page.evaluate(MEASURE_JS, {**CONTRACT, "scope": "#sheet-bad"})
             ctx.close()
         finally:
             browser.close()
@@ -865,6 +885,10 @@ def selftest(args) -> int:
     checked_good = sum((good.get(n) or {}).get("checked", 0) for n in CHECKS)
     if checked_good < 4:
         problems.append(f"맞는 견본 표본이 너무 적다({checked_good})")
+    if (sheet_good.get("modal") or {}).get("failed", 0) or (sheet_good.get("modal") or {}).get("checked", 0) < 1:
+        problems.append(f"좁은 화면 시트의 맞는 견본을 잘못 잡았거나 재지 않았다: {sheet_good.get('modal')}")
+    if (sheet_bad.get("modal") or {}).get("failed", 0) < 2:
+        problems.append(f"좁은 화면 시트의 틀린 견본 둘을 못 잡았다: {sheet_bad.get('modal')}")
     problems += [f"조합: {p}" for p in selftest_verdict(c_good, c_bad)]
     problems += [f"시각: {p}" for p in visual_probes.selftest_verdict(v_results["good"], v_results["bad"])]
     if problems:
