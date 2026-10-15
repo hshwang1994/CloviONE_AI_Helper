@@ -20,7 +20,7 @@ import { SOURCE_ROUTE_PREFIXES, safeSourceRoute } from "../chat-helpers.js";
 
 export { SOURCE_ROUTE_PREFIXES, safeSourceRoute };
 
-const KINDS = {
+export const SOURCE_KINDS = {
   document: { label: "문서", Icon: DescriptionOutlinedIcon },
   ticket: { label: "티켓", Icon: ConfirmationNumberOutlinedIcon },
   project: { label: "프로젝트", Icon: FolderOutlinedIcon },
@@ -31,7 +31,7 @@ const KINDS = {
 
 /** 화면에 서는 출처 — 아는 종류이고 경로가 앱 안 출처 모양인 것만. 답 안 링크도 이 목록의 경로로만 선다(MessageThread). */
 export function visibleSources(sources) {
-  return (Array.isArray(sources) ? sources : []).filter((s) => s && KINDS[s.type] && safeSourceRoute(s.route));
+  return (Array.isArray(sources) ? sources : []).filter((s) => s && SOURCE_KINDS[s.type] && safeSourceRoute(s.route));
 }
 
 /* 옛 답(근거 검색 시절)의 `citations` 를 문서 출처로 옮긴다 — 지난 대화를 열어도 출처가 사라지지 않는다. */
@@ -47,10 +47,24 @@ export function messageSources(structured) {
   return [];
 }
 
-/** 답이 출처를 하나라도 인용했는가. 서버가 출처마다 `cited` 를 싣는다(P-133) — 그 값이 없는 옛 답은 인용한 것으로 본다. */
+/** 답이 출처를 하나라도 썼는가 — 글에 인용했거나(`cited`) 보인 목록에 섰다(`shown`, 결과 블록). 서버가 출처마다 `cited` 를
+ *  싣는다(P-133) — 그 값이 없는 옛 답은 인용한 것으로 본다. 보인 목록은 답 글이 다시 나열하지 않으므로 인용이 없어도 쓴 것이다. */
 export function citesSources(structured) {
   const items = visibleSources(messageSources(structured));
-  return items.length > 0 && items.some((s) => s.cited !== false);
+  return items.length > 0 && items.some((s) => s.cited !== false || s.shown);
+}
+
+/** 그 답의 결과 블록 중 보인 것 — 화면이 목록 · 카드로 그린다(`structured.results`, `app/ai/assistant/blocks.py`). */
+export function shownBlocks(structured) {
+  const st = structured || {};
+  return (Array.isArray(st.results) ? st.results : []).filter((b) => b && b.shown && Array.isArray(b.items));
+}
+
+/** 참고 자료 판에 설 자료 — 그 답이 인용한 출처에서 보인 블록에 이미 선 항목을 뺀 것이다(같은 문서가 본문 목록과 판에 두 번
+ *  서지 않는다). 인용 표시가 없는 옛 답은 출처 전부다. */
+export function panelSources(structured) {
+  const items = visibleSources(messageSources(structured));
+  return items.filter((s) => s.cited !== false && !s.shown);
 }
 
 function metaOf(source) {
@@ -73,7 +87,7 @@ export function SourceList({ sources, title = "참고한 자료", note = null, l
       {note ? <Typography sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>{note}</Typography> : null}
       <Box component="ul" role="list" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.75, minWidth: 0 }}>
         {shown.map((source) => {
-          const kind = KINDS[source.type];
+          const kind = SOURCE_KINDS[source.type];
           const Icon = kind.Icon;
           return (
             <Box key={`${source.type}:${source.id}`} component="li"

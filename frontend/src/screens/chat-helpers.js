@@ -119,20 +119,6 @@ export const QUICK_PROMPTS = [
 
 export const CHAT_LAST_CONV_KEY = "chat.lastConversationId"; // 새로고침 후 열려 있던 대화 복원용(세션 한정)
 
-/* 대화 목록이 '오버레이 서랍'에서 '상주하는 열'로 바뀌는 폭(px). MUI 테마의 xl과 같은 값이다.
- *
- * 왜 900(md)이 아니라 1536인가: 이 앱은 860px부터 전역 사이드바가 상주한다. md에서 대화 목록까지
- * 열로 세우면 1024·1152·1366 사내 장비에서 사이드바가 둘(284+304px) 서서 실제 대화 폭이 절반 아래로
- * 떨어진다 — 대화 목록을 전 폭에서 서랍으로 되돌린 것이 애초에 그 때문이었다. 폭이 진짜로 남을 때만
- * 세운다.
- *
- * 이 값을 상수로 둔 이유: 훅(matchMedia로 서랍의 inert·포커스 반환을 판단)과 화면(그리드 열 정의)이
- * 같은 경계를 봐야 한다. 두 곳에 숫자를 적으면 반드시 어긋나서, 열로 서 있는 목록이 inert가 되거나
- * 서랍이 열린 채 배경이 안 잠기는 상태가 생긴다.
- */
-export const LIST_DOCK_PX = 1536;
-export const LIST_DRAWER_MEDIA = `(max-width: ${LIST_DOCK_PX - 0.02}px)`;
-
 // ── 첨부(이미지) ────────────────────────────────────────────────────────────
 
 export const MAX_ATTACH_BYTES = 3 * 1024 * 1024; // 서버 이미지 상한과 맞춤(개당 3MB)
@@ -181,13 +167,20 @@ export function downscaleImage(file) {
  * 윗 항목의 들여쓴 딸린 줄, 2줄 이상 이어지는 "키: 값" 표. 새 문법은 만들지 않는다.
  * 글자는 오직 JSX 텍스트 노드(textContent)로만 들어간다 — innerHTML 금지(CLAUDE.md §2). */
 // 「[제목](경로)」로 시작하는 줄은 머리글이 아니라 링크다 — 닫는 괄호 바로 뒤가 여는 괄호면 머리글로 읽지 않는다(A8).
-export const RE_HEAD_BRACKET = /^\[([^\]]{1,40})\](?!\()\s*(.*)$/;
+// 머리글 글에는 여는 괄호도 없다 — 「[[포스코DX] 부가서비스 가이드](/knowledge/…)」의 앞 「[포스코DX」를 머리글로 읽던 결함.
+export const RE_HEAD_BRACKET = /^\[([^[\]]{1,40})\](?!\()\s*(.*)$/;
 export const RE_HEAD_BULLET = /^■\s*(.+)$/;
 // 마크다운 머리글(「# 제목」 ~ 「### 제목」). 서버의 형식 지시는 쓰지 말라고 하지만, 모델이 쓰면 글자 그대로 두지 않고 머리글로 그린다(A8).
 // 끝의 「 ##」 닫기는 떼고, 「#제목」처럼 띄어 쓰지 않은 줄과 「####」 이상은 머리글이 아니다.
-export const RE_HEAD_HASH = /^#{1,3}\s+(.+?)(?:\s+#+)?\s*$/;
+export const RE_HEAD_HASH = /^#{1,4}\s+(.+?)(?:\s+#+)?\s*$/;
 export const RE_ORDERED = /^(\d{1,3})\.\s+(.*)$/;
-export const RE_UNORDERED = /^-\s+(.*)$/;
+// 글머리는 「-」 「*」 「•」 셋이다(모델이 셋 다 쓴다). 「**굵게**」로 시작하는 줄은 「*」 뒤가 공백이 아니라 목록이 아니다.
+export const RE_UNORDERED = /^[-*\u2022]\s+(.*)$/;
+// 인용(「> 글」) · 구분선(「---」 「***」 「___」) · 표 한 줄(「| 가 | 나 |」)과 표 머리 구분선(「|---|:---:|」).
+export const RE_QUOTE = /^>\s?(.*)$/;
+export const RE_RULE = /^\s*([-*_])(?:\s*\1){2,}\s*$/;
+export const RE_TABLE_ROW = /^\s*\|(.+)\|\s*$/;
+export const RE_TABLE_SEP = /^\s*\|?(\s*:?-{3,}:?\s*\|)+\s*(:?-{3,}:?\s*)?\|?\s*$/;
 export const RE_SUBLINE = /^\s{2,}(\S.*)$/;
 // 키는 짧다. 콜론이 든 평범한 문장을 표로 오해하지 않으려는 상한이다.
 export const RE_KV = /^([^:\s][^:]{0,15}?)\s*:\s*(.*)$/;
@@ -217,14 +210,24 @@ export function kvOf(line) {
   return { kind: "kv", key: m[1], text: m[2], raw: line };
 }
 
+function tableCells(line) {
+  const m = RE_TABLE_ROW.exec(line);
+  return m ? m[1].split("|").map((c) => c.trim()) : null;
+}
+
 export function classifyLine(line) {
   if (!line.trim()) return { kind: "blank" };
   let m;
   const sub = RE_SUBLINE.exec(line);
   const body = sub ? sub[1] : line;   // 들여쓴 줄이면 들여쓰기를 뺀 알맹이
-  if ((m = RE_ORDERED.exec(body))) return { kind: "item", marker: m[1] + ".", text: m[2] };
-  if ((m = RE_UNORDERED.exec(body))) return { kind: "item", marker: "", text: m[1] };
+  // 들여쓴 목록 줄은 윗 항목의 딸린 목록이다(한 단까지) — 예전에는 맨 위 목록으로 펴졌다.
+  if ((m = RE_ORDERED.exec(body))) return sub ? { kind: "item", marker: m[1] + ".", text: m[2], nested: true } : { kind: "item", marker: m[1] + ".", text: m[2] };
+  if ((m = RE_UNORDERED.exec(body))) return sub ? { kind: "item", marker: "", text: m[1], nested: true } : { kind: "item", marker: "", text: m[1] };
   if (sub) return { kind: "sub", text: sub[1], raw: line };
+  if (RE_RULE.test(line)) return { kind: "rule" };
+  if (RE_TABLE_SEP.test(line) && line.includes("-")) return { kind: "tablesep" };
+  if (tableCells(line)) return { kind: "tablerow", cells: tableCells(line), raw: line };
+  if ((m = RE_QUOTE.exec(line))) return { kind: "quote", text: m[1] };
   if ((m = RE_HEAD_HASH.exec(line))) return { kind: "head", text: m[1], note: "" };
   if ((m = RE_HEAD_BRACKET.exec(line))) return { kind: "head", text: m[1], note: m[2] };
   if ((m = RE_HEAD_BULLET.exec(line))) return { kind: "head", text: m[1], note: "" };
@@ -257,7 +260,30 @@ export function parseBlocks(source) {
     let c = classifyLine(line);
     if (c.kind === "blank") { cur = null; return; }
     if (c.kind === "head") { cur = null; blocks.push({ kind: "head", text: c.text, note: c.note }); return; }
+    if (c.kind === "rule") { cur = null; blocks.push({ kind: "rule" }); return; }
+    if (c.kind === "quote") {
+      if (!cur || cur.kind !== "quote") { cur = { kind: "quote", lines: [] }; blocks.push(cur); }
+      cur.lines.push(c.text);
+      return;
+    }
+    if (c.kind === "tablerow" || c.kind === "tablesep") {
+      if (c.kind === "tablesep") {
+        // 머리 구분선은 바로 앞 줄 하나가 표의 머리일 때만 표를 연다. 아니면 평범한 글이다.
+        if (cur && cur.kind === "table" && cur.rows.length === 1 && !cur.head) { cur.head = cur.rows.shift(); return; }
+        c = { kind: "text", text: line };
+      } else {
+        if (!cur || cur.kind !== "table") { cur = { kind: "table", head: null, rows: [], raw: [] }; blocks.push(cur); }
+        cur.rows.push(c.cells);
+        cur.raw.push(c.raw);
+        return;
+      }
+    }
     if (c.kind === "item") {
+      if (c.nested && cur && cur.kind === "list" && cur.items.length) {
+        const parent = cur.items[cur.items.length - 1];
+        (parent.children || (parent.children = [])).push({ marker: c.marker, text: c.text });
+        return;
+      }
       if (!cur || cur.kind !== "list") { cur = { kind: "list", items: [] }; blocks.push(cur); }
       cur.items.push({ marker: c.marker, text: c.text, subs: [] });
       return;
@@ -280,9 +306,13 @@ export function parseBlocks(source) {
     blocks.push({ kind: "code", lang: fence.lang, text: fence.lines.join("\n") });
   }
   // "키: 값"처럼 생긴 줄 하나는 표가 아니라 문장이다("내 티켓: 총 25건"). 표는 2줄 이상일 때만.
-  return blocks.map((b) => (b.kind === "kv" && b.rows.length < 2)
-    ? { kind: "para", lines: b.rows.map((r) => r.raw) }
-    : b);
+  // 「| … |」 줄은 머리 구분선이 있어야 표다 — 구분선 없는 줄은 원래 글자 그대로 문단이다(잘못된 표는 글로 떨어진다).
+  return blocks.map((b) => {
+    if (b.kind === "kv" && b.rows.length < 2) return { kind: "para", lines: b.rows.map((r) => r.raw) };
+    if (b.kind === "table" && !b.head) return { kind: "para", lines: b.raw };
+    if (b.kind === "table") return { kind: "table", head: b.head, rows: b.rows };
+    return b;
+  });
 }
 
 // 답변 프로즈 안에 맨 http(s):// URL이 섞여 있으면 이전엔 죽은 평문으로만 보였다. 지금은
@@ -317,6 +347,24 @@ export function safeSourceRoute(route) {
   return SOURCE_ROUTE_PREFIXES.some((prefix) => routeHasPrefix(route, prefix)) ? route : null;
 }
 
+/** 답 안에서 링크로 그릴 수 있는 경로 — 출처 모양이거나 화면 길잡이 경로와 정확히 같을 때. 그리는 쪽(`links.jsx`)이 한 번 더 본다
+ *  (예전에는 출처 모양만 다시 봐서 해석은 된 길잡이 링크 「[사내 문서](/knowledge)」가 그릴 때 글로 떨어졌다). */
+export function safeAnswerRoute(route) {
+  if (typeof route === "string" && GUIDE_ROUTES.has(route)) return route;
+  return safeSourceRoute(route);
+}
+
+/* 결과 블록의 「전체 목록 열기」가 받는 화면 — 서버가 만든 상대 경로(`app/ai/assistant/blocks.py::list_route`)를 이 접두로
+ * 다시 본다. 그 밖의 값은 단추를 세우지 않는다. */
+export const LIST_ROUTE_PREFIXES = ["/knowledge", "/my-tickets", "/team-tickets", "/unassigned", "/projects",
+  "/my-approvals", "/notifications", "/activity"];
+
+/** 「전체 목록 열기」 경로면 그 값, 아니면 null. */
+export function safeListRoute(route) {
+  if (typeof route !== "string" || !route.startsWith("/") || route.startsWith("//") || route.includes("://")) return null;
+  return LIST_ROUTE_PREFIXES.some((prefix) => route === prefix || route.startsWith(prefix + "?")) ? route : null;
+}
+
 /** 경로에서 `block` 질의만 뗀다(문서의 문단 자리). 같은 문서를 가리키는지 볼 때 쓴다. */
 export function stripBlock(route) {
   if (typeof route !== "string") return "";
@@ -326,8 +374,40 @@ export function stripBlock(route) {
   return kept.length ? route.slice(0, q) + "?" + kept.join("&") : route.slice(0, q);
 }
 
-/* 마크다운 링크 「[글](경로)」 — 글에는 대괄호와 줄바꿈이, 경로에는 괄호와 공백이 없다. 정규식은 전역(g)이 아니다(lastIndex 상태가 없다). */
+/* 마크다운 링크 「[글](경로)」의 옛 꼴 — 글에 대괄호가 없을 때만 맞았다. 지금은 아래 `findLink` 가 괄호의 짝을 세어 읽는다
+ * (「[[포스코DX] 부가서비스 가이드](/knowledge/…)」처럼 제목에 대괄호가 든 링크가 글자 그대로 남던 결함). 시험이 옛 꼴을 잰다. */
 export const INLINE_LINK_RE = /\[([^[\]\n]{1,200})\]\(([^()\s]{1,500})\)/;
+const LINK_ROUTE = /^[^()\s]{1,500}$/;
+
+/** 글에서 가장 앞의 마크다운 링크 — 글(라벨)의 대괄호는 짝이 맞으면 받는다. `{index, end, label, route}` 또는 null.
+ *  라벨은 1 ~ 200자이고 줄을 넘지 않으며, 경로에는 괄호와 공백이 없다. */
+export function findLink(text) {
+  const src = String(text || "");
+  for (let i = src.indexOf("["); i >= 0; i = src.indexOf("[", i + 1)) {
+    let depth = 0;
+    let close = -1;
+    for (let j = i; j < src.length && j - i <= 201; j += 1) {
+      const ch = src[j];
+      if (ch === "\n") break;
+      if (ch === "[") depth += 1;
+      else if (ch === "]") {
+        depth -= 1;
+        if (depth === 0) { close = j; break; }
+      }
+    }
+    if (close < 0 || src[close + 1] !== "(") continue;
+    const end = src.indexOf(")", close + 2);
+    if (end < 0) continue;
+    const label = src.slice(i + 1, close);
+    const route = src.slice(close + 2, end);
+    if (!label || label.length > 200 || !LINK_ROUTE.test(route)) continue;
+    return { index: i, end: end + 1, label, route };
+  }
+  return null;
+}
+
+/* 인라인 코드 「\x60글\x60」 — 한 줄 안, 비지 않은 글. 안의 글은 해석하지 않는다(굵게 · 링크 없음). */
+export const INLINE_CODE_RE = /\x60([^\x60\n]{1,300})\x60/;
 /* 굵게 「**글**」 — 안의 글은 비지 않고, 앞뒤가 공백이나 별표가 아니며, 줄을 넘지 않는다. 가장 짧게 맞춘다(뒤 묶음도 `??` 로
  * 게으르게 — 아니면 「**a** 와 **b**」가 굵게 하나로 묶인다). */
 export const BOLD_RE = /\*\*([^\s*](?:[^\n]*?[^\s*])??)\*\*/;
@@ -413,23 +493,30 @@ function inlineSpans(text, targets, keyLinks, depth) {
   const out = [];
   let rest = text;
   while (rest) {
-    const link = INLINE_LINK_RE.exec(rest);
-    const bold = depth === 0 ? BOLD_RE.exec(rest) : null;
-    const m = link && (!bold || link.index < bold.index) ? link : bold;
+    const found = findLink(rest);
+    const link = found ? { index: found.index, length: found.end - found.index, found } : null;
+    const boldM = depth === 0 ? BOLD_RE.exec(rest) : null;
+    const bold = boldM ? { index: boldM.index, length: boldM[0].length, inner: boldM[1] } : null;
+    const codeM = INLINE_CODE_RE.exec(rest);
+    const code = codeM ? { index: codeM.index, length: codeM[0].length, text: codeM[1] } : null;
+    const m = [code, link, bold].filter(Boolean).sort((a, b) => a.index - b.index)[0];
     if (!m) {
       out.push(...plainSegments(rest, { keyLinks }));
       break;
     }
     if (m.index > 0) out.push(...plainSegments(rest.slice(0, m.index), { keyLinks }));
-    if (m === link) {
-      const safe = safeSourceRoute(link[2]);
-      const target = (safe ? targets.get(stripBlock(safe)) : undefined) || (GUIDE_ROUTES.has(link[2]) ? link[2] : undefined);
-      if (target) out.push({ t: "link", route: target, label: link[1].replace(BOLD_MARKS, "$1") });
-      else out.push(...plainSegments(link[0], { keyLinks }));   // 출처에도 길잡이에도 없는 링크 — 원래 글자 그대로
+    if (m === code) {
+      out.push({ t: "code", text: code.text });
+    } else if (m === link) {
+      const { label, route } = link.found;
+      const safe = safeSourceRoute(route);
+      const target = (safe ? targets.get(stripBlock(safe)) : undefined) || (GUIDE_ROUTES.has(route) ? route : undefined);
+      if (target) out.push({ t: "link", route: target, label: label.replace(BOLD_MARKS, "$1") });
+      else out.push(...plainSegments(rest.slice(m.index, m.index + m.length), { keyLinks }));   // 출처에도 길잡이에도 없는 링크 — 원래 글자 그대로
     } else {
-      out.push({ t: "bold", children: inlineSpans(bold[1], targets, keyLinks, depth + 1) });
+      out.push({ t: "bold", children: inlineSpans(bold.inner, targets, keyLinks, depth + 1) });
     }
-    rest = rest.slice(m.index + m[0].length);
+    rest = rest.slice(m.index + m.length);
   }
   return mergeText(out);
 }

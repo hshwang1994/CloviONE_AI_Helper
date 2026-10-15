@@ -197,7 +197,7 @@ export function AssistantPanel({ open, onClose }) {
           </IconButton>
         </Tooltip>
         <Tooltip title="전체 화면으로 열기">
-          <IconButton aria-label="전체 화면으로 열기" size="small" onClick={() => { onClose(); nav("/chat"); }}>
+          <IconButton aria-label="전체 화면으로 열기" size="small" onClick={() => { onClose(); nav(chat.cid ? "/chat/" + chat.cid : "/chat"); }}>
             <OpenInFullRoundedIcon fontSize="small" />
           </IconButton>
         </Tooltip>

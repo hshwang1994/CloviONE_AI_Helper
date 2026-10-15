@@ -105,13 +105,16 @@ describe("AI-25 — 드로어도 전체화면과 같은 말풍선(참고한 자�
     wideViewport();
   });
 
-  it("출처가 평문이 아니라 앱 안 링크가 든 「참고한 자료」 목록으로 보인다", async () => {
+  it("출처가 평문이 아니라 앱 안 링크가 든 「참고 자료」 목록으로 보인다(답 아래 접기)", async () => {
+    // qa-contract-change: 패널의 출처는 답 아래 접힌 「참고 자료 N개」다(AI 채팅 개선 회차) — 펼치면 같은 링크 목록이다.
     renderShellAndOpenDrawer();
     await openDrawer();
 
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "참고 자료 1개" }));
     const link = await screen.findByRole("link", { name: "로그인 실패 조사" });
     expect(link).toHaveAttribute("href", "#/tickets/t1");
-    expect(screen.getByRole("heading", { name: "참고한 자료" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "참고 자료 1개" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("ABCDEF-1")).toBeInTheDocument();
   });
 
@@ -119,8 +122,8 @@ describe("AI-25 — 드로어도 전체화면과 같은 말풍선(참고한 자�
     renderShellAndOpenDrawer();
     await openDrawer();
 
-    await screen.findByRole("link", { name: "로그인 실패 조사" });
-    expect(screen.getByRole("button", { name: /복사/ })).toBeInTheDocument();
+    await screen.findByText("요청하신 티켓을 찾았습니다.");
+    expect(screen.getByRole("button", { name: "답 복사" })).toBeInTheDocument();
   });
 });
 
@@ -134,7 +137,7 @@ describe("AI-26 — '새 대화'로 스레드에서 빠져나올 수 있다", ()
   it("대화가 있으면 '새 대화' 버튼이 있고, 누르면 빈 상태(제안 칩)로 돌아간다", async () => {
     renderShellAndOpenDrawer();
     await openDrawer();
-    await screen.findByRole("link", { name: "로그인 실패 조사" });
+    await screen.findByText("요청하신 티켓을 찾았습니다.");
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "새 대화" }));

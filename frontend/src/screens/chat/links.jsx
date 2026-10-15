@@ -3,7 +3,23 @@ import Box from "@mui/material/Box";
 import Tooltip from "@mui/material/Tooltip";
 import { useToast } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
-import { copyText, plainSegments, safeSourceRoute } from "../chat-helpers.js";
+import { ANYWHERE_BREAK } from "../../ui/columnTypes.js";
+import { copyText, plainSegments, safeAnswerRoute } from "../chat-helpers.js";
+
+/* 답 안 링크 ↔ 참고 자료 판의 잇기 — 링크에 올리거나 초점을 주면 판의 같은 자료가 강조된다(전체 화면만 이 문맥을 준다). */
+export const AnswerLinkContext = React.createContext(null);
+
+/* 답 안 코드의 글꼴 — 제품의 다른 고정폭 자리와 같은 목록이다(Windows 는 Consolas). */
+export const CODE_FONT = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+
+function AppLink({ route, label }) {
+  const ctx = React.useContext(AnswerLinkContext);
+  const hover = ctx && ctx.onHover ? {
+    onMouseEnter: () => ctx.onHover(route), onMouseLeave: () => ctx.onHover(null),
+    onFocus: () => ctx.onHover(route), onBlur: () => ctx.onHover(null),
+  } : null;
+  return <Box component="a" href={"#" + route} data-answer-link={route} sx={APP_LINK_SX} {...hover}>{label}</Box>;
+}
 
 /* 본문·카드 안 URL을 안전하게 그리는 부품 - **어떤 주소도 앵커로 만들지 않고** 복사 버튼으로
  * 낸다. 예전에는 notion.so 계열만 진짜 링크로 열어 줬는데, 그 호스트를 특별히 믿을 근거가
@@ -66,9 +82,18 @@ export function renderInline(segments, keyBase) {
     }
     if (seg.t === "link" || seg.t === "key") {
       const label = seg.t === "link" ? seg.label : seg.key;
-      const route = safeSourceRoute(seg.route);
+      const route = safeAnswerRoute(seg.route);
       if (!route) return <React.Fragment key={key}>{label}</React.Fragment>;
-      return <Box key={key} component="a" href={"#" + route} sx={APP_LINK_SX}>{label}</Box>;
+      return <AppLink key={key} route={route} label={label} />;
+    }
+    if (seg.t === "code") {
+      return (
+        <Box key={key} component="code"
+          sx={{ px: 0.5, py: "0.0625rem", borderRadius: 0.75, bgcolor: "background.inset", fontFamily: CODE_FONT,
+                fontSize: FONT_SIZE.bodySm, ...ANYWHERE_BREAK }}>
+          {seg.text}
+        </Box>
+      );
     }
     if (seg.t === "url") return <PlainUrl key={key} url={seg.url} />;
     return null;

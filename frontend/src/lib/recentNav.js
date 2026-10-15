@@ -6,8 +6,10 @@
 const KEY = "cv.recentNav.v1";
 export const RECENT_LIMIT = 6;
 
-export function recordNavVisit(pathname) {
-  if (!pathname) return;
+export function recordNavVisit(rawPathname) {
+  if (!rawPathname) return;
+  // AI 도우미 대화(`/chat/<id>`)는 화면 하나로 남긴다 — 대화를 옮겨 다닐 때마다 최근 여섯 칸을 대화 주소가 차지했다.
+  const pathname = /^\/chat\/[^/]+$/.test(rawPathname) ? "/chat" : rawPathname;
   try {
     const list = readRecentNav().filter((p) => p !== pathname);
     list.unshift(pathname);

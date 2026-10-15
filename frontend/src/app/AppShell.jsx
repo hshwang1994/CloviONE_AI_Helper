@@ -766,7 +766,7 @@ export function AppShell({
   // 유일하게 제목도 여백도 없이 맨바닥에 붙는 화면이 됐고, 사용자가 "너무 안이쁘다" 고 한
   // 이유가 그것이었다(S3). 지금은 다른 화면과 같은 `c-screen` + PageHeader + 카드 위에
   // 있으므로 예외를 둘 이유가 없다.
-  const onAssistant = loc.pathname === "/chat";
+  const onAssistant = screenKeyOf(loc.pathname) === "screen:chat";
   const homeUser = isUser || userSeg;
   // PA-RC-0039: 관리자 콘솔의 breadcrumb 뿌리는 계속 리터럴 "관리자"다(화면마다 손으로
   // 넘기는 area가 그 아래 단계를 맡는다) — 사용자 콘솔만 지금 경로가 속한 groups(=USER_NAV,

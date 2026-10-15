@@ -45,6 +45,7 @@ function renderChat(path = "/chat") {
             <ConfirmProvider>
               <Routes>
                 <Route path="/chat" element={<><Chat /><Here /></>} />
+                <Route path="/chat/:id" element={<><Chat /><Here /></>} />
               </Routes>
             </ConfirmProvider>
           </ToastProvider>
@@ -145,14 +146,15 @@ describe("AI 도우미 — 쓸 수 없을 때", () => {
 });
 
 describe("「AI 도우미에게 묻기」(`?ask=`)", () => {
-  it("새 대화로 한 번만 보내고 주소에서 질문을 지운다", async () => {
+  it("새 대화로 한 번만 보내고 주소에서 질문을 지운 뒤 그 대화의 주소로 간다", async () => {
+    // qa-contract-change: 주소가 정본이 되어(AI 채팅 개선 회차) 보낸 뒤의 주소는 `/chat` 이 아니라 `/chat/<새 대화 id>` 다.
     renderChat("/chat?ask=" + encodeURIComponent("휴가 신청 방법"));
     await waitFor(() => {
       const posts = apiMock.mock.calls.filter(([p, o]) => p === "/api/conversations/c1/messages" && o && o.method === "POST");
       expect(posts).toHaveLength(1);
       expect(posts[0][1].body.content).toBe("휴가 신청 방법");
     });
-    await waitFor(() => expect(screen.getByTestId("here")).toHaveTextContent(/^\/chat$/));
+    await waitFor(() => expect(screen.getByTestId("here")).toHaveTextContent(/^\/chat\/c1$/));
     const created = apiMock.mock.calls.filter(([p, o]) => p === "/api/conversations" && o && o.method === "POST");
     expect(created).toHaveLength(1);
   });

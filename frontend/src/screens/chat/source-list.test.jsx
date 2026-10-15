@@ -6,6 +6,9 @@
  *
  * 옛 결과 카드(TicketCard · CardStack)는 서버가 더는 싣지 않는 구조를 그리던 닿지 않는 코드였다. 그 시험들이 지키던 성질 —
  * 앱 안 상세로 가는 링크, 바깥 주소를 앵커로 만들지 않음, 말풍선 안 구조화 결과 — 은 출처 목록이 그대로 진다.
+ *
+ * qa-contract-change: AI 채팅 개선 회차(D-582) — 오른쪽 레일(`ResultsRail`)은 고른 답의 참고 자료 칸(`SourcesPanel`)이 됐다.
+ * 「서버가 싣는 서른 개를 접지 않고 세운다」는 성질은 그대로 잰다. 서른 개 뒤의 「더 보기」는 서버 상한(30) 밖이라 걷었다.
  */
 import React from "react";
 import { describe, it, expect } from "vitest";
@@ -14,7 +17,7 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
 import { SourceList, safeSourceRoute, SOURCE_ROUTE_PREFIXES } from "./SourceList.jsx";
-import { RAIL_SOURCE_LIMIT, ResultsRail } from "./ResultsRail.jsx";
+import { SourcesPanel } from "./SourcesPanel.jsx";
 import { citesSources } from "./SourceList.jsx";
 import { ThemeModeProvider } from "../../ui/ThemeModeProvider.jsx";
 
@@ -84,16 +87,13 @@ describe("참고한 자료", () => {
   });
 });
 
-describe("참고한 자료 레일 (A8)", () => {
-  it("레일은 서버가 싣는 서른 개까지 접지 않고 세우고, 그 뒤만 「더 보기」 뒤에 둔다", async () => {
-    const user = userEvent.setup();
-    const many = Array.from({ length: 35 }, (_, i) => ({ ...DOC, id: "d" + i, title: "문서 " + i, route: "/knowledge/d" + i }));
-    const railMsg = { id: "a1", role: "assistant", created_at: "2026-01-01T00:00:03", structured: { kind: "assistant", sources: many } };
-    render(<ThemeModeProvider><ResultsRail railOpen railMsg={railMsg} railIsLast /></ThemeModeProvider>);
-    expect(RAIL_SOURCE_LIMIT).toBe(30);
+describe("참고 자료 칸 (A8 · D-582)", () => {
+  it("칸은 서버가 싣는 서른 개를 접지 않고 모두 세운다", () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ ...DOC, id: "d" + i, title: "문서 " + i, route: "/knowledge/d" + i }));
+    const message = { id: "a1", role: "assistant", created_at: "2026-01-01T00:00:03", structured: { kind: "assistant", sources: many } };
+    render(<ThemeModeProvider><SourcesPanel message={message} isLatest headingId="h" /></ThemeModeProvider>);
     expect(screen.getAllByRole("link")).toHaveLength(30);
-    await user.click(screen.getByRole("button", { name: "5개 더 보기" }));
-    expect(screen.getAllByRole("link")).toHaveLength(35);
+    expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
   });
 });
 

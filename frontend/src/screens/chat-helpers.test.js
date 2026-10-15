@@ -16,7 +16,7 @@ import {
   safeSourceRoute,
   stripBlock,
   toolCountLabel,
-  INLINE_LINK_RE,
+  INLINE_LINK_RE, findLink, safeAnswerRoute, safeListRoute,
   BOLD_RE,
   GUIDE_ROUTES,
 } from "./chat-helpers.js";
@@ -163,9 +163,11 @@ describe("마크다운 머리글 (A8)", () => {
     expect(classifyLine("### 셋째 ###")).toEqual({ kind: "head", text: "셋째", note: "" });
     expect(classifyLine("## C#")).toEqual({ kind: "head", text: "C#", note: "" });
   });
-  it("띄어 쓰지 않은 「#태그」와 「#### 넷」은 머리글이 아니다", () => {
+  it("띄어 쓰지 않은 「#태그」와 「##### 다섯」은 머리글이 아니고 「#### 넷」은 머리글이다", () => {
+    // qa-contract-change: 형식 줄이 소제목(###)을 허용하면서 「####」까지 머리글로 그린다(AI 채팅 개선 회차).
     expect(classifyLine("#태그")).toEqual({ kind: "text", text: "#태그" });
-    expect(classifyLine("#### 넷")).toEqual({ kind: "text", text: "#### 넷" });
+    expect(classifyLine("#### 넷")).toEqual({ kind: "head", text: "넷", note: "" });
+    expect(classifyLine("##### 다섯")).toEqual({ kind: "text", text: "##### 다섯" });
   });
   it("parseBlocks 가 머리글과 문단을 나눈다", () => {
     expect(parseBlocks("# 요약\n본문입니다.")).toEqual([
@@ -452,5 +454,62 @@ describe("newClientMessageId", () => {
       if (orig) Object.defineProperty(window, "crypto", orig);
       else delete window.crypto;
     }
+  });
+});
+
+describe("답의 마크다운 — 괄호 든 링크 · 코드 · 목록 · 인용 · 표 (AI 채팅 개선 회차)", () => {
+  const routeLinks = new Set(["/knowledge/732b9211-84de-415f-b7d9-c906b2c95f8b"]);
+
+  it("제목에 대괄호가 든 링크가 링크 하나다 — 사용자 캡처의 글자 그대로 남던 줄", () => {
+    const line = "[[포스코DX] 부가서비스·NAS 빌링 화면 가이드](/knowledge/732b9211-84de-415f-b7d9-c906b2c95f8b) 황형섭, 2026-09-04";
+    expect(parseInline(line, { routeLinks })).toEqual([
+      { t: "link", route: "/knowledge/732b9211-84de-415f-b7d9-c906b2c95f8b", label: "[포스코DX] 부가서비스·NAS 빌링 화면 가이드" },
+      { t: "text", text: " 황형섭, 2026-09-04" },
+    ]);
+    expect(findLink("앞 [가 [나] 다](/knowledge/x) 뒤")).toEqual({ index: 2, end: 25, label: "가 [나] 다", route: "/knowledge/x" });
+    expect(findLink("[짝이 [안 맞음](/knowledge/x)")).toEqual({ index: 4, end: 24, label: "안 맞음", route: "/knowledge/x" });
+    expect(findLink("[경로에 공백](/knowledge/a b)")).toBeNull();
+  });
+
+  it("줄 맨 앞의 괄호 든 링크는 머리글이 아니다", () => {
+    const line = "[[포스코DX] 부가서비스 가이드](/knowledge/732b9211-84de-415f-b7d9-c906b2c95f8b) 황형섭";
+    expect(classifyLine(line)).toEqual({ kind: "text", text: line });
+    expect(classifyLine("[이번 주 요약] 세 건")).toEqual({ kind: "head", text: "이번 주 요약", note: "세 건" });
+  });
+
+  it("인라인 코드는 해석하지 않는 조각이다", () => {
+    expect(parseInline("명령은 `sudo clovirassist ai --with-ai` 입니다.")).toEqual([
+      { t: "text", text: "명령은 " }, { t: "code", text: "sudo clovirassist ai --with-ai" }, { t: "text", text: " 입니다." },
+    ]);
+    expect(parseInline("`**굵게 아님**`")).toEqual([{ t: "code", text: "**굵게 아님**" }]);
+  });
+
+  it("글머리 「*」 「•」도 목록이고, 들여쓴 목록 줄은 윗 항목의 딸린 목록이다", () => {
+    expect(parseBlocks("* 하나\n• 둘\n  - 둘의 하나\n  1. 둘의 둘\n- 셋")).toEqual([{ kind: "list", items: [
+      { marker: "", text: "하나", subs: [] },
+      { marker: "", text: "둘", subs: [], children: [{ marker: "", text: "둘의 하나" }, { marker: "1.", text: "둘의 둘" }] },
+      { marker: "", text: "셋", subs: [] },
+    ] }]);
+    expect(classifyLine("**굵게로 시작하는 문장**")).toEqual({ kind: "text", text: "**굵게로 시작하는 문장**" });
+  });
+
+  it("인용 · 구분선 · 표를 블록으로 나눈다 — 머리 구분선이 없는 「| |」 줄은 글 그대로다", () => {
+    expect(parseBlocks("> 첫 줄\n> 둘째 줄\n\n---\n| 키 | 상태 |\n|---|:---:|\n| A-1 | 진행 |")).toEqual([
+      { kind: "quote", lines: ["첫 줄", "둘째 줄"] },
+      { kind: "rule" },
+      { kind: "table", head: ["키", "상태"], rows: [["A-1", "진행"]] },
+    ]);
+    expect(parseBlocks("| 표 아님 |\n| 그냥 |")).toEqual([{ kind: "para", lines: ["| 표 아님 |", "| 그냥 |"] }]);
+  });
+
+  it("답 안 링크와 「전체 목록 열기」의 경로 판정", () => {
+    expect(safeAnswerRoute("/knowledge")).toBe("/knowledge");
+    expect(safeAnswerRoute("/knowledge/d1")).toBe("/knowledge/d1");
+    expect(safeAnswerRoute("/knowledgebase")).toBeNull();
+    expect(safeListRoute("/knowledge?author=u1&sort=recent")).toBe("/knowledge?author=u1&sort=recent");
+    expect(safeListRoute("/my-tickets")).toBe("/my-tickets");
+    expect(safeListRoute("//evil.example")).toBeNull();
+    expect(safeListRoute("/admin/users")).toBeNull();
+    expect(safeListRoute("https://evil.example/knowledge")).toBeNull();
   });
 });

@@ -1,21 +1,45 @@
 import { PROSE_MAX_WIDTH } from "../../ui/theme.js";
+import { CHAT } from "../../ui/chat.js";
 
-/* AI 채팅 그리드의 폭 상수 — Chat.jsx와 그 아래로 쪼갠 화면 조각(사이드바·메시지·결과 레일)이
- * 전부 같은 숫자를 봐야 한다. 레일이 있는지 없는지, 말풍선이 몇 글자에서 줄바꿈하는지가
- * 파일마다 갈라지면 조각마다 다른 폭을 그리게 된다.
+/* AI 채팅의 폭 규격 — 화면(Chat.jsx)과 조각(목록 · 메시지 · 참고 자료)이 같은 숫자를 본다.
  *
- * 열 폭은 rem이다 — 루트 폰트사이즈 레버(styles/root.css)가 4K에서 18/20px로 올라가면 목록과
- * 레일도 같은 비율로 넓어진다. px로 박아 두면 3840에서 목록이 실처럼 가늘어진다(앱 셸이 겪은 문제). */
-export const COLUMNS = {
-  xs: "minmax(0,1fr)",
-  xl: "19rem minmax(0,1fr)",
-  xxl: "21rem minmax(0,1fr) 26rem",
-  uhd: "23rem minmax(0,1fr) 30rem",
-};
+ * 틀은 채팅방과 같은 어휘다(핸드오프 RULES §9 「목록 296 · 스레드 나머지 · 두 판 다 카드」). 몇 칸이 서는지는 **카드가 놓인
+ * 폭**이 정한다(`useChatLayout`) — 창 폭으로 정하면 앱 사이드바 · 확대 · 4K 루트 글자 크기(18 · 20px)에 따라 같은 창에서도
+ * 칸이 모자랐다. 문턱은 rem 이라 루트 글자 크기를 따른다.
+ *
+ *   wide    ≥ 74rem   목록 · 스레드 · 참고 자료(그 대화에 참고 자료가 있을 때, 사람이 접을 수 있다)   1920 · 125%
+ *   medium  ≥ 52rem   목록 · 스레드, 참고 자료는 답 아래 접기                                           1366
+ *   narrow  ≥ 37.5rem 스레드만, 목록은 서랍                                                             1024
+ *   mobile  < 37.5rem 스레드만, 목록은 전체 폭 서랍                                                    390
+ */
+export const CHAT_LAYOUT_REM = { wide: 74, medium: 52, mobile: 37.5 };
 
-/* 스레드 열 자체의 상한. 말풍선 안 글줄은 따로 PROSE_MAX_WIDTH로 더 좁게 잡는다 — 이 값은
- * 카드·구분선이 화면 가운데 기둥처럼 서 있게 하는 바깥 틀일 뿐이다. */
-export const THREAD_MAX = "min(100%, 76rem)";
+/* 대화 목록 칸 폭(296) — 채팅방과 같은 값이다. */
+export const LIST_WIDTH = CHAT.listWidth;
 
-// 말풍선 글줄 상한. 남는 폭은 세 번째 열로 가고 줄은 절대 길어지지 않는다.
+/* 참고 자료 칸 폭(300). */
+export const SOURCES_WIDTH = "18.75rem";
+
+/* 스레드 기둥의 상한 — 결과 목록 · 코드 · 표가 쓰는 폭이다. 글줄은 아래 `ANSWER_TEXT_MAX` 로 더 좁다(46rem ≈ 한 줄 48자).
+ * 1920 에서도 가운데 기둥이 화면을 가로지르지 않는다. */
+export const THREAD_MAX = "min(100%, 52rem)";
+export const ANSWER_TEXT_MAX = PROSE_MAX_WIDTH;
+
+/* 내 말풍선의 상한 — 짧은 질문은 글만큼, 긴 질문은 스레드의 3/4 까지. */
+export const USER_BUBBLE_MAX = "min(75%, 36rem)";
+
+/* 옛 이름 — 클로비 패널과 옛 시험이 쓴다. 도우미 답은 이제 말풍선이 아니라 글 기둥이다. */
 export const BUBBLE_MAX = `min(88%, ${PROSE_MAX_WIDTH})`;
+
+/* 흐름 모드(창이 1200×600 보다 작을 때)의 판 높이 — 화면 아래까지 선다. `dvh` 라 휴대폰의 주소 막대가 접히고 펴져도 입력 칸이
+ * 화면 밖으로 밀리지 않는다(키보드는 브라우저마다 달라 최선 노력이다). 채움 모드에서는 앱 틀이 높이를 준다.
+ * clovi-allow-geometry: 채움 판의 높이다(`density.js::PAGE_FILL_HEIGHT` 와 같은 자리, 단위만 dvh). */
+export const CHAT_FLOW_HEIGHT = "calc(100dvh - 12rem)";
+
+/* 휴대폰(600px 미만)의 판 높이 — 페이지 머리의 「문서에서 찾기」가 제목 아래 줄로 내려가 판이 1.5rem 더 아래에서 시작한다.
+   같은 12rem 을 쓰면 판 아래가 화면을 넘어 입력 칸이 잘렸다(390×844 실측 11px).
+   clovi-allow-geometry: 채움 판의 높이다(위 `CHAT_FLOW_HEIGHT` 와 같은 자리). */
+export const CHAT_FLOW_HEIGHT_PHONE = "calc(100dvh - 13.5rem)";
+
+/* 대화 목록 서랍의 폭(좁음) — 휴대폰에서는 판 전체다. */
+export const DRAWER_WIDTH = "min(20rem, 88%)";

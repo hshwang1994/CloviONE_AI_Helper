@@ -128,7 +128,10 @@ function UserRoutes() {
       <Route path="/knowledge/:id" element={<Lazy><KnowledgeDoc /></Lazy>} />
       {/* AI 작업공간(S10) — 사내 문서에서 근거를 찾아 답하고 그 자리로 데려간다. */}
       <Route path="/ai" element={<Lazy><AiWorkspace /></Lazy>} />
+      {/* 대화는 주소에 싣는다 — `/chat` 은 새 대화 초안, `/chat/:id` 는 그 대화다. 두 경로가 **같은 화면**이라(`navEntry.jsx`
+          `screen:chat`) 대화를 바꿔도 다시 마운트되지 않고, 뒤로 · 앞으로 · 새로고침이 그대로 그 대화다. */}
       <Route path="/chat" element={<div className="c-chat-embed"><Lazy><Chat /></Lazy></div>} />
+      <Route path="/chat/:id" element={<div className="c-chat-embed"><Lazy><Chat /></Lazy></div>} />
       {/* 두 경로가 **같은 껍데기**를 그린다(S1). 오른쪽 칸만 바뀌므로 방을 옮겨도 목록이
           그대로 있고, 알림 딥링크(`/chat-rooms/<id>`)와 새로고침·뒤로가기도 그대로 동작한다. */}
       <Route path="/chat-rooms" element={<ChatRooms />} />

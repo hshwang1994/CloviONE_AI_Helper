@@ -86,4 +86,21 @@ describe("useChat — sessionStorage 복원 경합", () => {
     expect(result.current.cid).toBeNull();
     expect(window.sessionStorage.getItem(CHAT_LAST_CONV_KEY)).toBe("old-conv");
   });
+
+  it("한 번도 열지 않은 패널(dataEnabled 꺼짐)은 캐시에 목록이 있어도 대화를 미리 열지 않는다", async () => {
+    // 전체 화면이 받아 둔 목록이 같은 열쇠의 캐시에 있다 — 꺼진 쿼리도 그 캐시를 돌려준다.
+    const qc = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false, staleTime: 30 * 1000 } } });
+    qc.setQueryData(["conversations", false, "", 100], CONVS);
+    api.mockImplementation(() => Promise.resolve({ items: [] }));
+    const local = ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+    const { result, rerender } = renderHook(({ enabled }) => useChat({ dataEnabled: enabled }), {
+      wrapper: local, initialProps: { enabled: false },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(result.current.cid).toBeNull();
+    expect(api.mock.calls.filter(([p]) => String(p).endsWith("/messages"))).toHaveLength(0);
+    // 처음 열면 그때 복원한다.
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.cid).toBe("new-conv"));
+  });
 });

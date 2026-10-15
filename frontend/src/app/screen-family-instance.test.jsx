@@ -37,6 +37,13 @@ describe("screenKeyOf — 화면 한 벌이 그리는 경로 묶음", () => {
     expect(screenKeyOf("/users")).not.toBe(screenKeyOf("/chat-rooms"));
   });
 
+  it("AI 도우미의 초안과 대화 하나도 한 화면이다 — 대화를 바꿔도 입력 칸 · 목록 스크롤이 남는다", () => {
+    expect(screenKeyOf("/chat/c-1")).toBe(screenKeyOf("/chat"));
+    expect(screenKeyOf("/chat/c-2")).toBe(screenKeyOf("/chat/c-1"));
+    expect(screenKeyOf("/chat")).not.toBe(screenKeyOf("/chat-rooms"));
+    expect(screenKeyOf("/chat/c-1/extra")).toBe("/chat/c-1/extra");
+  });
+
   it("묶음에 없는 경로는 경로가 곧 화면이다 — 상세마다 다른 화면인 곳을 합치지 않는다", () => {
     expect(screenKeyOf("/tickets/a")).toBe("/tickets/a");
     expect(screenKeyOf("/tickets/b")).not.toBe(screenKeyOf("/tickets/a"));

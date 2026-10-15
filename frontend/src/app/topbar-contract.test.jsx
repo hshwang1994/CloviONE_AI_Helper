@@ -332,6 +332,12 @@ describe("셸의 상단바", () => {
     expect(screen.queryAllByLabelText("클로비 AI 도우미 열기")).toHaveLength(0);
   });
 
+  it("대화 하나를 연 주소(/chat/<id>)도 전체 화면 채팅이라 상단바 클로비 버튼을 안 그린다", async () => {
+    renderShell("/chat/c-1");
+    await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
+    expect(screen.queryAllByLabelText("클로비 AI 도우미 열기")).toHaveLength(0);
+  });
+
   it("/chat 이 아닌 화면에서는 상단바 클로비 버튼을 그대로 그린다 (마스코트는 제품 정체성이다)", async () => {
     renderShell("/me");
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());

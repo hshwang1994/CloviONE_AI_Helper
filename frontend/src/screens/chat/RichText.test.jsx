@@ -150,3 +150,77 @@ describe("RichText — 굵게 · 출처 링크 · 마크다운 머리글", () =>
     expect(container.querySelector("a")).toBeNull();
   });
 });
+
+/* AI 채팅 개선 회차 — 모델이 쓰는 마크다운 중 글자 그대로 남던 것들. 사용자 캡처에서
+ * 「[[포스코DX] 부가서비스·NAS 빌링 화면 가이드](/knowledge/…)」가 글자로 보였다(라벨 안 대괄호를 못 읽었고, 줄 맨 앞이면
+ * 머리글로 잘못 읽었다). 링크 규칙(그 답의 출처 경로나 화면 길잡이 경로만)은 그대로다. */
+describe("RichText — 라벨 안 대괄호 · 인라인 코드 · 중첩 목록 · 인용 · 구분선 · 표", () => {
+  const ROUTES = new Set(["/knowledge/d-9"]);
+
+  it("라벨에 대괄호가 든 링크도 링크 하나다 — 줄 맨 앞이어도 머리글이 아니다", () => {
+    const { getByRole, queryByRole, container } = render(
+      <RichText text={"[[포스코DX] 부가서비스·NAS 빌링 화면 가이드](/knowledge/d-9) 를 먼저 보세요."} routeLinks={ROUTES} />,
+    );
+    expect(getByRole("link", { name: "[포스코DX] 부가서비스·NAS 빌링 화면 가이드" })).toHaveAttribute("href", "#/knowledge/d-9");
+    expect(queryByRole("heading")).toBeNull();
+    expect(container.textContent).not.toContain("](");
+  });
+
+  it("출처에 없는 경로면 대괄호 라벨이어도 원래 글자 그대로다", () => {
+    const { queryByRole, container } = render(<RichText text={"[[가짜] 문서](/knowledge/zz) 입니다."} routeLinks={ROUTES} />);
+    expect(queryByRole("link")).toBeNull();
+    expect(container.textContent).toContain("[[가짜] 문서](/knowledge/zz)");
+  });
+
+  it("화면 길잡이 경로는 출처가 없어도 링크다 — 질의가 붙으면 아니다", () => {
+    const { getByRole, getAllByRole } = render(<RichText text={"[사내 문서](/knowledge)에서 찾아보세요. [내 문서](/knowledge?author=u1)도 있습니다."} />);
+    expect(getByRole("link", { name: "사내 문서" })).toHaveAttribute("href", "#/knowledge");
+    expect(getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("인라인 코드는 code 로 그리고 그 안은 해석하지 않는다", () => {
+    const { container } = render(<RichText text={"명령은 `**git status**` 입니다."} />);
+    const code = container.querySelector("code");
+    expect(code).not.toBeNull();
+    expect(code.closest("pre")).toBeNull();
+    expect(code.textContent).toBe("**git status**");
+    expect(container.querySelector("strong")).toBeNull();
+  });
+
+  it("* · • 목록과 한 단 중첩 목록을 목록으로 그린다", () => {
+    const { container } = render(<RichText text={"* 첫째\n  - 첫째의 하위\n• 둘째"} />);
+    const top = container.querySelector("ul");
+    expect(top).not.toBeNull();
+    expect(top.querySelectorAll(":scope > li")).toHaveLength(2);
+    const nested = top.querySelector("li ul");
+    expect(nested).not.toBeNull();
+    expect(nested.textContent).toContain("첫째의 하위");
+    expect(container.textContent).not.toContain("* 첫째");
+    expect(container.textContent).not.toContain("- 첫째의 하위");
+  });
+
+  it("「>」 인용 · 「---」 구분선 · 「####」 머리글을 글자 그대로 남기지 않는다", () => {
+    const { container, getByRole } = render(<RichText text={"> 규정 원문을 따릅니다.\n---\n#### 세부 기준"} />);
+    expect(container.querySelector("blockquote")).toHaveTextContent("규정 원문을 따릅니다.");
+    expect(container.querySelector("hr")).not.toBeNull();
+    expect(getByRole("heading", { name: "세부 기준" })).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/^>|---|####/m);
+  });
+
+  it("표는 표로 그린다 — 머리 줄과 칸, 칸 안의 출처 링크", () => {
+    const { getByRole, getAllByRole } = render(
+      <RichText text={"| 문서 | 수정일 |\n|---|---|\n| [빌링 가이드](/knowledge/d-9) | 2026-09-04 |"} routeLinks={ROUTES} />,
+    );
+    expect(getByRole("table")).toBeInTheDocument();
+    expect(getAllByRole("columnheader").map((c) => c.textContent)).toEqual(["문서", "수정일"]);
+    expect(getByRole("link", { name: "빌링 가이드" })).toHaveAttribute("href", "#/knowledge/d-9");
+    expect(getAllByRole("cell").map((c) => c.textContent)).toEqual(["빌링 가이드", "2026-09-04"]);
+  });
+
+  it("망가진 입력(닫히지 않은 괄호 · 펜스)은 글로 떨어지고 깨지지 않는다", () => {
+    const { container } = render(<RichText text={"[닫히지 않은 링크(/knowledge/d-9\n```\n끝나지 않은 코드"} routeLinks={ROUTES} />);
+    expect(container.textContent).toContain("[닫히지 않은 링크(/knowledge/d-9");
+    expect(container.textContent).toContain("끝나지 않은 코드");
+    expect(container.querySelector("a")).toBeNull();
+  });
+});

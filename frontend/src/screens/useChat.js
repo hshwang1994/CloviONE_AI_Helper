@@ -8,7 +8,7 @@ import { useGuardedMutation } from "../lib/useGuardedMutation.js";
 import { normalizeQuery } from "../lib/search.js";
 import { useConfirm, useToast } from "../ui/kit.jsx";
 import {
-  STALL_MS, CHAT_LAST_CONV_KEY, LIST_DRAWER_MEDIA,
+  STALL_MS, CHAT_LAST_CONV_KEY,
   MAX_ATTACH_BYTES, MAX_TOTAL_ATTACH_BYTES, MAX_ATTACH_COUNT, ALLOWED_IMAGE_TYPES,
   b64Bytes, downscaleImage, msgAgeMs, newClientMessageId, pollDelayMs, rateLimitNoticeText,
 } from "./chat-helpers.js";
@@ -44,23 +44,32 @@ const CONV_PAGE_SIZE = 100;
  *   AI 관련 호출이 붙는 셈이다. 드로어는 처음 열릴 때 `false`를 넘겨 그 전까지 두 쿼리를
  *   미루고, 한 번이라도 열리면(그 뒤로는 대화를 유지해야 하므로) 계속 `true`를 유지한다.
  */
-export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled = true } = {}) {
+export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled = true, conversationId, onOpen } = {}) {
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
-  const [cid, setCid] = useState(null);
+  /* 전체 화면(`/chat`)은 **주소가 정본**이다 — `conversationId`(주소의 id, 초안이면 null)를 받고 대화를 바꿀 때는 `onOpen` 으로
+     주소를 바꾼다(뒤로 · 앞으로 · 새로고침이 그대로 그 대화다). 클로비 패널은 주소가 없어 지금처럼 자기 상태와 이 탭의 저장소로
+     복원한다(`conversationId` 를 넘기지 않는다). 첫 전송은 대화를 만든 뒤 보내기가 끝나야 주소를 바꾼다 — 그 사이에는
+     `pendingCid` 가 스레드를 그 대화로 잡아 보낸 말이 사라지지 않는다. */
+  const controlled = conversationId !== undefined;
+  const [cidState, setCidState] = useState(null);
+  const [pendingCid, setPendingCid] = useState(null);
+  const cid = controlled ? (conversationId || pendingCid || null) : cidState;
+  const setCid = (id, opts) => {
+    if (!controlled) { setCidState(id); return; }
+    setPendingCid(null);
+    if (onOpen) onOpen(id || null, opts);
+  };
+  useEffect(() => { if (controlled && conversationId) setPendingCid(null); }, [controlled, conversationId]);
   const [text, setText] = useState("");
   const [pending, setPending] = useState([]); // 전송 대기 첨부(이미지)
-  const [sideOpen, setSideOpen] = useState(false); // 좁은 화면 대화목록 드로어
   const [convFilter, setConvFilter] = useState(""); // 대화 목록 검색어(제목은 클라이언트측 즉시 필터, 본문은 아래 debouncedQ로 서버 검색)
   const [showArchived, setShowArchived] = useState(false); // 보관된 대화 보기
   const [convLimit, setConvLimit] = useState(CONV_PAGE_SIZE); // AI-18: "더 보기"를 누르면 이만큼씩 늘어난다
   const [composingNew, setComposingNew] = useState(false); // '새 대화' 클릭 후 첫 메시지 전까지 실제 생성을 미룸
   const [stick, setStick] = useState(true);
   const [resumedAt, setResumedAt] = useState(0); // 스톨 복구 '새로고침'이 눌린 시각(폴링 재시작 기준선)
-  // 대화 목록이 지금 '서랍'인지(열로 상주하지 않는 폭인지). 서랍일 때만 배경 inert·포커스 이동·
-  // 백드롭이 필요하다 — 열로 서 있는 목록에 그걸 걸면 목록이 통째로 키보드/스크린리더에서 사라진다.
-  const [listIsDrawer, setListIsDrawer] = useState(false);
   // 컴포저에 포커스가 있는지 — 마스코트 'listening' 포즈의 유일한 근거다. 앱이 실제로 있는
   // 상태만 마스코트로 옮긴다는 규칙(chat-helpers.js mascotMode)을 지키려면 이 사실이 필요하다.
   const [composerFocused, setComposerFocused] = useState(false);
@@ -75,8 +84,6 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   const bodyRef = useRef(null);
   const fileRef = useRef(null);
   const textareaRef = useRef(null);
-  const asideRef = useRef(null); // 드로어 열릴 때 포커스를 옮길 대상(a11y)
-  const sideToggleRef = useRef(null); // 드로어를 닫을 때 포커스를 되돌릴 트리거 버튼(a11y)
   const sendingRef = useRef(false); // doSend 재진입(이중 제출) 방지 — 생성→전송 창 포함
   const pickFilesRef = useRef(null); // 붙여넣기 리스너가 항상 최신 pickFiles를 부르도록
   const draftMsgIdRef = useRef(null); // 작성 중인 초안의 멱등키 — 전송 실패 후 재전송에 같은 키를 재사용
@@ -91,13 +98,14 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+    // 상한은 입력 칸의 CSS `max-height`(6줄, rem) 하나다 — 예전에는 여기 160px 과 CSS 10rem 이 따로 있어 4K(루트 20px)에서 갈렸다.
+    const cap = parseFloat(window.getComputedStyle ? window.getComputedStyle(el).maxHeight : "") || 160;
+    el.style.height = Math.min(el.scrollHeight, cap) + "px";
   }, [text]);
-  const pollFailRef = useRef(0); // 스레드 폴링 연속 실패 횟수(백오프·회복 확인 간격 판단용)
-  // 이전 대화(A)에서 쌓인 연속 실패 횟수가 새로 연 대화(B)로 그대로 넘어오면, B의 첫 폴링이 단
-  // 한 번만 실패해도(일시적 blip) 이미 5 이상인 카운터 때문에 refetchInterval이 즉시 20초짜리
-  // 회복 확인 간격(POLL_RECOVERY_MS)으로 확 늦춰져 버린다 — 대화를 바꿀 때마다 카운터를 새로 시작한다.
-  useEffect(() => { pollFailRef.current = 0; }, [cid]);
+  /* 스레드 폴링 연속 실패 횟수 — **대화마다** 센다(백오프 · 회복 확인 간격 판단용). 한 칸을 함께 쓰던 때에는 대화를 바꾼 뒤에
+     늦게 실패한 옛 대화의 요청이 새 대화의 폴링을 20초 회복 간격으로 늦췄다. */
+  const pollFails = useRef(new Map());
+  const failsOf = (id) => pollFails.current.get(id) || 0;
 
   // AI-38: 대화 본문 검색. 제목은 ConversationSidebar가 이미 불러온 목록에서 즉시(클라이언트
   // 측) 거르지만, 본문은 서버만 안다 — 타이핑마다 왕복하지 않도록 300ms 지나서야 반영한다.
@@ -127,7 +135,8 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     queryFn: () => api(
       "/api/conversations?"
       + [
-          showArchived ? "include_archived=true" : "",
+          // 「보관함」은 보관한 대화만이다(서버 `archived=only`) — 예전 `include_archived` 는 지금 쓰는 대화와 섞어 줬다.
+          showArchived ? "archived=only" : "",
           debouncedQ ? "q=" + encodeURIComponent(debouncedQ) : "",
           "limit=" + convLimit,
         ].filter(Boolean).join("&")
@@ -155,13 +164,14 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     // 내려간다(AI-11: 예전엔 여기서 완전히 멈춰 사람이 새로고침을 눌러야만 재개됐다). 워커/
     // 네트워크가 살아 있는 정상 실패(간헐적 5xx 등)와, 죽은 서버를 촘촘히 두드리는 것을
     // 구분한다(바닐라 chat.js의 POLL_MAX_FAILURES와 같은 취지).
-    queryFn: async () => {
+    queryFn: async ({ queryKey }) => {
+      const id = queryKey[1];
       try {
-        const res = await api("/api/conversations/" + cid + "/messages");
-        pollFailRef.current = 0;
+        const res = await api("/api/conversations/" + id + "/messages");
+        pollFails.current.set(id, 0);
         return res;
       } catch (e) {
-        pollFailRef.current += 1;
+        pollFails.current.set(id, failsOf(id) + 1);
         throw e;
       }
     },
@@ -182,7 +192,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       if (!(busy || awaiting)) return false;
       // 백오프·포기 규칙은 pollDelayMs 하나가 소유한다(chat-helpers.js) — 예전엔 이 콜백 안에
       // 인라인 산술로 있어서 가짜 타이머로 검증할 방법이 없었다.
-      return pollDelayMs(pollFailRef.current);
+      return pollDelayMs(failsOf(q.queryKey[1]));
     },
   });
   const items = (thread.data && thread.data.items) || [];
@@ -200,9 +210,11 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   // (이전엔 응답이 영영 오지 않으면 컴포저가 다시는 안 열리는 막다른 상태가 됐다).
   const busy = rawBusy && !stalled;
   const awaitingReply = rawAwaitingReply && !stalled;
-  // 현재 대화 제목(좁은 화면에선 드로어가 닫혀 어느 대화인지 모른다) — 목록 캐시 우선, 없으면 스레드 응답.
+  /* 지금 대화의 제목 — **그 id 의 스레드 응답이 정본**이다. 목록 캐시를 먼저 보던 때에는 첫 질문 뒤 목록을 다시 읽기 전까지
+     「새 대화」가 섰다. 스레드가 아직 오지 않았을 때만 목록의 같은 id 를 쓴다. */
   const activeConv = ((convs.data && convs.data.items) || []).find((c) => c.id === cid);
-  const activeTitle = (activeConv && activeConv.title) || (thread.data && thread.data.conversation && thread.data.conversation.title) || "새 대화";
+  const threadConv = thread.data && thread.data.conversation && thread.data.conversation.id === cid ? thread.data.conversation : null;
+  const activeTitle = (threadConv && threadConv.title) || (activeConv && activeConv.title) || "새 대화";
   // 도착한 답변을 스크린리더에 한 번 알린다(스레드 자체엔 aria-live를 두지 않아 폴링마다 재낭독되지 않음).
   const answered = !busy && !awaitingReply && !!lastMsg && lastMsg.role === "assistant" && !!lastMsg.content && lastMsg.processing_status !== "failed";
   const answerAnnounce = answered ? "답변이 도착했습니다." : "";
@@ -217,10 +229,15 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   const lastId = lastMsg ? lastMsg.id : null;
   useEffect(() => { answeredIdRef.current = null; setJustAnswered(false); }, [cid]);
   useEffect(() => {
-    if (!answered || !lastId || answeredIdRef.current === lastId) return undefined;
-    const first = answeredIdRef.current === null;
+    if (!lastId) return undefined;
+    /* 처음 본 마지막 메시지가 기준이다 — 열 때 이미 있던 답은 「도착」이 아니다. 기준이 답을 기다리던 질문이면 그 뒤에 온 답은
+       도착이다(예전에는 처음 본 **답**을 기준으로 삼아, 새 대화의 첫 답이 오면 목록을 다시 읽지 않았다 — 머리는 의도 제목인데
+       목록 행은 다듬은 질문에 남았다). */
+    if (answeredIdRef.current === null) { answeredIdRef.current = lastId; return undefined; }
+    if (!answered || answeredIdRef.current === lastId) return undefined;
     answeredIdRef.current = lastId;
-    if (first) return undefined;   // 열자마자 이미 있던 마지막 답변 — 방금 온 게 아니다
+    // 답이 오면 목록을 다시 읽는다 — 첫 답의 의도 제목과 마지막 대화 시각(순서)이 목록에 선다.
+    qc.invalidateQueries({ queryKey: ["conversations"] });
     setJustAnswered(true);
     const t = setTimeout(() => setJustAnswered(false), 2600);
     return () => clearTimeout(t);
@@ -260,7 +277,13 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
      그대로 돌려준다 — 이름 칸은 그 결과를 기다렸다가 닫힌다. */
   const renameConv = useGuardedMutation({
     mutationFn: ({ id, title }) => api("/api/conversations/" + id, { method: "PATCH", body: { title } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["conversations"] }),
+    // 머리의 제목은 스레드 응답이 정본이다 — 목록만 다시 읽으면 머리가 옛 이름에 남는다. 서버가 다듬은 값을 그대로 쓴다.
+    onSuccess: (d, vars) => {
+      const title = (d && d.conversation && d.conversation.title) || vars.title;
+      qc.setQueryData(["messages", vars.id], (old) => (old && old.conversation
+        ? { ...old, conversation: { ...old.conversation, title } } : old));
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
   });
   const archiveConv = useGuardedMutation({
     mutationFn: ({ id, archived }) => api("/api/conversations/" + id, { method: "PATCH", body: { archived } }),
@@ -274,7 +297,8 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     onSuccess: (_d, vars) => {
       // 지금 열려 있던 대화가 보관되면 그 대화용 초안(글+첨부)도 함께 비운다 — 안 그러면 뒤이어
       // 자동 선택된 다른 대화(또는 빈 화면)에 이 대화의 초안이 그대로 남아 엉뚱한 곳에 전송될 수 있다.
-      if (vars.archived && vars.id === cid) { setCid(null); clearDraft(); }
+      // 전체 화면은 지금 연 대화를 보관해도 그대로 보인다(주소가 정본 — 「보관된 대화」 안내와 꺼내기가 그 자리에 선다).
+      if (vars.archived && vars.id === cid && !controlled) { setCid(null); clearDraft(); }
       qc.setQueryData(["conversations", showArchived, debouncedQ, convLimit], (old) => {
         if (!old || !Array.isArray(old.items)) return old;
         if (!showArchived && vars.archived) {
@@ -292,7 +316,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     // AI-69: archiveConv와 같은 이유로 실제 쿼리 키(debouncedQ·convLimit 포함)를 그대로 쓴다.
     onSuccess: (_d, id) => {
       // 삭제한 대화가 지금 열려 있던 대화면 그 초안도 함께 비운다(보관과 동일한 이유 — 위 archiveConv 참고).
-      if (id === cid) { setCid(null); clearDraft(); }
+      if (id === cid) { setCid(null, { replace: true }); clearDraft(); }
       qc.setQueryData(["conversations", showArchived, debouncedQ, convLimit], (old) =>
         old && Array.isArray(old.items)
           ? { ...old, items: old.items.filter((c) => c.id !== id), total: Math.max(0, (old.total || 0) - 1) }
@@ -300,11 +324,23 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       qc.invalidateQueries({ queryKey: ["conversations"] });
     },
   });
+  /* 빈 대화 보관 — 서버가 「지우지 않은 메시지가 0개이고 만든 지 2분이 지난 내 대화」만 보관한다(지금 연 대화는 뺀다). 예전에는
+     화면이 받아 온 쪽에서 제목 「새 대화」만 보고 PATCH 를 여러 번 보내 메시지가 있는 대화까지 보관할 수 있었다. */
+  const archiveEmpty = useMutation({
+    mutationFn: (keep) => api("/api/conversations/archive-empty", { method: "POST", body: { keep: keep || null } }),
+    onSuccess: (d) => {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      const n = (d && d.archived) || 0;
+      toast(n ? `빈 대화 ${n}개를 보관했습니다. 보관함에서 다시 꺼낼 수 있습니다.` : "보관할 빈 대화가 없습니다.", "success");
+    },
+  });
+  const emptyTotal = (convs.data && typeof convs.data.empty_total === "number") ? convs.data.empty_total : 0;
   /* 대화 목록 동작(이름 · 보관 · 삭제)의 실패 — 목록 안에 남고 다음 동작에서 걷힌다. 문구는 토스트 때와 같다. */
   const sidebarFailure = failureText(
     [renameConv, "이름을 바꾸지 못했습니다. 다시 시도해 주세요."],
     [archiveConv, "보관 상태를 바꾸지 못했습니다. 다시 시도해 주세요."],
     [deleteConv, "삭제하지 못했습니다. 잠시 후 다시 시도해 주세요."],
+    [archiveEmpty, "빈 대화를 보관하지 못했습니다. 잠시 후 다시 시도해 주세요."],
   );
   /* 입력 칸 곁에 남는 실패 — 첨부 이미지 거절 사유와 보내기 실패. 다음에 고르거나 보내면 걷힌다. */
   const [composerFailure, setComposerFailure] = useState("");
@@ -439,7 +475,12 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   }
   const createConv = useMutation({
     mutationFn: () => api("/api/conversations", { method: "POST", body: {} }),
-    onSuccess: (d) => { const id = d.conversation ? d.conversation.id : d.id; setCid(id); qc.invalidateQueries({ queryKey: ["conversations"] }); },
+    // 패널은 만들자마자 그 대화를 연다. 전체 화면은 보내기가 끝난 뒤 주소를 바꾼다(`doSend` — 그 사이는 `pendingCid`).
+    onSuccess: (d) => {
+      const id = d.conversation ? d.conversation.id : d.id;
+      if (controlled) setPendingCid(id); else setCid(id);
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
     // onError 토스트는 두지 않는다 — doSend의 catch가 이미 한 번 알린다(이중 토스트 방지).
   });
 
@@ -452,6 +493,11 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   // 없는 옛 대화를 읽던 사용자가 새로고침 때마다 엉뚱한(가장 최근에 '바뀐') 대화로 튕겨나간다.
   // sessionStorage에 남겨 둔 id가 아직 목록에 있으면 그걸 열고, 없으면(삭제·다른 세션) items[0]로 폴백한다.
   useEffect(() => {
+    if (controlled) return;   // 전체 화면은 주소가 정본 — `/chat` 은 초안이고 다른 대화를 저절로 열지 않는다.
+    /* 닫힌 채 한 번도 열지 않은 패널은 대화를 미리 열지 않는다. 목록 쿼리는 꺼져 있어도 같은 열쇠의 캐시(전체 화면이 받아 둔
+       목록)를 그대로 받으므로, 여기서 막지 않으면 보이지 않는 패널이 대화 하나를 열어 스레드를 받고 답을 기다리는 동안
+       폴링까지 했다. */
+    if (!dataEnabled) return;
     if (!cid && !composingNew && convs.data && convs.data.items && convs.data.items.length) {
       let restoreId = null;
       try { restoreId = window.sessionStorage.getItem(CHAT_LAST_CONV_KEY); } catch (e) { /* 비보안 컨텍스트 등 */ }
@@ -461,52 +507,20 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       // 대화 복원 직후 컴포저에 포커스를 둔다 — 키보드 사용자가 매번 직접 클릭해 들어가지 않아도 되게.
       textareaRef.current && textareaRef.current.focus();
     }
-  }, [convs.data, cid, composingNew]);
+  }, [convs.data, cid, composingNew, dataEnabled]);
 
   // 현재 열린 대화 id를 남겨 새로고침 후 복원에 쓴다(위 이펙트). 대화가 없으면(새 대화 작성 중 등) 지운다.
   // 복원을 아직 시도 못 했는데(convs 쿼리가 여전히 로딩 중이거나 실패 중) cid가 null이라는
   // 이유만으로 지우면, 복원 이펙트가 나중에 성공해도 읽을 값이 이미 사라진 뒤다 — 매 새로고침마다
   // 복원이 조용히 실패하는 원인이었다(FAIL-01 조사 중 발견, 실패 상황뿐 아니라 정상 경로도 영향받음).
   useEffect(() => {
+    if (controlled) return;
     if (!restoredRef.current && !cid) return;
     try {
       if (cid) window.sessionStorage.setItem(CHAT_LAST_CONV_KEY, cid);
       else window.sessionStorage.removeItem(CHAT_LAST_CONV_KEY);
     } catch (e) { /* 비보안 컨텍스트 등 — 복원은 best-effort */ }
   }, [cid]);
-
-  // 대화목록 드로어는 Esc로도 닫히게 한다(백드롭 탭 외 키보드 탈출구 제공).
-  useEffect(() => {
-    if (!sideOpen) return undefined;
-    const onKey = (e) => { if (e.key === "Escape") closeSideDrawer(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [sideOpen]);
-
-  // 서랍이 열리면 포커스를 그 안으로 옮긴다(열기 전엔 배경의 토글 버튼에 있었다) — 닫힘 상태에
-  // inert를 걸던 것과 짝을 맞춰, 열림 상태에선 배경(스레드 열)을 inert 처리하고, 닫을 때는
-  // 트리거 버튼으로 포커스를 되돌린다(closeSideDrawer).
-  useEffect(() => {
-    if (!listIsDrawer || !sideOpen) return;
-    const el = asideRef.current;
-    const first = el && el.querySelector("button, [href], input, [tabindex]:not([tabindex='-1'])");
-    if (first) first.focus();
-  }, [listIsDrawer, sideOpen]);
-  function closeSideDrawer() {
-    setSideOpen(false);
-    if (listIsDrawer) requestAnimationFrame(() => { sideToggleRef.current && sideToggleRef.current.focus(); });
-  }
-
-  // 서랍/열 판정 — 닫힌 서랍은 화면 밖으로 밀려 있을 뿐 DOM에 남아 있어 키보드/스크린리더가
-  // 여전히 도달한다. 서랍이고 닫혀 있으면 aside를 inert 처리한다(화면 쪽에서). 경계는 화면의
-  // 그리드와 같은 상수를 쓴다(chat-helpers.js LIST_DOCK_PX).
-  useEffect(() => {
-    const mq = window.matchMedia(LIST_DRAWER_MEDIA);
-    const on = () => setListIsDrawer(mq.matches);
-    on();
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
 
   // 스샷 붙여넣기(Ctrl+V) — 클립보드의 이미지 파일을 컴포저로 바로 넣는다(가장 자연스러운 첨부).
   // 보이지 않는 컴포저는 붙여넣기를 가져가면 안 된다(위 pasteEnabled 주석) — 그때는 리스너를
@@ -528,14 +542,49 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
 
   /* 맨 아래에 붙이는 것은 **대화가 있을 때**만이다. 대화가 없으면 환영 화면이 서는데, 그것까지 맨 아래로 굴리면 화면 높이가
      모자란 1366×768 에서 클로비 머리가 대화 영역 윗선에 잘렸다(P17V 상태 캡처). */
+  /* 스크롤 자리 — 대화마다 기억한다. 처음 여는 대화는 맨 아래, 읽다 떠난 대화는 그 자리로 돌아온다. */
+  const scrollMemo = useRef(new Map());
+  const restoreRef = useRef(null);
+  const seenLastRef = useRef({ cid: null, id: null });
+  // 대화가 바뀐 그 그림에서 돌아갈 자리를 정한다(효과를 기다리면 이미 받아 둔 대화는 다음 그림이 없어 자리를 못 잡는다).
+  const restoreCidRef = useRef(undefined);
+  if (restoreCidRef.current !== cid) {
+    restoreCidRef.current = cid;
+    restoreRef.current = cid ? (scrollMemo.current.get(cid) || { atBottom: true }) : null;
+  }
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el || !items.length || !restoreRef.current) return;
+    const memo = restoreRef.current;
+    restoreRef.current = null;
+    seenLastRef.current = { cid, id: lastMsg ? lastMsg.id : null };
+    if (memo.atBottom) { el.scrollTop = el.scrollHeight; setStick(true); return; }
+    el.scrollTop = memo.top;
+    setStick(false);
+  }, [items, cid]);
+  /* 새 답 — 바닥 근처를 보고 있었을 때만 따라간다. 긴 답은 끝으로 튀지 않고 그 답의 첫 줄이 보이게 멈춘다(읽기 시작할 자리). */
   useEffect(() => {
-    if (stick && items.length && bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    const el = bodyRef.current;
+    if (!el || !items.length || restoreRef.current) return;
+    const lastId = lastMsg ? lastMsg.id : null;
+    const arrived = lastMsg && lastMsg.role === "assistant" && seenLastRef.current.cid === cid
+      && seenLastRef.current.id !== lastId;
+    seenLastRef.current = { cid, id: lastId };
+    if (!stick) return;
+    const node = arrived && el.querySelector ? el.querySelector(`[data-message-id="${typeof CSS !== "undefined" && CSS.escape ? CSS.escape(String(lastId)) : String(lastId)}"]`) : null;
+    if (node && node.getBoundingClientRect) {
+      const top = el.scrollTop + node.getBoundingClientRect().top - el.getBoundingClientRect().top - 12;
+      if (node.getBoundingClientRect().height > el.clientHeight * 0.6) { el.scrollTop = top; return; }
+    }
+    el.scrollTop = el.scrollHeight;
   }, [items, stick]);
 
   function onScroll() {
     const el = bodyRef.current;
     if (!el) return;
-    setStick(el.scrollHeight - el.scrollTop - el.clientHeight < 120);
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (cid) scrollMemo.current.set(cid, { top: el.scrollTop, atBottom });
+    setStick(atBottom);
   }
 
   // 대화를 바꾸거나 새 대화를 시작할 때 컴포저 초안을 비운다 — 초안(글+첨부)이 전역이라, 안 비우면
@@ -561,7 +610,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   /* `/ai` 의 「AI 도우미에게 묻기」(`/chat?ask=…`) — 새 대화로 그 질문을 보낸다(D-538). 보던 옛 대화에 섞이지 않는다. */
   function askInNewConversation(question) {
     setComposingNew(true);
-    setCid(null);
+    if (!controlled) setCid(null);
     return doSend(question, { fresh: true });
   }
 
@@ -604,6 +653,8 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       setComposingNew(false);
       await send.mutateAsync({ id, content: value, clientMessageId, attachments: atts });
       if (fromComposer) draftMsgIdRef.current = null;   // 확정 성공 후에만 초안 키를 비운다
+      // 전체 화면의 첫 전송 — 보내기가 끝난 뒤에 주소를 그 대화로 바꾼다(되돌아가기에 빈 초안이 남지 않게 replace).
+      if (controlled && createdId) setCid(createdId, { replace: true });
       // 새 대화가 방금 생성된 경우, 컴포저에 포커스를 되돌려 곧바로 이어 입력할 수 있게 한다.
       if (fromComposer) textareaRef.current && textareaRef.current.focus();
     } catch (e) {
@@ -616,7 +667,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       // AI-69: archiveConv와 같은 이유로 실제 쿼리 키(debouncedQ·convLimit 포함)를 그대로 쓴다.
       if (createdId) {
         const orphan = createdId;
-        setCid(null);
+        if (controlled) setPendingCid(null); else setCid(null);
         qc.setQueryData(["conversations", showArchived, debouncedQ, convLimit], (old) =>
           old && Array.isArray(old.items)
             ? { ...old, items: old.items.filter((c) => c.id !== orphan), total: Math.max(0, (old.total || 0) - 1) }
@@ -657,7 +708,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     // 대화 선택·목록
     cid, setCid, convs, convFilter, setConvFilter, showArchived, setShowArchived, aiQuota,
     composingNew, setComposingNew, activeTitle,
-    renameConv, archiveConv, deleteConv,
+    renameConv, archiveConv, deleteConv, archiveEmpty, emptyTotal, threadConv,
     hasMoreConvs, loadMoreConvs,
     // 스레드
     thread, items, busy, awaitingReply, stalled, answered, justAnswered, answerAnnounce, lastMsg,
@@ -673,9 +724,9 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     // 재생성·삭제·피드백(AI-36/AI-68)
     doRegenerate, regenerating: !!regeneratingRef.current, lastUserMsgId: lastUserMsg && lastUserMsg.id,
     doDeleteMessage, doFeedback,
-    // 레이아웃·스크롤·드로어
-    stick, setStick, onScroll, sideOpen, setSideOpen, closeSideDrawer, listIsDrawer,
+    // 스크롤
+    stick, setStick, onScroll,
     // DOM 참조(화면이 붙인다)
-    bodyRef, fileRef, textareaRef, asideRef, sideToggleRef,
+    bodyRef, fileRef, textareaRef,
   };
 }

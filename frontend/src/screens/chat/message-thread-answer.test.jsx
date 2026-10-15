@@ -1,5 +1,8 @@
 /* 도우미 답 말풍선 — 서버가 만든 구조만 그린다 (D-535).
  *
+ * qa-contract-change: AI 채팅 개선 회차 — 「걸린 시간 N초」는 「N초 걸림」, 「확인한 내용」은 답의 「더 보기」 메뉴 안, 답 아래 출처는
+ * 접기 「참고 자료 N개」(넓은 틀의 참고 자료 판이 서면 `panelDocked` 로 숨는다), 「찾아본 자료」도 같은 접기다. 단언 수는 그대로다.
+ *
  * qa-contract-replaced-by: frontend/src/screens/chat/message-thread-response-time.test.jsx
  *
  * 걸린 시간은 서버가 잰 한 차례의 시간(`elapsed_ms`)이고, 「찾지 못함」은 정상 답(오류색 아님)에 찾아본 검색어와 다음 길이
@@ -29,7 +32,7 @@ function answer(structured, content = "답입니다.") {
 describe("도우미 답의 구조", () => {
   it("걸린 시간은 서버가 잰 값이다", () => {
     renderMessage(answer({ kind: "assistant", elapsed_ms: 3200 }));
-    expect(screen.getByText("걸린 시간 3.2초")).toBeInTheDocument();
+    expect(screen.getByText("3.2초 걸림")).toBeInTheDocument();
   });
 
   it("「찾지 못함」은 찾아본 검색어와 문서에서 찾기 길을 함께 보인다", () => {
@@ -53,7 +56,8 @@ describe("도우미 답의 구조", () => {
       { name: "my_work", label: "내 업무", ok: true, count: 2 },
     ] }));
     expect(screen.queryByText(/사내 문서 검색에서/)).toBeNull();
-    await user.click(screen.getByRole("button", { name: "확인한 내용 보기" }));
+    await user.click(screen.getByRole("button", { name: "답 더 보기" }));
+    await user.click(screen.getByRole("menuitem", { name: "확인한 내용 보기" }));
     expect(screen.getByText("사내 문서 검색에서 「연차」를 찾았습니다.")).toBeInTheDocument();
     expect(screen.getByText("내 업무를 확인했습니다.")).toBeInTheDocument();
   });
@@ -67,13 +71,16 @@ describe("도우미 답의 구조", () => {
     expect(screen.queryByRole("link", { name: "ZZZZZZ-99" })).toBeNull();
   });
 
-  it("지난 답의 인용은 출처로 그려지고, 레일이 그 출처를 들면 말풍선 안에서는 숨는다", () => {
+  it("지난 답의 인용은 접힌 「참고 자료」로 그려지고, 참고 자료 판이 서면 답 아래에서는 숨는다", async () => {
+    const user = userEvent.setup();
     const old = answer({ citations: [{ document_id: "d1", document_title: "연차 규정", route: "/knowledge/d1" }] });
     const { unmount } = renderMessage(old);
+    await user.click(screen.getByRole("button", { name: "참고 자료 1개" }));
     expect(screen.getByRole("link", { name: "연차 규정" })).toBeInTheDocument();
     unmount();
-    renderMessage(old, { showSources: false });
+    renderMessage(old, { panelDocked: true, onShowSources: () => {} });
     expect(screen.queryByRole("link", { name: "연차 규정" })).toBeNull();
+    expect(screen.getByRole("button", { name: "참고 자료 1" })).toBeInTheDocument();
   });
 
   it("오류 안내 말풍선에는 출처 · 걸린 시간 · 복사가 붙지 않는다", () => {
@@ -82,7 +89,7 @@ describe("도우미 답의 구조", () => {
     ] }, "AI 연결이 끊겨 있습니다. 관리자에게 알려 주세요."));
     expect(screen.queryByRole("link", { name: "연차 규정" })).toBeNull();
     expect(screen.queryByText(/1\.0초/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "복사" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "답 복사" })).toBeNull();
   });
 });
 
@@ -104,8 +111,8 @@ describe("답 안의 출처 링크와 확인한 수", () => {
     expect(screen.getByText("중요").tagName).toBe("STRONG");
   });
 
-  it("레일이 출처를 대신 보여 줄 때(말풍선 안 출처 숨김)도 답 안 링크는 그대로다", () => {
-    renderMessage(answer({ kind: "assistant", sources: SOURCES }, "[규정 문서](/knowledge/d1)를 보세요."), { showSources: false });
+  it("참고 자료 판이 출처를 대신 보여 줄 때(답 아래 출처 숨김)도 답 안 링크는 그대로다", () => {
+    renderMessage(answer({ kind: "assistant", sources: SOURCES }, "[규정 문서](/knowledge/d1)를 보세요."), { panelDocked: true });
     expect(screen.getByRole("link", { name: "규정 문서" })).toHaveAttribute("href", "#/knowledge/d1?block=b1");
     expect(screen.queryByRole("link", { name: "연차 규정" })).toBeNull();
   });
@@ -122,7 +129,8 @@ describe("답 안의 출처 링크와 확인한 수", () => {
       { name: "my_documents", label: "내 문서", ok: true, count: 3, total: 3 },
       { name: "my_work", label: "내 업무", ok: true, count: 2, total: null },
     ] }));
-    await user.click(screen.getByRole("button", { name: "확인한 내용 보기" }));
+    await user.click(screen.getByRole("button", { name: "답 더 보기" }));
+    await user.click(screen.getByRole("menuitem", { name: "확인한 내용 보기" }));
     expect(screen.getByText("사내 문서 검색에서 「연차」를 찾았습니다. (25건 중 8건)")).toBeInTheDocument();
     expect(screen.getByText("내 문서를 확인했습니다. (3건)")).toBeInTheDocument();
     expect(screen.getByText("내 업무를 확인했습니다.")).toBeInTheDocument();
@@ -146,21 +154,20 @@ describe("인용하지 않은 출처", () => {
   it("하나도 인용하지 않은 답은 「찾아본 자료」를 접어 두고, 펼치면 그 뜻을 한 문장으로 말한다", async () => {
     const user = userEvent.setup();
     renderMessage(answer({ kind: "assistant", notice: "no_results", sources: NEAR }, "사내 문서에서 2031년 우주 출장 규정을 찾지 못했습니다."));
-    expect(screen.queryByRole("heading", { name: "참고한 자료" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^참고 자료/ })).toBeNull();
     expect(screen.queryByRole("link", { name: "출장비 정산 안내" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "찾아본 자료 2개 보기" }));
-    expect(screen.getByRole("heading", { name: "찾아본 자료" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "찾아본 자료 2개" }));
     expect(screen.getByText("답을 찾는 동안 살펴봤지만 답에는 쓰지 않은 자료입니다.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "출장비 정산 안내" })).toHaveAttribute("href", "#/knowledge/d7");
-    expect(screen.getByRole("button", { name: "찾아본 자료 접기" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "찾아본 자료 2개" })).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("하나라도 인용했거나 인용 표시가 없는 옛 답이면 그대로 「참고한 자료」다", () => {
+  it("하나라도 인용했거나 인용 표시가 없는 옛 답이면 「참고 자료」다 — 인용한 것만 센다", () => {
     const { unmount } = renderMessage(answer({ kind: "assistant", sources: [{ ...NEAR[0], cited: true }, NEAR[1]] }, "[출장비 정산 안내](/knowledge/d7)를 보세요."));
-    expect(screen.getByRole("heading", { name: "참고한 자료" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "참고 자료 1개" })).toBeInTheDocument();
     unmount();
     renderMessage(answer({ kind: "assistant", sources: NEAR.map(({ cited, ...rest }) => rest) }));
-    expect(screen.getByRole("heading", { name: "참고한 자료" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "참고 자료 2개" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /찾아본 자료/ })).toBeNull();
   });
 });

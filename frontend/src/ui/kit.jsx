@@ -1794,7 +1794,7 @@ export function EmptyState(props) {
   const centered = page || card;
   /* compact 는 여전히 그림을 안 그린다(DS-15). 팝오버·모달 하위목록은 폭도 높이도 좁아서
      그림이 «다음에 무엇을 하면 되는지» 를 밀어낸다. 그 자리에 캐릭터가 필요한 화면은
-     `icon` 으로 직접 넘긴다 — `ResultsRail` 이 그렇게 하고 그 포즈는 `emptyCompact` 밴드다. */
+     `icon` 으로 직접 넘긴다 — 그 포즈는 `emptyCompact` 밴드다. */
   const artSrc = !compact && art && ART[art] ? ART[art] : null;
   /* 그림 크기는 «보이는 캐릭터» 에서 파생한다 (지시 71 · `Mascot.jsx::MASCOT_PLACE`).
      예전에는 `width: {sm:72, xxl:88, uhd:112}` 였는데, 그 72 는 자산마다 다른 크기로 보였다 —

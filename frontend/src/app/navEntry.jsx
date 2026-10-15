@@ -55,6 +55,7 @@ const SCREEN_FAMILIES = [
   { key: "screen:users", test: /^\/users(\/[^/]+)?$/ },
   { key: "screen:org-console", test: /^\/(organizations|org-tree|departments(\/[^/]+)?)$/ },
   { key: "screen:chat-rooms", test: /^\/chat-rooms(\/[^/]+)?$/ },
+  { key: "screen:chat", test: /^\/chat(\/[^/]+)?$/ },
 ];
 
 /** 이 경로를 그리는 화면의 열쇠 — 묶음에 들면 묶음 이름, 아니면 경로 그대로다. 본문 경계의 키가 쓴다. */

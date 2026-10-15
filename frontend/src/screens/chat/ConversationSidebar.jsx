@@ -1,244 +1,233 @@
 import React, { useState } from "react";
 import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
-import { alpha } from "@mui/material/styles";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
-import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
-import EditRoundedIcon from "@mui/icons-material/EditRounded";
-import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
-import UnarchiveOutlinedIcon from "@mui/icons-material/UnarchiveOutlined";
-import { Badge, Button, Callout, EmptyState, ErrorState, ListEmptyState, Skeleton } from "../../ui/kit.jsx";
-import { FONT_SIZE, FONT_WEIGHT } from "../../ui/theme.js";
-import { fmtShort } from "../chat-helpers.js";
+import { Badge, Button, Callout, ErrorState, ListEmptyState, OverflowMenu, Segmented, Skeleton } from "../../ui/kit.jsx";
+import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
+import { fmtDateTime, fmtListStamp } from "../../lib/format.js";
 import { SearchBox } from "../../ui/filters.jsx";
 
-// ── 대화 목록 항목 ──────────────────────────────────────────────────────────
+/* AI 도우미 대화 목록 — 채팅방 목록과 같은 어휘다(RULES §9 · `ChatRooms.jsx::RoomRow`): 고른 행은 함몰면 + 왼쪽 레일 3px +
+ * `aria-current`, 올리면 한 단계 면. 행은 높이가 같고(제목 두 줄까지, 넘치면 말줄임 · 전체 제목은 `title`), 시각은 오른쪽 고정
+ * 칸이다(마지막 대화 시각 — 목록 순서와 같은 값).
+ *
+ * 행의 보조 동작(이름 바꾸기 · 보관 · 꺼내기 · 삭제)은 「더 보기」 하나로 모았다. 예전에는 아이콘 셋이 행에 올리면 날짜 자리에
+ * 서고 툴팁이 이웃 행을 가렸으며, 단추 옆의 JSX 주석이 화면에 글로 그려져 고른 대화의 제목을 한 글자로 밀었다. 「더 보기」는
+ * 올리기 · 초점 · 고름 · 메뉴가 열린 동안 보이고(불투명도 — 키보드로 닿는다), 터치 기기에서는 늘 보인다. */
 
-/* 대화 목록 항목 — 호버 시 이름 변경(인라인)·보관·삭제. 빈 '새 대화'가 쌓여도 정리 가능.
- * 터치(호버 없음) 기기에서는 hover가 절대 안 일어나 액션에 영영 닿을 수 없으므로 항상 노출한다. */
-function ConvItem({ c, active, onOpen, onRename, onDelete, onArchive }) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(c.title || "");
-  const label = c.title || "새 대화";
-  // 이전엔 mutation 결과와 무관하게 setEditing(false)를 먼저 불러 입력을 닫았다 — PATCH가 실패하면
-  // (422·네트워크 오류·409 등) 입력창이 조용히 닫히고 사이드바가 옛 제목으로 되돌아가, 사용자가 방금
-  // 친 내용이 사라져도 눈에 잘 안 띄는 토스트 하나로만 알렸다. onRename이 돌려주는 프라미스가 성공할
-  // 때만 편집 모드를 닫고, 실패하면 입력을 그대로 열어 둬 재시도/복사할 수 있게 한다.
+/** 줄 안 이름 고치기 — 목록 행과 스레드 머리가 같이 쓴다. Enter · 칸을 떠나면 저장, Esc 는 취소, 한글 조합 중 Enter 는 무시한다.
+ *  저장이 실패하면 칸을 닫지 않는다(친 글이 사라지지 않게). 끝나면 `onDone` 이 초점을 돌려줄 자리를 정한다.
+ *
+ *  초점은 다음 그림에서 옮긴다(`autoFocus` 가 아니다). 「더 보기」 메뉴에서 열면 메뉴가 닫히며 초점을 메뉴 단추로 돌려주는데,
+ *  칸이 먼저 초점을 받으면 그 순간 흐려져(저장할 것 없음) 칸이 열리자마자 닫혔다. 열면 기존 이름을 모두 골라 둔다. */
+export function InlineRename({ value, label, onSave, onDone, sx }) {
+  const [val, setVal] = useState(value || "");
+  const settled = React.useRef(false);
+  const inputRef = React.useRef(null);
+  React.useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      if (el.select) el.select();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  function finish(saved) {
+    if (settled.current) return;
+    settled.current = true;
+    if (onDone) onDone(saved);
+  }
   function commit() {
     const t = val.trim();
-    if (!t || t === (c.title || "")) { setEditing(false); return; }
-    Promise.resolve(onRename(t)).then(() => setEditing(false)).catch(() => {});
+    if (!t || t === (value || "")) { finish(false); return; }
+    Promise.resolve(onSave(t)).then(() => finish(true)).catch(() => { settled.current = false; });
   }
-  if (editing) {
-    return (
-      <Box sx={{ px: 0.5, py: 0.5 }}>
-        <InputBase
-          fullWidth autoFocus value={val} inputProps={{ maxLength: 200, "aria-label": "이름 수정: " + label }}
-          onChange={(e) => setVal(e.target.value)}
-          onKeyDown={(e) => { if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (e.key === "Enter") { e.preventDefault(); commit(); } if (e.key === "Escape") { setEditing(false); setVal(c.title || ""); } }}
-          onBlur={commit}
-          sx={{ px: 1, py: 0.5, fontSize: FONT_SIZE.body, border: 1, borderColor: "primary.main", borderRadius: 1.5, bgcolor: "background.paper" }}
-        />
-      </Box>
-    );
-  }
-  const act = (title, ariaLabel, icon, onClick) => (
-    <Tooltip title={title}>
-      {/* 행 안 동작은 30 이다(핸드오프 RULES §5) — 크기는 테마의 작은 아이콘 단추가 정한다. */}
-      <IconButton size="small" aria-label={ariaLabel} onClick={onClick}
-        sx={{ color: "text.secondary" }}>{icon}</IconButton>
-    </Tooltip>
+  return (
+    <InputBase
+      fullWidth inputRef={inputRef} value={val}
+      inputProps={{ maxLength: 200, "aria-label": "이름 바꾸기: " + label }}
+      onChange={(e) => setVal(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+        if (e.key === "Enter") { e.preventDefault(); commit(); }
+        if (e.key === "Escape") { e.preventDefault(); finish(false); }
+      }}
+      onBlur={commit}
+      sx={{ px: 1, py: 0.25, fontSize: FONT_SIZE.bodySm, border: 1, borderColor: "primary.main", borderRadius: 1.5,
+            bgcolor: "background.paper", ...sx }}
+    />
   );
+}
+
+/* 행의 높이 — 제목 두 줄(0.875rem × 1.45)과 위아래 여백이다. 한 줄 제목도 같은 높이라 목록의 줄 간격이 고르다. */
+const ROW_MIN = "3.5rem";
+
+function rowTime(c) {
+  return c.last_message_at || c.updated_at || c.created_at || null;
+}
+
+/** 대화 한 줄. 제목 링크(`#/chat/<id>`)는 새 탭 열기도 된다 — 보통 누르면 주소만 바꾼다(`onSelect`). */
+export function ConversationRow({ c, active, onSelect, onRename, onArchive, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const linkRef = React.useRef(null);
+  const label = c.title || "새 대화";
+  const ts = rowTime(c);
+  const items = [
+    { key: "rename", label: "이름 바꾸기", onClick: () => setEditing(true) },
+    { key: "archive", label: c.archived ? "보관함에서 꺼내기" : "보관하기", onClick: () => onArchive(!c.archived) },
+    { key: "delete", label: "삭제", tone: "danger", onClick: onDelete },
+  ];
   return (
     <Box
+      component="li"
+      data-conversation-row={c.id}
+      data-active={active ? "" : undefined}
+      data-brand-role={active ? "selected-state" : undefined}
       sx={{
-        display: "flex", alignItems: "center", borderRadius: 2, minWidth: 0,
-        opacity: c.archived ? 0.65 : 1,
-        bgcolor: active ? (t) => alpha(t.palette.primary.main, 0.12) : "transparent",
-        transition: "background .12s ease",
-        "&:hover, &:focus-within": { bgcolor: (t) => alpha(t.palette.primary.main, active ? 0.16 : 0.08) },
-        "&:hover .chat-conv-actions, &:focus-within .chat-conv-actions": { display: "flex" },
-        "&:hover .chat-conv-time, &:focus-within .chat-conv-time": { display: "none" },
-        "@media (hover: none)": { "& .chat-conv-actions": { display: "flex" }, "& .chat-conv-time": { display: "none" } },
+        position: "relative", display: "flex", alignItems: "center", minHeight: ROW_MIN, minWidth: 0,
+        borderLeft: 3, borderLeftStyle: "solid", borderLeftColor: active ? "primary.main" : "transparent",
+        bgcolor: active ? "background.inset" : "transparent",
+        transition: "background-color .12s ease",
+        "&:hover": { bgcolor: active ? "background.inset" : "action.hover" },
+        "& .conv-menu": { opacity: active ? 1 : 0, transition: "opacity .12s ease" },
+        "&:hover .conv-menu, &:focus-within .conv-menu, &:has([aria-expanded='true']) .conv-menu": { opacity: 1 },
+        "@media (hover: none)": { "& .conv-menu": { opacity: 1 } },
       }}
     >
-      <Box
-        component="button" type="button" onClick={onOpen}
-        sx={{
-          flex: 1, minWidth: 0, textAlign: "left", border: 0, background: "none", cursor: "pointer",
-          px: 1.5, py: 1, borderRadius: 2, font: "inherit", fontSize: FONT_SIZE.body,
-          fontWeight: active ? FONT_WEIGHT.bold : FONT_WEIGHT.regular,
-          color: active ? "primary.main" : "text.primary",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}
-      >
-        {label}
-      </Box>
-      {/* 보관됨은 호버 아이콘만으로는 쉼 상태에서 구분되지 않는다, 항상 보이는 태그로 표시한다. */}
-      {c.archived ? <Badge value="archived" /> : null}
-      {c.updated_at ? (
-        <Typography className="chat-conv-time" sx={{ flexShrink: 0, ml: "auto", pr: 1, fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap" }}>
-          {fmtShort(c.updated_at)}
-        </Typography>
-      ) : null}
-      {/* 목록에 같은 버튼이 대화 수만큼 있어서, '삭제'만으로는 스크린리더 사용자가 어느 대화의
-          삭제 버튼인지 알 수 없다, 대화 제목을 라벨에 포함한다. */}
-      <Box className="chat-conv-actions" sx={{ display: "none", flexShrink: 0, pr: 0.5 }}>
-        {act("이름 수정", "이름 수정: " + label, <EditRoundedIcon sx={{ fontSize: "1rem" }} />, () => { setVal(c.title || ""); setEditing(true); })}
-        {act(c.archived ? "보관 해제" : "보관", (c.archived ? "보관 해제: " : "보관: ") + label,
-          c.archived ? <UnarchiveOutlinedIcon sx={{ fontSize: "1rem" }} /> : <Inventory2OutlinedIcon sx={{ fontSize: "1rem" }} />,
-          () => onArchive(!c.archived))}
-        {act("삭제", "대화 삭제: " + label, <DeleteOutlineRoundedIcon sx={{ fontSize: "1rem" }} />, onDelete)}
+      {editing ? (
+        <Box sx={{ flex: 1, minWidth: 0, px: 1, py: 0.75 }}>
+          <InlineRename
+            value={c.title || ""} label={label} onSave={onRename}
+            onDone={() => { setEditing(false); requestAnimationFrame(() => linkRef.current && linkRef.current.focus()); }}
+          />
+        </Box>
+      ) : (
+        <Box
+          component="a" ref={linkRef} href={"#/chat/" + c.id}
+          aria-current={active ? "page" : undefined}
+          onClick={(e) => {
+            // 새 탭 · 새 창으로 여는 손짓은 브라우저에 맡긴다.
+            if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            e.preventDefault();
+            onSelect(c.id);
+          }}
+          sx={{
+            flex: 1, minWidth: 0, alignSelf: "stretch", display: "grid", gridTemplateColumns: "minmax(0,1fr) auto",
+            columnGap: 1, alignItems: "center", pl: 1.25, pr: 0.5, py: 0.75,
+            color: "text.primary", textDecoration: "none", outline: "none",
+            "&:focus-visible": { outline: (t) => `2px solid ${t.palette.focusRing}`, outlineOffset: "-2px" },
+          }}
+        >
+          <Box
+            component="span" title={label}
+            sx={{
+              fontSize: FONT_SIZE.bodySm, lineHeight: 1.45, fontWeight: active ? FONT_WEIGHT.semibold : FONT_WEIGHT.regular,
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", ...KO_WORD_BREAK,
+            }}
+          >
+            {label}
+          </Box>
+          <Box component="span" sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.25 }}>
+            {ts ? (
+              <Box component="time" dateTime={ts} title={fmtDateTime(ts)}
+                sx={{ fontSize: FONT_SIZE.micro, color: "text.secondary", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                {fmtListStamp(ts)}
+              </Box>
+            ) : null}
+            {c.archived ? <Badge value="archived" /> : null}
+          </Box>
+        </Box>
+      )}
+      <Box className="conv-menu" sx={{ flexShrink: 0, pr: 0.75, display: editing ? "none" : "flex" }}>
+        <OverflowMenu size="sm" ariaLabel={"대화 동작: " + label} items={items} />
       </Box>
     </Box>
   );
 }
 
-// ── 대화 목록 사이드바 ──────────────────────────────────────────────────────
-
-/* 좁은 폭에서는 오버레이 서랍(Esc·백드롭·포커스 이동·inert), xl 이상에서는 열로 상주한다.
- * inert는 '서랍인데 닫혀 있을 때'에만 건다 — 상주 상태에 걸면 목록 전체가 키보드/스크린리더에서
- * 사라진다.
- *
- * K-H3(중첩 스크롤): 이 aside 자체에는 overflow를 걸지 않는다 — 대화 목록만 스크롤한다(사이드바
- * 전체가 아니라). '새 대화' 버튼과 보관 토글, 검색창은 항상 위에 고정되고, 목록만 아래쪽 flex:1
- * 칸 안에서 스크롤된다. 예전엔 이 aside에도 overflowY:auto가 걸려 있어, 목록을 끝까지 보려면
- * 바깥(사이드바)과 안(목록) 두 스크롤바를 번갈아 만져야 했다. */
+/** 대화 목록 판 — 머리(새 대화 · 검색 · 보기)는 고정이고 목록만 굴러간다(스크롤 칸은 목록 하나). */
 export function ConversationSidebar({
-  asideRef, listIsDrawer, sideOpen, closeSideDrawer, setSideOpen,
   convs, convItems, convFilter, setConvFilter, showArchived, setShowArchived,
-  cid, setCid, setComposingNew, clearDraft, textareaRef,
-  renameConv, archiveConv, deleteConv, confirm,
-  hasMoreConvs, loadMoreConvs, failure,
+  cid, onSelect, onNew, renameConv, archiveConv, deleteConv, confirm, toast,
+  hasMoreConvs, loadMoreConvs, failure, emptyTotal = 0, onArchiveEmpty, headingId,
 }) {
-  // AI-56: "새 대화" 그대로 방치된 항목(메시지 한 번도 안 보낸 시험용)이 쌓이면 목록
-  // 상단부를 영구히 차지한다 — 자동 보관은 하지 않지만(멋대로 지우면 사용자가 놀란다),
-  // 일괄 보관 버튼 하나는 둔다. 이미 보관된 것·활성 대화(cid)는 건드리지 않는다.
-  const emptyUnarchived = convItems.filter((c) => !c.archived && (c.title || "새 대화") === "새 대화" && c.id !== cid);
-
+  async function archiveEmpty() {
+    if (!(await confirm(
+      `메시지가 하나도 없는 대화 ${emptyTotal}개를 보관합니다. 메시지가 있는 대화는 건드리지 않고, 보관한 대화는 보관함에서 다시 꺼낼 수 있습니다.`,
+      { title: "빈 대화 보관", confirmLabel: `${emptyTotal}개 보관` },
+    ))) return;
+    onArchiveEmpty();
+  }
   return (
-    <>
-      <Box
-        component="aside" id="chat-conv-drawer" ref={asideRef}
-        {...(listIsDrawer && !sideOpen ? { inert: "", "aria-hidden": "true" } : {})}
-        sx={{
-          position: { xs: "absolute", xl: "static" },
-          top: 0, left: 0, bottom: 0, zIndex: 20,
-          width: { xs: "18.75rem", xl: "auto" }, maxWidth: { xs: "85%", xl: "none" },
-          borderRight: 1, borderColor: "divider", bgcolor: "background.paper",
-          display: "flex", flexDirection: "column", gap: 1.5, p: 1.5, minHeight: 0, minWidth: 0,
-          transform: { xs: sideOpen ? "none" : "translateX(-100%)", xl: "none" },
-          transition: "transform .2s ease",
-          boxShadow: { xs: sideOpen ? 8 : 0, xl: 0 },
-        }}
-      >
-        {/* 「새 대화」는 보조다(조합 계약 C-4) — 이 화면의 채움은 입력의 「전송」 하나다. 채움이 목록 머리와 입력에 둘 서면 무엇을 먼저
-            할지 화면이 말하지 못한다. */}
-        <Button onClick={() => { clearDraft(); setComposingNew(true); setCid(null); setSideOpen(false); textareaRef.current && textareaRef.current.focus(); }}>
+    <Box sx={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", minWidth: 0 }}>
+      <Box sx={{ display: "grid", gap: 1.25, p: 1.5, borderBottom: 1, borderColor: "rule", flexShrink: 0 }}>
+        <Box component="h2" id={headingId} className="sr-only">대화 목록</Box>
+        {/* 「새 대화」는 보조다(조합 계약 C-4) — 이 화면의 채움은 입력의 「전송」 하나다. */}
+        <Button onClick={onNew}>
           <AddRoundedIcon aria-hidden="true" sx={{ fontSize: "1.125rem", mr: 0.5 }} />새 대화
         </Button>
-        {/* 목록 동작(이름 · 보관 · 삭제)의 실패 — 이 목록 안에 남는다(`useChat::sidebarFailure`). */}
-        {failure ? <Callout tone="danger" compact>{failure}</Callout> : null}
-        <Box component="label" sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: FONT_SIZE.bodySm, color: "text.secondary", cursor: "pointer" }}>
-          <Box component="input" type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} sx={{ m: 0 }} />
-          보관된 대화 보기
-        </Box>
-        {/* AI-56: 목록에 정리 수단이 없어 시험 삼아 만든 "새 대화"가 영구히 상단을 차지했다.
-            2개 이상일 때만 보인다 — 1개까지는 이 버튼이 오히려 소음이다. */}
-        {emptyUnarchived.length >= 2 ? (
-          <Button
-            size="sm" variant="ghost"
-            onClick={async () => {
-              if (!(await confirm(
-                `메시지를 한 번도 안 보낸 "새 대화" ${emptyUnarchived.length}개를 한꺼번에 보관할까요?`,
-                { confirmLabel: "일괄 보관" }
-              ))) return;
-              await Promise.all(emptyUnarchived.map((c) => archiveConv.mutateAsync({ id: c.id, archived: true })));
-            }}
-          >
-            빈 "새 대화" {emptyUnarchived.length}개 일괄 보관
-          </Button>
-        ) : null}
-        {/* 대화가 쌓일수록 스크롤만으로 찾기 어렵다 — 제목·본문 검색(AI-38, 서버가 거른다).
-         *
-         * 🔴 **검색 중에는 결과가 0건이어도 상자를 남긴다** (S21). `convItems` 는 서버가
-         * 이미 걸러 온 결과라, 조건이 하나도 안 맞는 순간 이 상자가 **자기를 지웠다** —
-         * 한 글자를 잘못 친 사람은 그 글자를 지울 칸을 잃는다. 브라우저 실측에서 «존재하지
-         * 않는대화zz» 를 친 뒤 입력 칸이 DOM 에서 사라졌다. 아래 빈 상태의 «검색어 지우기»
-         * 가 유일한 출구였는데, 조건을 **좁힌 사람이 넓히는 길**은 그 조건을 적은 자리여야
-         * 한다. 검색어가 있으면 결과가 없어도 상자를 남긴다. */}
+        {/* 🔴 검색 중에는 결과가 0건이어도 상자를 남긴다(S21) — 조건을 좁힌 사람이 넓히는 길은 그 조건을 적은 자리여야 한다.
+            대화도 검색어도 없으면 찾을 것이 없어 상자를 그리지 않는다. 제목과 내용을 함께 찾는다(서버). */}
         {(convItems.length > 0 || convFilter.trim()) ? (
-          /* 검색 칸 정본(`SearchBox`) — 좁은 목록에서는 칸 폭을 채운다(`layout="fill"`). 글자마다 바로 거른다
-             (`immediate`) — 예전 칸도 디바운스 없이 곧바로 걸렀다. */
-          <SearchBox layout="fill" immediate value={convFilter} onSearch={setConvFilter} placeholder="대화 제목 검색" ariaLabel="대화 목록 검색" />
+          <SearchBox layout="fill" immediate value={convFilter} onSearch={setConvFilter} placeholder="대화 검색" ariaLabel="대화 목록 검색" />
         ) : null}
-        {/* 대화 목록만 스크롤한다(사이드바 전체가 아니라) — '새 대화' 버튼과 보관 토글은 항상 위에
-            고정되고, 목록이 사이드바 높이를 넘칠 때만 이 안에서 스크롤된다. */}
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, flex: 1, minHeight: 0, overflowY: "auto", pr: 0.5, scrollbarGutter: "stable" }}>
-          {convs.isLoading ? <Skeleton lines={4} />
-            : convs.isError ? <ErrorState layout="region" error={convs.error} onRetry={() => convs.refetch()} />
-            : !convItems.length
-              /* 빈 상태는 kit `EmptyState` 로. 회색 한 줄은 로딩 중인지·보관 필터 때문인지·
-                 정말 없는 건지 구분해 주지 않는다(E계열 지적, `GroupedTickets` 와 같은 수정).
-                 `.k-empty` + `role="status"` 가 따라오는 것도 이득이다 — 낭독되고, 기준 대조
-                 도구가 "데이터가 없어 카드가 0" 인 화면을 디자인 불일치로 세지 않게 된다.
-                 AI-70: 검색어가 있으면(AI-38 — convItems는 이미 서버가 걸러 온 결과다) "대화가
-                 아예 없다"가 아니라 "이 검색에 해당하는 결과가 없다"고 말한다 — 먼저 확인하는
-                 이유는 검색 중엔 보관 필터보다 "방금 한 행동"이 더 구체적인 원인이라서다. 예전엔
-                 검색 결과 0건도 여기 안 걸리고 항상 "아직 대화가 없습니다"로 떨어졌다(convItems
-                 별칭 filtered가 이 분기 안에서는 늘 참이라, 아래 있던 "검색 결과가 없습니다"
-                 분기 자체가 도달 불가능한 죽은 코드였다). */
-              ? (
-                  /* 조건을 푸는 길을 함께 준다 (C1 · W5). 예전 검색 갈래는 제목 한 줄뿐이라
-                     "내가 뭘 쳤더라" 를 되짚을 단서도, 되돌릴 버튼도 없었다. */
-                  <ListEmptyState
-                    size="compact"
-                    filtered={!!convFilter.trim()}
-                    onClear={() => setConvFilter("")}
-                    clearLabel="검색어 지우기"
-                    filteredTitle="검색 결과가 없습니다"
-                    filteredHelp={`'${convFilter.trim()}' 으로 찾은 대화가 없습니다.`}
-                    title={showArchived ? "보관된 대화가 없습니다" : "아직 대화가 없습니다"}
-                    help={showArchived
-                      ? "대화를 보관하면 여기에 모입니다. 위 체크를 풀면 진행 중인 대화가 보입니다."
-                      : "위의 '새 대화'를 눌러 시작하세요."}
-                  />)
-              : (
-                  <>
-                    {convItems.map((c) => (
-                      <ConvItem key={c.id} c={c} active={c.id === cid}
-                        onOpen={() => { if (c.id !== cid) clearDraft(); setCid(c.id); setComposingNew(false); setSideOpen(false); textareaRef.current && textareaRef.current.focus(); }}
-                        onRename={(title) => renameConv.mutateAsync({ id: c.id, title })}
-                        onArchive={(archived) => archiveConv.mutate({ id: c.id, archived })}
-                        onDelete={async () => { if (await confirm("이 대화를 삭제할까요? 되돌릴 수 없습니다.", { danger: true, confirmLabel: "대화 삭제" })) deleteConv.mutate(c.id); }} />
-                    ))}
-                    {/* AI-18: 대화가 상한(기본 100개)보다 많을 때만 보인다 — 그 이하인 절대다수
-                        사용자에게는 아무것도 안 보이던 예전 그대로다.
-                        🔴 여기는 목록 끝 줄(`ui/InfiniteScroll.jsx::ListFooter`)을 **안 쓴다.**
-                        두 가지가 다르다: ① 봉투에 offset 이 없어 「상한을 키워 다시 받는」
-                        관용이고(`Trash` 와 같은 이유) 자동 로딩을 켤 수 없다 ② 이 곁열은
-                        240px 짜리 세로 레일이라 「N건 중 M건을 받았습니다」 한 줄이 제목들
-                        사이에서 소음이 된다. 단추 하나가 그 자리에 필요한 전부다. */}
-                    {hasMoreConvs ? (
-                      <Button
-                        size="sm" variant="ghost" loading={convs.isFetching}
-                        onClick={loadMoreConvs}
-                        sx={{ alignSelf: "center", mt: 0.5, flexShrink: 0 }}
-                      >
-                        대화 더 보기
-                      </Button>
-                    ) : null}
-                  </>
-                )}
-        </Box>
+        <Segmented
+          value={showArchived ? "archived" : "active"} onChange={(v) => setShowArchived(v === "archived")}
+          ariaLabel="대화 보기" options={[{ value: "active", label: "대화" }, { value: "archived", label: "보관함" }]}
+          sx={{ width: "100%", "& [role='tab']": { flex: 1 } }}
+        />
+        {failure ? <Callout tone="danger" compact>{failure}</Callout> : null}
       </Box>
-      {sideOpen && listIsDrawer ? (
-        <Box onClick={closeSideDrawer} aria-hidden="true"
-          sx={{ position: "absolute", inset: 0, zIndex: 15, bgcolor: (t) => alpha(t.palette.common.black, 0.4) }} />
+      {/* 굴러가는 칸은 목록 하나다. 이름표는 감싼 카드(넓은 틀) · 서랍(좁은 틀)이 「대화 목록」 머리글로 이미 단다 — 여기에 같은
+          이름의 랜드마크를 하나 더 세우지 않는다(채팅방 목록과 같은 구조). */}
+      <Box data-conversation-list="" sx={{ flex: 1, minHeight: 0, overflowY: "auto", scrollbarGutter: "stable" }}>
+        {convs.isLoading ? <Box sx={{ p: 1.5 }}><Skeleton lines={4} /></Box>
+          : convs.isError ? <Box sx={{ p: 1.5 }}><ErrorState layout="region" error={convs.error} onRetry={() => convs.refetch()} /></Box>
+          : !convItems.length ? (
+            <Box sx={{ p: 1.5 }}>
+              <ListEmptyState
+                size="compact"
+                filtered={!!convFilter.trim()}
+                onClear={() => setConvFilter("")}
+                clearLabel="검색어 지우기"
+                filteredTitle="검색 결과가 없습니다"
+                filteredHelp={`'${convFilter.trim()}' 으로 찾은 대화가 없습니다.`}
+                title={showArchived ? "보관한 대화가 없습니다" : "아직 대화가 없습니다"}
+                help={showArchived ? "대화를 보관하면 여기에 모입니다." : "위의 '새 대화'를 눌러 시작하세요."}
+              />
+            </Box>
+          ) : (
+            <>
+              <Box component="ul" role="list" sx={{ listStyle: "none", m: 0, p: 0 }}>
+                {convItems.map((c) => (
+                  <ConversationRow
+                    key={c.id} c={c} active={c.id === cid}
+                    onSelect={onSelect}
+                    onRename={(title) => renameConv.mutateAsync({ id: c.id, title })}
+                    onArchive={(archived) => archiveConv.mutateAsync({ id: c.id, archived }).then(() => {
+                      if (toast) toast(archived ? "대화를 보관했습니다. 보관함에서 다시 꺼낼 수 있습니다." : "대화를 보관함에서 꺼냈습니다.", "success");
+                    }, () => {})}
+                    onDelete={async () => {
+                      if (await confirm(`「${c.title || "새 대화"}」 대화를 삭제합니다. 되돌릴 수 없습니다.`,
+                        { danger: true, title: "대화 삭제", confirmLabel: "삭제" })) deleteConv.mutate(c.id);
+                    }}
+                  />
+                ))}
+              </Box>
+              {hasMoreConvs ? (
+                <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>
+                  <Button size="sm" variant="ghost" loading={convs.isFetching} onClick={loadMoreConvs}>대화 더 보기</Button>
+                </Box>
+              ) : null}
+            </>
+          )}
+      </Box>
+      {!showArchived && emptyTotal > 0 ? (
+        <Box sx={{ px: 1.5, py: 1, borderTop: 1, borderColor: "rule", flexShrink: 0 }}>
+          <Button size="sm" variant="ghost" onClick={archiveEmpty}>빈 대화 {emptyTotal}개 보관</Button>
+        </Box>
       ) : null}
-    </>
+    </Box>
   );
 }
