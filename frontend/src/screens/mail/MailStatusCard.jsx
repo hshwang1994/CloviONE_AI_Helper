@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { fmtDateTime } from "../../lib/format.js";
-import { Callout, Card, DotLabel, FACTS_ROW_SX, HeadRow, TechDetail } from "../../ui/kit.jsx";
+import { Callout, Card, DotLabel, FACTS_ROW_SX, HeadRow, TechDetail, TechRows } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 
 /* 메일 상태 면 (계획 M1 · M2, D-546) — 메일 화면에서 카드는 이것 하나다(F7 카드 규율: 독립된 상태).
@@ -126,29 +126,20 @@ export function MailStatusCard({ health, summary, relay = null, checking = false
           <Box sx={{ flex: "1 1 auto", minWidth: 0 }}><RelayLines relay={relay} /></Box>
         ) : (checking ? null : <StageList stages={h.stages} />)}
         <TechDetail trailing>
-          <Box sx={{ display: "grid", gap: 0.5 }}>
-            <TechLine name="상태 코드" value={h.state} />
-            <TechLine name="실패 종류" value={h.failure_kind} />
-            <TechLine name="실패 단계" value={h.stage} />
-            <TechLine name="연속 실패" value={h.consecutive_failures ? `${h.consecutive_failures}회` : null} />
-            <TechLine name="최근 성공" value={h.last_success_at ? fmtDateTime(h.last_success_at) : null} />
-            <TechLine name="메일 서버" value={relay ? "127.0.0.1:2525(로컬 릴레이)" : (summary && summary.host ? `${summary.host}:${summary.port}` : null)} />
-          </Box>
+          <TechRows
+            labelWidth="8rem"
+            rows={[
+              ["상태 코드", h.state],
+              ["실패 종류", h.failure_kind],
+              ["실패 단계", h.stage],
+              ["연속 실패", h.consecutive_failures ? `${h.consecutive_failures}회` : null],
+              ["최근 성공", h.last_success_at ? fmtDateTime(h.last_success_at) : null],
+              ["메일 서버", relay ? "127.0.0.1:2525(로컬 릴레이)" : (summary && summary.host ? `${summary.host}:${summary.port}` : null)],
+            ]}
+          />
         </TechDetail>
       </Box>
     </Card>
-  );
-}
-
-function TechLine({ name, value }) {
-  if (value == null || value === "") return null;
-  return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "8rem minmax(0,1fr)", gap: 1, minWidth: 0 }}>
-      <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>{name}</Typography>
-      <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.regular, wordBreak: "break-all" }}>
-        {value}
-      </Typography>
-    </Box>
   );
 }
 

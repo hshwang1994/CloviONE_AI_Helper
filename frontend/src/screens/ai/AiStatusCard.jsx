@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { fmtDateTime, fmtListStamp } from "../../lib/format.js";
-import { Button, Callout, Card, DotLabel, FACTS_ROW_SX, HeadRow, MetaBar, TechDetail } from "../../ui/kit.jsx";
+import { Button, Callout, Card, DotLabel, FACTS_ROW_SX, HeadRow, MetaBar, TechDetail, TechRows } from "../../ui/kit.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 
 /* 연결 상태 면 (계획 A3, D-539 · D-558) — 화면에서 카드는 이것 하나다(F7 카드 규율: 독립된 상태).
@@ -29,16 +29,6 @@ export const NEXT_BUTTON = {
    정확한 시각은 「기술 정보」에 있다. */
 function when(iso) {
   return iso ? fmtListStamp(iso) : "아직 없음";
-}
-
-function TechLine({ name, value }) {
-  if (value == null || value === "") return null;
-  return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "10rem minmax(0,1fr)", gap: 1, minWidth: 0 }}>
-      <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>{name}</Typography>
-      <Typography component="span" sx={{ fontSize: FONT_SIZE.caption, wordBreak: "break-all" }}>{value}</Typography>
-    </Box>
-  );
 }
 
 export function AiStatusCard({ data, onVerify, onNext, verifying = false, timedOut = false }) {
@@ -100,27 +90,24 @@ export function AiStatusCard({ data, onVerify, onNext, verifying = false, timedO
           <Box sx={{ flex: "1 1 auto", minWidth: 0 }} />
         )}
         <TechDetail trailing>
-          <Box sx={{ display: "grid", gap: 0.5 }}>
-            <TechLine name="연결 상태 코드" value={state.state} />
-            <TechLine name="최근 성공 시각" value={state.last_success_at ? fmtDateTime(state.last_success_at) : null} />
-            <TechLine name="최근 확인 시각" value={state.checked_at ? fmtDateTime(state.checked_at) : null} />
-            <TechLine name="까닭 코드" value={technical.reason_code} />
-            <TechLine name="연속 실패" value={technical.consecutive_failures ? `${technical.consecutive_failures}회` : null} />
-            <TechLine name="프록시" value={technical.proxy} />
-            <TechLine name="연결한 계정" value={technical.account_label} />
-            <TechLine name="토큰 만료" value={technical.access_expires_at ? fmtDateTime(technical.access_expires_at) : null} />
-            <TechLine name="갱신 토큰 만료" value={technical.refresh_expires_at ? fmtDateTime(technical.refresh_expires_at) : null} />
-            <TechLine name="도구 시험 모델" value={technical.tools_checked_model} />
-            <TechLine name="도구 시험 시각" value={(data.capabilities || {}).checked_at ? fmtDateTime(data.capabilities.checked_at) : null} />
-            <TechLine name="색인 문서" value={index ? `${index.documents ?? 0}건, 조각 ${index.chunks ?? 0}개` : null} />
-            <TechLine
-              name="의미 검색 모델"
-              value={index && index.semantic != null ? (index.semantic ? "있음" : "없음(낱말로 찾습니다)") : null}
-            />
-            {data.chatgpt && data.chatgpt.manage_usage_url && config.auth_method === "chatgpt" ? (
-              <TechLine name="요금제 사용량" value={data.chatgpt.manage_usage_url} />
-            ) : null}
-          </Box>
+          <TechRows
+            rows={[
+              ["연결 상태 코드", state.state],
+              ["최근 성공 시각", state.last_success_at ? fmtDateTime(state.last_success_at) : null],
+              ["최근 확인 시각", state.checked_at ? fmtDateTime(state.checked_at) : null],
+              ["까닭 코드", technical.reason_code],
+              ["연속 실패", technical.consecutive_failures ? `${technical.consecutive_failures}회` : null],
+              ["프록시", technical.proxy],
+              ["연결한 계정", technical.account_label],
+              ["토큰 만료", technical.access_expires_at ? fmtDateTime(technical.access_expires_at) : null],
+              ["갱신 토큰 만료", technical.refresh_expires_at ? fmtDateTime(technical.refresh_expires_at) : null],
+              ["도구 시험 모델", technical.tools_checked_model],
+              ["도구 시험 시각", (data.capabilities || {}).checked_at ? fmtDateTime(data.capabilities.checked_at) : null],
+              ["색인 문서", index ? `${index.documents ?? 0}건, 조각 ${index.chunks ?? 0}개` : null],
+              ["의미 검색 모델", index && index.semantic != null ? (index.semantic ? "있음" : "없음(낱말로 찾습니다)") : null],
+              ["요금제 사용량", data.chatgpt && data.chatgpt.manage_usage_url && config.auth_method === "chatgpt" ? data.chatgpt.manage_usage_url : null],
+            ]}
+          />
         </TechDetail>
       </Box>
     </Card>

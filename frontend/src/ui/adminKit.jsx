@@ -166,6 +166,19 @@ export function SettingList({ title, action, children, sx }) {
   );
 }
 
+/* 설정 줄 묶음의 그릇 — 첫 줄의 위 괘선과 위 여백을 지운다(구획 제목 바로 아래 줄이 선 하나를 더 그리지 않게).
+ * 전에는 메일 · AI · 프로필 화면이 같은 `sx` 한 줄을 다섯 번 복사했다. 줄 사이 선은 `SettingRow` 가 그대로 그린다. */
+export function SettingRows({ children, className, sx }) {
+  return (
+    <Box
+      className={className ? `k-settingrows ${className}` : "k-settingrows"}
+      sx={{ minWidth: 0, "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 }, ...sx }}
+    >
+      {children}
+    </Box>
+  );
+}
+
 /* 🔴 여기 `HEADLINE_GRID` 가 있었다. 「경보 타일처럼 개수가 고정된 줄에만 남는다」고
    적혀 있었는데 **소비처가 0** 이었다 — 지표가 판독 줄(`kit.jsx::MetricStrip`)로 옮겨
    가면서 그 자리가 함께 없어졌고, 이름만 남았다. 소비처 없는 치수는 다음 사람에게

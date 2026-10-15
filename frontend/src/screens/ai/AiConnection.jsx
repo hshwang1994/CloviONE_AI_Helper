@@ -11,7 +11,7 @@ import { useInstantSave } from "../../lib/useInstantSave.js";
 import {
   Button, Callout, Card, ErrorState, Field, FieldRow, FormSection, PageHeader, Segmented, Skeleton, useToast,
 } from "../../ui/kit.jsx";
-import { SettingRow } from "../../ui/adminKit.jsx";
+import { SettingRow, SettingRows } from "../../ui/adminKit.jsx";
 import { SecretField } from "../../ui/SecretField.jsx";
 import { AiStatusCard } from "./AiStatusCard.jsx";
 import { ChatGptLogin } from "./ChatGptLogin.jsx";
@@ -359,7 +359,7 @@ export function AiConnection() {
         <Box ref={featureSection} sx={{ display: "contents" }}>
         <FormSection titleAs="h2" title="AI 기능">
           {/* 설정 줄은 괘선 목록이다 - 구획 머리 선 바로 아래 첫 줄은 윗선을 두 번 긋지 않는다. 모두 누르는 즉시 저장된다. */}
-          <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 } }}>
+          <SettingRows>
             <SettingRow
               compact label="AI 사용" controlId="ai-generation"
               description={configured
@@ -387,7 +387,7 @@ export function AiConnection() {
                 )}
               />
             ))}
-          </Box>
+          </SettingRows>
         </FormSection>
         </Box>
 

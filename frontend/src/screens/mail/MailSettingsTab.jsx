@@ -11,7 +11,7 @@ import { failureText } from "../../lib/failure.js";
 import {
   ActionFooter, Button, Callout, Card, ErrorState, Field, FieldRow, FormSection, Skeleton, useConfirm, useToast,
 } from "../../ui/kit.jsx";
-import { SettingRow } from "../../ui/adminKit.jsx";
+import { SettingRow, SettingRows } from "../../ui/adminKit.jsx";
 import { ChoiceCards } from "../../ui/ChoiceCards.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 import { MailStatusCard } from "./MailStatusCard.jsx";
@@ -210,7 +210,7 @@ function EditableSettings({ status, verify, onDirtyChange, onAction }) {
 
         <Box ref={jump.register("enable")} sx={{ display: "contents" }}>
         <FormSection titleAs="h2" title="메일 보내기">
-          <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 } }}>
+          <SettingRows>
             <SettingRow
               compact label="메일 발송 사용" controlId="mail-enabled"
               description="끄면 ClovirAssist 가 메일을 보내지 않습니다. 저장해야 적용됩니다."
@@ -219,7 +219,7 @@ function EditableSettings({ status, verify, onDirtyChange, onAction }) {
                   slotProps={{ input: { "aria-label": "메일 발송 사용" } }} />
               )}
             />
-          </Box>
+          </SettingRows>
         </FormSection>
         </Box>
 
@@ -337,7 +337,7 @@ function EditableSettings({ status, verify, onDirtyChange, onAction }) {
 
         {local ? null : (
         <FormSection titleAs="h2" title="보안">
-          <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 } }}>
+          <SettingRows>
             <SettingRow
               compact label="서버 인증서 확인" controlId="mail-tls-verify"
               description={values.security === "none"
@@ -349,7 +349,7 @@ function EditableSettings({ status, verify, onDirtyChange, onAction }) {
                   slotProps={{ input: { "aria-label": "서버 인증서 확인" } }} />
               )}
             />
-          </Box>
+          </SettingRows>
           <Box>
             <Button onClick={() => setAdvanced((v) => !v)} aria-expanded={advanced} aria-controls="mail-advanced">
               {advanced ? "고급 설정 접기" : "고급 설정 펼치기"}

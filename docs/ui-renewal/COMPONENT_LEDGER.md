@@ -731,6 +731,12 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   짝으로 이어진 무리다(두 줄로 접힌 필터 줄의 위 · 아래 줄은 다른 줄 — 맞는 견본이 그 반례다).
 - **시각 규율 프로브**: `scripts/ui_qa/visual_probes.py`(`nested_card` · `brand_area` · `first_data_visible` + 보고 셋), 견본
   `scripts/ui_qa/fixtures/visual/{good,bad}.html`, 대조표 `scripts/ui_qa/visual_review.py`.
+- **접기 구획 = `Disclosure`**(`ui/Disclosure.jsx`, 2026-10-15): 제목 단추(컨트롤 높이 34, `aria-expanded` · `aria-controls`, 셰브론) + 한 줄 요약,
+  몸은 열렸을 때만 그린다. 비제어(`defaultOpen`) · 제어(`open` + `onToggle`). 메일 설정의 홈메이드 토글 넷과 「서비스 주소」의 고급이 쓴다.
+  기술 정보 한 줄은 그대로 `TechDetail`(`<details>`) 이다 — 둘은 다른 일이다.
+- **기술 정보 줄 = `TechRows`**(`kit.jsx`): 이름 · 값 두 열 `dl`, 빈 값 줄 생략, `labelWidth`. 메일 · AI 상태 면과 릴레이 구획이 각자 그리던
+  `TechLine` 셋을 걷었다. **설정 줄 묶음 = `SettingRows`**(`adminKit.jsx`): 첫 줄의 위 선 · 위 여백을 지우는 그릇 — 같은 `sx` 다섯 복사를
+  걷었다(정합성 목록의 `borderTop` 만 지우는 변형은 그대로다). 시험 `ui/disclosure.test.jsx`.
 
 ## 0-20. 표 열 폭 배분 (D-529)
 

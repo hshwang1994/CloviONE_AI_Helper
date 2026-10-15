@@ -1106,6 +1106,30 @@ export function TechDetail({ label = "기술 정보", children, sx, trailing = f
   );
 }
 
+/** 기술 정보 줄들 — 이름 · 값 두 열의 `dl`. 값이 비면 그 줄을 그리지 않고, 줄이 하나도 없으면 아무것도 그리지 않는다.
+ *  `rows` 는 `[이름, 값]` 짝이나 `{ name, value }` 다. 메일 · AI 상태 면과 릴레이 구획이 각자 같은 두 열을 손으로 그렸던 것을 하나로 모았다
+ *  (라벨 폭만 자리마다 다르다 — `labelWidth`). 보통 `TechDetail` 안에 선다. */
+export function TechRows({ rows, labelWidth = "10rem", sx }) {
+  const list = (rows || [])
+    .map((r) => (Array.isArray(r) ? { name: r[0], value: r[1] } : r))
+    .filter((r) => r && r.value != null && r.value !== "" && r.value !== false);
+  if (!list.length) return null;
+  return (
+    <Box
+      component="dl"
+      className="k-techrows"
+      sx={{ m: 0, display: "grid", gridTemplateColumns: `${labelWidth} minmax(0,1fr)`, columnGap: 1, rowGap: 0.5, minWidth: 0, ...sx }}
+    >
+      {list.map((r) => (
+        <React.Fragment key={String(r.name)}>
+          <Typography component="dt" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>{r.name}</Typography>
+          <Typography component="dd" sx={{ m: 0, fontSize: FONT_SIZE.caption, wordBreak: "break-all", minWidth: 0 }}>{r.value}</Typography>
+        </React.Fragment>
+      ))}
+    </Box>
+  );
+}
+
 /* 네 종의 아이콘. 색만으로 심각도를 전하지 않는다(WCAG 1.4.1) — 모양이 넷 다 다르고,
  * 그 옆의 **글자 라벨**은 그대로 남는다. 아이콘은 글자를 대신하는 것이 아니라 거든다. */
 const CALLOUT_ICON = {

@@ -9,9 +9,9 @@ import { api } from "../../lib/api.js";
 import { failureText } from "../../lib/failure.js";
 import { fmtDateTime } from "../../lib/format.js";
 import {
-  Button, Callout, DotLabel, Field, FieldRow, FormSection, HeadRow, TechDetail, useConfirm, useToast,
+  Button, Callout, DotLabel, Field, FieldRow, FormSection, HeadRow, TechDetail, TechRows, useConfirm, useToast,
 } from "../../ui/kit.jsx";
-import { SettingRow } from "../../ui/adminKit.jsx";
+import { SettingRow, SettingRows } from "../../ui/adminKit.jsx";
 import { ChoiceCards } from "../../ui/ChoiceCards.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js";
 
@@ -45,7 +45,7 @@ function Line({ children, muted = true }) {
   );
 }
 
-function TechRows({ data }) {
+function ComponentTechRows({ data }) {
   if (!data) return null;
   const rows = [
     ["꾸러미", data.packages ? Object.entries(data.packages).map(([k, v]) => `${k} ${v || "없음"}`).join(", ") : null],
@@ -59,14 +59,7 @@ function TechRows({ data }) {
   if (!rows.length) return null;
   return (
     <TechDetail>
-      <Box component="dl" sx={{ m: 0, display: "grid", gridTemplateColumns: "10rem minmax(0,1fr)", gap: 0.5 }}>
-        {rows.map(([k, v]) => (
-          <React.Fragment key={k}>
-            <Typography component="dt" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary" }}>{k}</Typography>
-            <Typography component="dd" sx={{ m: 0, fontSize: FONT_SIZE.caption, wordBreak: "break-all" }}>{v}</Typography>
-          </React.Fragment>
-        ))}
-      </Box>
+      <TechRows rows={rows} />
     </TechDetail>
   );
 }
@@ -136,7 +129,7 @@ function RelayComponent({ relay, savedLocal, dirty, verify }) {
       ) : null}
       {refused ? <Callout tone="danger" compact>{refused.message}</Callout> : null}
       {error ? <Callout tone="danger" compact>{error}</Callout> : null}
-      <TechRows data={component.technical} />
+      <ComponentTechRows data={component.technical} />
     </Box>
   );
 }
@@ -275,7 +268,7 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
                 onChange={(e) => setRelay({ public_ip: e.target.value })} inputProps={{ spellCheck: false }} />
             </Field>
           </FieldRow>
-          <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 } }}>
+          <SettingRows>
             <SettingRow
               compact label="IPv4 만 쓰기" controlId="relay-ipv4"
               description="이 서버에서 바깥으로 나가는 IPv6 가 없으면 켜 둡니다."
@@ -292,7 +285,7 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
                   slotProps={{ input: { "aria-label": "DKIM 서명" } }} />
               )}
             />
-          </Box>
+          </SettingRows>
           {r.dkim_enabled ? (
             <FieldRow columns={["20rem"]}>
               <Field label="선택자" htmlFor="relay-dkim-selector"

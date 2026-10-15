@@ -8,7 +8,7 @@ import { api } from "../../lib/api.js";
 import { failureText } from "../../lib/failure.js";
 import { toUTCDate } from "../../lib/format.js";
 import { Button, Callout, Card, DotLabel, Field, FieldRow, FormSection, useToast } from "../../ui/kit.jsx";
-import { SettingRow } from "../../ui/adminKit.jsx";
+import { SettingRow, SettingRows } from "../../ui/adminKit.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 
 /* 내 프로필 · 메일 알림 (계획 M4, D-550) — 「내가 어떤 메일을 어디에서 받는가」만 다룬다.
@@ -166,7 +166,7 @@ export function MailNotificationCard({ mail, save }) {
     <Card stack data-testid="mail-notification-card">
       <FormSection titleAs="h2" title="메일 알림">
         {delivery.state === "delayed" && delivery.message ? <Callout tone="warn" compact>{delivery.message}</Callout> : null}
-        <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 } }}>
+        <SettingRows>
           <SettingRow
             compact label="메일 알림 받기" controlId="pref-mail-enabled"
             description={off ? (delivery.message || "관리자가 메일 발송을 켜면 메일 알림을 받을 수 있습니다.") : "아래에서 고른 알림을 메일로도 받습니다."}
@@ -178,7 +178,7 @@ export function MailNotificationCard({ mail, save }) {
               />
             )}
           />
-        </Box>
+        </SettingRows>
         {mail.address ? <AddressBlock address={mail.address} mailOff={off} /> : null}
       </FormSection>
       <FormSection titleAs="h2" title="받을 알림">
