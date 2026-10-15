@@ -7,37 +7,56 @@
 > 큰 작업 단위는 [`BACKLOG.md`](BACKLOG.md), 설치 사양은 [`INSTALLATION.md`](INSTALLATION.md),
 > 실측 목록은 [`INVENTORY/`](INVENTORY/README.md), 결정은 [`../DECISIONS.md`](../DECISIONS.md) D-187~.
 
-## 끝남 — 기능 개선 회차: 조직 아바타 · 클로비 패널 · AI 연결 · 메일 · 게임(구슬 레이스) (2026-10-12)
+## 끝남 — 후속 개선 회차: 메일 발송 품질 · AI 사내 데이터 검색 · 게임 UI/UX (2026-10-15)
 
-- 계획 정본: `C:/Users/hshwa/.claude/plans/pasted-content-id-8b8f-clovirassist-mutable-nest.md`(사용자 승인 — 「P0 부터 P7 까지 구현 · 테스트 · 랩 배포 · 최종
-  검증, 사용자 인증이나 받은 편지함 확인이 필요한 경우에만 요청」). 결정은 D-556 ~ D-565, 마이그레이션은 0049. 관찰 · 검증 환경은 랩 서버
-  `clovirassist.gooddi.lab`.
-- 사용자 결정(2026-10-12): 메일은 계정 · 앱 비밀번호 없이 **기존 로컬 릴레이**로 바깥 전달까지 서버에서 구성 · 실측하고 받은 편지함은 사용자가
-  확인한다(받는 주소 둘). AI 는 ChatGPT 개인 계정뿐(API 키 없음). 검증 뒤 랩은 켠 채로 둔다.
-- 사용자 결정(2026-10-13): 「gpt 로그인 방식 지원하게 해라, API 만 하지 말고(혼자 결정하지 마라)」 — D-559(운영 설치는 API 키뿐, ChatGPT 는
-  개인 평가 플래그 · 본인만)를 **D-566** 으로 대체했다. ChatGPT 계정 연결은 모든 설치의 정식 인증 방식이고 연결한 계정 하나를 모두가 함께 쓴다.
+- 계획 정본: `C:/Users/hshwa/.claude/plans/pasted-content-id-2c29-clovirassist-wild-marshmallow.md`(사용자 승인). 결정은 **D-567 ~ D-579**,
+  마이그레이션 없음(alembic head `0049_celebration_pref` 그대로). 기준 화면은 사용자 캡처 열두 장(2026-10-15 09:19 ~ 09:34).
+- 사용자 결정(2026-10-15): 검증 전용 계정 · 시드 데이터를 만들지 않고 **사용자 본인 계정으로 모든 랩 검증**을 한다(자격은 gitignore 된
+  `dist/ops/user.env` 에만). **팀 채팅은 AI · 통합 검색에서 계속 제외**한다.
 - 끝난 묶음:
 
 | 묶음 | 커밋 | 결정 |
 |---|---|---|
-| P0 랩 기준선(`dist/ui-qa-lab/r19-before`) · QA 계정 복구 · 메일 1차 실측(회사 주소 → Exchange Online `250 2.6.0 Queued` 2026-10-12 05:18 UTC, Gmail → `550-5.7.26` SPF/DKIM 없음, DKIM 키 `ca1` 생성) · `lab_mail_e2e --dkim` | `f229689e` | — |
-| P1 사람 그림의 정본 하나(관리 행 · 사람 후보 · 디렉터리 · 놀이방 참여자에 `avatar_url` · `avatar_default_key`, 깨진 사진은 기본 그림, 열람 범위 함수) · 권한 도우미 opendkim.conf bind mount 수정 | `7915aaa8` · `1306a963` | D-556 |
-| P2 클로비 패널은 모달이 아니다(고정 측면 판 28.75 · 45rem, 본문 불변) · `/chat` 과 같은 컴포저 · 말풍선 · 스크롤 부품 · `assistant_panel_e2e.py` | `9961f15b` | D-557 |
-| P3 운영 설치의 AI 인증은 API 키뿐(`AI_CHATGPT_PERSONAL_EVAL`, 본인만) · 상태 면은 서버 사실만(facts · next · credentials · login) · 세 단계 로그인 카드 · 오류 까닭 문장 · `ai_lab_e2e.py` | `5b311208` | D-558 · D-559 |
-| P4 메일 일곱 단계 안내 흐름(`progress` · 다음 할 일 · 받은 편지함 확인) · 로컬 릴레이 먼저 · 제공자 프리셋 · 담당자 요청문 · 진단 접기 · 제품 머리 하나의 메일 틀(CID 로고) · 메일 가능 알림 17종 + 보안 메일 둘 | `c21f9b44` | D-560 ~ D-562 |
-| P5 공통 결과 판(`ResultPanel`, 발표 전환 → 공개 순간 축포 한 번, 늦은 입장은 결과만) · 기존 게임 결함(방장 단독 이탈 종결 · 초기화 멱등 · id 승자 · 폴링 커서) · 「축하 효과」 스위치(0049) · 구슬 레이스(planck 워커 · fdlibm 결정적 수학 · 논리 시간 · 상호 대조 확정 넷 · 판 팔레트 · 전체 화면 · 출처 고지) · `games_e2e.py`(두 브라우저 지문 일치 · 성능 · 캡처) · P6 공통 UI 프로브(다섯 화면 × 4폭, 메일 「다음 할 일」 상자 계약 수정) | `ffa45b02` | D-563 ~ D-565 |
-| P7 전량 검증 · 번들 · 랩 배포 · 실측 · 문서 | `1b0f6638` (배포) · `85b1c1b5` (문서) | — |
-| D-566 ChatGPT 계정 연결 정식 방식 복귀(플래그 · 본인만 · 꺼진 설치 안내 걷음, 요금제 공유 한 줄, 시험 `test_ai_chatgpt_shared.py`) · 랩 배포 | `6b848630` | D-566(D-559 대체) |
-| 붙여 넣기 결함 — Z 없는 UTC 만료 시각을 지역 시각으로 읽어 한국에서 곧바로 「만료」(로그인 카드 · 메일 코드 다시 받기), 글 안의 주소 찾기 · 돌아오면 초점 · 랩 배포 | `670c6058` | — (`EVIDENCE/ai/2026-10-13-lab-chatgpt.md`) |
+| K0 공통 부품 `Disclosure` · `TechRows` · `SettingRows` · 잠금 빌드 `scripts/ui_qa/build_bundle.py` | `b2460f24` · `46614c60` | D-574 |
+| 배포 tar 의 `VERSION` · `*.j2` LF(랩 매니페스트에 날 CR) | `2b16a7ca` | D-573 |
+| M1 메일 틀(클래식 Outlook — 고스트 표 · VML 단추 · px 줄 높이 · 36px CID 로고 · 다크 두 벌 · eyebrow · Reply-To/List-Unsubscribe) · M2 발신 신뢰(중복 DMARC 없음 · 메일 전용 HELO/PTR 이름 · M365 관리자 요청문 · EHLO 이름 · 표시 이름 기본값 · 받은 편지함 아이콘 안내) · 이 PC 클래식 Outlook COM 렌더 하네스 | `db0309e4` · `6c5323bf` | D-571 · D-572 |
+| A1 ~ A10 AI(세기 계약 · 도구 17 · 문서 단위 검색 · 프로젝트 후보 · 순위 · 파서 판 2 · 고정 틀 규칙 · 출처 일치 링크 · 의미 검색 상태 · 진실 하네스) | `e367460f` · `dc904a46` | D-567 ~ D-570 |
+| M3 대표 주소(도우미 `domain.preview/apply` · 별칭 · 인증서 전략 · 지연 재시작 · 설치기 `--alias-name`) · M4 설정 화면(서비스 주소 판 · 메일 다섯 구획 · AI 여섯 구획) · 설치기 AI 상태 보존 | `93404873` · `e8c1cbbc` · `f0321fd0` · `4fd16a13` | D-573 · D-574 · D-570 |
+| G1 ~ G8 놀이(방 껍데기 · 툴바 · 결과 대화 상자 · 전체 화면 · 신원 스냅샷과 얼굴 · 구슬 원본 재현 · 판 넷 · 오픈소스 고지 · 하네스) · 구슬 카메라 미니맵 오른쪽 자리 | `11d36b9d` · `81088d6d` | D-575 ~ D-579 |
+| 문서 · 증거 · 번들 | `32aab42a` · `c5d5da57` · `e51506e9` · 이 커밋 | — |
 
-- 잰 것(P5 · P6): 백엔드 게임 56건(구슬 레이스 7 · 범위 1 · 회귀 3 포함) · 프로필 33건, 프런트 게임방 묶음 90여 건(엔진 7 · 무대 8 · 결과 판 7 ·
-  게임방 6 · 열쇠 11 · 축포 24), 정적 검사(dev) 통과. 실브라우저 `games_e2e --digest`(Chromium 방장 + Firefox 참가자 12명 두 경주 → `confirmed`,
-  같은 당첨자 · 각 화면 축포 · 늦은 입장 축포 0), `--perf`(100명 × 3회 p95 16.8ms · 힙 26.3MB 변화 없음), `--capture` 네 바퀴(r2 → r5,
-  `EVIDENCE/ui/2026-10-12-games-visual.md` · `2026-10-12-marble-perf.md`). P6 `kit_measure --fail-on control_row column_balance switch_geometry
-  callout` 실패 0(`dist/ui-qa/p6-local-r3`), F7 보고 항목에서 남긴 것은 증거 문서에 적었다.
-- 사람이 해야 하는 것(끝에 한 번에 요청): ① 회사 주소 시험 메일(2026-10-12 14:18 KST, Message-ID `<179178228943.769435.3239957479575557108@goodmit.co.kr>`)과
-  P7 2차 실측 메일의 받은 편지함 · 정크 · 격리 확인 ② 랩 AI 연결 화면에서 ChatGPT 계정 로그인(본인 브라우저, D-566) — 배포 뒤 랩 상태는 「미설정 · ChatGPT 계정을 아직 연결하지 않았습니다 · 다음 할 일 로그인」(`dist/ui-qa/ai-lab-e2e/lab-d566-pre.md`), 로그인 뒤 `ai_lab_e2e.py` 로 모델 조회 · 채팅 열한 가지를 잰다 ③ 도메인 DNS 담당자 · 회선 업체 ·
-  M365 관리자에게 보낼 요청문 전달(화면의 「담당자에게 요청하기」 상자).
+- 잰 것: 정적 전량 `STATIC_CHECKS_OK`(최종 `e51506e9`, 깨끗한 작업 트리), vitest 전량 512 파일 4,405 중 4,401 → 남은 넷(대비 계약 시험이 옛 파일을
+  찾음)을 고친 뒤 그 파일 178 통과, 백엔드 전량 회귀 `FULL_REGRESSION_OK`(`run_full_regression.sh`, `4fd16a13` — unit · regression · security · integration 네 청크)와
+  그 뒤 놀이 백엔드 64. 표적 — 메일 198 · AI 보안 포함 250 · 도메인 · 설치기 · 도우미 155 · 설정 화면 143. 실브라우저 — 메일 `mail_e2e` 162/162 ·
+  `mail_render_matrix` 156/156 · 클래식 Outlook COM(밝은 테마), 놀이 `games_e2e --layout` 80/80 · `--fullscreen` · `--capture` 여덟 게임 ·
+  `--digest` 판 넷 confirmed · `--perf` 100명 p95 16.8ms.
+- 랩(배포 두 번 — `e8c1cbbc` 13:01 · `e51506e9` 14:23, 둘 다 Stage 0 ~ 18 OK · `VERIFY_OK` · `DEPLOY_VERIFY_OK`):
+  - 대표 주소 전환 `clovirassist.gooddi.lab` → `https://clovirassist.goodmit.co.kr`(옛 이름은 리디렉션 없는 별칭) — 사내 · 별칭 · 공개 에지 모두
+    200(`EVIDENCE/ops/2026-10-15-domain-cutover.md`). 서비스 주소 판의 확인 넷이 정상이다.
+  - 의미 검색 켬(`sudo clovirassist ai --with-ai`, 모델은 8월부터 있었다) — 조각 2,282/2,282, 콘솔 「낱말 검색 + 의미 검색」, 둘째 배포(일반 upgrade)
+    뒤에도 켜져 있다. AI 진실 하네스 18문항 — 17 통과 · 1 건너뜀(시스템 관리자 계정이라 남의 문서 제한은 이 계정으로 못 잰다) · 색인 프로브 7.9초
+    (`EVIDENCE/ai/2026-10-15-lab-truth.md`).
+  - 메일 — 요청문이 담당자 셋으로 바르게 나오고(DMARC 중복 없음), 새 틀 시험 메일이 Exchange Online 250 접수(13:12 KST,
+    `EVIDENCE/mail/2026-10-15-lab-relay-e2e-3.md`).
+  - 놀이 — 사용자 계정으로 구슬 레이스 한 판(fill · 판 1240×821 · 레일 바닥 = 판 바닥 · 페이지 굴림 0 · 슬로 모션 · 미니맵 · 결과 대화 상자 · 축포 →
+    방 파함, `dist/ui-qa-lab/r20-games`).
+- 사람이 해야 하는 것(완료로 표시하지 않는다):
+  ① 받은 편지함 확인 — 13:12 KST 시험 메일(Message-ID `<179203753563.66435.16500499612322647244@goodmit.co.kr>`)이 받은 편지함 · 정크 · 격리 중
+    어디였는지, 새 틀이 PC Outlook · 새 Outlook/OWA · 모바일 Gmail · 모바일 Outlook · 다크에서 어떻게 보이는지(캡처). 메일 설정 ④ 의 「받았습니다 ·
+    못 받았습니다」로 기록한다.
+  ② 도메인 DNS 담당자 — SPF 합치기(`ip4:221.147.80.201` 추가 · 깨진 include 제거, 사이트 확인 값은 별도 TXT) · DKIM `ca1._domainkey` TXT · A
+    `clovirassist-mail.goodmit.co.kr → 221.147.80.201`. 회선 업체 — PTR `221.147.80.201 → clovirassist-mail.goodmit.co.kr`(또는 NAT). M365 관리자 —
+    인증 확인 · (선택) 발신자 사진. 요청문은 메일 설정 ⑤ 「담당자에게 요청하기」에 그대로 있다. 레코드가 들어오면 메일 설정에서 서버 이름(HELO)을
+    `clovirassist-mail.goodmit.co.kr` 로 바꾸고 점검을 다시 한다.
+  ③ 에지(221.147.80.210) · 사내 DNS 담당 — 사내 사용자의 자가 서명 경고 해소(사내 DNS 를 에지로 · 에지 인증서를 랩에 · 사내 CA 중 하나, 권장 첫째),
+    에지의 `X-Forwarded-For` 확인 뒤 `--upstream-proxy 10.100.64.96`(P-143).
+  ④ (선택) 일반 사용자 계정으로 AI 권한 제한 한 문항(P-132).
+
+## 끝남 — 기능 개선 회차: 조직 아바타 · 클로비 패널 · AI 연결 · 메일 · 게임(구슬 레이스) (2026-10-12)
+
+- 계획 정본 `C:/Users/hshwa/.claude/plans/pasted-content-id-8b8f-clovirassist-mutable-nest.md`, 결정 D-556 ~ D-566, 마이그레이션 0049, 배포 `1b0f6638` →
+  `6b848630`(D-566) → `670c6058`. 묶음 · 잰 것 · 증거는 이 파일의 git log(`c7301bcd` 판)와 `EVIDENCE/ui/2026-10-12-*.md` ·
+  `EVIDENCE/mail/2026-10-12-lab-relay-e2e-2.md` · `EVIDENCE/ai/2026-10-1[23]-*.md` 다.
 
 ## 끝남 — UI/UX · AI · 조직 · 초기 설정 · 메일 회차 (2026-10-01 ~ 10-02)
 
@@ -159,22 +178,23 @@
 
 ## CHECKPOINT
 
-- checkpoint_at: **2026-10-12** (기능 개선 회차 — 조직 아바타 · 클로비 패널 · AI 연결 · 메일 · 게임(구슬 레이스), D-556 ~ D-565, 0049. 그 전 체크포인트는 2026-09-21 제품 일관성 회차 — 사용자가 짚은 여덟 가지를 **사례**로 보고 공통 원인 다섯을 공통 계층에서 고쳤다:
-  문자열 검색 접기 · 필터 칸 크기 · 작업 보드 상단과 백로그 머리 · 재진입과 중복 요청과 오류 그림 · 관리자 화면의 정보 구조.
-  D-495 ~ D-502)
+- checkpoint_at: **2026-10-15** (후속 개선 회차 — 메일 발송 품질 · 대표 주소 · 설정 화면 · AI 사내 데이터 검색 · 게임 UI/UX, D-567 ~ D-579,
+  마이그레이션 없음. 그 전 체크포인트는 2026-10-12 기능 개선 회차 D-556 ~ D-566)
 - phase: **F — Acceptance 완료(S22) 뒤의 일반 개발**(CLAUDE.md §7.0)
-- session: 사용자가 지시서(열 절)와 계획 승인으로 P0 ~ P7 을 끝까지 지시했다(구현 → 표적 검증 → 문서 → 커밋 → 랩 배포 → 실측). 사람이 필요한 것만 남겨 한 번에 요청한다(맨 위 절).
+- session: 사용자 지시서(열 절)와 계획 승인 — 구현 → 표적 검증 → 문서 → 커밋 → 랩 배포 → 실측. 사람이 필요한 것만 남겨 맨 위 절에 적었다.
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
-- deployed: **`670c6058`** (2026-10-13, 붙여 넣기 결함 수정 — 만료 시각 UTC 파서) — 마이그레이션 없음(alembic head `0049_celebration_pref` 그대로),
-  Stage 18 VERIFY_OK, 밖에서 본 `verify_deploy.sh` DEPLOY_VERIFY_OK. 스냅샷 `C:/Program Files/Git/var/backups/clovirassist/20261013-091622`, 설치 로그 `C:/Program Files/Git/var/log/clovirassist/install-20261013-091622.log`. 되돌리려면
-  `sudo clovirassist rollback`(D-524). 그 전 배포는 `6b848630`(같은 날, D-566) · `1b0f6638`(2026-10-12, 기능 개선 회차 최종). 랩의 메일은 사용자
-  결정대로 **발송 켬 · 로컬 릴레이 동작 · 인터넷으로 직접 전달 · DKIM 서명**을 켠 채 두었다. AI 는 옛 `openai · chatgpt` 설정이 그대로 살아
-  「미설정 · ChatGPT 계정을 아직 연결하지 않았습니다」이고, 사용자가 랩 화면에서 로그인하면 그 자격을 모두가 쓴다.
-- verification: 맨 위 절의 「잰 것」과 `EVIDENCE/ui/2026-10-12-*.md` · `EVIDENCE/mail/2026-10-12-lab-relay-e2e-2.md` · `EVIDENCE/ai/2026-10-12-lab-ai.md`.
-- capture: 전량 정본은 **`s22-final`** 그대로다(D-306). 이번 회차의 부분 캡처는 랩 `dist/ui-qa-lab/r19-before` → `r19-after`(+ `-room` · `-mail`), 로컬 `dist/ui-qa/games-e2e/r2 ~ r5` ·
-  `p6-local*` · `p6-shots` 이고 Acceptance 정본을 옮기지 않는다. 뼈대 기준 라벨은 **`p8-geo`** 다 — 작업 보드는 D-497 이 상단을
-  바꿨으므로 그 라벨이 새 기준이다.
+- deployed: **`e51506e9`** (2026-10-15 14:23 KST) — 마이그레이션 없음, Stage 18 VERIFY_OK, `verify_deploy.sh` 두 이름 DEPLOY_VERIFY_OK. 스냅샷
+  `/var/backups/clovirassist/20261015-142305`(그 전 `20261015-130128` = `e8c1cbbc`). 되돌리려면 `sudo clovirassist rollback`. 랩 값 —
+  대표 주소 `https://clovirassist.goodmit.co.kr`(별칭 `clovirassist.gooddi.lab`, 새 자체 서명 인증서 `dist/ops/clovirassist.goodmit.co.kr.crt`),
+  `AI_ENABLED=true` · 매니페스트 `with_ai=1`, AI 는 ChatGPT 계정 · `gpt-6.1-sol` · 도구 호출 사용 가능, 메일은 발송 켬 · 로컬 릴레이 · 직접 전달 ·
+  DKIM 서명(서버 이름은 아직 `clovirassist.gooddi.lab` — DNS 담당자의 A 레코드 뒤에 바꾼다). 로컬 `dist/ops/server.env` 의 `BASE_URL` · `DNS_NAME` 은
+  새 이름이다.
+- verification: 맨 위 절의 「잰 것」과 `EVIDENCE/ai/2026-10-15-*.md` · `EVIDENCE/mail/2026-10-15-*.md` · `EVIDENCE/ops/2026-10-15-domain-cutover.md` ·
+  `EVIDENCE/ui/2026-10-15-games-room-layout.md`.
+- capture: 전량 정본은 **`s22-final`** 그대로다(D-306). 이번 회차의 부분 캡처는 로컬 `dist/ui-qa/m4-*` · `dist/ui-qa/games-e2e/g1 ~ g10-camera` ·
+  `dist/ui-qa/mail-outlook/2026-10-15-final` · `dist/ui-qa/mail-templates/m1-iter3-chromium`, 랩 `dist/ui-qa-lab/r20-settings` · `r20-games` 이고
+  Acceptance 정본을 옮기지 않는다. 뼈대 기준 라벨은 **`p8-geo`** 다.
 - ui_gate: 변화 없음.
 
 ## 무엇을 바꿨나
