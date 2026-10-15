@@ -229,6 +229,25 @@ def test_my_work_with_a_project_equals_the_my_tickets_screen(app, client, login_
     assert both["total"] == 3, "다른 프로젝트의 미완료 티켓까지 세야 한다"
 
 
+def test_this_week_on_a_monday_dawn_is_the_same_week_for_the_screen_and_the_tool(app, db, client, login_as, people, resources,
+                                                                                 make_ticket, fake_clock):
+    """KST 월요일 05:00(= UTC 일요일 20:00)에도 「내 티켓」의 이번 주와 AI `my_work` 의 이번 주가 같은 달력 주다(P-139).
+    화면은 UTC 날짜로 주를 나눠 이 시각에 지난주를 「이번 주」로 셌다."""
+    a1 = people["a1"]
+    project = resources["projects"]["a1"]
+    fake_clock.advance(seconds=-28 * 3600)  # 2026-07-14 00:00 UTC → 2026-07-12(일) 20:00 UTC = 2026-07-13(월) 05:00 KST
+    make_ticket(project=project, title="지난 일요일 마감", status="진행", assignees=[a1.id], due="2026-07-12")
+    make_ticket(project=project, title="월요일 마감", status="진행", assignees=[a1.id], due="2026-07-13")
+    make_ticket(project=project, title="이번 주 일요일 마감", status="진행", assignees=[a1.id], due="2026-07-19")
+    db.commit()
+    tool = _body(_run(app, a1, "my_work", view="due_this_week"))
+    login_as("user", email=PASSWORD_LOGIN_EMAIL)
+    screen = client.get("/api/tickets/mine", params={"due": "this_week"}).json()
+    expected = {"월요일 마감", "이번 주 일요일 마감"}
+    assert {i["title"] for i in tool["items"]} == expected
+    assert {t["title"] for t in screen["items"]} == expected, "화면이 지난주를 이번 주로 셌다"
+
+
 def test_project_activity_counts_every_status_and_skips_the_trash(app, db, tickets_world, make_space,
                                                                   make_knowledge_document, fake_clock):
     from app.knowledge import service as knowledge

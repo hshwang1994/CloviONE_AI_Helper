@@ -12,6 +12,8 @@
 from __future__ import annotations
 
 
+from datetime import datetime, time
+
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -76,6 +78,14 @@ def _page_spec(page: PageParams) -> PageSpec:
     return PageSpec(offset=page.offset, limit=page.page_size)
 
 
+def _day_now(request: Request) -> datetime:
+    """마감 구간(지남 · 이번 주 · 다음 주)의 「오늘」 — 표시 시간대(Asia/Seoul) 날짜의 자정이다. 시계는 naive UTC 라 그대로
+    넘기면 월요일 0 ~ 9시(KST)에 지난주를 「이번 주」로 셌다(P-139). AI 도구(`ToolContext.day_now`)와 같은 기준이다."""
+    from app.home.service import local_today
+
+    return datetime.combine(local_today(request.app.state.settings, request.app.state.clock.now()), time())
+
+
 @router.get("/mine")
 def my_tickets(
     request: Request,
@@ -96,7 +106,7 @@ def my_tickets(
         result = service.list_my_tickets(
             db, outbound, settings, user, repo=repo,
             filters=service.build_filters(
-                db, query, now=request.app.state.clock.now(),
+                db, query, now=_day_now(request),
                 allow_assignee_filter=False,
             ),
             page=_page_spec(page),
@@ -131,7 +141,7 @@ def unassigned_tickets(
         result = service.list_unassigned_page(
             db, outbound, settings, repo=repo, viewer=user,
             filters=service.build_filters(
-                db, query, now=request.app.state.clock.now(), active_only=True,
+                db, query, now=_day_now(request), active_only=True,
                 allow_assignee_filter=False, viewer=user,
             ),
             page=_page_spec(page),
@@ -228,7 +238,7 @@ def team_tickets(
         result = service.list_team_page(
             db, outbound, settings, active_only=active, repo=repo, viewer=user,
             filters=service.build_filters(
-                db, query, now=request.app.state.clock.now(),
+                db, query, now=_day_now(request),
                 active_only=active, viewer=user, scope=picked,
             ),
             page=_page_spec(page), scope=picked,
