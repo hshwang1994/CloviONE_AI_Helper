@@ -289,6 +289,8 @@ def seed(database_url: str, email: str, password: str, settings) -> None:
         if _os.environ.get("UI_QA_AI_READY") == "1":
             _seed_ai_ready(db, settings, me, now)
             db.commit()
+            _seed_chat_v2(db, engine, settings, me)
+            db.commit()
     engine.dispose()
 
 
@@ -342,6 +344,161 @@ def _seed_ai_ready(db, settings, me, now) -> None:
                    role="assistant", content="\n".join(lines), processing_status="done",
                    structured_payload_json=_json.dumps(structured, ensure_ascii=False),
                    created_at=now - timedelta(minutes=4), updated_at=now - timedelta(minutes=4)))
+    db.flush()
+
+
+def _seed_chat_v2(db, engine, settings, me) -> None:
+    """AI 채팅 개선 회차(D-582 ~)의 화면 상태 — 결과 목록 · 프로젝트 카드 · 마크다운 답 · 찾지 못한 답 · 보관 · 빈 대화 · 긴 제목 ·
+    답을 기다리는 대화.
+
+    블록은 손으로 짓지 않는다. 진짜 도구를 이 씨앗 위에서 READ ONLY 로 돌리고(`catalog.run`) 제품이 쓰는 `blocks.build` 로 만든다 —
+    그래서 저장된 인자로 「N건 더 보기」(`/api/messages/{id}/results/{rid}`)가 로컬에서도 실제로 돈다. 시각은 지금 시계다(목록의
+    「N분 전」과 순서가 실제 쓰임새처럼 보이게, 답을 기다리는 대화가 멈춘 것으로 보이지 않게)."""
+    import json as _json
+    import uuid as _uuid
+    from dataclasses import replace
+    from datetime import datetime, timedelta
+
+    from sqlalchemy import select
+    from sqlalchemy.orm import sessionmaker
+
+    from app.ai.assistant import blocks, catalog, turn
+    from app.conversations.models import Conversation, Message
+    from app.knowledge import service as knowledge_service
+    from app.projects.models import Project
+    from app.settings.service import SettingsCache
+
+    real_now = datetime.utcnow().replace(microsecond=0)
+    # 내 문서 — 「내 문서」 목록(10건 + 더 보기)과 대괄호가 든 제목(답 안 링크 회귀)을 본다.
+    titles = ["[포스코DX] 부가서비스·NAS 빌링 화면 가이드", "VMware 클러스터 증설 절차", "국내 출장비 정산 안내",
+              "백업 정책과 보관 기간", "스토리지 이관 점검표", "네트워크 분리 설계안", "장애 대응 연락망",
+              "신규 입사자 계정 발급 순서", "VPN 접속 문제 해결", "보안 점검 결과 요약"]
+    docs = {}
+    for i in range(25):
+        title = titles[i] if i < len(titles) else "운영 메모 %02d — 주간 점검 기록" % (i + 1)
+        doc = knowledge_service.create_document(db, me, title=title)
+        doc.updated_at = real_now - timedelta(hours=3 * i + 1)
+        docs[title] = doc
+    db.commit()
+
+    env = catalog.ToolEnv(session_factory=sessionmaker(bind=engine, future=True), user_id=me.id, settings=settings,
+                          outbound=None, gateway=None, settings_cache=SettingsCache(settings), now=real_now)
+
+    def call(name: str, args: dict):
+        tool = catalog.TOOLS[name]
+        validated = tool.args.model_validate(args)
+        return replace(catalog.run(tool, validated, env), args=validated.model_dump(exclude_none=True))
+
+    def conversation(title: str, minutes_ago: int, *, archived: bool = False, empty: bool = False):
+        at = real_now - timedelta(minutes=minutes_ago)
+        row = Conversation(user_id=me.id, title=title, archived=archived, created_at=at - timedelta(minutes=1),
+                           updated_at=at, last_message_at=None if empty else at)
+        db.add(row)
+        db.flush()
+        return row
+
+    def exchange(conv, question: str, answer: str, executions, minutes_ago: float, *, elapsed_ms: int = 5200):
+        asked = real_now - timedelta(minutes=minutes_ago)
+        question_id = "uiqa" + _uuid.uuid4().hex[:12]
+        db.add(Message(conversation_id=conv.id, message_id=question_id, role="user", content=question,
+                       processing_status="done", created_at=asked, updated_at=asked))
+        db.flush()
+        results = blocks.build(executions, owner_id=me.id)
+        structured = {
+            "kind": "assistant", "status": "ok", "mode": "tools",
+            "sources": turn._sources(executions, answer, blocks.shown_keys(results)),
+            "tools": turn._tools(executions), "results": results, "rounds": 2 if executions else 1,
+            "elapsed_ms": elapsed_ms, "truncated": False, "notice": None, "model": "ui-qa-model",
+        }
+        answered = asked + timedelta(milliseconds=elapsed_ms)
+        db.add(Message(conversation_id=conv.id, message_id="a-%s-%s" % (question_id, _uuid.uuid4()), role="assistant",
+                       content=answer, processing_status="done",
+                       structured_payload_json=_json.dumps(structured, ensure_ascii=False, default=str),
+                       created_at=answered, updated_at=answered))
+        db.flush()
+
+    # 1 내 문서 — 블록 둘(처음 10건 · 「다음 10개」 이어 묻기), 더 보기가 서는 긴 대화.
+    first = call("my_documents", {"view": "authored", "show": True})
+    conv = conversation("내 문서 조회", 1)
+    exchange(conv, "내가 만든 문서 보여줘",
+             "직접 만든 문서는 총 %d건입니다. 최근에 고친 문서부터 %d건을 아래에 보여 드립니다. 나머지는 목록 아래에서 이어서 볼 수 "
+             "있습니다." % (first.total or 0, first.count), [first], 3, elapsed_ms=6100)
+    second = call("my_documents", {"view": "authored", "offset": 10, "show": True})
+    exchange(conv, "다음 10개 보여줘", "이어서 11번째부터 %d번째 문서입니다." % (10 + second.count), [second], 1.5,
+             elapsed_ms=4300)
+
+    # 2 티켓 — 담당 티켓이 없으면(이 계정은 노션 사용자와 연결되지 않는다) 팀 티켓으로 같은 모양을 본다.
+    tickets = call("my_work", {"view": "assigned", "show": True})
+    if not tickets.count:
+        tickets = call("search_tickets", {"show": True})
+    conv = conversation("이번 주 마감 티켓", 6)
+    exchange(conv, "내가 담당하는 미완료 티켓 보여줘",
+             "미완료 티켓은 %d건입니다. 마감이 가까운 순서로 정리했습니다." % (tickets.total or tickets.count), [tickets], 6)
+
+    # 3 프로젝트 현황 카드
+    project = db.execute(select(Project).where(Project.name == "인프라 정비")).scalars().first()
+    if project is not None:
+        summary = call("get_project_summary", {"project": project.code or project.name, "show": True})
+        conv = conversation("%s 프로젝트 현황" % project.name, 12)
+        exchange(conv, "%s 프로젝트 진행 상황 알려줘" % project.name,
+                 "%s 프로젝트의 현황입니다. 진행률과 열린 티켓, 마감이 지난 일을 카드에 정리했습니다." % project.name, [summary], 12)
+
+    # 4 마크다운 답 — 머리글 · 번호 목록과 중첩 · 인라인 코드 · 인용 · 표 · 구분선 · 대괄호 제목 링크 · 화면 길잡이 링크
+    vm, billing = docs["VMware 클러스터 증설 절차"], docs["[포스코DX] 부가서비스·NAS 빌링 화면 가이드"]
+    reads = [call("get_document", {"ref": vm.id}), call("get_document", {"ref": billing.id})]
+    answer = "\n".join([
+        "### 결론",
+        "VMware 클러스터 증설은 **사전 점검, 호스트 추가, 검증** 세 단계로 진행합니다. 자세한 절차는 "
+        "[VMware 클러스터 증설 절차](/knowledge/%s)에 있습니다." % vm.id,
+        "",
+        "### 단계별 절차",
+        "1. 사전 점검",
+        "   - 남은 라이선스와 `vSAN` 용량을 확인합니다.",
+        "   - 변경 요청 티켓을 엽니다.",
+        "2. 호스트 추가",
+        "3. 검증",
+        "",
+        "> 작업하는 동안에는 유지 보수 모드를 켜 둡니다.",
+        "",
+        "| 단계 | 담당 | 예상 시간 |",
+        "|---|---|---|",
+        "| 사전 점검 | 인프라팀 | 1시간 |",
+        "| 호스트 추가 | 인프라팀 | 2시간 |",
+        "| 검증 | 운영팀 | 30분 |",
+        "",
+        "---",
+        "빌링 화면을 함께 바꾼다면 [[포스코DX] 부가서비스·NAS 빌링 화면 가이드](/knowledge/%s)도 확인해 주세요. 다른 문서는 "
+        "[사내 문서](/knowledge)에서 찾을 수 있습니다." % billing.id,
+    ])
+    conv = conversation("VMware 증설 절차 정리", 30)
+    exchange(conv, "VMware 클러스터 증설 절차를 정리해 줘", answer, reads, 30, elapsed_ms=8400)
+
+    # 5 찾지 못한 답 — 살펴본 문서는 접힌 「찾아본 자료」다.
+    looked = call("my_documents", {"view": "authored", "query": "출장"})
+    conv = conversation("2031년 우주 출장 규정", 45)
+    exchange(conv, "2031년 우주 출장 규정을 알려줘.",
+             "2031년 우주 출장 규정은 사내 문서에서 찾지 못했습니다. 출장이 들어간 내 문서를 살펴봤지만 우주 출장을 다루는 문서는 "
+             "없었습니다. 출장 규정을 맡은 부서에 확인해 주세요.", [looked], 45, elapsed_ms=3900)
+
+    # 6 답을 기다리는 대화 — 진행 문구가 선다(워커가 없어 답은 오지 않는다, 그 대화만 입력이 잠긴다).
+    conv = conversation("다음 주 회의 일정 정리", 60)
+    pending_at = real_now - timedelta(seconds=20)
+    db.add(Message(conversation_id=conv.id, message_id="uiqa" + _uuid.uuid4().hex[:12], role="user",
+                   content="다음 주 회의 일정을 정리해 줘", processing_status="processing",
+                   structured_payload_json=_json.dumps({"progress": {"label": "내 일정을 찾고 있습니다."}}, ensure_ascii=False),
+                   created_at=pending_at, updated_at=pending_at))
+    db.flush()
+
+    # 7 긴 · 특수 문자 제목 — 목록에서 두 줄 말줄임, 머리에서 한 줄 말줄임. 도구 없는 인사.
+    conv = conversation("<b>&\"' 특수 문자와 아주 긴 제목이 두 줄을 넘어가면 말줄임으로 끝나는지 확인하는 대화입니다", 120)
+    exchange(conv, "안녕", "안녕하세요. 문서, 티켓, 프로젝트에 대해 물어보시면 내 권한 안에서 찾아 답합니다.", [], 120,
+             elapsed_ms=1800)
+
+    # 8 보관한 대화 · 9 빈 대화(2분이 지나 「빈 대화 보관」 대상)
+    conv = conversation("지난달 장애 회고 정리", 60 * 24 * 3, archived=True)
+    exchange(conv, "지난달 장애 회고 내용을 정리해 줘", "지난달 장애 회고는 세 건이었습니다. 원인과 재발 방지책을 문서로 정리해 두었습니다.",
+             [], 60 * 24 * 3)
+    conversation("새 대화", 10, empty=True)
     db.flush()
 
 

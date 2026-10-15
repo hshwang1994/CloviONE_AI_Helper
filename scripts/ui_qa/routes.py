@@ -193,6 +193,9 @@ USER_ROUTES: tuple[Route, ...] = (
     _u("user_work-board", "/work-board", "작업 보드"),
     _u("user_sprint", "/sprint", "스프린트 회의"),
     _u("user_chat", "/chat", "AI 도우미"),
+    # 대화 하나(D-582) — 주소가 정본이라 대화마다 주소가 있다. 목록의 첫 대화(마지막 대화 순)를 연다.
+    _u("user_chat-id", "/chat", "AI 도우미 대화",
+       hash_template="/chat/{id}", discover=("/api/conversations",)),
     _u("user_chat-rooms", "/chat-rooms", "채팅방"),
     _u("user_chat-room-detail", "/chat-rooms", "채팅방 상세",
        hash_template="/chat-rooms/{id}", discover=("/api/team-chat/rooms",)),

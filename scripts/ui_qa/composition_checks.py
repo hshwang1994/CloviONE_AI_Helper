@@ -127,6 +127,8 @@ ROUTE_EXPECT: dict[str, dict] = {
     "user_new-ticket": {"editorBox": True, "pageFill": True},
     "user_chat-rooms": {"chat": True, "pageFill": True},
     "user_chat-room-detail": {"chat": True, "pageFill": True},
+    "user_chat": {"pageFill": True},
+    "user_chat-id": {"pageFill": True},
     "user_kit": {"skipBudget": True},
     # 작업 보드 백로그는 표가 아니라 끌어 옮기는 가상 목록이라 끝 줄이 목록 판 밖이다(대장 조합 예외).
     "user_work-board": {"footerExempt": True},

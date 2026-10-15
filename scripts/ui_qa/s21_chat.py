@@ -20,6 +20,9 @@ USER = "/"
 CONV = "/api/conversations"
 SEARCH_BOX = '#main-content input[type="search"]'
 COMPOSER = '#main-content [aria-label="메시지 입력"]'
+# 대화 줄 — 줄마다 하나뿐인 표지다(D-582). 줄의 보조 동작은 「대화 동작: <제목>」 메뉴 하나다.
+CONV_ROW = '#main-content [data-conversation-row]'
+ROW_MENU = '[aria-label^="대화 동작: "]'
 
 
 def _open_sidebar(r):
@@ -33,34 +36,40 @@ def _open_sidebar(r):
 
 
 def _hover_row(r, index: int = 0):
-    """그 줄 위에 커서를 올린다 — 이름 수정·보관·삭제는 **호버해야 보인다**.
-
-    `display:none` 인 요소는 Playwright 가 누르지 않고 십 초를 기다린다. DOM 에 있으니
-    셀 수는 있고, 누르려면 그 줄을 먼저 가리켜야 한다(`&:hover .chat-conv-actions`).
-    """
-    rows = r.page.locator('#main-content [aria-label^="대화 삭제: "]')
+    """그 줄 위에 커서를 올린다 — 줄의 「대화 동작」 메뉴는 올리거나 초점이 갈 때 드러난다(불투명도라 DOM 과 키보드에는 늘 있다)."""
+    rows = r.page.locator(CONV_ROW)
     if rows.count() <= index:
         return
-    row = rows.nth(index).locator("xpath=ancestor::*[self::li or self::div][2]")
-    (row if row.count() else rows.nth(index)).hover()
+    rows.nth(index).hover()
     r.settle(400)
+
+
+def _row_menu(r, item: str, index: int = 0) -> str:
+    """그 줄의 「대화 동작」 메뉴에서 `item` 을 누른다. 메뉴 단추의 이름(「대화 동작: <제목>」)을 돌려준다."""
+    _hover_row(r, index)
+    button = r.page.locator(CONV_ROW).nth(index).locator(ROW_MENU)
+    if not button.count():
+        stop("대화 줄의 «대화 동작» 메뉴가 없다")
+    label = button.first.get_attribute("aria-label") or ""
+    button.first.click()
+    r.settle(500)
+    entry = r.page.get_by_role("menuitem", name=item, exact=True)
+    if not entry.count():
+        stop("«대화 동작» 메뉴에 «%s» 가 없다" % item)
+    entry.first.click()
+    r.settle(600)
+    return label
 
 
 def _conv_items(r):
     """대화 줄 수.
 
-    🔴 세는 자리를 **행마다 하나뿐인 것**으로 바꿨다 (S21). 예전에는 «이름 수정: …» 을
-    셌는데 그 이름표는 **이름을 고치는 동안에만** 붙는다(`ConversationSidebar.jsx` 의
-    `editing` 분기) — 평소에는 0이라 언제나 아래 대비책으로 떨어졌고, 그 대비책은 셸의
-    내비게이션 버튼까지 세서 **대화가 한 건도 없을 때도 「있다」고 답했다.** 그 거짓말
-    하나 때문에 «대화를 하나 만든다» 가 건너뛰어졌고, 그 뒤 일곱 Flow 가 있지도 않은
-    검색 상자와 대화 줄을 10초씩 기다리다 죽었다.
-
-    행 동작 버튼은 호버 전에는 `display:none` 이지만 **DOM 에는 있다** — 세는 데는
-    그것으로 충분하고, 누를 때만 보이게 하면 된다.
+    🔴 세는 자리는 **행마다 하나뿐인 것**이다 (S21). 예전에는 이름을 고치는 동안에만 붙는 이름표를 세다가 늘 대비책으로
+    떨어졌고, 그 대비책은 셸의 내비게이션 버튼까지 세서 대화가 한 건도 없을 때도 「있다」고 답했다. 지금은 줄의 표지
+    (`data-conversation-row`)를 센다.
     """
     _open_sidebar(r)
-    return r.page.locator('#main-content [aria-label^="대화 삭제: "]')
+    return r.page.locator(CONV_ROW)
 
 
 def _ensure_conversation(r):
@@ -131,20 +140,20 @@ flow("FF-0179", "user_chat", "search", "대화 목록을 제목·본문으로 �
 
 def _include_archived(r, ctx):
     _ensure_conversation(r)
-    box = r.page.locator('#main-content input[type="checkbox"]').first
-    if not box.count():
-        stop("«보관된 대화 보기» 스위치가 없다")
+    tab = r.page.locator("#main-content").get_by_role("tab", name="보관함", exact=True)
+    if not tab.count():
+        stop("«대화 | 보관함» 보기가 없다")
     before = _conv_items(r).count()
     r.rec.reset()
-    box.click()
+    tab.first.click()
     r.settle(2000)
     query = " ".join(sorted({c["query"] for c in r.rec.calls
                              if CONV in c["path"] and c["query"]}))
     after = _conv_items(r).count()
-    box.click()
+    r.page.locator("#main-content").get_by_role("tab", name="대화", exact=True).first.click()
     r.settle(1200)
-    return {"ui_action": "«보관된 대화 보기» 를 켠다",
-            "frontend_state": "include_archived 가 서버로 간다",
+    return {"ui_action": "«보관함» 보기로 바꾼다",
+            "frontend_state": "archived=only 가 서버로 간다(보관한 대화만)",
             "observed": {"items": {"before": before, "after": after}, "query": query},
             "rendered": "대화 %d개 → %d개 · 질의 «%s»" % (before, after, query[:70]),
             "expected": {"source": "derived-check",
@@ -153,7 +162,7 @@ def _include_archived(r, ctx):
                       else "보관 포함을 켰는데 질의에 그 축이 없다: «%s»" % query}
 
 
-flow("FF-0180", "user_chat", "filter", "보관된 대화 포함 여부를 체크박스로 전환한다",
+flow("FF-0180", "user_chat", "filter", "「대화 | 보관함」 보기를 바꿔 보관한 대화만 본다",
      _include_archived, route="/chat", api=CONV)
 
 
@@ -228,10 +237,10 @@ def _open_conv(r, ctx):
     if not items.count():
         stop("대화가 없다")
     before = r.hash_of()
-    # 아이콘이 아니라 **그 줄의 제목 버튼**을 누른다. 아이콘은 호버해야 보이고, 줄을 감싼
-    # 상자는 버튼이 아니다 — 제목 버튼(`component="button"`)이 대화를 여는 자리다.
-    row = items.first.locator("xpath=ancestor::*[self::li or self::div][2]")
-    title = (row.locator("button").first if row.count() else items.first)
+    # 줄의 제목 링크(`#/chat/<id>`)가 대화를 여는 자리다 — 주소가 정본이라 고르면 주소가 바뀐다(D-582). 이미 연 줄을 다시
+    # 누르면 주소가 그대로인 것이 맞으므로 고르지 않은 줄을 누른다.
+    others = r.page.locator(CONV_ROW + ":not([data-active])")
+    title = (others.first if others.count() else items.first).locator("a").first
     r.rec.reset()
     title.click()
     r.settle(2200)
@@ -242,26 +251,21 @@ def _open_conv(r, ctx):
             "rendered": "부른 것 %s · 본문 «%s»" % (calls, r.main_text(110)),
             "expected": {"source": "derived-check",
                          "rule": "대화를 고르면 그 대화의 메시지를 받는다", "got": calls},
-            "failed": None if (calls or r.hash_of() != before)
-                      else "대화를 눌렀는데 아무 일도 안 일어났다"}
+            "failed": None if (calls and "/chat/" in r.hash_of())
+                      else "대화를 눌렀는데 그 대화의 주소 · 메시지가 안 섰다"}
 
 
-flow("FF-0183", "user_chat", "read", "목록에서 대화를 골라 스레드를 연다",
+flow("FF-0183", "user_chat", "read", "목록에서 대화를 골라 그 대화의 주소(/chat/<id>)로 스레드를 연다",
      _open_conv, route="/chat", api="/messages")
 
 
 def _rename_conv(r, ctx):
     _ensure_conversation(r)
-    _hover_row(r)
-    button = r.page.locator('#main-content [aria-label^="이름 수정: "]')
-    if not button.count():
-        stop("«이름 수정» 버튼이 없다")
-    button.first.click()
-    r.settle(700)
-    box = r.page.locator('#main-content [aria-label^="이름 수정: "]').first
-    box = r.page.locator("#main-content input[type=text]:visible").first
+    _row_menu(r, "이름 바꾸기")
+    box = r.page.locator('#main-content [aria-label^="이름 바꾸기: "]')
     if not box.count():
         stop("이름 입력 칸이 안 열렸다")
+    box = box.first
     name = "S21 점검 대화"
     box.fill(name)
     r.rec.reset()
@@ -285,15 +289,10 @@ flow("FF-0184", "user_chat", "inline_edit",
 
 def _archive_conv(r, ctx):
     _ensure_conversation(r)
-    _hover_row(r)
-    button = r.page.locator('#main-content [aria-label^="보관: "]')
-    if not button.count():
-        stop("«보관» 버튼이 없다")
-    label = button.first.get_attribute("aria-label")
     before = _conv_items(r).count()
     r.rec.reset()
-    button.first.click()
-    r.settle(2200)
+    label = _row_menu(r, "보관하기") + " › 보관하기"
+    r.settle(1600)
     sent = [c for c in r.rec.calls if c["method"] == "PATCH"]
     after = _conv_items(r).count()
     return {"ui_action": "«%s» 를 실행한다" % label,
@@ -312,9 +311,9 @@ flow("FF-0185", "user_chat", "status_change", "대화를 보관하거나 보관�
 
 def _bulk_archive(r, ctx):
     _ensure_conversation(r)
-    button = r.in_main("button", "일괄 보관")
+    button = r.in_main("button", "빈 대화")
     if not button.count():
-        return {"ui_action": "빈 «새 대화» 일괄 보관 버튼을 찾는다",
+        return {"ui_action": "«빈 대화 N개 보관» 단추를 찾는다",
                 "observed": {"button": 0, "items": _conv_items(r).count()},
                 "rendered": "일괄 보관 버튼 없음 · 대화 %d개" % _conv_items(r).count(),
                 "expected": {"source": "known-data",
@@ -328,7 +327,7 @@ def _bulk_archive(r, ctx):
     said = confirm_now(r) if asked else ""
     r.settle(2000)
     return {"ui_action": "«%s» 를 실행한다" % label,
-            "frontend_state": "확인 → 여러 건 PATCH",
+            "frontend_state": "확인 → POST /api/conversations/archive-empty 한 번(서버가 빈 대화를 고른다)",
             "observed": {"confirm_asked": asked, "confirm": said[:140],
                          "items": {"before": before, "after": _conv_items(r).count()}},
             "rendered": "대화 %d개 → %d개 · 확인 «%s»"
@@ -339,21 +338,16 @@ def _bulk_archive(r, ctx):
             "failed": None if asked else "확인 없이 일괄 보관이 실행된다"}
 
 
-flow("FF-0186", "user_chat", "modal_action", "메시지 없는 '새 대화'를 확인 후 일괄 보관한다",
+flow("FF-0186", "user_chat", "modal_action", "메시지 없는 빈 대화를 확인 후 서버가 한꺼번에 보관한다",
      _bulk_archive, route="/chat", api=CONV)
 
 
 def _delete_conv(r, ctx):
     _ensure_conversation(r)
-    _hover_row(r)
-    button = r.page.locator('#main-content [aria-label^="대화 삭제: "]')
-    if not button.count():
-        stop("«대화 삭제» 버튼이 없다")
-    label = button.first.get_attribute("aria-label")
     before = _conv_items(r).count()
     r.rec.reset()
-    button.first.click()
-    r.settle(1000)
+    label = _row_menu(r, "삭제") + " › 삭제"
+    r.settle(400)
     asked = open_dialogs(r) > 0
     said = confirm_now(r) if asked else ""
     r.settle(2200)
@@ -459,9 +453,18 @@ flow("FF-0190", "user_chat", "form_validation",
      _composer_limit, route="/chat", server=False)
 
 
-def _message_action(label: str, api_hint: str, *, needed: bool = True):
+def _message_action(label: str, api_hint: str, *, needed: bool = True, menu: str = ""):
+    """메시지 동작 하나. `menu` 가 있으면 그 메뉴(「답 더 보기」 · 「대화 동작」)를 먼저 열고 항목을 누른다(D-582 — 삭제 ·
+    대화 전체 복사는 메뉴 안이다)."""
     def _act(r, ctx):
-        target = r.page.locator('#main-content [aria-label*="%s"]' % label)
+        if menu:
+            opener = r.page.locator('#main-content [aria-label="%s"]' % menu)
+            if opener.count():
+                opener.last.click()
+                r.settle(500)
+            target = r.page.get_by_role("menuitem", name=label, exact=True)
+        else:
+            target = r.page.locator('#main-content [aria-label*="%s"]' % label)
         if not target.count():
             target = r.in_main("button", label)
         if not target.count():
@@ -497,19 +500,42 @@ def _message_action(label: str, api_hint: str, *, needed: bool = True):
 flow("FF-0191", "user_chat", "row_action", "실패한 메시지를 '다시 시도'로 재전송한다",
      _message_action("다시 시도", "/retry", needed=False), route="/chat", server=False)
 
-flow("FF-0192", "user_chat", "row_action", "마지막 답변을 다시 생성한다",
-     _message_action("다시 생성", "/regenerate", needed=False), route="/chat", server=False)
+flow("FF-0192", "user_chat", "row_action", "마지막 답을 다시 만든다",
+     _message_action("답 다시 만들기", "/regenerate", needed=False), route="/chat", server=False)
 
-flow("FF-0193", "user_chat", "row_action", "답변에 좋음/아쉬움 피드백을 남긴다(토글)",
-     _message_action("좋음", "/feedback", needed=False), route="/chat", server=False)
+flow("FF-0193", "user_chat", "row_action", "답에 좋은 답변 · 아쉬운 답변 피드백을 남긴다(토글)",
+     _message_action("좋은 답변", "/feedback", needed=False), route="/chat", server=False)
+
+
+def _open_conversation_with(r, predicate) -> str | None:
+    """`predicate(structured)` 를 만족하는 답이 있는 내 대화를 연다(API 로 찾는다). 연 대화 id 또는 None."""
+    payload = r.api_get(CONV + "?limit=50") or {}
+    for conv in payload.get("items") or []:
+        thread = r.api_get("%s/%s/messages" % (CONV, conv["id"])) or {}
+        for m in thread.get("items") or []:
+            if m.get("role") == "assistant" and predicate(m.get("structured") or {}, m):
+                r.goto("/chat/%s" % conv["id"], shell=USER)
+                r.settle(1500)
+                return conv["id"]
+    return None
 
 
 def _copy_message(r, ctx):
+    _open_conversation_with(r, lambda st, m: bool(m.get("content")))
     button = r.page.locator('#main-content [aria-label*="복사"]')
     names = [button.nth(i).get_attribute("aria-label")
              for i in range(min(button.count(), 5))]
-    return {"ui_action": "복사 동작의 자리를 센다",
-            "observed": {"buttons": button.count(), "labels": names},
+    whole = 0
+    opener = r.page.locator('#main-content [aria-label="대화 동작"]')
+    if opener.count():
+        opener.first.click()
+        r.settle(400)
+        whole = r.page.get_by_role("menuitem", name="대화 전체 복사", exact=True).count()
+        r.page.keyboard.press("Escape")
+        r.settle(300)
+        names.append("대화 동작 › 대화 전체 복사" if whole else "대화 동작(복사 없음)")
+    return {"ui_action": "답의 복사 단추와 머리 메뉴의 「대화 전체 복사」를 센다",
+            "observed": {"buttons": button.count(), "labels": names, "whole": whole},
             "rendered": "복사 버튼 %d개 %s" % (button.count(), names),
             "expected": {"source": "derived-check",
                          "rule": "메시지 하나와 대화 전체를 각각 복사할 수 있다",
@@ -520,11 +546,11 @@ def _copy_message(r, ctx):
 flow("FF-0194", "user_chat", "row_action", "메시지 한 개를 클립보드로 복사한다",
      _copy_message, route="/chat", server=False)
 
-flow("FF-0195", "user_chat", "row_action", "대화 전체를 텍스트로 복사한다",
-     _message_action("대화 전체 복사", "", needed=False), route="/chat", server=False)
+flow("FF-0195", "user_chat", "row_action", "대화 전체를 텍스트로 복사한다(머리의 「대화 동작」 메뉴)",
+     _message_action("대화 전체 복사", "", needed=False, menu="대화 동작"), route="/chat", server=False)
 
-flow("FF-0196", "user_chat", "delete", "메시지 한 개를 삭제한다",
-     _message_action("메시지 삭제", "/api/messages", needed=False), route="/chat",
+flow("FF-0196", "user_chat", "delete", "메시지 한 개를 삭제한다(답의 「더 보기」 메뉴, 확인 후)",
+     _message_action("메시지 삭제", "/api/messages", needed=False, menu="답 더 보기"), route="/chat",
      server=False)
 
 
@@ -569,7 +595,11 @@ flow("FF-0198", "user_chat", "refresh",
 
 def _result_card_link(label: str, expect: str):
     def _act(r, ctx):
-        target = r.in_main("button", label)
+        _open_conversation_with(r, lambda st, m: any(b.get("shown") and b.get("items") for b in st.get("results") or []))
+        # 줄의 제목 링크다(머리의 「전체 목록 열기」가 아니다).
+        target = r.page.locator('#main-content [data-result-block] li a[href^="#/"]')
+        if not target.count():
+            target = r.in_main("button", label)
         if not target.count():
             target = r.page.locator('#main-content a[href*="#/tickets/"]')
         if not target.count():
@@ -588,16 +618,46 @@ def _result_card_link(label: str, expect: str):
                 "rendered": "주소 «%s»" % r.hash_of(),
                 "expected": {"source": "derived-check",
                              "rule": "그 항목의 화면으로 옮긴다", "expect": expect},
-                "failed": None if expect in r.hash_of()
+                "failed": None if (expect in r.hash_of() and not r.hash_of().startswith("/chat"))
                           else "«%s» 를 눌렀는데 %s 로 안 갔다" % (label, expect)}
     return _act
 
 
-flow("FF-0199", "user_chat", "navigation", "결과 카드의 '앱에서 보기'로 해당 티켓 화면으로 간다",
-     _result_card_link("앱에서 보기", "/tickets/"), route="/chat", server=False)
+flow("FF-0199", "user_chat", "navigation", "결과 목록의 줄을 눌러 그 항목의 화면으로 간다",
+     _result_card_link("앱에서 보기", "/"), route="/chat", server=False)
 
-flow("FF-0200", "user_chat", "row_action", "결과 카드 '상세'로 그 항목을 다시 질문한다",
-     _message_action("상세", "/messages", needed=False), route="/chat", server=False)
+
+
+def _result_more(r, ctx):
+    _open_conversation_with(r, lambda st, m: any(
+        b.get("shown") and isinstance(b.get("total"), int) and b["total"] > (b.get("offset") or 0) + (b.get("returned") or 0)
+        for b in st.get("results") or []))
+    button = r.page.locator('#main-content [data-result-block] button', has_text="건 더 보기")
+    if not button.count():
+        return {"ui_action": "결과 목록의 «N건 더 보기» 를 찾는다",
+                "observed": {"buttons": 0},
+                "rendered": "«N건 더 보기» 없음 — 이 대화에 이어 볼 결과 목록이 없다",
+                "expected": {"source": "known-data",
+                             "rule": "이어 볼 목록이 있을 때만 그 동작이 있다"},
+                "failed": None}
+    rows = r.page.locator('#main-content [data-result-block] li')
+    before = rows.count()
+    r.rec.reset()
+    button.first.click()
+    r.settle(2200)
+    calls = sorted({c["path"] for c in r.rec.calls if "/results/" in c["path"]})
+    after = rows.count()
+    return {"ui_action": "결과 목록의 «N건 더 보기» 를 누른다",
+            "observed": {"calls": calls, "rows": {"before": before, "after": after}},
+            "rendered": "줄 %d개 → %d개 · 부른 것 %s" % (before, after, calls),
+            "expected": {"source": "derived-check",
+                         "rule": "다음 쪽을 받아 덧붙인다(모델을 부르지 않는다)", "got": calls},
+            "failed": None if (calls and after > before)
+                      else "«더 보기» 를 눌렀는데 다음 쪽이 안 붙었다"}
+
+
+flow("FF-0200", "user_chat", "row_action", "결과 목록의 「N건 더 보기」로 모델 없이 다음 쪽을 덧붙인다",
+     _result_more, route="/chat", server=False)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

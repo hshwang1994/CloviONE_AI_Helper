@@ -4,8 +4,9 @@
 (`tests/fakes/ai.py::ScriptedToolAdapter` — 단위 · 통합 시험이 쓰는 그것)를 끼운다. 도구는 진짜다: 대화 주인의 권한으로 READ ONLY
 트랜잭션에서 씨앗 데이터를 읽고, 출처는 서버가 만든다. 화면은 빌드된 번들을 띄운 실브라우저다.
 
-    1 도구 차례 — 「이번 주 마감인 내 티켓을 알려 줘」: 대본 1라운드가 `my_work` 를 부르고 2라운드가 답한다 → 답 말풍선 · 「참고한 자료」 ·
-      「확인한 내용」에 「내 업무」
+    1 도구 차례 — 「내가 담당한 티켓을 알려 줘」: 대본 1라운드가 `my_work(show)` 를 부르고 2라운드가 답한다 → 답 · 결과 목록(티켓 줄이
+      `#/tickets/…`) · 답의 「더 보기」 메뉴에 「확인한 내용 보기」. 같은 대화에서 「다음 10개 보여줘」 → 모델에 앞 차례의 목록(기억 칸)이
+      실리고 결과 목록이 하나 더 선다(D-582)
     2 대체 모드 — 대본이 도구를 거절(요금제의 unsupported_capability) → 서버 검색 뒤 도구 없는 한 번의 호출 → 「도구를 쓸 수 없어 검색 결과로만
       답했습니다.」
     3 찾지 못함 — `search_documents` 가 0건 → 답은 보통 말풍선이고 「찾아본 검색어는 …」(쓸 수 없음 상태가 아니다)
@@ -135,7 +136,7 @@ def main() -> int:
                 # 1 도구 차례
                 reset_capabilities()
                 holder["adapter"] = ScriptedToolAdapter([
-                    tool_call("my_work", {"view": "assigned", "include_done": None}),
+                    tool_call("my_work", {"view": "assigned", "include_done": None, "show": True}),
                     "내가 담당한 티켓을 정리했습니다. 마감 전에 일정을 확인해 주세요.",
                 ])
                 ask("내가 담당한 티켓을 알려 줘", "내가 담당한 티켓을 정리했습니다", "tools")
@@ -143,13 +144,42 @@ def main() -> int:
                 check(f"[{tag}] 도구 차례: 제공자를 두 번 불렀다", len(calls) == 2, f"{len(calls)}번")
                 results = holder["adapter"].tool_results(1) if len(calls) >= 2 else []
                 check(f"[{tag}] 도구 결과가 데이터 칸으로 갔다", bool(results), str(results[0].content[:120]) if results else "")
-                checked = page.get_by_role("button", name="확인한 내용 보기")
-                check(f"[{tag}] 「확인한 내용」 단추", checked.count() >= 1)
-                sources = page.locator("section[aria-label='참고한 자료'] a")
-                hrefs = [sources.nth(i).get_attribute("href") or "" for i in range(sources.count())]
-                check(f"[{tag}] 「참고한 자료」에 티켓이 하나 이상", len(hrefs) >= 1, f"{len(hrefs)}개")
-                check(f"[{tag}] 「참고한 자료」 링크는 앱 안 경로만", all(h.startswith("#/") or h.startswith("/") for h in hrefs),
+                more = page.get_by_role("button", name="답 더 보기")
+                checked = 0
+                if more.count():
+                    more.last.click()
+                    page.wait_for_timeout(300)
+                    checked = page.get_by_role("menuitem", name="확인한 내용 보기").count()
+                    page.keyboard.press("Escape")
+                    page.wait_for_timeout(200)
+                check(f"[{tag}] 답의 「더 보기」에 「확인한 내용 보기」", checked >= 1)
+                result_rows = page.locator("[data-result-block] li a")
+                hrefs = [result_rows.nth(i).get_attribute("href") or "" for i in range(result_rows.count())]
+                check(f"[{tag}] 결과 목록에 티켓 줄이 하나 이상", len(hrefs) >= 1, f"{len(hrefs)}줄")
+                check(f"[{tag}] 결과 목록 줄은 티켓 화면 경로만", bool(hrefs) and all(h.startswith("#/tickets/") for h in hrefs),
                       ", ".join(hrefs[:3]))
+                # 이어지는 질문 — 같은 대화. 모델에 앞 차례의 목록(기억 칸)이 실려야 「다음 10개」를 이어 부를 수 있다.
+                holder["adapter"] = ScriptedToolAdapter([
+                    tool_call("my_work", {"view": "assigned", "include_done": None, "show": True, "offset": 10}),
+                    "이어서 나머지 담당 티켓입니다.",
+                ])
+                box = page.get_by_role("textbox", name="메시지 입력")
+                box.fill("다음 10개 보여줘")
+                box.press("Enter")
+                try:
+                    page.get_by_text("이어서 나머지 담당 티켓입니다.", exact=False).first.wait_for(timeout=30000)
+                    followed = True
+                except Exception:  # noqa: BLE001 - 못 찾은 순간을 찍어 남긴다
+                    followed = False
+                page.wait_for_timeout(600)
+                page.screenshot(path=str(OUT / f"follow-up-{tag}.png"), full_page=True)
+                check(f"[{tag}] 이어지는 질문: 답이 같은 대화에 선다", followed)
+                calls = holder["adapter"].converse_calls
+                first_round = json.dumps([str(t) for t in calls[0]["turns"]], ensure_ascii=False) if calls else ""
+                check(f"[{tag}] 이어지는 질문: 모델에 앞 차례의 목록(기억 칸)이 실렸다",
+                      "앞 차례에서 쓴 도구와 인자" in first_round and "my_work" in first_round)
+                check(f"[{tag}] 이어지는 질문: 결과 목록이 둘이다", page.locator("[data-result-block]").count() == 2,
+                      f"{page.locator('[data-result-block]').count()}개")
 
                 reset_capabilities()
                 # 2 찾지 못함

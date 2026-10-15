@@ -604,6 +604,22 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><style>
 </style></head><body><main id="main-content">%s</main></body></html>"""
 
 
+# 브랜드 프로브의 AI 면 고르기 — 합성 DOM 위에서 `brand.BRAND_PROBE_JS` 를 그대로 돌려 `ai_surface` 를 찾았는지 본다(D-582).
+# 도우미 답이 칠하지 않은 글 기둥이 된 뒤 그 기둥이 「회색인 AI 면」으로 세어졌다 — 화면의 「여기는 AI 면이 아니다」 선언을
+# 다른 role 과 같은 한 자리(`pickOne`)에서 존중하는지와, 그 선언이 없는 말풍선은 여전히 잡는지를 둘 다 본다.
+SR_ONLY_CSS = "<style>.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}</style>"
+BRAND_DOM_CASES: list[dict] = [
+    {"name": "brand/AI 면: 화자 라벨의 부모 말풍선을 집는다", "role": "ai_surface", "expect": True,
+     "why": "선언이 없는 화면도 화자 라벨로 AI 면을 찾는다 — 이 길이 끊기면 회색 말풍선이 조용히 빠진다",
+     "html": SR_ONLY_CSS + '<div style="background:#ece9ff;padding:12px"><span class="sr-only">도우미: </span>답입니다.</div>'},
+    {"name": "brand/AI 면: 「AI 면이 아니다」라고 선언한 글 기둥은 집지 않는다", "role": "ai_surface", "expect": False,
+     "why": "칠하지 않은 글 기둥이 설계다 — 선언을 존중하지 않으면 그 설계가 「회색 AI 면」 결함으로 세어진다",
+     "html": SR_ONLY_CSS + '<div data-brand-role="none" style="padding:12px"><span class="sr-only">도우미: </span>답입니다.</div>'},
+    {"name": "brand/AI 면: 화자 라벨이 아닌 스크린리더 글의 부모는 AI 면이 아니다", "role": "ai_surface", "expect": False,
+     "why": "아무 `.sr-only` 의 부모나 집으면 상태 알림 칸이 AI 면으로 세어진다",
+     "html": SR_ONLY_CSS + '<div style="padding:12px"><span class="sr-only">답변을 처리하고 있습니다.</span>본문</div>'},
+]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 판정 «규칙» 반례 — DOM 이 아니라 로직이다 (S1 · 12_PROBE #4 · #8)
 #
@@ -978,6 +994,13 @@ def run(headed: bool = False) -> list[dict]:
                 "ok": got == case["expect"],
                 "why": case["why"],
             })
+        from . import brand
+        for case in BRAND_DOM_CASES:
+            page.set_content(PAGE % case["html"])
+            roles = (page.evaluate(brand.BRAND_PROBE_JS) or {}).get("roles") or {}
+            got = bool((roles.get(case["role"]) or {}).get("found"))
+            out.append({"name": case["name"], "assertion": "brand_probe/" + case["role"], "expect": case["expect"],
+                        "got": got, "ok": got == case["expect"], "why": case["why"]})
         browser.close()
     return out
 

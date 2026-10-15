@@ -284,6 +284,7 @@ BRAND_PROBE_JS = r"""() => {
         if (spec.notMatching) {
           try { if (el.matches(spec.notMatching)) continue; } catch (e) { /* 무시 */ }
         }
+        if (spec.accept && !spec.accept(el, s)) continue;
         return { el: spec.refine ? spec.refine(el) : el, sel: s };
       }
     }
@@ -329,22 +330,18 @@ BRAND_PROBE_JS = r"""() => {
     return out;
   };
 
-  /* AI 영역은 클래스도 data 속성도 없다. 화자 구분용 스크린리더 전용 라벨이 유일하게
-     안정적인 표지다(MessageThread.jsx: `<span class="sr-only">도우미: </span>` 이 말풍선
-     Paper 의 첫 자식). 못 찾으면 unknown 이고 그것이 정확한 보고다 — 채팅이 없는 화면에
-     AI 면이 없는 것은 결함이 아니라 사실이다. */
-  const pickAiSurface = () => {
-    const explicit = pickOne({
-      kind: 'bg', sel: ['[data-brand-role="ai-surface"]', '[data-ai-surface]'],
-    });
-    if (explicit) return explicit;
-    for (const sr of document.querySelectorAll('.sr-only')) {
-      if (!/도우미/.test(sr.textContent || '')) continue;
-      const surface = sr.parentElement;
-      if (_vis(surface)) return { el: surface, sel: '.sr-only(도우미) 의 부모 말풍선' };
-    }
-    return null;
-  };
+  /* AI 영역은 화면의 선언(`data-brand-role="ai-surface"` · `data-ai-surface`)이 먼저고, 없으면 화자 구분용 스크린리더 전용
+     라벨(`<span class="sr-only">도우미: </span>`)의 부모다. 둘 다 `pickOne` 을 지난다 — 그래서 「여기는 AI 면이 아니다」
+     (`data-brand-role="none"`)를 다른 role 과 **같은 한 자리**에서 존중한다. 도우미 답이 말풍선이 아니라 글 기둥이 된 뒤(D-582)
+     그 기둥이 「회색인 AI 면」으로 세어졌다 — 칠하지 않은 것이 설계이고, AI 의 표지는 클로비 얼굴이다. 못 찾으면 unknown 이고
+     그것이 정확한 보고다 — 채팅이 없는 화면에 AI 면이 없는 것은 결함이 아니라 사실이다. */
+  const SPEAKER_PARENT = ':has(> .sr-only)';
+  const pickAiSurface = () => pickOne({
+    kind: 'bg',
+    sel: ['[data-brand-role="ai-surface"]', '[data-ai-surface]', SPEAKER_PARENT],
+    accept: (el, sel) => sel !== SPEAKER_PARENT || [...el.children].some(
+      (c) => c.classList && c.classList.contains('sr-only') && /도우미/.test(c.textContent || '')),
+  });
 
   const roles = {};
   for (const name of Object.keys(ROLE_SPEC)) {

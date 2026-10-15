@@ -626,6 +626,42 @@ def capture(base: str, verify, creds: dict, me: str, conversation_id: str, title
     return saved
 
 
+RENDER_LEAKS = ("](/", "**", "](#")
+
+
+def render_check(base: str, creds: dict, me: str, conversations: list[tuple[str, str]]) -> dict:
+    """그린 화면에 마크다운 글자가 새지 않는가 — 대화마다 스레드의 글에 `](/` · `**` 가 없어야 한다(D-582).
+
+    API 의 답 글에는 마크다운이 있는 것이 맞다. 화면이 그것을 링크 · 굵게 · 목록으로 그렸는지를 실브라우저에서 본다."""
+    from playwright.sync_api import sync_playwright
+
+    from scripts.ui_qa.capture import theme_init_script
+
+    checks = []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        try:
+            ctx = browser.new_context(viewport={"width": 1920, "height": 1080}, ignore_https_errors=True, locale="ko-KR",
+                                      timezone_id="Asia/Seoul")
+            ctx.add_init_script(theme_init_script("light", me))
+            r = ctx.request.post(f"{base}/login", data={"email": creds["AI_TRUTH_EMAIL"], "password": creds["AI_TRUTH_PASSWORD"]})
+            if r.status != 200:
+                raise LoginError(r.status)
+            page = ctx.new_page()
+            for key, conversation_id in conversations:
+                page.goto(f"{base}/#/chat/{conversation_id}", wait_until="domcontentloaded")
+                page.wait_for_timeout(2500)
+                text = page.evaluate("() => (document.querySelector('section[aria-label=\"대화\"]') || document.body).innerText")
+                leaks = [m for m in RENDER_LEAKS if m in text]
+                links = page.locator('section[aria-label="대화"] [data-message-role="assistant"] a[href^="#/"]').count()
+                c = check(f"{key} 그린 화면에 마크다운 글자가 없다", not leaks, f"새어 나온 표시 {leaks} · 답 안 링크 {links}개")
+                checks.append({"name": c.name, "status": c.status, "detail": c.detail})
+            ctx.close()
+        finally:
+            browser.close()
+    return {"key": "R", "title": "그린 화면", "turns": [{"question": "(화면 확인)", "checks": checks}]}
+
+
 def render_md(report: dict) -> str:
     lines = [f"# AI 도우미 대화 하네스 — {report['label']}", "",
              f"- 대상: {report['base']} · 시각 {report['started']} · {report['summary']}", ""]
@@ -693,6 +729,12 @@ def main(argv=None) -> int:
                     shots = capture(args.base, verify, creds, str(me), first["conversation_id"], title, args.label)
                 except Exception as exc:  # noqa: BLE001 - 캡처가 실패해도 판정 기록은 남긴다
                     report["capture_error"] = str(exc).splitlines()[0][:300]
+            pairs = [(s["key"], s["conversation_id"]) for s in report["scenarios"] if s.get("conversation_id")]
+            if pairs:
+                try:
+                    report["scenarios"].append(render_check(args.base, creds, str(me), pairs))
+                except Exception as exc:  # noqa: BLE001 - 화면 확인이 끊겨도 판정 기록은 남긴다
+                    report["render_error"] = str(exc).splitlines()[0][:300]
     finally:
         if not args.keep:
             report["deleted"] = [delete_conversation(client, headers, cid) for cid in made]

@@ -21549,6 +21549,131 @@
    }
   },
   {
+   "id": "user_chat-id",
+   "kind": "route",
+   "route": "/chat/:id",
+   "console": "user",
+   "host_surface": null,
+   "component": "frontend/src/screens/Chat.jsx",
+   "render_engine": "custom",
+   "registry_key": null,
+   "registry_key_source": null,
+   "alias_of": null,
+   "archetype": "chat",
+   "source": "frontend/src/app/UserRoutes.jsx (<Route path=\"/chat/:id\">)",
+   "role": {
+    "min": "",
+    "allowed": []
+   },
+   "requirements": [
+    "R-0-2.4",
+    "R-0-13",
+    "R-3",
+    "R-15",
+    "R-18",
+    "R-20",
+    "R-22",
+    "R-24",
+    "R-25",
+    "R-66",
+    "R-71",
+    "R-85"
+   ],
+   "states_checked": [
+    {
+     "state": "default",
+     "evidence": []
+    },
+    {
+     "state": "empty",
+     "evidence": []
+    },
+    {
+     "state": "loading",
+     "evidence": []
+    },
+    {
+     "state": "error",
+     "evidence": []
+    },
+    {
+     "state": "permission_denied",
+     "evidence": []
+    },
+    {
+     "state": "long_text",
+     "evidence": []
+    },
+    {
+     "state": "many_data",
+     "evidence": []
+    },
+    {
+     "state": "single_item",
+     "evidence": []
+    },
+    {
+     "state": "offline",
+     "evidence": []
+    },
+    {
+     "state": "validation_error",
+     "evidence": []
+    },
+    {
+     "state": "dirty_form",
+     "evidence": []
+    },
+    {
+     "state": "stale_data",
+     "evidence": []
+    }
+   ],
+   "visual_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "notes": ""
+   },
+   "functional_audit": {
+    "result": "PENDING",
+    "by": "",
+    "at": "",
+    "evidence": [],
+    "flows": []
+   },
+   "responsive_audit": {
+    "result": "PENDING",
+    "required_profile": "minor_v1",
+    "matrix": []
+   },
+   "before_capture": null,
+   "after_capture": null,
+   "status": "NOT_AUDITED",
+   "wave": "W9",
+   "findings": [],
+   "suppressions": [],
+   "entity_selectors": [],
+   "evidence": {
+    "items": [],
+    "build_index_sha256": [],
+    "qa_run": {}
+   },
+   "in_harness": true,
+   "archetype_current": "chat",
+   "component_loc": null,
+   "purpose": "대화 하나를 주소로 열어 그 대화의 질문과 답, 결과 목록, 참고 자료를 보고 이어서 묻는다.",
+   "source_evidence": [
+    "frontend/src/app/UserRoutes.jsx",
+    "frontend/src/app/navEntry.jsx"
+   ],
+   "derivation_notes": "D-582 가 대화를 주소에 실었다. `/chat` 과 같은 화면(`navEntry.jsx` 의 `screen:chat`)이라 대화를 바꿔도 다시 마운트되지 않는다.",
+   "harness_id": "user_chat-id",
+   "requirements_why": "AI 도우미 화면과 같은 요구다. 주소 · 고른 줄 · 머리 제목 · 스레드가 같은 대화인지가 이 화면의 결정적 사실이다.",
+   "status_note": "2026-10-15 AI 채팅 개선(D-582 ~): 대화 하나의 주소다. 새 화면의 감사는 아직 하지 않았다(Acceptance 회차의 일)."
+  },
+  {
    "id": "user_chat-rooms",
    "kind": "route",
    "route": "/chat-rooms",

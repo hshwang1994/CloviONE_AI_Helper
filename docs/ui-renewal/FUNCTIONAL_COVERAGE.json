@@ -7053,6 +7053,14 @@
    ]
   },
   {
+   "surface": "user_chat-id",
+   "console": "user",
+   "inventory_status": "NOT_INVENTORIED",
+   "inventoried_at": null,
+   "inventoried_by": null,
+   "flows": []
+  },
+  {
    "surface": "user_chat-rooms",
    "console": "user",
    "inventory_status": "INVENTORIED",
