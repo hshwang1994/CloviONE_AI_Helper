@@ -1,5 +1,6 @@
 ClovirAssist
 
+AI 사용 한도 도달 알림
 AI 사용 한도에 닿았습니다.
 
 김하나 님이 이번 기간의 AI 사용 한도를 다 썼습니다.
@@ -12,4 +13,4 @@ ClovirAssist에서 보기: https://clovirassist.gooddi.lab/#/chat
 --
 이 메일은 ClovirAssist의 AI 사용 한도 도달 알림 설정에 따라 보냈습니다.
 알림 메일 설정 바꾸기: https://clovirassist.gooddi.lab/#/profile
-이 메일은 발신 전용입니다.
+이 주소로는 답장할 수 없습니다.

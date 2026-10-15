@@ -1,91 +1,213 @@
-{#- ClovirAssist 메일 틀 (HTML, D-549 · D-561). 내용은 `app/mail/content.py::MailContent` 이고 이 틀은 모양만 정한다.
+{#- ClovirAssist 메일 틀 (HTML, D-549 · D-561 · D-571). 내용은 `app/mail/content.py::MailContent` 이고 이 틀은 모양만 정한다.
 
-    메일 앱의 규칙을 따른다: 표 배치(바깥 100% + 안 600px), 인라인 색, 원격 그림 · SVG · 그림자 · 그라데이션 없음,
-    시스템 · 한국어 글꼴 스택(메일 앱은 웹 글꼴을 받지 않는다 - 웹 화면의 Pretendard 규칙의 의도된 예외), keep-all.
-    머리는 제품 로고 표식(CID 로 붙인 PNG, 막혀도 글자 워드마크가 남는다) + 워드마크의 흰 띠와 아래 1px 선이다.
+    두 엔진을 함께 맞춘다(D-571). 클래식 Outlook(Windows)은 Word 엔진으로 그린다. Word 는 `<a>` 의 padding · 배경 · 둥근 모서리를 무시하고,
+    단위 없는 line-height 를 줄 간격 배수로 읽어 행을 부풀리며, 모르는 첫 글꼴 이름을 만나면 Times 로 떨어진다. 그래서:
+    - 600px 고스트 표(`<!--[if mso]>`)가 폭을 잡고, 색이 있는 표와 칸은 `bgcolor` 를 함께 단다. 칸 사이 간격은 표의 margin 이 아니라 행의 padding 이다.
+    - line-height 는 전부 px 이고 글자 칸에는 `mso-line-height-rule:exactly` 를 붙인다. 글꼴 스택(`font`)은 글자가 있는 칸마다 직접 단다.
+      로고 칸만은 exactly 를 붙이지 않는다 - Word 는 exactly 줄 높이 안의 그림 위쪽을 잘랐다(36px 그림이 26px 로 보임, COM 실측). 워드마크는
+      28px 줄 + `valign=middle` 로 36px 줄 상자 가운데에 선다(36px exactly 는 Word 에서 3.5px 아래로 처졌다).
+    - Word 는 한글과 영문 · 숫자 사이에 간격을 더 넣는다(「ClovirAssist 에서」). Outlook 전용 `<style>` 의 `text-autospace:none` 이 막는다.
+    - 주 단추는 두 갈래다. Outlook 은 VML `v:roundrect`(높이 44, 글자 가운데, 폭은 `content.button_width_px`), 나머지는 `display:block`
+      앵커(높이 44)다. 단추 칸은 `bgcolor` 와 `mso-padding-alt` 를 갖되 Outlook 전용 `<style>` 이 그 칸의 바탕과 여백을 걷는다 - 클래식
+      Outlook 실측(COM 렌더)에서 칸 바탕이 VML 뒤에 48px 더 넓은 네모를 깔아 둥근 모서리를 덮었다(205x45 네모 → 걷은 뒤 155x44 둥근 단추).
+    - 대체 주소는 Outlook 갈래에서 첫 `?` 앞에서 두 줄로 나눈다(Word 는 긴 낱말을 끊지 못해 표가 넓어진다).
+    다크는 `prefers-color-scheme`(Apple 메일 등)와 `[data-ogsc]`/`[data-ogsb]`(Outlook.com · 새 Outlook · Outlook 앱) 두 벌이고 값은
+    `content.COLORS_DARK`(제품 `theme.js` 의 dark 토큰)다. 머리 띠는 다크 규칙에서 빠지고 강제 다크에서는 흰색으로 고정한다 - 로고 표식이 어느
+    앱에서도 흰 띠 위에 선다. Gmail 은 모르는 선택자가 든 `<style>` 을 통째로 버리므로 Outlook.com 규칙은 따로 둔 둘째 `<style>` 이다.
     보라(`colors.accent`)는 워드마크의 「Assist」와 주 단추 하나에만 쓴다. 상태색은 실제 실패 · 보안의 한 줄 표지(`c.alert`)에만.
-    모바일(≤ 620): 안쪽 여백 20, 주 단추 전체 폭. -#}
+    모바일(≤ 480): 바깥 여백 12/8, 안쪽 20, 주 단추 전체 폭, 사실 상자의 이름과 값은 위아래로 쌓는다. -#}
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light">
-<meta name="supported-color-schemes" content="light">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <title>{{ c.subject }}</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
 <style>
-@media (max-width: 620px) {
+body, table, td, p, h1, a, span { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; mso-fareast-font-family: 'Malgun Gothic'; }
+p, td, h1, a, span, center { text-autospace: none; }
+table, td { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+td.ca-btn-cell { background: transparent !important; background-color: transparent !important; mso-padding-alt: 0 !important; }
+</style>
+<![endif]-->
+<style>
+:root { color-scheme: light dark; supported-color-schemes: light dark; }
+@media (max-width: 480px) {
   .ca-outer { padding: 12px 8px !important; }
   .ca-head { padding: 16px 20px !important; }
-  .ca-wrap { padding: 20px !important; }
+  .ca-pad { padding-left: 20px !important; padding-right: 20px !important; }
   .ca-btn { width: 100% !important; }
-  .ca-btn a { display: block !important; text-align: center !important; }
+  .ca-fact-label, .ca-fact-value { display: block !important; width: auto !important; }
+  .ca-fact-label { padding: 10px 16px 0 16px !important; }
+  .ca-fact-value { padding: 2px 16px 10px 16px !important; border-top: 0 !important; }
+}
+@media (prefers-color-scheme: dark) {
+  .ca-body, .ca-canvas { background-color: {{ dark.canvas }} !important; }
+  .ca-plate { background-color: {{ dark.plate }} !important; border-color: {{ dark.line }} !important; }
+  .ca-ink { color: {{ dark.ink }} !important; }
+  .ca-muted { color: {{ dark.muted }} !important; }
+  .ca-facts, .ca-code { background-color: {{ dark.inset }} !important; }
+  .ca-fact-label, .ca-fact-value { border-color: {{ dark.rule }} !important; }
+  .ca-alert { background-color: {{ dark.danger_bg }} !important; color: {{ dark.danger }} !important; }
+  .ca-rule { background-color: {{ dark.line }} !important; }
+  .ca-link { color: {{ dark.accent }} !important; }
+  .ca-sep { color: {{ dark.line_strong }} !important; }
 }
 </style>
+<style>
+.ca-body[data-ogsc], .ca-body[data-ogsb], [data-ogsc] .ca-canvas, [data-ogsb] .ca-canvas { background-color: {{ dark.canvas }} !important; }
+[data-ogsc] .ca-plate, [data-ogsb] .ca-plate { background-color: {{ dark.plate }} !important; border-color: {{ dark.line }} !important; }
+[data-ogsc] .ca-ink, [data-ogsb] .ca-ink { color: {{ dark.ink }} !important; }
+[data-ogsc] .ca-muted, [data-ogsb] .ca-muted { color: {{ dark.muted }} !important; }
+[data-ogsc] .ca-facts, [data-ogsb] .ca-facts, [data-ogsc] .ca-code, [data-ogsb] .ca-code { background-color: {{ dark.inset }} !important; }
+[data-ogsc] .ca-fact-label, [data-ogsb] .ca-fact-label, [data-ogsc] .ca-fact-value, [data-ogsb] .ca-fact-value { border-color: {{ dark.rule }} !important; }
+[data-ogsc] .ca-alert, [data-ogsb] .ca-alert { background-color: {{ dark.danger_bg }} !important; color: {{ dark.danger }} !important; }
+[data-ogsc] .ca-rule, [data-ogsb] .ca-rule { background-color: {{ dark.line }} !important; }
+[data-ogsc] .ca-link, [data-ogsb] .ca-link { color: {{ dark.accent }} !important; }
+[data-ogsc] .ca-sep, [data-ogsb] .ca-sep { color: {{ dark.line_strong }} !important; }
+[data-ogsc] .ca-head, [data-ogsb] .ca-head { background-color: {{ colors.plate }} !important; border-color: {{ colors.line }} !important; }
+[data-ogsc] .ca-word, [data-ogsb] .ca-word { color: {{ colors.ink }} !important; }
+[data-ogsc] .ca-word span, [data-ogsb] .ca-word span { color: {{ colors.accent }} !important; }
+[data-ogsc] .ca-btn-cell, [data-ogsb] .ca-btn-cell, [data-ogsc] .ca-btn-link, [data-ogsb] .ca-btn-link { background-color: {{ colors.accent }} !important; color: #FFFFFF !important; }
+[data-ogsc] .ca-btn-link span, [data-ogsb] .ca-btn-link span { color: #FFFFFF !important; }
+</style>
 </head>
-<body style="margin:0;padding:0;background:{{ colors.canvas }};word-break:keep-all;">
+<body class="ca-body" style="margin:0;padding:0;background-color:{{ colors.canvas }};word-break:keep-all;"{% if force_dark %} data-ogsc=""{% endif %}>
 <div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;mso-hide:all;">{{ c.preheader }}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:{{ colors.canvas }};">
+<table role="presentation" class="ca-canvas" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ colors.canvas }}" style="background-color:{{ colors.canvas }};color:{{ colors.ink }};">
 <tr>
 <td align="center" class="ca-outer" style="padding:32px 12px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:{{ colors.plate }};border:1px solid {{ colors.line }};border-radius:8px;">
+<!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td width="600"><![endif]-->
+<table role="presentation" class="ca-plate" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ colors.plate }}" style="width:100%;max-width:600px;background-color:{{ colors.plate }};border:1px solid {{ colors.line }};border-radius:8px;">
 <tr>
-<td class="ca-head" style="padding:20px 32px;border-bottom:1px solid {{ colors.line }};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;">
+<td class="ca-head" bgcolor="{{ colors.plate }}" style="padding:20px 32px;background-color:{{ colors.plate }};border-bottom:1px solid {{ colors.line }};border-radius:8px 8px 0 0;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
 <tr>
-<td style="padding:0 10px 0 0;vertical-align:middle;line-height:0;"><img src="{{ logo_src }}" width="{{ logo_size }}" height="{{ logo_size }}" alt="" style="display:block;width:{{ logo_size }}px;height:{{ logo_size }}px;border:0;"></td>
-<td style="vertical-align:middle;font-size:18px;line-height:{{ logo_size }}px;font-weight:800;letter-spacing:-0.01em;color:{{ colors.ink }};">{{ wordmark_head }}{% if wordmark_tail %}<span style="color:{{ colors.accent }};">{{ wordmark_tail }}</span>{% endif %}</td>
+<td width="{{ logo_size }}" height="{{ logo_size }}" valign="middle" style="width:{{ logo_size }}px;height:{{ logo_size }}px;padding:0;font-size:0;line-height:{{ logo_size }}px;"><img src="{{ logo_src }}" width="{{ logo_size }}" height="{{ logo_size }}" alt="" style="display:block;width:{{ logo_size }}px;height:{{ logo_size }}px;border:0;outline:none;text-decoration:none;"></td>
+<td valign="middle" class="ca-word" style="padding:0 0 0 10px;font-family:{{ font }};font-size:20px;line-height:28px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:-0.01em;color:{{ colors.ink }};">{{ wordmark_head }}{% if wordmark_tail %}<span style="color:{{ colors.accent }};">{{ wordmark_tail }}</span>{% endif %}</td>
 </tr>
 </table>
 </td>
 </tr>
 <tr>
-<td class="ca-wrap" style="padding:28px 32px 32px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;color:{{ colors.ink }};word-break:keep-all;">
-{% if c.alert %}
-<div style="display:inline-block;margin:0 0 12px 0;padding:4px 8px;border-radius:4px;background:{{ colors.danger_bg }};color:{{ colors.danger }};font-size:13px;font-weight:700;">{{ c.alert }}</div>
+<td class="ca-pad" style="padding:28px 32px 0 32px;">
+{% if eyebrow_line %}
+<p class="ca-muted" style="margin:0 0 8px 0;font-family:{{ font }};font-size:12px;line-height:16px;mso-line-height-rule:exactly;font-weight:600;color:{{ colors.muted }};">{{ c.eyebrow }}</p>
 {% endif %}
-<h1 style="margin:0 0 12px 0;font-size:20px;line-height:1.4;font-weight:700;color:{{ colors.ink }};">{{ c.heading }}</h1>
-{% for paragraph in c.lead %}
-<p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;color:{{ colors.ink }};">{{ paragraph }}</p>
-{% endfor %}
-{% if c.facts %}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px 0;background:{{ colors.inset }};border-radius:6px;">
-{% for label, value in c.facts %}
+{% if c.alert %}
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
 <tr>
-<td style="padding:10px 16px;{% if not loop.first %}border-top:1px solid {{ colors.rule }};{% endif %}font-size:13px;line-height:1.5;color:{{ colors.muted }};width:96px;vertical-align:top;white-space:nowrap;">{{ label }}</td>
-<td style="padding:10px 16px 10px 0;{% if not loop.first %}border-top:1px solid {{ colors.rule }};{% endif %}font-size:14px;line-height:1.5;color:{{ colors.ink }};word-break:keep-all;overflow-wrap:break-word;">{{ value }}</td>
+<td class="ca-alert" bgcolor="{{ colors.danger_bg }}" style="padding:4px 8px;background-color:{{ colors.danger_bg }};border-radius:4px;font-family:{{ font }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;font-weight:700;color:{{ colors.danger }};">{{ c.alert }}</td>
+</tr>
+</table>
+{% endif %}
+</td>
+</tr>
+{% if c.alert %}
+<tr>
+<td height="12" style="height:12px;font-size:12px;line-height:12px;mso-line-height-rule:exactly;">&nbsp;</td>
+</tr>
+{% endif %}
+<tr>
+<td class="ca-pad" style="padding:0 32px 0 32px;">
+<h1 class="ca-ink" style="margin:0 0 12px 0;font-family:{{ font }};font-size:22px;line-height:30px;mso-line-height-rule:exactly;font-weight:700;color:{{ colors.ink }};">{{ c.heading }}</h1>
+{% for paragraph in c.lead %}
+<p class="ca-ink" style="margin:0 0 12px 0;font-family:{{ font }};font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:{{ colors.ink }};">{{ paragraph }}</p>
+{% endfor %}
+</td>
+</tr>
+{% if c.facts %}
+<tr>
+<td class="ca-pad" style="padding:4px 32px 20px 32px;">
+<table role="presentation" class="ca-facts" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{{ colors.inset }}" style="background-color:{{ colors.inset }};border-radius:6px;">
+{% for label, value in c.facts %}
+<tr class="ca-fact">
+<td class="ca-fact-label ca-muted" width="120" valign="top" style="width:120px;padding:10px 12px 10px 16px;{% if not loop.first %}border-top:1px solid {{ colors.rule }};{% endif %}font-family:{{ font }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:{{ colors.muted }};">{{ label }}</td>
+<td class="ca-fact-value ca-ink" valign="top" style="padding:10px 16px 10px 0;{% if not loop.first %}border-top:1px solid {{ colors.rule }};{% endif %}font-family:{{ font }};font-size:14px;line-height:20px;mso-line-height-rule:exactly;color:{{ colors.ink }};word-break:keep-all;overflow-wrap:break-word;word-wrap:break-word;">{{ value }}</td>
 </tr>
 {% endfor %}
 </table>
+</td>
+</tr>
 {% endif %}
 {% if c.code %}
-<div style="margin:8px 0 20px 0;padding:16px;background:{{ colors.inset }};border-radius:6px;text-align:center;font-family:Consolas,'SFMono-Regular',Menlo,monospace;font-size:28px;font-weight:700;letter-spacing:0.3em;color:{{ colors.ink }};">{{ c.code }}</div>
-{% endif %}
-{% if c.action %}
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="ca-btn" style="margin:8px 0 16px 0;">
 <tr>
-<td style="border-radius:6px;background:{{ colors.accent }};"><a href="{{ c.action[1] }}" style="display:inline-block;padding:12px 20px;line-height:20px;font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:6px;">{{ c.action[0] }}</a></td>
+<td class="ca-pad" style="padding:4px 32px 20px 32px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td class="ca-code ca-ink" align="center" bgcolor="{{ colors.inset }}" style="padding:16px;background-color:{{ colors.inset }};border-radius:6px;font-family:{{ mono }};font-size:28px;line-height:36px;mso-line-height-rule:exactly;font-weight:700;letter-spacing:0.3em;color:{{ colors.ink }};">{{ c.code }}</td>
 </tr>
 </table>
+</td>
+</tr>
 {% endif %}
-{% if c.fallback_url %}
-<p style="margin:0 0 16px 0;font-size:12px;line-height:1.6;color:{{ colors.muted }};">단추가 열리지 않으면 이 주소를 브라우저에 붙여 넣으세요.<br><span style="word-break:break-all;">{{ c.fallback_url }}</span></p>
-{% endif %}
-{% for note in c.notes %}
-<p style="margin:0 0 8px 0;font-size:13px;line-height:1.6;color:{{ colors.muted }};">{{ note }}</p>
-{% endfor %}
-<div style="height:1px;line-height:1px;font-size:1px;background:{{ colors.line }};margin:24px 0 16px 0;">&nbsp;</div>
-<p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:{{ colors.muted }};">{{ c.footer_reason }}</p>
-{% for label, url in c.footer_links %}
-<p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;"><a href="{{ url }}" style="color:{{ colors.muted }};text-decoration:underline;">{{ label }}</a></p>
-{% endfor %}
-{% if c.support_email %}
-<p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:{{ colors.muted }};">문의: {{ c.support_email }}</p>
-{% endif %}
-<p style="margin:0;font-size:12px;line-height:1.6;color:{{ colors.muted }};">이 메일은 발신 전용입니다.</p>
+{% if c.action %}
+<tr>
+<td class="ca-pad" style="padding:4px 32px 16px 32px;">
+<table role="presentation" class="ca-btn" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td class="ca-btn-cell" align="center" bgcolor="{{ colors.accent }}" style="border-radius:6px;mso-padding-alt:0 24px;background-color:{{ colors.accent }};">
+<!--[if mso]>
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ c.action[1] }}" style="height:44px;v-text-anchor:middle;width:{{ button_width }}px;" arcsize="14%" stroke="f" fillcolor="{{ colors.accent }}">
+<w:anchorlock/>
+<center style="color:#FFFFFF;font-family:{{ font }};font-size:15px;font-weight:bold;">{{ c.action[0] }}</center>
+</v:roundrect>
+<![endif]-->
+<!--[if !mso]><!-->
+<a class="ca-btn-link" href="{{ c.action[1] }}" style="display:block;height:44px;line-height:44px;padding:0 24px;font-family:{{ font }};font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;text-align:center;border-radius:6px;background:{{ colors.accent }};"><span style="color:#FFFFFF;">{{ c.action[0] }}</span></a>
+<!--<![endif]-->
 </td>
 </tr>
 </table>
+</td>
+</tr>
+{% endif %}
+{% if c.fallback_url %}
+<tr>
+<td class="ca-pad" style="padding:0 32px 16px 32px;">
+<p class="ca-muted" style="margin:0;font-family:{{ font }};font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:{{ colors.muted }};">단추가 열리지 않으면 이 주소를 브라우저에 붙여 넣으세요.</p>
+<!--[if mso]>
+<p style="margin:0;font-family:{{ font }};font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:{{ colors.muted }};">{{ fallback_head }}{% if fallback_tail %}<br>{{ fallback_tail }}{% endif %}</p>
+<![endif]-->
+<!--[if !mso]><!-->
+<p class="ca-muted" style="margin:0;font-family:{{ font }};font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:{{ colors.muted }};word-break:break-all;">{{ c.fallback_url }}</p>
+<!--<![endif]-->
+</td>
+</tr>
+{% endif %}
+{% if c.notes %}
+<tr>
+<td class="ca-pad" style="padding:0 32px 8px 32px;">
+{% for note in c.notes %}
+<p class="ca-muted" style="margin:0 0 8px 0;font-family:{{ font }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:{{ colors.muted }};">{{ note }}</p>
+{% endfor %}
+</td>
+</tr>
+{% endif %}
+<tr>
+<td class="ca-pad" style="padding:12px 32px 16px 32px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td class="ca-rule" height="1" bgcolor="{{ colors.line }}" style="height:1px;font-size:1px;line-height:1px;mso-line-height-rule:exactly;background-color:{{ colors.line }};">&nbsp;</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td class="ca-pad" style="padding:0 32px 28px 32px;">
+<p class="ca-muted" style="margin:0 0 4px 0;font-family:{{ font }};font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:{{ colors.muted }};">{{ c.footer_reason }}</p>
+{% if c.footer_links or c.support_email %}
+<p class="ca-muted" style="margin:0 0 4px 0;font-family:{{ font }};font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:{{ colors.muted }};">{% for label, url in c.footer_links %}<a class="ca-link" href="{{ url }}" style="font-family:{{ font }};color:{{ colors.muted }};text-decoration:underline;">{{ label }}</a>{% if not loop.last or c.support_email %}<span class="ca-sep" style="color:{{ colors.line_strong }};">&nbsp;&nbsp;|&nbsp;&nbsp;</span>{% endif %}{% endfor %}{% if c.support_email %}문의: {{ c.support_email }}{% endif %}</p>
+{% endif %}
+<p class="ca-muted" style="margin:0;font-family:{{ font }};font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:{{ colors.muted }};">이 주소로는 답장할 수 없습니다.</p>
+</td>
+</tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
 </td>
 </tr>
 </table>

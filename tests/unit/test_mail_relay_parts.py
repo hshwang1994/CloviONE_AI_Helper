@@ -8,6 +8,9 @@
   * `postqueue -j` 를 읽고 깨진 줄은 건너뛴다.
   * SPF 판정 — 통과 · 실패 · 없음 · 레코드 오류(도메인이 아닌 include · 조회 10회 초과 · 레코드 둘).
   * 준비 점검의 줄은 상태 · 지금 상태 · 무엇이 필요한가 · 어디서 고치는가를 말하고, 분리 DNS 를 잡아 전달 서버를 제안한다.
+  * 제안은 빠진 것만이다(D-572): DMARC 가 있으면 DMARC 레코드 0(`p=none` 이면 권고 문장만), SPF · DKIM 이 통과하면 그 제안 0.
+    웹 IP ≠ 발신 IP 면 메일 전용 이름을 제안하고 A · PTR 이 그 이름이며 NAT 대안을 말한다. 받는 쪽이 Microsoft 365 면 「발신자 표시
+    요청」이 서고 허용 목록을 요청하지 않는다. `helo_suggestion` 표.
 """
 
 from __future__ import annotations
@@ -205,9 +208,9 @@ def test_records_merge_the_existing_spf():
 
 
 def _sender(system, compare):
-    rows, spf, seen = rr.sender_rows(system, compare, domain="goodmit.co.kr", egress_ip=IP, helo="clovirassist.gooddi.lab",
-                                     dkim_selector="ca1", dkim_public="", dkim_enabled=False)
-    return _by_key(rows), spf, seen
+    facts = rr.sender_rows(system, compare, domain="goodmit.co.kr", egress_ip=IP, helo="clovirassist.gooddi.lab",
+                           dkim_selector="ca1", dkim_public="", dkim_enabled=False)
+    return _by_key(facts.rows), facts.current_spf, facts.seen
 
 
 # 랩 관찰: 내부 해석기는 goodmit.co.kr 의 공개 레코드를 모르고(오류), 사설 이름을 사설 IP 로 푼다. 공개 DNS 는 SPF · DMARC 를 갖고
@@ -304,3 +307,171 @@ def test_requests_for_groups_records_by_owner_with_a_copyable_text():
     assert ptr["records"][0]["key"] == "ptr" and "203.0.113.5" in ptr["text"] and "mail.example.com" in ptr["text"]
     assert "PTR" in ptr["title"]
     assert rr.requests_for([], domain="example.com", egress_ip=None, helo="") == []
+
+
+# ── 빠진 것만 제안한다 · 메일 전용 서버 이름 · 받는 쪽 관리자 요청 (D-572) ─────────────────
+
+EGRESS = "198.51.100.201"   # 메일이 나가는 IP
+WEB = "198.51.100.210"      # 웹 주소가 풀리는 IP(다른 IP)
+
+
+@pytest.mark.parametrize("helo, web_host, web_ip, helo_addrs, expected", [
+    # 랩: 사설 이름 HELO, 웹 주소는 다른 IP - 메일 전용 이름(웹 첫 이름 + -mail)
+    ("clovirassist.gooddi.lab", "clovirassist.goodmit.co.kr", WEB, [], ("clovirassist-mail.goodmit.co.kr", False, "private")),
+    # 웹 주소를 HELO 로 썼는데 웹 IP 로 풀린다
+    ("clovirassist.goodmit.co.kr", "clovirassist.goodmit.co.kr", WEB, [WEB], ("clovirassist-mail.goodmit.co.kr", False, "web_ip")),
+    # 도메인 아래 · 발신 IP 로 풀림 - 그대로
+    ("clovirassist-mail.goodmit.co.kr", "clovirassist.goodmit.co.kr", WEB, [EGRESS], ("clovirassist-mail.goodmit.co.kr", True, "ok")),
+    # 도메인 아래 · 아직 DNS 에 없음 - 그 이름에 A 만 더한다
+    ("mail.goodmit.co.kr", "clovirassist.goodmit.co.kr", WEB, [], ("mail.goodmit.co.kr", True, "missing")),
+    # 도메인 아래지만 다른 IP(다른 메일 서버)로 풀림 - 남의 이름을 쓰지 않는다
+    ("mail.goodmit.co.kr", "clovirassist.goodmit.co.kr", WEB, ["192.0.2.9"], ("clovirassist-mail.goodmit.co.kr", False, "other_ip")),
+    # 웹 주소가 메일과 같은 IP 로 나간다 - 웹 주소 그 자체
+    ("clovirassist.gooddi.lab", "clovirassist.goodmit.co.kr", EGRESS, [], ("clovirassist.goodmit.co.kr", False, "private")),
+    # 웹 주소가 보내는 도메인 밖 - 제품 이름의 메일 전용 이름
+    ("host.lab", "portal.example.org", WEB, [], ("mail-clovirassist.goodmit.co.kr", False, "private")),
+])
+def test_helo_suggestion_table(helo, web_host, web_ip, helo_addrs, expected):
+    got = rr.helo_suggestion("goodmit.co.kr", helo, EGRESS, web_host, web_ip, helo_addrs=helo_addrs)
+    assert (got["name"], got["keep"], got["reason"]) == expected
+    if expected[1]:
+        assert got["note"] is None
+    else:
+        assert got["note"] and "·" not in got["note"]
+    if web_ip == WEB and not expected[1] and web_host.endswith("goodmit.co.kr"):
+        assert "NAT" in got["note"] and WEB in got["note"] and EGRESS in got["note"]
+
+
+def test_an_existing_dmarc_gets_no_record_and_p_none_only_advice():
+    base = dict(domain="x.com", egress_ip=EGRESS, current_spf=None, dkim_selector="ca1", dkim_public="", dkim_enabled=False,
+                from_address="noreply@x.com", helo="mail.x.com")
+    assert "dmarc" in {r["key"] for r in rr.records_for(**base)}, "없으면 낸다"
+    assert "dmarc" not in {r["key"] for r in rr.records_for(**base, current_dmarc="v=DMARC1; p=none;")}
+    assert "dmarc" not in {r["key"] for r in rr.records_for(**base, current_dmarc="v=DMARC1; p=reject")}
+    assert rr.dmarc_advice("v=DMARC1; p=none;") == rr.DMARC_NONE_ADVICE and rr.dmarc_advice("v=DMARC1; p=quarantine") is None
+    row, current = rr.dmarc_row(FakeDns(txt={"_dmarc.x.com": ["v=DMARC1; p=none;"]}), "x.com")
+    assert row["state"] == rr.OK and row["need"] == rr.DMARC_NONE_ADVICE and current == "v=DMARC1; p=none;"
+    assert "·" not in rr.DMARC_NONE_ADVICE + rr.DMARC_KEEP + rr.NO_ALLOWLIST
+
+
+def test_passing_checks_are_not_proposed_again():
+    passing = {"spf": rr.OK, "dkim": rr.OK, "helo_dns": rr.OK, "ptr_fcrdns": rr.OK}
+    records = rr.records_for(domain="x.com", egress_ip=EGRESS, current_spf=f"v=spf1 ip4:{EGRESS} -all", dkim_selector="ca1",
+                             dkim_public="QUJD", dkim_enabled=True, from_address="noreply@x.com", helo="mail.x.com",
+                             current_dmarc="v=DMARC1; p=quarantine", states=passing)
+    assert records == []
+    failing = {**passing, "spf": rr.FAIL, "dkim": rr.FAIL}
+    keys = [r["key"] for r in rr.records_for(domain="x.com", egress_ip=EGRESS, current_spf="v=spf1 -all", dkim_selector="ca1",
+                                             dkim_public="QUJD", dkim_enabled=True, from_address="noreply@x.com",
+                                             helo="mail.x.com", current_dmarc="v=DMARC1; p=none", states=failing)]
+    assert keys == ["spf", "dkim"]
+
+
+class _Probe:
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, host, helo):
+        self.calls.append((host, helo))
+        return {"host": host, "connected": True, "egress_ip": EGRESS, "ehlo": "250 hello"}
+
+
+def _lab_config(**relay):
+    from app.mail.config import smtp_config
+
+    return smtp_config({"enabled": True, "from_address": "noreply@goodmit.co.kr", "from_name": "", "mode": "local_relay",
+                        "relay": {"delivery": "direct", "helo_name": "clovirassist.gooddi.lab", "dkim_enabled": True,
+                                  "dkim_selector": "ca1", "dkim_public": "QUJD", "compare_resolvers": ["8.8.8.8"], **relay}})
+
+
+LAB_PUBLIC = FakeDns(
+    mx={"goodmit.co.kr": ["0 goodmit-co-kr.mail.protection.outlook.com"]},
+    txt={"goodmit.co.kr": ["v=spf1 include:spf.protection.outlook.com include:google-site-verification=abc -all"],
+         "spf.protection.outlook.com": ["v=spf1 ip4:40.92.0.0/15 -all"], "_dmarc.goodmit.co.kr": ["v=DMARC1; p=none;"]},
+    a={"clovirassist.goodmit.co.kr": [WEB], "goodmit-co-kr.mail.protection.outlook.com": ["40.93.1.1"]},
+)
+LAB_SYSTEM = FakeDns(mx={"goodmit.co.kr": ["0 goodmit-co-kr.mail.protection.outlook.com"]},
+                     a={"clovirassist.gooddi.lab": ["10.0.0.71"], "clovirassist.goodmit.co.kr": ["10.0.0.71"]})
+
+
+def _lab_checks(config=None, public=LAB_PUBLIC):
+    return rr.run_checks(config or _lab_config(), helper_status={"component": "running", "listeners": ["127.0.0.1:2525", "127.0.0.1:8891"]},
+                         app_verify=lambda: {"ok": True}, smarthost_verify=lambda: {"ok": True}, system_dns=LAB_SYSTEM,
+                         compare_dns=[public], probe_domain="goodmit.co.kr", mx_probe=_Probe(),
+                         web_host="clovirassist.goodmit.co.kr")
+
+
+def test_lab_web_ip_differs_from_egress_so_a_mail_name_ptr_and_nat_are_proposed():
+    """랩 모양: 사설 HELO, 웹 .210 · 메일 .201, 공개 DMARC p=none 있음, 깨진 SPF include, DKIM 키 있고 DNS 엔 없음, 받는 쪽 Microsoft 365."""
+    got = _lab_checks()
+    rows = _by_key(got["checks"])
+    records = {r["key"]: r for r in got["records"]}
+    assert list(records) == ["spf", "dkim", "helo", "ptr"], "DMARC 는 이미 있으니 레코드를 내지 않는다"
+    assert records["spf"]["value"] == f"v=spf1 ip4:{EGRESS} include:spf.protection.outlook.com -all"
+    assert records["helo"] == {"key": "helo", "name": "clovirassist-mail.goodmit.co.kr", "type": "A", "value": EGRESS,
+                               "note": records["helo"]["note"]}
+    assert "NAT" in records["helo"]["note"]
+    assert records["ptr"]["value"] == "clovirassist-mail.goodmit.co.kr" and "gooddi.lab" not in str(records["ptr"])
+    # 정보 줄 · 정렬 줄 · 서버 이름 줄
+    assert rows["egress_vs_web"]["state"] == rr.OK and WEB in rows["egress_vs_web"]["message"] and EGRESS in rows["egress_vs_web"]["message"]
+    assert rows["sender_alignment"]["state"] == rr.OK and "정렬됐습니다" in rows["sender_alignment"]["message"]
+    assert rows["helo_dns"]["state"] == rr.FAIL and "clovirassist-mail.goodmit.co.kr" in rows["helo_dns"]["need"]
+    assert rows["dmarc"]["state"] == rr.OK and rows["dmarc"]["need"] == rr.DMARC_NONE_ADVICE
+    assert got["web_ip"] == WEB and got["helo_suggestion"]["name"] == "clovirassist-mail.goodmit.co.kr"
+    assert got["advice"] == [rr.DMARC_KEEP, rr.DMARC_NONE_ADVICE]
+    # 요청문 셋 - DNS(있는 레코드만 + 참고), 회선(PTR + NAT 대안), 받는 쪽 Microsoft 365 관리자
+    requests = {r["owner"]: r for r in got["requests"]}
+    assert list(requests) == [rr.OWNER_DNS, rr.OWNER_NETWORK, rr.OWNER_MAILBOX]
+    dns = requests[rr.OWNER_DNS]
+    assert [r["key"] for r in dns["records"]] == ["spf", "dkim", "helo"] and "_dmarc" not in dns["text"]
+    assert f"참고: {rr.DMARC_KEEP}" in dns["text"] and f"참고: {rr.DMARC_NONE_ADVICE}" in dns["text"]
+    ptr = requests[rr.OWNER_NETWORK]
+    assert "clovirassist-mail.goodmit.co.kr" in ptr["text"] and "NAT" in ptr["text"] and f"{WEB} 의" in ptr["text"]
+    mailbox = requests[rr.OWNER_MAILBOX]
+    assert mailbox["title"] == "발신자 표시 요청" and mailbox["provider"] == "Microsoft 365"
+    assert "Microsoft 365" in mailbox["text"] and "compauth=pass" in mailbox["text"] and "noreply@goodmit.co.kr" in mailbox["text"]
+    assert "공유 사서함" in mailbox["text"] and "「ClovirAssist」" in mailbox["text"] and rr.NO_ALLOWLIST in mailbox["text"]
+    # 허용 목록 · 필터 예외를 요청하는 글은 어디에도 없다 - 그 낱말은 「요청하지 않습니다」 문장 안에만 있다.
+    for request in got["requests"]:
+        rest = request["text"].replace(rr.NO_ALLOWLIST, "")
+        assert "허용 목록" not in rest and "예외" not in rest, request["owner"]
+        assert "·" not in request["text"], request["owner"]
+
+
+def test_when_the_web_address_shares_the_mail_ip_the_web_name_is_the_server_name():
+    public = FakeDns(mx=LAB_PUBLIC._mx, txt=LAB_PUBLIC._txt, a={"clovirassist.goodmit.co.kr": [EGRESS]})
+    got = _lab_checks(public=public)
+    records = {r["key"]: r for r in got["records"]}
+    assert got["helo_suggestion"]["name"] == "clovirassist.goodmit.co.kr"
+    assert "helo" not in records, "웹 주소가 이미 발신 IP 로 풀린다 - A 레코드가 필요 없다"
+    assert records["ptr"]["value"] == "clovirassist.goodmit.co.kr"
+    ptr_text = next(r["text"] for r in got["requests"] if r["owner"] == rr.OWNER_NETWORK)
+    assert "clovirassist.goodmit.co.kr" in ptr_text and "NAT" not in ptr_text, "같은 IP 면 NAT 대안을 말하지 않는다"
+    rows = _by_key(got["checks"])
+    assert "메일 설정의 서버 이름(HELO)" in rows["helo_dns"]["need"] and rows["helo_dns"]["where"] == "메일 설정"
+
+
+def test_after_the_records_pass_only_the_optional_mailbox_request_remains():
+    name = "clovirassist-mail.goodmit.co.kr"
+    public = FakeDns(
+        mx=LAB_PUBLIC._mx,
+        txt={"goodmit.co.kr": [f"v=spf1 ip4:{EGRESS} include:spf.protection.outlook.com -all"],
+             "spf.protection.outlook.com": ["v=spf1 ip4:40.92.0.0/15 -all"], "_dmarc.goodmit.co.kr": ["v=DMARC1; p=quarantine"],
+             "ca1._domainkey.goodmit.co.kr": ["v=DKIM1; k=rsa; p=QUJD"]},
+        a={"clovirassist.goodmit.co.kr": [WEB], name: [EGRESS]}, ptr={EGRESS: [name]},
+    )
+    got = _lab_checks(config=_lab_config(helo_name=name), public=public)
+    rows = _by_key(got["checks"])
+    for key in ("spf", "dkim", "dmarc", "ptr_fcrdns", "helo_dns", "egress_vs_web", "sender_alignment"):
+        assert rows[key]["state"] == rr.OK, (key, rows[key])
+    assert got["records"] == [] and got["advice"] == [rr.DMARC_KEEP]
+    assert [r["owner"] for r in got["requests"]] == [rr.OWNER_MAILBOX]
+
+
+def test_the_mailbox_request_is_for_the_sending_tenant_only():
+    base = dict(domain="goodmit.co.kr", egress_ip=EGRESS, helo="m.goodmit.co.kr", from_address="noreply@goodmit.co.kr")
+    assert rr.requests_for([], **base, recipient_mx_host="other-com.mail.protection.outlook.com", recipient_domain="other.com") == []
+    generic = rr.requests_for([], **base, recipient_mx_host="mx.goodmit.co.kr", recipient_domain="goodmit.co.kr")
+    assert [r["owner"] for r in generic] == [rr.OWNER_MAILBOX]
+    assert generic[0]["provider"] is None and "Microsoft 365" not in generic[0]["text"]
+    assert "Authentication-Results" in generic[0]["text"] and rr.NO_ALLOWLIST in generic[0]["text"]

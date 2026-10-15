@@ -1,61 +1,150 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light">
-<meta name="supported-color-schemes" content="light">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <title>[ClovirAssist] 승인됨: AI 문서 만들기</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
 <style>
-@media (max-width: 620px) {
+body, table, td, p, h1, a, span { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; mso-fareast-font-family: 'Malgun Gothic'; }
+p, td, h1, a, span, center { text-autospace: none; }
+table, td { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+td.ca-btn-cell { background: transparent !important; background-color: transparent !important; mso-padding-alt: 0 !important; }
+</style>
+<![endif]-->
+<style>
+:root { color-scheme: light dark; supported-color-schemes: light dark; }
+@media (max-width: 480px) {
   .ca-outer { padding: 12px 8px !important; }
   .ca-head { padding: 16px 20px !important; }
-  .ca-wrap { padding: 20px !important; }
+  .ca-pad { padding-left: 20px !important; padding-right: 20px !important; }
   .ca-btn { width: 100% !important; }
-  .ca-btn a { display: block !important; text-align: center !important; }
+  .ca-fact-label, .ca-fact-value { display: block !important; width: auto !important; }
+  .ca-fact-label { padding: 10px 16px 0 16px !important; }
+  .ca-fact-value { padding: 2px 16px 10px 16px !important; border-top: 0 !important; }
+}
+@media (prefers-color-scheme: dark) {
+  .ca-body, .ca-canvas { background-color: #0A0C16 !important; }
+  .ca-plate { background-color: #141829 !important; border-color: #242A46 !important; }
+  .ca-ink { color: #E5E8F5 !important; }
+  .ca-muted { color: #9BA4C4 !important; }
+  .ca-facts, .ca-code { background-color: #1C2136 !important; }
+  .ca-fact-label, .ca-fact-value { border-color: #242A46 !important; }
+  .ca-alert { background-color: #2E1A18 !important; color: #FF8A80 !important; }
+  .ca-rule { background-color: #242A46 !important; }
+  .ca-link { color: #B7C4FA !important; }
+  .ca-sep { color: #333B5E !important; }
 }
 </style>
+<style>
+.ca-body[data-ogsc], .ca-body[data-ogsb], [data-ogsc] .ca-canvas, [data-ogsb] .ca-canvas { background-color: #0A0C16 !important; }
+[data-ogsc] .ca-plate, [data-ogsb] .ca-plate { background-color: #141829 !important; border-color: #242A46 !important; }
+[data-ogsc] .ca-ink, [data-ogsb] .ca-ink { color: #E5E8F5 !important; }
+[data-ogsc] .ca-muted, [data-ogsb] .ca-muted { color: #9BA4C4 !important; }
+[data-ogsc] .ca-facts, [data-ogsb] .ca-facts, [data-ogsc] .ca-code, [data-ogsb] .ca-code { background-color: #1C2136 !important; }
+[data-ogsc] .ca-fact-label, [data-ogsb] .ca-fact-label, [data-ogsc] .ca-fact-value, [data-ogsb] .ca-fact-value { border-color: #242A46 !important; }
+[data-ogsc] .ca-alert, [data-ogsb] .ca-alert { background-color: #2E1A18 !important; color: #FF8A80 !important; }
+[data-ogsc] .ca-rule, [data-ogsb] .ca-rule { background-color: #242A46 !important; }
+[data-ogsc] .ca-link, [data-ogsb] .ca-link { color: #B7C4FA !important; }
+[data-ogsc] .ca-sep, [data-ogsb] .ca-sep { color: #333B5E !important; }
+[data-ogsc] .ca-head, [data-ogsb] .ca-head { background-color: #FFFFFF !important; border-color: #DCDFEC !important; }
+[data-ogsc] .ca-word, [data-ogsb] .ca-word { color: #161A2C !important; }
+[data-ogsc] .ca-word span, [data-ogsb] .ca-word span { color: #5A4FCF !important; }
+[data-ogsc] .ca-btn-cell, [data-ogsb] .ca-btn-cell, [data-ogsc] .ca-btn-link, [data-ogsb] .ca-btn-link { background-color: #5A4FCF !important; color: #FFFFFF !important; }
+[data-ogsc] .ca-btn-link span, [data-ogsb] .ca-btn-link span { color: #FFFFFF !important; }
+</style>
 </head>
-<body style="margin:0;padding:0;background:#F5F6FB;word-break:keep-all;">
+<body class="ca-body" style="margin:0;padding:0;background-color:#F5F6FB;word-break:keep-all;">
 <div style="display:none;max-height:0;max-width:0;overflow:hidden;opacity:0;mso-hide:all;">승인됨: AI 문서 만들기</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F5F6FB;">
+<table role="presentation" class="ca-canvas" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F5F6FB" style="background-color:#F5F6FB;color:#161A2C;">
 <tr>
 <td align="center" class="ca-outer" style="padding:32px 12px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#FFFFFF;border:1px solid #DCDFEC;border-radius:8px;">
+<!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td width="600"><![endif]-->
+<table role="presentation" class="ca-plate" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="width:100%;max-width:600px;background-color:#FFFFFF;border:1px solid #DCDFEC;border-radius:8px;">
 <tr>
-<td class="ca-head" style="padding:20px 32px;border-bottom:1px solid #DCDFEC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;">
+<td class="ca-head" bgcolor="#FFFFFF" style="padding:20px 32px;background-color:#FFFFFF;border-bottom:1px solid #DCDFEC;border-radius:8px 8px 0 0;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
 <tr>
-<td style="padding:0 10px 0 0;vertical-align:middle;line-height:0;"><img src="cid:clovi-mark@clovirassist" width="28" height="28" alt="" style="display:block;width:28px;height:28px;border:0;"></td>
-<td style="vertical-align:middle;font-size:18px;line-height:28px;font-weight:800;letter-spacing:-0.01em;color:#161A2C;">Clovir<span style="color:#5A4FCF;">Assist</span></td>
+<td width="36" height="36" valign="middle" style="width:36px;height:36px;padding:0;font-size:0;line-height:36px;"><img src="cid:clovi-mark@clovirassist" width="36" height="36" alt="" style="display:block;width:36px;height:36px;border:0;outline:none;text-decoration:none;"></td>
+<td valign="middle" class="ca-word" style="padding:0 0 0 10px;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:20px;line-height:28px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:-0.01em;color:#161A2C;">Clovir<span style="color:#5A4FCF;">Assist</span></td>
 </tr>
 </table>
 </td>
 </tr>
 <tr>
-<td class="ca-wrap" style="padding:28px 32px 32px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;color:#161A2C;word-break:keep-all;">
-<h1 style="margin:0 0 12px 0;font-size:20px;line-height:1.4;font-weight:700;color:#161A2C;">승인 결과가 나왔습니다.</h1>
-<p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;color:#161A2C;">김하나 님이 올린 승인 요청에 결과가 나왔습니다.</p>
-<p style="margin:0 0 12px 0;font-size:15px;line-height:1.6;color:#161A2C;">내용은 ClovirAssist에서 확인하세요.</p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px 0;background:#F5F6FB;border-radius:6px;">
+<td class="ca-pad" style="padding:28px 32px 0 32px;">
+<p class="ca-muted" style="margin:0 0 8px 0;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:12px;line-height:16px;mso-line-height-rule:exactly;font-weight:600;color:#565E7A;">승인 결과 알림</p>
+</td>
+</tr>
 <tr>
-<td style="padding:10px 16px;font-size:13px;line-height:1.5;color:#565E7A;width:96px;vertical-align:top;white-space:nowrap;">알림</td>
-<td style="padding:10px 16px 10px 0;font-size:14px;line-height:1.5;color:#161A2C;word-break:keep-all;overflow-wrap:break-word;">승인됨: AI 문서 만들기</td>
+<td class="ca-pad" style="padding:0 32px 0 32px;">
+<h1 class="ca-ink" style="margin:0 0 12px 0;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:22px;line-height:30px;mso-line-height-rule:exactly;font-weight:700;color:#161A2C;">승인 결과가 나왔습니다.</h1>
+<p class="ca-ink" style="margin:0 0 12px 0;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#161A2C;">김하나 님이 올린 승인 요청에 결과가 나왔습니다.</p>
+<p class="ca-ink" style="margin:0 0 12px 0;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:15px;line-height:24px;mso-line-height-rule:exactly;color:#161A2C;">내용은 ClovirAssist에서 확인하세요.</p>
+</td>
+</tr>
+<tr>
+<td class="ca-pad" style="padding:4px 32px 20px 32px;">
+<table role="presentation" class="ca-facts" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F5F6FB" style="background-color:#F5F6FB;border-radius:6px;">
+<tr class="ca-fact">
+<td class="ca-fact-label ca-muted" width="120" valign="top" style="width:120px;padding:10px 12px 10px 16px;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#565E7A;">알림</td>
+<td class="ca-fact-value ca-ink" valign="top" style="padding:10px 16px 10px 0;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:14px;line-height:20px;mso-line-height-rule:exactly;color:#161A2C;word-break:keep-all;overflow-wrap:break-word;word-wrap:break-word;">승인됨: AI 문서 만들기</td>
 </tr>
 </table>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" class="ca-btn" style="margin:8px 0 16px 0;">
-<tr>
-<td style="border-radius:6px;background:#5A4FCF;"><a href="https://clovirassist.gooddi.lab/#/approvals" style="display:inline-block;padding:12px 20px;line-height:20px;font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;border-radius:6px;">ClovirAssist에서 보기</a></td>
+</td>
 </tr>
-</table>
-<p style="margin:0 0 16px 0;font-size:12px;line-height:1.6;color:#565E7A;">단추가 열리지 않으면 이 주소를 브라우저에 붙여 넣으세요.<br><span style="word-break:break-all;">https://clovirassist.gooddi.lab/#/approvals</span></p>
-<div style="height:1px;line-height:1px;font-size:1px;background:#DCDFEC;margin:24px 0 16px 0;">&nbsp;</div>
-<p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:#565E7A;">이 메일은 ClovirAssist의 승인 결과 알림 설정에 따라 보냈습니다.</p>
-<p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;"><a href="https://clovirassist.gooddi.lab/#/profile" style="color:#565E7A;text-decoration:underline;">알림 메일 설정 바꾸기</a></p>
-<p style="margin:0;font-size:12px;line-height:1.6;color:#565E7A;">이 메일은 발신 전용입니다.</p>
+<tr>
+<td class="ca-pad" style="padding:4px 32px 16px 32px;">
+<table role="presentation" class="ca-btn" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td class="ca-btn-cell" align="center" bgcolor="#5A4FCF" style="border-radius:6px;mso-padding-alt:0 24px;background-color:#5A4FCF;">
+<!--[if mso]>
+<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="https://clovirassist.gooddi.lab/#/approvals" style="height:44px;v-text-anchor:middle;width:225px;" arcsize="14%" stroke="f" fillcolor="#5A4FCF">
+<w:anchorlock/>
+<center style="color:#FFFFFF;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:15px;font-weight:bold;">ClovirAssist에서 보기</center>
+</v:roundrect>
+<![endif]-->
+<!--[if !mso]><!-->
+<a class="ca-btn-link" href="https://clovirassist.gooddi.lab/#/approvals" style="display:block;height:44px;line-height:44px;padding:0 24px;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;text-align:center;border-radius:6px;background:#5A4FCF;"><span style="color:#FFFFFF;">ClovirAssist에서 보기</span></a>
+<!--<![endif]-->
 </td>
 </tr>
 </table>
+</td>
+</tr>
+<tr>
+<td class="ca-pad" style="padding:0 32px 16px 32px;">
+<p class="ca-muted" style="margin:0;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:#565E7A;">단추가 열리지 않으면 이 주소를 브라우저에 붙여 넣으세요.</p>
+<!--[if mso]>
+<p style="margin:0;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:#565E7A;">https://clovirassist.gooddi.lab/#/approvals</p>
+<![endif]-->
+<!--[if !mso]><!-->
+<p class="ca-muted" style="margin:0;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:#565E7A;word-break:break-all;">https://clovirassist.gooddi.lab/#/approvals</p>
+<!--<![endif]-->
+</td>
+</tr>
+<tr>
+<td class="ca-pad" style="padding:12px 32px 16px 32px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td class="ca-rule" height="1" bgcolor="#DCDFEC" style="height:1px;font-size:1px;line-height:1px;mso-line-height-rule:exactly;background-color:#DCDFEC;">&nbsp;</td>
+</tr>
+</table>
+</td>
+</tr>
+<tr>
+<td class="ca-pad" style="padding:0 32px 28px 32px;">
+<p class="ca-muted" style="margin:0 0 4px 0;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:#565E7A;">이 메일은 ClovirAssist의 승인 결과 알림 설정에 따라 보냈습니다.</p>
+<p class="ca-muted" style="margin:0 0 4px 0;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:#565E7A;"><a class="ca-link" href="https://clovirassist.gooddi.lab/#/profile" style="font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;color:#565E7A;text-decoration:underline;">알림 메일 설정 바꾸기</a></p>
+<p class="ca-muted" style="margin:0;font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Helvetica,Arial,sans-serif;font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:#565E7A;">이 주소로는 답장할 수 없습니다.</p>
+</td>
+</tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
 </td>
 </tr>
 </table>

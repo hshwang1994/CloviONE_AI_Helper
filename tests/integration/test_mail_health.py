@@ -41,7 +41,7 @@ class FakeServer(FakeSmtp):
         self.fail_with = fail_with
         self.verified = 0
 
-    def send(self, config, secret_provider, *, to_email, subject, body, html=None, inline=None):
+    def send(self, config, secret_provider, *, to_email, subject, body, html=None, inline=None, headers=None):
         if self.fail_with is not None:
             raise self.fail_with
         self.sent.append({"to": to_email, "subject": subject, "body": body, "html": html})

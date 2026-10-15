@@ -190,6 +190,14 @@ class MailConfig:
     def sender_domain(self) -> str:
         return self.from_address.rsplit("@", 1)[-1].lower() if "@" in self.from_address else ""
 
+    @property
+    def ehlo_name(self) -> str:
+        """외부 SMTP 로 인사(EHLO)할 이름(D-572) - 설정의 서버 이름(HELO)이 도메인 모양일 때만. 비면 smtplib 기본값(이 서버의 FQDN)이다."""
+        from app.mail.relay_files import DOMAIN_RE
+
+        name = self.relay.helo_name
+        return name if name and DOMAIN_RE.match(name) else ""
+
     def public_view(self) -> dict:
         """화면에 그대로 내보내도 되는 모양. 비밀번호도, 비밀번호 칸의 이름도 싣지 않는다."""
         return {

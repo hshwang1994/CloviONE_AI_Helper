@@ -10,7 +10,9 @@ import { FONT_SIZE, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js";
 
 /* 메일 모양 미리 보기 (계획 M3, D-549) — 관리자가 사람들이 받는 메일의 모양을 본다. 디자인 검수 도구다.
  *
- * 종류(열 가지) · 보기(HTML · 텍스트) · 폭(데스크톱 680 · 모바일 375)을 고른다. 보기와 폭은 보는 방식 전환이라 세그먼티드다(RULES §3).
+ * 종류(열 가지) · 보기(HTML · 텍스트) · 폭(데스크톱 680 · 모바일 375) · 테마(라이트 · 다크)를 고른다. 보기 · 폭 · 테마는 보는 방식 전환이라
+ * 세그먼티드다(RULES §3). 테마는 서버가 그린다(D-571): 다크는 메일 앱의 다크 규칙을 강제로 세운 HTML 이고 라이트는 보는 사람의 운영체제가
+ * 다크여도 밝은 HTML 이다. 라이트는 서버 기본값이라 주소에 싣지 않는다. 틀의 바탕은 서버가 준 그 모양의 메일 바탕색이다.
  * 서버는 **표본만** 준다(`app/mail/samples.py` — 실제 사용자 · 티켓 · 토큰이 없다). HTML 은 빈 `sandbox` 의 `srcDoc` 틀 안에 그린다:
  * 문서가 아무것도 실행하지 못하고(스크립트 · 양식 · 팝업 없음), 전역 `X-Frame-Options: DENY` 라 `src` 주소는 쓸 수 없다.
  */
@@ -18,21 +20,23 @@ import { FONT_SIZE, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js";
 const VIEWS = [{ value: "html", label: "HTML" }, { value: "text", label: "텍스트" }];
 const WIDTHS = [{ value: "desktop", label: "데스크톱" }, { value: "mobile", label: "모바일" }];
 const WIDTH_PX = { desktop: 680, mobile: 375 };
+const SCHEMES = [{ value: "light", label: "라이트" }, { value: "dark", label: "다크" }];
 
 export function MailPreview() {
   const [kind, setKind] = React.useState("ticket_assigned");
   const [view, setView] = React.useState("html");
   const [width, setWidth] = React.useState("desktop");
+  const [scheme, setScheme] = React.useState("light");
   const kinds = useQuery({ queryKey: ["mail-templates"], queryFn: () => api("/api/admin/mail/templates") });
   const preview = useQuery({
-    queryKey: ["mail-template-preview", kind],
-    queryFn: () => api(`/api/admin/mail/templates/${encodeURIComponent(kind)}/preview`),
+    queryKey: ["mail-template-preview", kind, scheme],
+    queryFn: () => api(`/api/admin/mail/templates/${encodeURIComponent(kind)}/preview${scheme === "dark" ? "?scheme=dark" : ""}`),
   });
   const items = (kinds.data && kinds.data.items) || [];
   const data = preview.data;
   return (
     <Box sx={{ display: "grid", gap: 2, minWidth: 0 }} data-testid="mail-preview">
-      <FieldRow columns={["16rem", "max-content", "max-content"]}>
+      <FieldRow columns={["16rem", "max-content", "max-content", "max-content"]}>
         <Field label="종류" labelId="mail-preview-kind-label">
           <TextField id="mail-preview-kind" select size="small" fullWidth value={kind} onChange={(e) => setKind(e.target.value)}
             SelectProps={{ labelId: "mail-preview-kind-label" }}>
@@ -46,6 +50,9 @@ export function MailPreview() {
         </Field>
         <Field label="폭" fit>
           <Segmented ariaLabel="미리 보기 폭" value={width} options={WIDTHS} onChange={setWidth} />
+        </Field>
+        <Field label="테마" fit>
+          <Segmented ariaLabel="미리 보기 테마" value={scheme} options={SCHEMES} onChange={setScheme} />
         </Field>
       </FieldRow>
       {preview.isLoading ? <Skeleton lines={4} /> : preview.isError ? (
@@ -72,7 +79,11 @@ export function MailPreview() {
                 sandbox=""
                 srcDoc={data.html}
                 data-testid="mail-preview-frame"
-                sx={{ width: WIDTH_PX[width], maxWidth: "none", height: "40rem", border: 0, bgcolor: "background.paper", flex: "0 0 auto" }}
+                data-scheme={scheme}
+                sx={{
+                  width: WIDTH_PX[width], maxWidth: "none", height: "40rem", border: 0, flex: "0 0 auto",
+                  bgcolor: data.background || "background.paper", colorScheme: scheme,
+                }}
               />
             ) : (
               <Box

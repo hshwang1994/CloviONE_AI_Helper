@@ -1,6 +1,10 @@
-{#- ClovirAssist 메일 틀 (평문, D-549). HTML 틀과 같은 내용을 같은 순서로 쓴다. 이스케이프하지 않는다. -#}
+{#- ClovirAssist 메일 틀 (평문, D-549 · D-571). HTML 틀과 같은 내용을 같은 순서로 쓴다(머리 위 이름 → 제목 → 본문 → 사실 → 코드 → 단추 →
+    메모 → 바닥글 세 줄). 이스케이프하지 않는다. -#}
 {{ c.product_name }}
 
+{% if c.eyebrow %}
+{{ c.eyebrow }}
+{% endif %}
 {{ c.heading }}
 
 {% for paragraph in c.lead %}
@@ -29,10 +33,7 @@
 
 --
 {{ c.footer_reason }}
-{% for label, url in c.footer_links %}
-{{ label }}: {{ url }}
-{% endfor %}
-{% if c.support_email %}
-문의: {{ c.support_email }}
+{% if footer_line %}
+{{ footer_line }}
 {% endif %}
-이 메일은 발신 전용입니다.
+이 주소로는 답장할 수 없습니다.

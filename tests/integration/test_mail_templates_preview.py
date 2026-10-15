@@ -40,3 +40,20 @@ def test_the_preview_never_carries_database_content(client, db, login_as, make_u
 def test_a_plain_user_cannot_preview(client, login_as):
     h = {"X-CSRF-Token": login_as("user")}
     assert client.get("/api/admin/mail/templates", headers=h).status_code in (401, 403)
+
+
+def test_the_dark_scheme_forces_the_dark_rules_and_nothing_else(client, login_as):
+    """`?scheme=dark` 는 body 에 `data-ogsc` 를 단 같은 HTML 이다(D-571) - 보는 사람의 운영체제 설정과 상관없이 다크 모양을 본다."""
+    h = {"X-CSRF-Token": login_as("auditor")}
+    light = client.get("/api/admin/mail/templates/ticket_assigned/preview", headers=h).json()
+    dark = client.get("/api/admin/mail/templates/ticket_assigned/preview?scheme=dark", headers=h).json()
+    assert light["scheme"] == "light" and dark["scheme"] == "dark"
+    body_tag = lambda html: html[html.index("<body"):html.index(">", html.index("<body"))]  # noqa: E731
+    assert 'data-ogsc=""' in body_tag(dark["html"]) and "data-ogsc" not in body_tag(light["html"])
+    # 「라이트」는 보는 사람의 운영체제가 다크여도 밝다 - 다크 미디어 규칙만 꺼져 있고 나머지는 같은 HTML 이다.
+    assert "@media (prefers-color-scheme: dark)" in dark["html"] and "@media (prefers-color-scheme: dark)" not in light["html"]
+    unpinned = light["html"].replace("@media not all", "@media (prefers-color-scheme: dark)", 1)
+    assert dark["html"].replace(' data-ogsc=""', "", 1) == unpinned and dark["text"] == light["text"]
+    assert (light["background"], dark["background"]) == ("#F5F6FB", "#0A0C16")
+    assert client.get("/api/admin/mail/templates/ticket_assigned/preview?scheme=light", headers=h).json()["html"] == light["html"]
+    assert client.get("/api/admin/mail/templates/ticket_assigned/preview?scheme=sepia", headers=h).status_code == 422

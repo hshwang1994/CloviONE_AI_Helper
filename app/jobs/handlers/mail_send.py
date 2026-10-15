@@ -34,10 +34,16 @@ app/mail/renderers.py 모듈 docstring 에 적어 뒀다. 평문과 HTML 두 부
 
 발송이 끝나면 다음 서버가 본문을 받고 준 응답 한 줄(`250 … queued as …`)을 행에 남기고, 실패면 실패한 단계와 그 응답을
 남긴다. 접수는 「받은 편지함에 들어갔다」가 아니다 - 화면의 낱말이 그 차이를 지킨다(`app/mail/labels.py`).
+
+## 보내는 사람 이름과 더할 머리 (D-571 · D-572)
+
+보내는 사람 이름이 비어 있으면 제품 이름(`ui_branding.product_name`)으로 보낸다 - 받은 편지함에 주소만 덩그러니 서지 않게. 메일 내용이 정한
+머리(문의 주소로 가는 `Reply-To`, 알림 메일의 `List-Unsubscribe`)를 전송기에 넘긴다(`RenderedMail.headers`).
 """
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 
@@ -84,6 +90,15 @@ def _transport(ctx: WorkerContext):
     from app.mail.transport import SmtpTransport
 
     return SmtpTransport()
+
+
+def _with_sender_name(db: Session, config):
+    """보내는 사람 이름이 비었으면 제품 이름을 단 사본(D-572). 건강 상태 · 기록에는 저장된 설정 그대로를 쓴다(이 사본은 전송에만)."""
+    if config.from_name:
+        return config
+    from app.mail.content import product_name
+
+    return dataclasses.replace(config, from_name=product_name(db))
 
 
 def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
@@ -139,13 +154,14 @@ def handle_mail_send(db: Session, job: Job, ctx: WorkerContext) -> None:
     try:
         rendered = render_mail(db, delivery, ctx)
         receipt = _transport(ctx).send(
-            config,
+            _with_sender_name(db, config),
             secret_provider,
             to_email=delivery.to_email,
             subject=rendered.subject,
             body=rendered.text,
             html=rendered.html,
             inline=rendered.inline,
+            headers=rendered.headers,
         )
     except Exception as exc:
         # 렌더 실패도 발송 실패와 같은 자리에서 잡는다 - 렌더가 만든 토큰 행은 이 롤백과

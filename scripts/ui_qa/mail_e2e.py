@@ -12,7 +12,8 @@
     6 알림 메일 켬 + 티켓 배정 → 확인한 주소로 한 통
     7 알림 메일 끔 + 티켓 배정 → 0통
 
-받은 메일의 HTML 부분은 Playwright 로 600 · 375px 폭에 그려 스크린샷을 남긴다(시각 수용 8.5 의 「메일 미리 보기 · 모바일」 판정 자료).
+받은 메일의 HTML 부분은 Playwright 로 600 · 375px 폭 × 네 모양(밝음 · 밝음 그림 막힘 · 어둠 · 어둠 그림 막힘)에 그려 스크린샷을 남기고
+가로 넘침 · 주 단추 높이(44±1) · 단추 글자색(흰색)을 잰다(D-571). 그림은 메일에 붙은 CID 로고를 data 주소로 바꿔 그리고, 막힘은 `cid:` 그대로다.
 받는 주소는 `example.com` 시험 주소만 쓴다 — 실제 수신 주소는 랩 E2E(P18)의 화면 입력으로만 쓴다.
 
     python -m scripts.ui_qa.mail_e2e                # 결과 dist/mail-e2e/<시각>/
@@ -310,8 +311,27 @@ def run(out: Path, render: bool) -> int:
     return 0 if report.ok else 1
 
 
+# 네 모양(D-571) - (이름, 다크인가, 그림을 그리는가). 그림 막힘은 `cid:` 를 그대로 두어 브라우저가 그림을 못 찾게 한다.
+RENDER_VARIANTS = (("light", False, True), ("light-noimg", False, False), ("dark", True, True), ("dark-noimg", True, False))
+
+
+def _with_inline_images(mail: dict) -> str:
+    """HTML 의 `cid:` 그림을 메일에 붙은 그 그림의 data 주소로 바꾼다(받은 편지함이 그림을 보여 주는 모양)."""
+    import base64
+
+    html = mail["html"]
+    for part in mail["msg"].walk():
+        cid = str(part["Content-ID"] or "").strip("<>")
+        if cid and part.get_content_maintype() == "image":
+            data = base64.b64encode(part.get_payload(decode=True)).decode("ascii")
+            html = html.replace(f"cid:{cid}", f"data:{part.get_content_type()};base64,{data}")
+    return html
+
+
 def _render(out: Path, files: list[Path], report: Report) -> None:
     from playwright.sync_api import sync_playwright
+
+    from scripts.ui_qa.mail_render_matrix import MEASURE
 
     shots = out / "render"
     shots.mkdir(exist_ok=True)
@@ -321,14 +341,22 @@ def _render(out: Path, files: list[Path], report: Report) -> None:
             mail = _parse(path)
             if not mail["html"]:
                 continue
-            for width in (600, 375):
-                page = browser.new_page(viewport={"width": width, "height": 900})
-                page.set_content(mail["html"])
-                page.wait_for_timeout(150)
-                overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
-                page.screenshot(path=str(shots / f"{path.stem}-{width}.png"), full_page=True)
-                report.check(f"{path.stem} {width}px 가로 넘침 없음", overflow <= 1, f"{overflow}px")
-                page.close()
+            shown = _with_inline_images(mail)
+            for variant, dark, images in RENDER_VARIANTS:
+                html = shown if images else mail["html"]
+                for width in (600, 375):
+                    page = browser.new_page(viewport={"width": width, "height": 900}, color_scheme="dark" if dark else "light")
+                    page.set_content(html)
+                    page.wait_for_timeout(150)
+                    m = page.evaluate(MEASURE)
+                    page.screenshot(path=str(shots / f"{path.stem}-{variant}-{width}.png"), full_page=True)
+                    page.close()
+                    name = f"{path.stem} {variant} {width}px"
+                    report.check(f"{name} 가로 넘침 없음", m["overflow"] <= 1, f"{m['overflow']}px")
+                    button = m.get("button")
+                    if button:
+                        report.check(f"{name} 단추 높이 44", abs(button["height"] - 44) <= 1, f"{button['height']}px")
+                        report.check(f"{name} 단추 글자 흰색", button["color"] == "rgb(255, 255, 255)", str(button["color"]))
         browser.close()
 
 

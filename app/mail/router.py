@@ -73,6 +73,7 @@ from app.mail.config import (
     is_sendable,
     mail_status,
 )
+from app.mail.help import INBOX_ICON_HELP
 from app.mail.models import MAIL_SENT
 from app.mail.renderers import KIND_TEST
 from app.notifications.mail import admin_catalog as notification_mail_catalog
@@ -201,6 +202,8 @@ def status(request: Request, db: Session = Depends(get_db), principal: Principal
         },
         # 알림을 메일로도 보내기(계획 3.4) - 관리자가 허용한 유형과 고를 수 있는 유형 전부, 오래된 메일의 기준.
         "notification_mail": notification_mail_catalog(db),
+        # 고정 안내(D-572) - 받은 편지함의 보낸 사람 아이콘 조건(`app/mail/help.py`). 화면이 그대로 그린다.
+        "help": {"inbox_icon": INBOX_ICON_HELP},
     }
 
 
@@ -300,6 +303,28 @@ def _audit_value(value: dict) -> dict:
     return out
 
 
+def _address_domain(address) -> str:
+    text = str(address or "").strip().lower()
+    return text.rsplit("@", 1)[1] if "@" in text else ""
+
+
+def _bind_sender_domain(value: dict, stored: dict) -> None:
+    """로컬 릴레이의 보내는 도메인은 DKIM 키를 만든 도메인이다(D-572, 방어). 저장된 공개키(같은 선택자로 이어 쓴 키)가 있는데 보내는
+    주소의 도메인이 바뀌면, 서명을 켠 로컬 릴레이는 422 로 거절한다 - 보내는 주소(From)와 서명(d=)의 도메인이 갈라지면 받는 쪽이 DMARC
+    정렬 실패로 본다. 서명을 끈 채(또는 외부 SMTP 로) 바꾸면 옛 도메인의 공개키를 지운다 - 새 도메인의 것처럼 레코드를 내지 않게."""
+    relay = value.get("relay") or {}
+    key_domain = _address_domain(stored.get("from_address"))
+    new_domain = _address_domain(value.get("from_address"))
+    if not (relay.get("dkim_public") and key_domain and new_domain) or new_domain == key_domain:
+        return
+    if value.get("mode") == "local_relay" and relay.get("dkim_enabled"):
+        raise ValidationAppError(
+            f"보내는 주소의 도메인({new_domain})이 DKIM 키를 만든 도메인({key_domain})과 다릅니다. "
+            "다른 도메인으로 보내려면 DKIM 서명을 끄고 저장한 뒤 그 도메인의 키를 새로 만드세요."
+        )
+    relay["dkim_public"] = ""
+
+
 @router.get("/settings", dependencies=[Depends(require_permission(SYSTEM_CONFIGURE))])
 def get_settings(request: Request, db: Session = Depends(get_db)):
     """편집할 값 · 비밀번호 저장 여부 · 포트 프리셋 · 한도. 비밀번호 값은 없다."""
@@ -323,7 +348,8 @@ def put_settings(body: MailSettingsRequest, request: Request, db: Session = Depe
     value["ca_pem"] = str(value["ca_pem"] or "").strip()
     # 로컬 릴레이 칸: 보내지 않았으면 저장된 값을 그대로 둔다. DKIM 공개키는 서버가 적는 칸이라 저장된 값을 이어 쓰고, 선택자를
     # 바꾸면 비운다(새 선택자의 키를 만들면 다시 적힌다).
-    stored_relay = _stored_smtp(db).get("relay") or {}
+    stored = _stored_smtp(db)
+    stored_relay = stored.get("relay") or {}
     if value.get("relay") is None:
         value["relay"] = stored_relay
     else:
@@ -331,6 +357,7 @@ def put_settings(body: MailSettingsRequest, request: Request, db: Session = Depe
         relay["dkim_selector"] = str(relay.get("dkim_selector") or "").strip().lower()
         same_selector = relay["dkim_selector"] == str(stored_relay.get("dkim_selector") or "")
         relay["dkim_public"] = str(stored_relay.get("dkim_public") or "") if same_selector else ""
+    _bind_sender_domain(value, stored)
     # 저장 전에 모양부터 본다 - 비밀번호를 먼저 써 놓고 설정이 거절되면 반쪽만 저장된다.
     validate_value(SMTP_SETTING_KEY, value)
     now = request.app.state.clock.now()
@@ -995,16 +1022,28 @@ def templates():
 
 
 @router.get("/templates/{kind}/preview", dependencies=[Depends(require_roles(*CONSOLE_READ_ROLES))])
-def template_preview(kind: str, request: Request, db: Session = Depends(get_db)):
-    """표본 한 통 — 제목 · 평문 · HTML. **표본만 쓴다**(실제 사용자 · 티켓 · 토큰이 없다, `app/mail/samples.py`)."""
-    from app.mail.content import logo_data_uri, product_name, support_email
+def template_preview(
+    kind: str, request: Request, scheme: Literal["light", "dark"] = Query(default="light"), db: Session = Depends(get_db),
+):
+    """표본 한 통 — 제목 · 평문 · HTML. **표본만 쓴다**(실제 사용자 · 티켓 · 토큰이 없다, `app/mail/samples.py`).
+
+    ``scheme=dark`` 는 다크 규칙을 강제로 세운 HTML 이다(D-571 - body 의 `data-ogsc`). ``scheme=light`` 는 다크 미디어 규칙을 끈 HTML 이다 -
+    sandbox 틀 안의 `prefers-color-scheme` 은 보는 사람의 운영체제를 따라가서(Chromium 실측, 틀의 color-scheme 은 듣지 않는다) 운영체제가
+    다크인 관리자에게 「라이트」가 다크로 보였다. 실제 메일에는 두 규칙이 그대로 있다. ``background`` 는 그 모양의 메일 바탕색이다(틀의 바탕).
+    """
+    from app.mail.content import COLORS, COLORS_DARK, logo_data_uri, product_name, support_email
     from app.mail.samples import preview
 
     # 미리 보기는 sandbox iframe 이라 `cid:` 그림을 그릴 수 없다 - 같은 PNG 를 data 주소로 넣는다(실제 메일은 CID, D-561).
     rendered = preview(
         kind, product=product_name(db), base_url=str(getattr(request.app.state.settings, "app_base_url", "") or ""),
-        support=support_email(db), logo_src=logo_data_uri(),
+        support=support_email(db), logo_src=logo_data_uri(), force_dark=scheme == "dark",
     )
     if rendered is None:
         raise NotFoundError("미리 볼 수 없는 메일 종류입니다.")
-    return {"kind": kind, "subject": rendered.subject, "text": rendered.text, "html": rendered.html}
+    html = rendered.html
+    if scheme == "light":
+        html = html.replace("@media (prefers-color-scheme: dark)", "@media not all", 1)
+    background = (COLORS_DARK if scheme == "dark" else COLORS)["canvas"]
+    return {"kind": kind, "scheme": scheme, "background": background, "subject": rendered.subject, "text": rendered.text,
+            "html": html}

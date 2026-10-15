@@ -1,5 +1,6 @@
 ClovirAssist
 
+채팅방 초대 알림
 채팅방에 초대됐습니다.
 
 김하나 님을 채팅방에 초대했습니다.
@@ -12,4 +13,4 @@ ClovirAssist에서 보기: https://clovirassist.gooddi.lab/#/chat-rooms
 --
 이 메일은 ClovirAssist의 채팅방 초대 알림 설정에 따라 보냈습니다.
 알림 메일 설정 바꾸기: https://clovirassist.gooddi.lab/#/profile
-이 메일은 발신 전용입니다.
+이 주소로는 답장할 수 없습니다.

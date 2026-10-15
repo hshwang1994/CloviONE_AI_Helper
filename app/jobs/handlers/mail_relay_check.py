@@ -12,6 +12,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+from urllib.parse import urlsplit
 
 from sqlalchemy.orm import Session
 
@@ -86,6 +87,12 @@ def _probe_domain(db: Session, job: Job, config) -> tuple[str, str | None]:
     return domain, (email if email and email.isascii() else None)
 
 
+def _web_host(ctx: WorkerContext) -> str | None:
+    """이 설치의 웹 주소 이름(D-572) - 설치가 정한 접속 주소(`app_base_url`)의 호스트. IP 나 빈 값이면 None 이다."""
+    host = urlsplit(str(getattr(ctx.settings, "app_base_url", "") or "")).hostname or ""
+    return host.lower() if host and not host.replace(".", "").isdigit() and host != "localhost" else None
+
+
 def handle_mail_relay_check(db: Session, job: Job, ctx: WorkerContext) -> None:
     config = config_from_db(db)
     if not config.local_relay:
@@ -132,7 +139,7 @@ def handle_mail_relay_check(db: Session, job: Job, ctx: WorkerContext) -> None:
     result = relay_readiness.run_checks(
         config, helper_status=helper_status, app_verify=app_verify, smarthost_verify=smarthost_verify,
         system_dns=dns_factory(), compare_dns=[dns_factory([ip]) for ip in config.relay.compare_resolvers],
-        probe_domain=probe_domain, mx_probe=mx_probe,
+        probe_domain=probe_domain, mx_probe=mx_probe, web_host=_web_host(ctx),
     )
     relay_readiness.save(db, result, now=ctx.clock.now())
     db.commit()

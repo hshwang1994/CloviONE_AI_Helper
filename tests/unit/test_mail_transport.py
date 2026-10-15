@@ -77,8 +77,10 @@ class FakeServer:
     replies = {}
     does_esmtp = True
 
-    def __init__(self, host, port, timeout=None, context=None):
+    def __init__(self, host, port, timeout=None, context=None, local_hostname=None):
         self.calls = [("connect", host, port)]
+        # 인사(EHLO)에 쓸 이름(D-572) - 전송기가 설정의 서버 이름을 넘기는지 본다.
+        self.local_hostname = local_hostname
         FakeServer.last = self
 
     def _step(self, name, *rest):
@@ -327,3 +329,33 @@ def test_the_smtp_setting_validates_the_new_fields(patch, ok):
     else:
         with pytest.raises(ValidationAppError):
             _smtp(value)
+
+
+def test_external_smtp_greets_with_the_configured_server_name(fake_smtp, monkeypatch):
+    """D-572: 외부 SMTP 의 인사(EHLO) 이름은 설정의 서버 이름(HELO)이다 - 도메인 모양일 때만. 아니면 smtplib 기본값(None → 이 서버의 FQDN)."""
+    named = {**CONFIG, "relay": {"helo_name": "clovirassist-mail.example.com"}}
+    SmtpTransport().verify(smtp_config(named), _Secrets())
+    assert fake_smtp.last.local_hostname == "clovirassist-mail.example.com"
+    SmtpTransport().verify(smtp_config({**CONFIG, "relay": {"helo_name": "not a host name"}}), _Secrets())
+    assert fake_smtp.last.local_hostname is None
+    SmtpTransport().verify(smtp_config(CONFIG), _Secrets())
+    assert fake_smtp.last.local_hostname is None
+    # SSL 도 같다(연결과 함께 인사한다).
+    monkeypatch.setattr(transport.smtplib, "SMTP_SSL", FakeServer)
+    SmtpTransport().send(smtp_config({**named, "security": "ssl", "port": 465}), _Secrets(), to_email="u@example.com",
+                         subject="s", body="b")
+    assert fake_smtp.last.local_hostname == "clovirassist-mail.example.com"
+
+
+def test_send_carries_only_the_known_extra_headers(fake_smtp):
+    """D-571: 더할 머리는 이름을 골라 싣는다 - `Reply-To` · `List-Unsubscribe` 밖의 이름은 버린다(머리 주입의 문을 열지 않는다)."""
+    import email
+
+    SmtpTransport().send(smtp_config(CONFIG), _Secrets(), to_email="u@example.com", subject="s", body="b",
+                         headers={"Reply-To": "help@example.com", "List-Unsubscribe": "<https://x.example.com/#/profile>",
+                                  "Bcc": "evil@example.com"})
+    raw = next(c[1] for c in fake_smtp.last.calls if c[0] == "data")
+    message = email.message_from_bytes(raw)
+    assert message["Reply-To"] == "help@example.com"
+    assert message["List-Unsubscribe"] == "<https://x.example.com/#/profile>"
+    assert message["Bcc"] is None and message["List-Unsubscribe-Post"] is None

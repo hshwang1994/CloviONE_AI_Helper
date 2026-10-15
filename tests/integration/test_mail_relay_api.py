@@ -246,7 +246,7 @@ def test_check_job_runs_and_its_result_is_returned(client, app, login_as, helper
 class RelaySmtp(FakeSmtp):
     """로컬 릴레이처럼 큐 id 가 든 응답을 준다."""
 
-    def send(self, config, secret_provider, *, to_email, subject, body, html=None, inline=None):
+    def send(self, config, secret_provider, *, to_email, subject, body, html=None, inline=None, headers=None):
         from app.mail.transport import SendReceipt
 
         super().send(config, secret_provider, to_email=to_email, subject=subject, body=body, html=html)
@@ -325,3 +325,28 @@ def test_tracking_does_not_guess_when_the_helper_is_missing_and_gives_up_after_t
     assert row.remote_status == "unknown"
     detail = client.get("/api/admin/mail/deliveries/" + row.id, headers=_h(login_as)).json()["delivery"]
     assert detail["relay"]["remote_label"] == "결과를 알 수 없음"
+
+
+def test_the_from_domain_must_match_the_dkim_key_domain_in_local_relay(client, login_as, helper):
+    """D-572 방어: 서명을 켠 로컬 릴레이는 DKIM 키를 만든 도메인과 다른 보내는 주소를 422 로 거절한다. 서명을 끄고 바꾸면 옛 공개키를 지운다."""
+    h = _h(login_as)
+    direct = {"delivery": "direct", "helo_name": "mail.goodmit.co.kr", "dkim_enabled": False}
+    assert _save(client, h, relay=direct).status_code == 200
+    helper.set("mailrelay.dkim_generate", data={"public": "QUJD", "record_name": "ca1._domainkey.goodmit.co.kr"})
+    assert client.post("/api/admin/mail/relay/dkim", json={}, headers=h).status_code == 200
+    signed = {**direct, "dkim_selector": "ca1", "dkim_enabled": True}
+    assert _save(client, h, relay=signed).status_code == 200
+    r = _save(client, h, relay=signed, from_address="noreply@other.example")
+    assert r.status_code == 422 and "DKIM 키를 만든 도메인(goodmit.co.kr)" in r.text, r.text
+    assert client.get("/api/admin/mail/settings", headers=h).json()["settings"]["from_address"] == "noreply@goodmit.co.kr"
+    r = _save(client, h, relay={**signed, "dkim_enabled": False}, from_address="noreply@other.example")
+    assert r.status_code == 200 and r.json()["settings"]["relay"]["dkim_public"] == ""
+    # 외부 SMTP 는 이 서버가 서명하지 않는다 - 거절하지 않고 옛 공개키만 지운다.
+    from app.mail.router import _bind_sender_domain
+
+    value = {"mode": "external", "from_address": "noreply@third.example", "relay": {"dkim_public": "QUJD", "dkim_enabled": True}}
+    _bind_sender_domain(value, {"from_address": "noreply@goodmit.co.kr"})
+    assert value["relay"]["dkim_public"] == ""
+    same = {"mode": "local_relay", "from_address": "alerts@goodmit.co.kr", "relay": {"dkim_public": "QUJD", "dkim_enabled": True}}
+    _bind_sender_domain(same, {"from_address": "noreply@goodmit.co.kr"})
+    assert same["relay"]["dkim_public"] == "QUJD", "같은 도메인의 다른 주소는 그대로다"

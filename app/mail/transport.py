@@ -176,6 +176,7 @@ def _domain_of(address: str) -> str | None:
 
 def build_message(
     config: MailConfig, *, to_email: str, subject: str, body: str, html: str | None = None, inline=None,
+    reply_to: str | None = None, list_unsubscribe: str | None = None,
 ) -> EmailMessage:
     """보낼 메일 한 통. 받는 서버와 사람이 기대하는 머리를 갖춘다.
 
@@ -187,6 +188,8 @@ def build_message(
       고르고, HTML 을 못 그리는 앱과 사람이 읽는 원문은 평문을 본다. 둘 다 utf-8 이다.
     - `inline` 은 HTML 이 `cid:` 로 가리키는 그림 `(cid, bytes, media_type)` 들이다(D-561 로고). HTML 부분이 그 그림을 담은
       `multipart/related` 가 된다 - 원격 그림이 아니라 메일 안에 있어 그림을 막는 메일 앱에서도 받는 쪽 서버를 부르지 않는다.
+    - `reply_to` 는 답장이 갈 문의 주소(브랜딩에 있을 때만), `list_unsubscribe` 는 알림 메일의 설정 화면 주소 `<https://…>` 다(D-571).
+      둘 다 메일 내용(`content.mail_headers`)이 정한다. one-click(`List-Unsubscribe-Post`)은 싣지 않는다(P-129).
     """
     message = EmailMessage()
     message["From"] = formataddr((config.from_name, config.from_address)) if config.from_name else config.from_address
@@ -196,6 +199,10 @@ def build_message(
     message["Message-ID"] = make_msgid(domain=_domain_of(config.from_address))
     message["Auto-Submitted"] = "auto-generated"
     message["X-Auto-Response-Suppress"] = "All"
+    if reply_to:
+        message["Reply-To"] = reply_to
+    if list_unsubscribe:
+        message["List-Unsubscribe"] = list_unsubscribe
     message.set_content(body)
     if html:
         message.add_alternative(html, subtype="html")
@@ -367,12 +374,16 @@ class SmtpTransport:
         trail.append(STAGE_DNS)
         _resolve(config.host, config.port)
         trail.append(STAGE_CONNECT)
+        # 인사(EHLO)의 이름(D-572). 설정의 서버 이름(HELO)이 도메인 모양이면 그것을 내고, 아니면 smtplib 기본값(이 서버의 FQDN)이다 -
+        # 사설 FQDN(`*.lab`)으로 인사하면 받는 쪽이 점수를 깎는다.
+        hostname = getattr(config, "ehlo_name", "") or None
         if config.security == SECURITY_SSL:
-            server = smtplib.SMTP_SSL(config.host, config.port, timeout=timeout, context=tls_context(config))
+            server = smtplib.SMTP_SSL(config.host, config.port, local_hostname=hostname, timeout=timeout,
+                                      context=tls_context(config))
             # SSL 은 연결과 함께 보안 연결을 맺는다 - 여기까지 왔으면 그 단계도 지났다.
             trail.append(STAGE_TLS)
         else:
-            server = smtplib.SMTP(config.host, config.port, timeout=timeout)
+            server = smtplib.SMTP(config.host, config.port, local_hostname=hostname, timeout=timeout)
         try:
             trail.append(STAGE_GREETING)
             server.ehlo()
@@ -414,9 +425,15 @@ class SmtpTransport:
         body: str,
         html: str | None = None,
         inline=None,
+        headers=None,
     ) -> SendReceipt:
-        """보낸다. 보낸 메일의 `Message-ID` 와 다음 서버의 응답 한 줄을 돌려준다."""
-        message = build_message(config, to_email=to_email, subject=subject, body=body, html=html, inline=inline)
+        """보낸다. 보낸 메일의 `Message-ID` 와 다음 서버의 응답 한 줄을 돌려준다.
+
+        ``headers`` 는 메일 내용이 정한 더할 머리(`RenderedMail.headers`, D-571)다. 이름을 골라 싣는다 - `Reply-To` · `List-Unsubscribe`
+        밖의 이름은 무시한다(머리 주입의 문을 열지 않는다)."""
+        extra = dict(headers or {})
+        message = build_message(config, to_email=to_email, subject=subject, body=body, html=html, inline=inline,
+                                reply_to=extra.get("Reply-To"), list_unsubscribe=extra.get("List-Unsubscribe"))
         trail: list[str] = []
         try:
             server = self._open(config, secret_provider, trail)

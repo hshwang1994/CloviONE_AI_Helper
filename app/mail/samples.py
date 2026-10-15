@@ -202,11 +202,12 @@ def catalog() -> list[dict]:
 
 
 def preview(kind: str, *, product: str, base_url: str, support: str | None = None,
-            logo_src: str | None = None) -> c.RenderedMail | None:
-    """표본 한 통. 모르는 종류면 None. ``logo_src`` 는 미리 보기가 로고를 그릴 주소다(없으면 실제 메일처럼 CID)."""
+            logo_src: str | None = None, force_dark: bool = False) -> c.RenderedMail | None:
+    """표본 한 통. 모르는 종류면 None. ``logo_src`` 는 미리 보기가 로고를 그릴 주소다(없으면 실제 메일처럼 CID).
+    ``force_dark`` 는 미리 보기의 「다크」다(D-571, `content.render`)."""
     entry = _BY_KEY.get(kind)
     if entry is None:
         return None
     content = entry[1](product, base_url.rstrip("/"))
     content.support_email = support
-    return c.render(content, logo_src=logo_src)
+    return c.render(content, logo_src=logo_src, force_dark=force_dark)
