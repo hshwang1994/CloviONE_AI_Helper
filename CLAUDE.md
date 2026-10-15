@@ -8,7 +8,7 @@
 
 - Product Name: `ClovirAssist`
 - Technical Slug: `clovirassist`
-- Web Hostname: `clovirassist.gooddi.lab`
+- Web Hostname: `clovirassist.goodmit.co.kr` (2026-10-15 전환, 옛 이름 `clovirassist.gooddi.lab` 은 별칭 — D-573)
 - Brand 핵심 색상은 Purple/Indigo다.
 - Clovi는 핵심 Brand Character다.
 - Product-owned Source/Config/Runtime/Browser/Deployment/TLS에 의도하지 않은 Legacy Identity를 남기지 않는다.
@@ -221,7 +221,7 @@ UI/UX:
 
 Runtime/Deployment:
 - 실제 Runtime/Config/Service/TLS를 확인한다.
-- Canonical Hostname은 `clovirassist.gooddi.lab`이다.
+- Canonical Hostname은 `clovirassist.goodmit.co.kr`이다(옛 `clovirassist.gooddi.lab` 은 리디렉션 없는 별칭, D-573).
 - 테스트 서버라는 이유로 보안 계약을 약화하지 않는다.
 
 DB/Migration/Storage:
