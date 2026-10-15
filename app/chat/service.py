@@ -664,3 +664,22 @@ def conversation_view(conversation: Conversation, *, message_count: int | None =
     if message_count is not None:
         view["message_count"] = message_count
     return view
+
+
+def result_page(db: Session, user: User, message_db_id: str, rid: str, *, offset: int, sort: str | None, env) -> dict:
+    """답 아래 결과 블록의 한 쪽(「10건 더 보기」 · 정렬 바꾸기) — 모델을 부르지 않는다(`app/ai/assistant/paging.py`).
+
+    메시지 → 대화 주인을 먼저 본다. 지운 답 · 사람 메시지 · 없는 메시지는 404 다. 쓸 수 있는 도구는 **지금** 권한과 기능
+    플래그로 다시 거른다(블록을 만든 때가 아니다)."""
+    from app.ai.assistant import catalog, paging
+    from app.authz.service import has_permission
+
+    message = db.get(Message, message_db_id)
+    if message is None or message.deleted_at is not None:
+        raise NotFoundError("메시지를 찾을 수 없습니다.")
+    get_owned_conversation(db, user, message.conversation_id)
+    if message.role != ROLE_ASSISTANT_MSG:
+        raise NotFoundError("그 목록을 찾을 수 없습니다.")
+    allowed = {tool.name: tool for tool in catalog.available_tools(
+        can=lambda key: has_permission(db, user, key), flag=env.flag)}
+    return paging.next_page(db, user, message, rid, offset=offset, sort=sort, env=env, allowed=allowed)

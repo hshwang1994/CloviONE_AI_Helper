@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Path, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import OperationalError
@@ -31,6 +31,7 @@ from app.chat.service import (
     post_user_message,
     regenerate_message,
     rename_conversation,
+    result_page,
     retry_message,
     set_conversation_archived,
     set_message_feedback,
@@ -411,3 +412,31 @@ def patch_message_feedback(
 ):
     message = set_message_feedback(db, user, message_db_id, payload.feedback)
     return {"message": message_view(message)}
+
+
+@router.get("/api/messages/{message_db_id}/results/{rid}", dependencies=[Depends(require_chat_enabled)])
+def get_result_page(
+    request: Request,
+    message_db_id: str,
+    rid: str = Path(max_length=4, pattern="^r[0-9]{1,2}$"),
+    offset: int = Query(default=0, ge=0, le=200),
+    sort: str | None = Query(default=None, max_length=16),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """답 아래 결과 블록의 다음 쪽 · 다른 정렬. 읽기만 하고 모델을 부르지 않는다 — 사용 기록 · 한도 소비가 없다.
+    속도 제한은 보내기와 따로 센다(이어 보기가 질문 몫을 먹지 않게)."""
+    from app.ai.assistant import catalog
+
+    limit_key = f"chat-results:{user.id}"
+    if not request.app.state.chat_ratelimiter.allow(limit_key):
+        raise RateLimitedError(
+            "목록을 너무 빠르게 넘겼습니다. 잠시 후 다시 시도하세요.",
+            retry_after_seconds=request.app.state.chat_ratelimiter.retry_after_seconds(limit_key),
+        )
+    env = catalog.ToolEnv(
+        session_factory=request.app.state.session_factory, user_id=user.id, settings=request.app.state.settings,
+        outbound=request.app.state.outbound_client, gateway=getattr(request.app.state, "ai_gateway", None),
+        settings_cache=request.app.state.settings_cache, now=request.app.state.clock.now(),
+    )
+    return {"block": result_page(db, user, message_db_id, rid, offset=offset, sort=sort, env=env)}

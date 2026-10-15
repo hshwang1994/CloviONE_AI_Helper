@@ -47,6 +47,7 @@ def test_every_chat_route_is_closed_without_ai_use(client, login_as, db, app):
         ("patch", f"/api/messages/{message_id}/feedback", {"feedback": "up"}),
         ("get", "/api/me/ai-quota", None),
         ("post", "/api/conversations/archive-empty", {}),
+        ("get", f"/api/messages/{message_id}/results/r1", None),
     ]
     for method, path, body in calls:
         kwargs = {"headers": _h(csrf)}
