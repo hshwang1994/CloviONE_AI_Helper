@@ -588,9 +588,12 @@ def list_documents(
     include_archived: bool = False, archived_only: bool = False,
     created_by: str | None = None, drafts: bool = False, sort: str | None = None,
     updated_within_hours: int | None = None, now=None,
-    limit: int = 50, offset: int = 0,
+    limit: int = 50, offset: int = 0, edited_by: str | None = None,
 ) -> tuple[list[Document], int]:
     """문서 목록. **권한 조건이 상한 앞에 걸린다**(Z6 · D-202).
+
+    `edited_by` 는 「그 사람이 판을 하나라도 남긴 문서」다(`document_versions.author_id`) — AI 도우미의 「내가 고친
+    문서」가 쓴다. `created_by` 와 AND 로 겹칠 수 있다(둘 다 주면 둘 다 만족하는 문서).
 
     `folder_id` 는 그 폴더 **아래 전부**를 뜻한다. 직계 자식만 보여 주면 사용자는
     「분명 여기 넣었는데 없다」를 자주 만난다 — 폴더를 한 겹 더 만든 사실을 잊기 때문이다.
@@ -646,6 +649,12 @@ def list_documents(
         stmt = stmt.where(Document.archived.is_(False))
     if created_by:
         stmt = stmt.where(Document.created_by == created_by)
+    if edited_by:
+        from app.knowledge.models import DocumentVersion as _Version
+
+        stmt = stmt.where(
+            Document.id.in_(select(_Version.document_id).where(_Version.author_id == edited_by))
+        )
     if category_id:
         # 권한은 이미 걸린 clause 가 맡는다 — 남의 조직 카테고리 id 를 넘기면 그 분류의
         # 보이는 문서가 없어 0건이 될 뿐이다(`project_id` 필터와 같은 방식).
@@ -718,6 +727,30 @@ def list_documents(
         ).scalars().all()
     )
     return rows, int(total)
+
+
+def count_documents_by_legacy_author(db: Session, user: User, display_name: str | None) -> int:
+    """원본 작성자 이름(`legacy_author_name`)이 이 이름과 같은데 `created_by` 가 **이 사람이 아닌** 이관 문서의 수.
+
+    AI 도우미의 「내가 작성한 문서」는 `created_by == 나` 만 센다(D-567) — 이관 문서는 작성자를 계정으로 잇지 못해
+    `created_by` 가 비어 있고, 이름이 같다고 같은 사람이라고 단정할 수 없다. 그래서 그 수는 **따로** 세어 「넣지 않았다」고
+    말한다. 가시성 절과 보관 제외는 목록과 같은 문(`_document_scope`)을 지난다. 대조는 공용 접기 규칙이다.
+    """
+    from app.core.search_text import SQL_FUNCTION, fold
+
+    needle = fold(display_name)
+    if not needle:
+        return 0
+    _ctx, clause = _document_scope(db, user)
+    stmt = select(Document).where(
+        Document.archived.is_(False),
+        Document.legacy_author_name.isnot(None),
+        getattr(func, SQL_FUNCTION)(Document.legacy_author_name) == needle,
+        (Document.created_by.is_(None)) | (Document.created_by != user.id),
+    )
+    if clause is not None:
+        stmt = stmt.where(clause)
+    return int(db.execute(select(func.count()).select_from(stmt.order_by(None).subquery())).scalar_one())
 
 
 def count_archived_due_before(db: Session, user: User, cutoff) -> int:

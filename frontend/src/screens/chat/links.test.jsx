@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 
 vi.mock("../chat-helpers.js", async (importOriginal) => ({ ...(await importOriginal()), copyText: vi.fn() }));
 
-import { PlainUrl, linkifyText } from "./links.jsx";
+import { PlainUrl, linkifyText, renderInline } from "./links.jsx";
 import { copyText } from "../chat-helpers.js";
 import { ToastProvider } from "../../ui/kit.jsx";
 import { ThemeModeProvider } from "../../ui/ThemeModeProvider.jsx";
@@ -80,5 +80,39 @@ describe("주소 복사 실패는 그 자리의 한 줄이다 (핸드오프 RULE
     await user.click(button);
     await waitFor(() => expect(screen.queryByText("복사에 실패했습니다. 직접 선택해 복사하세요.")).toBeNull());
     expect(await screen.findByText("주소를 복사했습니다.")).toBeInTheDocument();
+  });
+});
+
+/* A8(D-569) — 조각 → React 노드. 조각을 만드는 판정(출처에 있는 경로만 링크)은 `chat-helpers.js::parseInline` 이 하고, 여기서는
+ * 그리기만 한다. 그래도 링크 경로는 한 번 더 본다 — 앱 안 출처 모양이 아니면 앵커를 만들지 않는다. */
+describe("renderInline (A8)", () => {
+  it("굵게는 <strong>, 출처 링크와 티켓 키는 같은 창의 해시 링크, 바깥 주소는 복사 단추다", () => {
+    const { container } = render(<div>{renderInline([
+      { t: "bold", children: [{ t: "text", text: "굵게" }] },
+      { t: "text", text: " " },
+      { t: "link", route: "/knowledge/d-1", label: "연차 규정" },
+      { t: "key", key: "ABCDEF-12", route: "/tickets/t-1" },
+      { t: "url", url: "https://example.com/a" },
+    ], "s")}</div>);
+    expect(container.querySelector("strong").textContent).toBe("굵게");
+    const anchors = [...container.querySelectorAll("a")].map((a) => [a.textContent, a.getAttribute("href")]);
+    expect(anchors).toEqual([["연차 규정", "#/knowledge/d-1"], ["ABCDEF-12", "#/tickets/t-1"]]);
+    expect(container.querySelector("button").textContent).toBe("https://example.com/a");
+  });
+
+  it("앱 안 출처 모양이 아닌 경로는 앵커를 만들지 않고 글자로 둔다", () => {
+    const { container } = render(<div>{renderInline([
+      { t: "link", route: "https://evil.example/x", label: "바깥" },
+      { t: "key", key: "ABCDEF-12", route: "javascript:alert(1)" },
+    ], "s")}</div>);
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toBe("바깥ABCDEF-12");
+  });
+
+  it("linkifyText 는 굵게와 마크다운 링크를 해석하지 않는다(문서 · 티켓 본문이 같은 함수를 쓴다)", () => {
+    const { container } = render(<div>{linkifyText("**굵게** [x](/knowledge/d-1)", "t")}</div>);
+    expect(container.querySelector("strong")).toBeNull();
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toBe("**굵게** [x](/knowledge/d-1)");
   });
 });

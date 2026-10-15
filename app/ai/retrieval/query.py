@@ -13,15 +13,26 @@
 |---|---|---|
 | `trgm` | `text_fold LIKE '%접은 질의%'` + 낱말별 `LIKE` 의 OR | **후보 생성의 정본.** 한국어 어절 내부 부분일치를 이것만 한다 |
 | `fts` | `to_tsvector @@ to_tsquery(낱말마다 앞부분 일치의 OR)`(낱말이 없으면 `plainto_tsquery`) | 어절 단위로 걸고 **낱말 뭉치의 순위를 매긴다.** 사람이 기억나는 대로 친 질의를 이 레인이 혼자 짊어진다(D-260) |
+| `vector` | `embedding <=> 질의벡터` | 글자가 안 겹쳐도 뜻이 가까운 것. 모델이 없으면 이 레인은 그냥 없다 |
 
 ## 질문에서 뽑은 낱말 (D-536)
 
 AI 에게는 사람이 **문장**을 쓴다(「연차 신청은 어떻게 하나요?」). 검색창 규칙(접은 질의 한 덩이 · 3자 이상 낱말의 AND)으로는
 그 문장이 0건이다. 그래서 두 레인이 `search_text.keywords()` 가 뽑은 낱말(조사 · 어미 · 부탁 말 · 잇는 말을 걷은 2자 이상 낱말,
-최대 여섯)을 **OR 로** 더 건다: 트라이그램 레인은 낱말마다 `LIKE` 가지를 붙이고 점수에 맞은 낱말 수의 절반을 더하며, FTS 레인은
+최대 여덟)을 **OR 로** 더 건다: 트라이그램 레인은 낱말마다 `LIKE` 가지를 붙이고 점수에 맞은 낱말의 가중치를 더하며, FTS 레인은
 낱말마다 앞부분 일치(`낱말:*`)를 `|` 로 잇는다. 낱말은 `[0-9a-z가-힣]` 뿐이라 질의 문법이 들어갈 길이 없다 — 여기서 한 번 더 본다.
 통합 검색 화면(`app/search`)은 이 규칙을 쓰지 않는다.
-| `vector` | `embedding <=> 질의벡터` | 글자가 안 겹쳐도 뜻이 가까운 것. 모델이 없으면 이 레인은 그냥 없다 |
+
+## 낱말의 무게 — 흔한 낱말은 가볍게 (D-568)
+
+맞은 낱말 수만 더하면 「프로젝트」처럼 어디에나 있는 낱말이 「하이닉스」처럼 드문 낱말과 같은 몫을 받는다. 그래서 보는
+사람의 가시 조각 안에서 낱말마다 **몇 조각에 있는가**(df)를 한 문장으로 세고(`keyword_weights`), 드문 낱말에 큰 무게를 준다:
+
+    w = KEYWORD_HIT_WEIGHT × clamp(ln((N+1)/(df+1)) / ln(N+1), 0.25, 1.0)
+
+`ts_stat` 대신 가시 조각 안에서 세는 이유는 둘이다 — 숨은 문서의 낱말 분포가 새지 않고, 보는 사람의 범위에서 드문 것이
+그 사람에게 드문 것이다. 동의어 표가 덧붙인 낱말(`search_synonyms.expand`)은 그 절반이다. 세기가 시간 상한에 걸리면
+모든 낱말이 같은 무게(예전 동작)로 돌아간다.
 
 ## 벡터를 문자열로 넘긴다
 
@@ -33,29 +44,42 @@ psycopg 는 파이썬 문자열을 `text` 로 보내므로, 캐스팅을 안 하
 
 from __future__ import annotations
 
+import logging
+import math
 import re
 
 from sqlalchemy import Float, Integer, case, cast, func, literal, literal_column, or_, select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql import Select
 
 from app.ai.catalog import FTS_CONFIG, VECTOR_DIM
 from app.ai.models import DocumentChunk, Vector
 from app.ai.retrieval import fusion
+from app.core import search_synonyms
 from app.core.search_text import fold, like_folded, like_pattern
 
 # 질의 정규화와 트라이그램 가지의 정본은 검색 모듈이다. 두 검색창이 같은 문장을 다르게
 # 다루면 「검색에서는 나오는데 AI 는 못 찾는다」가 되고, 그 차이는 아무 오류도 안 낸다.
 from app.search.query import MAX_QUERY_CHARS, normalize, trgm_condition
 
+logger = logging.getLogger("app.ai.retrieval")
+
 __all__ = [
     "LANE_CANDIDATES",
     "MAX_QUERY_CHARS",
     "chunk_rows",
+    "expand_keywords",
+    "fts_condition_for",
     "fts_lane",
+    "keyword_groups",
+    "df_statement",
+    "keyword_weights",
     "normalize_query",
+    "trgm_condition_for",
     "trgm_lane",
     "vector_lane",
     "vector_literal",
+    "word_condition",
     "visible_chunk_ids",
 ]
 
@@ -63,9 +87,13 @@ __all__ = [
 #: 한 레인이 혼자 상위를 다 차지해도 다른 레인의 상위가 밀려나지 않을 만큼은 넉넉하다.
 LANE_CANDIDATES = 50
 
-#: 트라이그램 점수에 더하는 「맞은 낱말 하나」의 몫. 유사도(0 ~ 1)는 긴 chunk 에서 작아지므로, 질문의 낱말을 여럿 담은 chunk 가
-#: 낱말 하나만 우연히 닮은 짧은 chunk 를 이기게 한다.
+#: 트라이그램 점수에 더하는 「맞은 낱말 하나」의 몫(가장 드문 낱말의 무게). 유사도(0 ~ 1)는 긴 chunk 에서 작아지므로,
+#: 질문의 낱말을 여럿 담은 chunk 가 낱말 하나만 우연히 닮은 짧은 chunk 를 이기게 한다.
 KEYWORD_HIT_WEIGHT = 0.5
+
+#: 무게의 아래 한계(흔한 낱말도 0 이 되지는 않는다)와 확장어의 몫.
+MIN_WEIGHT_FACTOR = 0.25
+EXPANDED_WEIGHT_FACTOR = 0.5
 
 #: 낱말이 될 수 있는 글자 — `search_text.keywords()` 와 같은 표다. FTS 질의 문자열에 넣기 전에 한 번 더 본다.
 _SAFE_KEYWORD = re.compile(r"[0-9a-z가-힣]+")
@@ -74,6 +102,11 @@ _SAFE_KEYWORD = re.compile(r"[0-9a-z가-힣]+")
 def safe_keywords(keywords) -> tuple[str, ...]:
     """질의 문법이 섞일 수 없는 낱말만 남긴다(`& | ! : * ( ) ' % _` · 역슬래시 · 공백이 든 것은 버린다)."""
     return tuple(k for k in (keywords or ()) if isinstance(k, str) and _SAFE_KEYWORD.fullmatch(k))
+
+
+def expand_keywords(words, *, limit: int = search_synonyms.MAX_EXPANSIONS) -> tuple[str, ...]:
+    """동의어 표가 덧붙이는 낱말(D-568). 원래 낱말과 겹치지 않고, 역시 안전한 꼴만 남는다."""
+    return safe_keywords(search_synonyms.expand(safe_keywords(words), limit=limit))
 
 
 def normalize_query(raw: str | None) -> str:
@@ -101,7 +134,127 @@ def _contains(pattern: str):
     return like_folded(DocumentChunk.text_fold, pattern, stored=True)
 
 
-def trgm_lane(query: str, *, keywords=(), narrowing=None, limit: int = LANE_CANDIDATES) -> Select:
+def _all_words(keywords, expanded) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(질문의 낱말, 확장어) — 둘 다 안전한 꼴이고 서로 겹치지 않는다."""
+    base = tuple(dict.fromkeys(safe_keywords(keywords)))
+    extra = tuple(w for w in dict.fromkeys(safe_keywords(expanded)) if w not in base)
+    return base, extra
+
+
+def uniform_weights(keywords, expanded=()) -> dict[str, float]:
+    """세지 않았을 때의 무게 — 질문의 낱말은 `KEYWORD_HIT_WEIGHT`, 확장어는 그 절반."""
+    base, extra = _all_words(keywords, expanded)
+    out = {w: KEYWORD_HIT_WEIGHT for w in base}
+    out.update({w: KEYWORD_HIT_WEIGHT * EXPANDED_WEIGHT_FACTOR for w in extra})
+    return out
+
+
+def idf_factor(n: int, df: int) -> float:
+    """조각 N 개 중 df 개에 있는 낱말의 무게 배율 — `[MIN_WEIGHT_FACTOR, 1.0]`. df 가 커질수록 작아진다(단조)."""
+    n = max(0, int(n))
+    df = max(0, min(int(df), n))
+    if n <= 0:
+        return 1.0
+    raw = math.log((n + 1) / (df + 1)) / math.log(n + 1)
+    return max(MIN_WEIGHT_FACTOR, min(1.0, raw))
+
+
+def df_statement(words, *, narrowing=None) -> Select:
+    """한 문장: 가시 조각 수(N)와 낱말마다 그 낱말이 든 조각 수(df). 열 순서는 `[N, df(words[0]), df(words[1]), …]` 이다."""
+    columns = [func.count()] + [
+        func.count().filter(word_condition(word)).label(f"df_{index}") for index, word in enumerate(words)
+    ]
+    stmt = select(*columns).select_from(DocumentChunk)
+    if narrowing is not None:
+        stmt = stmt.where(narrowing)
+    return stmt
+
+
+def keyword_weights(db, keywords, expanded=(), *, narrowing=None) -> dict[str, float]:
+    """낱말 → 트라이그램 점수에 더할 무게(D-568). **한 문장**으로 전체 N 과 낱말별 df 를 센다.
+
+    `narrowing` 은 권한 조건이다 — 보는 사람의 가시 조각 안에서만 센다(숨은 문서의 낱말 분포가 새지 않는다). 저장점
+    안에서 돌려서 시간 상한에 걸려도 바깥 트랜잭션이 깨지지 않고, 그때는 모든 낱말이 같은 무게다. `db` 가 없으면
+    같은 무게다(순수 SQL 조립 시험).
+    """
+    base, extra = _all_words(keywords, expanded)
+    words = base + extra
+    if not words:
+        return {}
+    if db is None:
+        return uniform_weights(base, extra)
+    stmt = df_statement(words, narrowing=narrowing)
+    try:
+        with db.begin_nested():
+            row = db.execute(stmt).one()
+    except DBAPIError:
+        logger.warning("낱말 무게를 제때 세지 못해 같은 무게로 찾는다")
+        return uniform_weights(base, extra)
+    total = int(row[0] or 0)
+    out: dict[str, float] = {}
+    for index, word in enumerate(words):
+        factor = idf_factor(total, int(row[index + 1] or 0))
+        share = EXPANDED_WEIGHT_FACTOR if word in extra else 1.0
+        out[word] = KEYWORD_HIT_WEIGHT * factor * share
+    return out
+
+
+def word_condition(word: str):
+    """낱말 하나가 조각의 접힌 글에 들어 있는가(LIKE 부분일치). 세기의 「모든 낱말」 판정도 이것을 쓴다."""
+    return _contains(like_pattern(fold(word)))
+
+
+def _mixed_script(word: str) -> bool:
+    has_hangul = any("가" <= ch <= "힣" for ch in word)
+    has_latin = any(ch.isascii() and ch.isalnum() for ch in word)
+    return has_hangul and has_latin
+
+
+def keyword_groups(keywords, expanded=()) -> list[tuple[str, ...]]:
+    """「모든 낱말이 든 문서」를 셀 때의 묶음(D-568). 질문의 낱말 하나와 그 대체어가 한 묶음이다.
+
+    대체어는 둘이다: 혼합 토큰의 조각(「sk하이닉스」 뒤의 「하이닉스」 · 「sk」 — `search_text.keywords` 가 통째 낱말 바로 뒤에
+    낸다)과 동의어 표의 짝(「네트워크」의 「nsx」). 묶음 안의 어느 하나만 있어도 그 낱말은 있는 것이다 — 「SK 하이닉스」라고
+    쓴 문서는 「sk」 조각이 없어도 「하이닉스」 묶음을 채운다.
+    """
+    base, extra = _all_words(keywords, expanded)
+    groups: list[list[str]] = []
+    for word in base:
+        head = groups[-1][0] if groups else None
+        if head is not None and word != head and word in head and _mixed_script(head):
+            groups[-1].append(word)
+        else:
+            groups.append([word])
+    for word in extra:
+        for group in groups:
+            if any(word in search_synonyms.partners_of(member) for member in group):
+                group.append(word)
+                break
+    return [tuple(group) for group in groups]
+
+
+def _keyword_hits(keywords, expanded) -> list[tuple[str, object]]:
+    """(낱말, LIKE 가지) 목록 — 질문의 낱말이 먼저, 확장어가 뒤다."""
+    base, extra = _all_words(keywords, expanded)
+    out = []
+    for word in base + extra:
+        folded = fold(word)
+        if folded:
+            out.append((word, _contains(like_pattern(folded))))
+    return out
+
+
+def trgm_condition_for(query: str, *, keywords=(), expanded=()):
+    """트라이그램 레인의 조건 하나 — 검색창 가지(`trgm_condition`) OR 낱말별 LIKE 가지. 세기(`count_matching_documents`)와
+    레인이 **같은 조건**을 쓴다(둘이 갈리면 「6건 중 8건을 보였다」가 된다)."""
+    hits = [clause for _word, clause in _keyword_hits(keywords, expanded)]
+    if hits:
+        return or_(trgm_condition(query, _contains), *hits)
+    return trgm_condition(query, _contains)
+
+
+def trgm_lane(query: str, *, keywords=(), expanded=(), weights=None, narrowing=None,
+              limit: int = LANE_CANDIDATES) -> Select:
     """트라이그램 레인. `ix_chunk_text_fold_trgm` 이 받는 모양이다.
 
     조건은 검색창과 **같은 가지**를 쓴다(`trgm_condition`): 접은 질의 전체 한 덩이, 그리고
@@ -109,19 +262,22 @@ def trgm_lane(query: str, *, keywords=(), narrowing=None, limit: int = LANE_CAND
     사람이 기억나는 대로 친 질의(`스프린트 정리`)를 이 레인이 통째로 놓친다 — S10 실측에서
     그 질의군의 MRR 이 **0.01** 이었다. 점수도 접힌 값끼리 잰다.
 
-    `keywords` 를 주면(AI 의 질문, D-536) 낱말마다 `LIKE` 가지를 OR 로 더 붙이고 맞은 낱말 수의 절반을 점수에 더한다.
+    `keywords` 를 주면(AI 의 질문, D-536) 낱말마다 `LIKE` 가지를 OR 로 더 붙이고 맞은 낱말의 무게(`weights`, 없으면
+    낱말마다 `KEYWORD_HIT_WEIGHT`, 확장어는 절반)를 점수에 더한다.
 
     `narrowing` 은 권한 조건이고 **`LIMIT` 앞에** 들어간다. 없으면(전역 관리자) 안 건다.
     """
-    words = [fold(k) for k in safe_keywords(keywords)]
-    hits = [_contains(like_pattern(word)) for word in words if word]
+    hits = _keyword_hits(keywords, expanded)
     score = func.similarity(DocumentChunk.text_fold, fold(query))
     if hits:
-        matched = cast(case((hits[0], 1), else_=0), Integer)
-        for hit in hits[1:]:
-            matched = matched + cast(case((hit, 1), else_=0), Integer)
-        score = score + KEYWORD_HIT_WEIGHT * matched
-        condition = or_(trgm_condition(query, _contains), *hits)
+        chosen = weights if weights is not None else uniform_weights(keywords, expanded)
+        matched = None
+        for word, clause in hits:
+            weight = float(chosen.get(word, KEYWORD_HIT_WEIGHT))
+            term = weight * cast(case((clause, 1), else_=0), Integer)
+            matched = term if matched is None else matched + term
+        score = score + matched
+        condition = or_(trgm_condition(query, _contains), *[clause for _word, clause in hits])
     else:
         condition = trgm_condition(query, _contains)
     stmt = select(DocumentChunk.id, cast(score, Float).label("score")).where(condition)
@@ -146,14 +302,16 @@ if not FTS_CONFIG.isalpha():
 _FTS_REGCONFIG = literal_column(f"'{FTS_CONFIG}'")
 
 
-def _tsquery(query: str, keywords=()):
+def _tsquery(query: str, keywords=(), expanded=()):
     """질의 → `tsquery`. 낱말이 없으면 `plainto_tsquery` 가 사용자가 친 글을 그대로 받는다.
 
     사람이 친 글은 `to_tsquery` 에 넣지 않는다 — 그쪽은 `&`·`|`·`!` 를 문법으로 읽어서, 검색창에 친 `A & B` 같은 글자가
     **문법 오류로 500** 을 만든다. 낱말(`keywords`)은 다르다: `[0-9a-z가-힣]` 만 남은 낱말이라(`safe_keywords`) 문법이 될 글자가
-    없고, 낱말마다 앞부분 일치(`낱말:*` — 「신청」이 「신청은」에 걸린다)를 `|` 로 이어 하나라도 맞으면 건다(D-536).
+    없고, 낱말마다 앞부분 일치(`낱말:*` — 「신청」이 「신청은」에 걸린다)를 `|` 로 이어 하나라도 맞으면 건다(D-536). 확장어도
+    같은 OR 에 든다.
     """
-    words = safe_keywords(keywords)
+    base, extra = _all_words(keywords, expanded)
+    words = base + extra
     if words:
         return func.to_tsquery(_FTS_REGCONFIG, literal(" | ".join(f"{w}:*" for w in words)))
     return func.plainto_tsquery(_FTS_REGCONFIG, query)
@@ -164,10 +322,15 @@ def _tsvector():
     return func.to_tsvector(_FTS_REGCONFIG, DocumentChunk.text_body)
 
 
-def fts_lane(query: str, *, keywords=(), narrowing=None, limit: int = LANE_CANDIDATES) -> Select:
+def fts_condition_for(query: str, *, keywords=(), expanded=()):
+    """전문검색 레인의 조건 하나 — 세기와 레인이 같은 조건을 쓴다."""
+    return _tsvector().op("@@")(_tsquery(query, keywords, expanded))
+
+
+def fts_lane(query: str, *, keywords=(), expanded=(), narrowing=None, limit: int = LANE_CANDIDATES) -> Select:
     """전문검색 레인. 어절 정확일치를 판별한다 — 후보 생성은 트라이그램의 몫이다. 낱말을 주면 OR 앞부분 일치다."""
     vector = _tsvector()
-    tsquery = _tsquery(query, keywords)
+    tsquery = _tsquery(query, keywords, expanded)
     score = func.ts_rank(vector, tsquery)
     stmt = select(DocumentChunk.id, cast(score, Float).label("score")).where(
         vector.op("@@")(tsquery)

@@ -4,19 +4,21 @@ import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
 import ConfirmationNumberOutlinedIcon from "@mui/icons-material/ConfirmationNumberOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import EventNoteOutlinedIcon from "@mui/icons-material/EventNoteOutlined";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
 import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import { Button } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, ICON, KO_WORD_BREAK, remPx } from "../../ui/theme.js";
+import { SOURCE_ROUTE_PREFIXES, safeSourceRoute } from "../chat-helpers.js";
 
-/* 「참고한 자료」 — 도우미가 도구로 확인한 티켓 · 문서 · 프로젝트 · 결재 · 게시글 (D-535 · D-538).
+/* 「참고한 자료」 — 도우미가 도구로 확인한 티켓 · 문서 · 프로젝트 · 결재 · 게시글 · 회의록 (D-535 · D-538 · D-569).
  *
- * 목록은 서버가 만든다(`structured.sources`, 경로가 있는 항목만 열두 개까지). 화면은 그 경로가 **앱 안 경로**일 때만 링크로
- * 그린다 — 허용한 다섯 갈래 밖의 값, 바깥 주소, `//` 로 시작하는 값은 버린다. 그림(`<img>`)은 그리지 않는다. 사람은 출처가
- * 아니다(서버가 싣지 않는다). */
+ * 목록은 서버가 만든다(`structured.sources`, 경로가 있는 항목만 서른 개까지, 답에 인용된 것이 먼저). 화면은 그 경로가 **앱 안
+ * 경로**일 때만 링크로 그린다 — 허용한 여섯 갈래 밖의 값, 바깥 주소, `//` 로 시작하는 값은 버린다. 그림(`<img>`)은 그리지
+ * 않는다. 사람은 출처가 아니다(서버가 싣지 않는다). 경로 판정(`safeSourceRoute`)은 답 안 링크와 같은 함수다(`chat-helpers.js`). */
 
-export const SOURCE_ROUTE_PREFIXES = ["/knowledge/", "/tickets/", "/projects/", "/my-approvals", "/board/"];
+export { SOURCE_ROUTE_PREFIXES, safeSourceRoute };
 
 const KINDS = {
   document: { label: "문서", Icon: DescriptionOutlinedIcon },
@@ -24,11 +26,12 @@ const KINDS = {
   project: { label: "프로젝트", Icon: FolderOutlinedIcon },
   approval: { label: "결재", Icon: FactCheckOutlinedIcon },
   board: { label: "게시글", Icon: ForumOutlinedIcon },
+  sprint: { label: "회의록", Icon: EventNoteOutlinedIcon },
 };
 
-export function safeSourceRoute(route) {
-  if (typeof route !== "string" || !route.startsWith("/") || route.startsWith("//")) return null;
-  return SOURCE_ROUTE_PREFIXES.some((prefix) => route.startsWith(prefix)) ? route : null;
+/** 화면에 서는 출처 — 아는 종류이고 경로가 앱 안 출처 모양인 것만. 답 안 링크도 이 목록의 경로로만 선다(MessageThread). */
+export function visibleSources(sources) {
+  return (Array.isArray(sources) ? sources : []).filter((s) => s && KINDS[s.type] && safeSourceRoute(s.route));
 }
 
 /* 옛 답(근거 검색 시절)의 `citations` 를 문서 출처로 옮긴다 — 지난 대화를 열어도 출처가 사라지지 않는다. */
@@ -50,7 +53,7 @@ function metaOf(source) {
 
 export function SourceList({ sources, title = "참고한 자료", limit = 8 }) {
   const [showAll, setShowAll] = React.useState(false);
-  const items = (Array.isArray(sources) ? sources : []).filter((s) => s && KINDS[s.type] && safeSourceRoute(s.route));
+  const items = visibleSources(sources);
   if (!items.length) return null;
   const shown = showAll ? items : items.slice(0, limit);
   return (

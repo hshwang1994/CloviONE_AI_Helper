@@ -190,8 +190,9 @@ def test_a_document_question_answers_with_document_sources(client, db, space, as
     assert [s["title"] for s in stored["sources"]] == ["연차 규정"]
     # 출처는 **눌러서 갈 수 있는 앱 안 주소**다 - 서버가 만든다.
     assert stored["sources"][0]["route"].startswith("/knowledge/")
+    # `total` 은 권한 안의 전체 수다 — 화면의 「확인한 내용」이 「N건 중 M건」을 쓴다(D-567).
     assert stored["tools"] == [{"name": "search_documents", "label": "사내 문서 검색", "ok": True, "count": 1,
-                                "query": "연차"}]
+                                "total": 1, "query": "연차"}]
     assert stored["rounds"] == 2
     assert stored["notice"] is None
     assert _user_message(db, posted["conversation_id"])["processing_status"] == PROC_DONE
@@ -469,3 +470,89 @@ def test_when_ai_is_off_the_send_is_refused_before_quota_and_queue(client, db, a
     assert body["error"]["details"]["reason"] == "off"
     assert len(db.execute(select(Job)).scalars().all()) == len(before)
     assert [m for m in _rows(db, posted["conversation_id"])] == []
+
+
+
+# ── 출처의 순서와 상한 · 닫힌 답 (D-569) ─────────────────────────────────────
+
+
+def test_sources_cited_in_the_answer_come_first(client, db, space, assistant, posted):
+    first = _seed_doc(db, space, "연차 규정", "연차는 입사 1년 뒤부터 15일이 생긴다.")
+    second = _seed_doc(db, space, "연차 보상 안내", "쓰지 못한 연차는 보상금으로 받는다.")
+    gateway = _gateway()
+    index_service.run_once(db, gateway=gateway, limit=50)
+    db.commit()
+    answer = f"보상은 [연차 보상 안내](/knowledge/{second.id}) 에 있습니다."
+    adapter = ScriptedToolAdapter([tool_call("search_documents", {"query": "연차"}), answer])
+    worker = assistant(adapter, gateway)
+
+    _send(client, posted, "연차 보상은 어떻게 되나요?")
+    worker.run_once()
+
+    stored = _stored(_replies(db, posted["conversation_id"])[0])
+    ids = [s["id"] for s in stored["sources"]]
+    assert set(ids) == {first.id, second.id}
+    assert ids[0] == second.id, "답에 인용된 출처가 앞에 서지 않았다"
+
+
+def test_the_source_list_is_capped_and_keeps_cited_ones_inside_the_cap():
+    from app.ai.assistant import results
+    from app.ai.assistant import turn as turn_mod
+
+    many = tuple({"type": "ticket", "id": f"t-{i:03d}", "title": f"티켓 {i}", "route": f"/tickets/t-{i:03d}",
+                  "key": f"ABCDEF-{i}"} for i in range(40))
+    execution = results.ok("search_tickets", [{"n": i} for i in range(10)], total=40, sources=many)
+    plain = turn_mod._sources([execution], "")
+    assert len(plain) == turn_mod.MAX_SOURCES == 30
+    assert [s["id"] for s in plain[:2]] == ["t-000", "t-001"], "인용이 없으면 도구가 준 순서다"
+    cited = turn_mod._sources([execution], "끝으로 ABCDEF-39 와 /tickets/t-035 를 보세요. ABCDEF-3 은 아닙니다.")
+    assert [s["id"] for s in cited[:3]] == ["t-003", "t-035", "t-039"]
+    assert len(cited) == 30
+    # 「ABCDEF-3」 이 「ABCDEF-39」 안에서 걸리지 않는다 — 키는 낱말 경계로 본다.
+    only = turn_mod._sources([execution], "ABCDEF-39 만 봅니다.")
+    assert only[0]["id"] == "t-039" and only[1]["id"] == "t-000"
+
+
+def test_a_tool_failure_then_a_refused_last_round_closes_with_the_found_sources(client, db, space, assistant, posted):
+    """도구 하나가 실패해도 차례는 이어지고, 마지막 라운드(도구 없이 답하라)를 제공자가 거절하면 찾은 자료로 닫는다."""
+    from app.ai import runtime as runtime_mod
+
+    _seed_doc(db, space, "연차 규정", "연차는 입사 1년 뒤부터 15일이 생긴다.")
+    gateway = _gateway()
+    index_service.run_once(db, gateway=gateway, limit=50)
+    db.commit()
+    refused = base.converse_failure(base.ERROR_REQUEST, "bad_request", http_status=400)
+    adapter = ScriptedToolAdapter([
+        tool_call("get_ticket", {"key": "ZZZZZZ-1"}),
+        tool_call("search_documents", {"query": "연차"}),
+        tool_call("search_documents", {"query": "연차 규정"}),
+        tool_call("my_work", {"view": "assigned"}),
+        refused,
+    ])
+    worker = assistant(adapter, gateway)
+
+    _send(client, posted, "연차 규정과 내 일을 알려 줘")
+    worker.run_once()
+
+    reply = _replies(db, posted["conversation_id"])[0]
+    stored = _stored(reply)
+    assert reply["content"] == runtime_mod.CLOSE_WITHOUT_ANSWER
+    assert stored["notice"] == "closed_without_answer"
+    assert [s["title"] for s in stored["sources"]] == ["연차 규정"]
+    assert [t["ok"] for t in stored["tools"]][:2] == [False, True], "실패한 도구가 「확인한 내용」에 남아야 한다"
+    assert _user_message(db, posted["conversation_id"])["processing_status"] == PROC_DONE
+
+
+def test_only_list_tools_carry_a_total_for_the_checked_lines():
+    from app.ai.assistant import results
+    from app.ai.assistant import turn as turn_mod
+
+    listed = results.ok("search_tickets", [{"n": 1}], total=25)
+    single = results.ok("get_ticket", [{"n": 1}])
+    unknown = results.ok("search_documents", [{"n": 1}], total=None)
+    failed = results.error("my_work", results.ERROR_UNAVAILABLE)
+    rows = {row["name"]: row for row in turn_mod._tools([listed, single, unknown, failed])}
+    assert rows["search_tickets"]["total"] == 25 and rows["search_tickets"]["count"] == 1
+    assert rows["get_ticket"]["total"] is None
+    assert rows["search_documents"]["total"] is None
+    assert rows["my_work"]["total"] is None and rows["my_work"]["ok"] is False

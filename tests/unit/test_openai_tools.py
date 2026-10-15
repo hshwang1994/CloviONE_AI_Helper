@@ -94,6 +94,33 @@ def test_api_key_body_carries_strict_function_tools_and_encrypted_reasoning():
     assert "stream" not in body
 
 
+@pytest.mark.parametrize("model,requested,expected", [
+    ("gpt-x", 64, openai.MIN_OUTPUT_TOKENS),
+    ("gpt-4.1", 4000, 4000),
+    ("gpt-5", 64, openai.REASONING_OUTPUT_FLOOR),
+    ("GPT-5-mini", 2048, openai.REASONING_OUTPUT_FLOOR),
+    ("o3", 1000, openai.REASONING_OUTPUT_FLOOR),
+    ("o4-mini", 20000, 20000),
+    ("gpt-6.1", None, openai.REASONING_OUTPUT_FLOOR),
+])
+def test_reasoning_models_get_a_higher_output_floor_on_the_api_key_path(model, requested, expected):
+    """추론 모델은 생각에 쓴 토큰까지 상한에 센다 — 도우미 답이 생각만 하다 잘리지 않게 하한을 높인다(D-570)."""
+    assert openai.output_tokens(model, requested) == expected
+    body = openai.converse_body(system="틀", turns=[base.UserTurn("내 일")], tools=[TOOL], tool_choice=base.TOOL_CHOICE_AUTO,
+                                model=model, max_output_tokens=requested, chatgpt=False)
+    assert body["max_output_tokens"] == expected
+    single = openai.request_body(system="틀", user="질문", model=model, max_output_tokens=requested, chatgpt=False)
+    assert single["max_output_tokens"] == expected
+
+
+def test_the_chatgpt_path_never_sends_an_output_limit_even_for_reasoning_models():
+    body = openai.converse_body(system="틀", turns=[base.UserTurn("내 일")], tools=[TOOL], tool_choice=base.TOOL_CHOICE_AUTO,
+                                model="gpt-5", max_output_tokens=64, chatgpt=True)
+    assert "max_output_tokens" not in body
+    assert "max_output_tokens" not in openai.request_body(system="틀", user="질문", model="gpt-5", max_output_tokens=64,
+                                                          chatgpt=True)
+
+
 def test_chatgpt_body_keeps_the_preview_contract():
     body = _body(True)
     assert body["stream"] is True and body["store"] is False

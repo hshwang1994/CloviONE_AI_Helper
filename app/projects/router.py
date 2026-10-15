@@ -134,6 +134,9 @@ def list_projects(
     overdue_milestones: bool = Query(default=False),
     sort: str | None = Query(default=None, max_length=32),
     order: str | None = Query(default=None, pattern="^(asc|desc)$"),
+    # 「내 프로젝트」 — 내가 구성원이거나 담당인 프로젝트로 **더 좁힌다**(범위는 그대로 먼저 걸린다). 사람은 서버가 정한다:
+    # 요청이 사용자 id 를 싣지 않는다. AI 도우미의 「내 프로젝트」(`search_projects(scope=mine)`)와 같은 조건이다(D-567).
+    mine: bool = Query(default=False),
     principal: Principal = Depends(get_principal),
     user: User = Depends(get_current_user),
 ):
@@ -154,6 +157,7 @@ def list_projects(
         limit=page.page_size,
         sort=sort,
         order=order,
+        member_user_id=user.id if mine else None,
     )
     return {
         "items": [_project_view(p) for p in rows],

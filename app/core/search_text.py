@@ -187,8 +187,9 @@ def matches_folded(haystack: str | None, raw: str | None) -> bool:
 #: 모델에 그대로 가는 질문의 상한. 표시형(`MAX_QUERY_CHARS`)과 따로다 — 질문을 100자로 자르면 뒤의 조건이 모델에 안 간다.
 MAX_QUESTION_CHARS = 4000
 
-#: 질문 하나에서 뽑는 낱말 수의 상한. 낱말마다 LIKE 가지가 하나씩 붙는다(2자 낱말은 인덱스를 못 탄다).
-MAX_KEYWORDS = 6
+#: 질문 하나에서 뽑는 낱말 수의 상한. 낱말마다 LIKE 가지가 하나씩 붙는다(2자 낱말은 인덱스를 못 탄다). 라틴 · 한글 혼합
+#: 토큰을 나눈 조각도 이 수에 든다(D-568) — 예전 여섯으로는 「SK하이닉스 프로젝트 진행 작업」이 조각 둘에 뒤 낱말을 잃었다.
+MAX_KEYWORDS = 8
 
 #: 낱말 끝에서 걷는 조사와 꾸미는 어미(「결재할」 · 「변경된」 · 「마감인」) — 긴 것부터 맞춘다.
 KEYWORD_PARTICLES: tuple[str, ...] = (
@@ -212,6 +213,8 @@ KEYWORD_STOPWORDS: frozenset[str] = frozenset((
 ))
 
 _KEYWORD_TOKEN = re.compile(r"[0-9a-z가-힣]+")
+#: 혼합 토큰의 글자 갈래 — 한글 덩이와 라틴 · 숫자 덩이(D-568).
+_SCRIPT_RUN = re.compile(r"[가-힣]+|[0-9a-z]+")
 
 
 def normalize_question(raw: str | None) -> str:
@@ -230,26 +233,59 @@ def _strip_tail(word: str, tails: tuple[str, ...]) -> str | None:
     return word
 
 
-def keywords(raw: str | None, *, limit: int = MAX_KEYWORDS) -> tuple[str, ...]:
+def _clean_word(token: str) -> str | None:
+    """토큰 하나 → 낱말(꼬리 · 조사를 걷은 것). 버릴 토큰이면 None."""
+    if token in KEYWORD_STOPWORDS:
+        return None
+    word = _strip_tail(token, KEYWORD_TAILS)
+    if word is None or word in KEYWORD_STOPWORDS:
+        return None
+    stripped = _strip_tail(word, KEYWORD_PARTICLES)
+    if stripped is not None:
+        word = stripped
+    if word in KEYWORD_STOPWORDS or len(word) < 2:
+        return None
+    return word
+
+
+def _script_parts(word: str) -> tuple[str, ...]:
+    """라틴 · 숫자와 한글이 붙은 낱말의 조각 — 한글 덩이 먼저, 그다음 라틴 · 숫자 덩이(D-568).
+
+    「sk하이닉스」 → 「하이닉스」, 「sk」. 문서가 「SK 하이닉스」로 띄어 쓰면 전문검색 레인은 그 둘을 다른 어절로 보고, 문서가
+    「하이닉스」만 쓰면 통째 낱말이 안 걸린다 — 그래서 통째 낱말 뒤에 조각을 함께 건다. 한 글자 조각은 버린다(전 행에 걸린다).
+    """
+    runs = _SCRIPT_RUN.findall(word)
+    if len(runs) < 2:
+        return ()
+    hangul = [r for r in runs if "가" <= r[0] <= "힣"]
+    latin = [r for r in runs if not ("가" <= r[0] <= "힣")]
+    return tuple(r for r in (*hangul, *latin) if len(r) >= 2)
+
+
+def keywords(raw: str | None, *, limit: int = MAX_KEYWORDS, split_mixed: bool = True) -> tuple[str, ...]:
     """사람이 쓴 질문 → 찾을 낱말(순서대로, 중복 없이, 2자 이상, 최대 `limit` 개).
 
     「인프라 정비 관련 문서 찾아줘」 → `("인프라", "정비")`, 「연차 신청은 어떻게 하나요?」 → `("연차", "신청")`.
     낱말은 NFKC · 소문자 · `[0-9a-z가-힣]` 뿐이다(FTS 질의 문법과 LIKE 메타문자가 들어갈 수 없다).
+
+    ``split_mixed`` 이면 라틴 · 한글이 붙은 낱말 뒤에 그 조각을 함께 낸다 — 「SK하이닉스 프로젝트」 →
+    `("sk하이닉스", "하이닉스", "sk", "프로젝트")`(D-568). 조각도 불용어 · 길이 규칙을 똑같이 지난다. 이 함수를 쓰는 곳은 AI 검색과
+    도우미의 검색 도구뿐이다 — 통합 검색 화면(`match="all"`)은 낱말을 뽑지 않는다(P-123).
     """
     text = unicodedata.normalize("NFKC", str(raw or "")).replace("İ", "i").lower()
     out: list[str] = []
+
+    def add(word: str | None) -> bool:
+        if word and word not in out:
+            out.append(word)
+        return len(out) >= limit
+
     for token in _KEYWORD_TOKEN.findall(text):
-        if token in KEYWORD_STOPWORDS:
+        word = _clean_word(token)
+        if word is None:
             continue
-        word = _strip_tail(token, KEYWORD_TAILS)
-        if word is None or word in KEYWORD_STOPWORDS:
-            continue
-        stripped = _strip_tail(word, KEYWORD_PARTICLES)
-        if stripped is not None:
-            word = stripped
-        if word in KEYWORD_STOPWORDS or len(word) < 2 or word in out:
-            continue
-        out.append(word)
-        if len(out) >= limit:
+        if add(word):
+            break
+        if split_mixed and any(add(part) for part in _script_parts(word) if _clean_word(part) == part):
             break
     return tuple(out)

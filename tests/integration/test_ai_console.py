@@ -281,3 +281,96 @@ def test_a_failed_verify_says_why_in_our_words(client, login_as, app, settings, 
     assert "raw-secret-ish" not in str(done), "제공자 원문이 화면으로 나갔다"
     assert done["state"]["state"] == "error"
     assert client.get("/api/admin/ai").json()["state"]["display"]["label"] == "연결 오류"
+
+
+# ── 문서 검색(의미 검색) 상태 — 정직한 낱말 (D-570) ─────────────────────────────────────────────────────────
+
+
+class _Embed:
+    """임베딩 능력 하나만 흉내 낸다 — 콘솔은 `capabilities().embed.status` 만 읽는다."""
+
+    def __init__(self, status):
+        from app.ai.gateway import contract
+
+        self.name, self.model, self.dim = "fake", "fake", 384
+        self._cap = (contract.available(contract.CAP_EMBED, model="fake") if status == "ok"
+                     else contract.unavailable(contract.CAP_EMBED, status, model="fake"))
+
+    def capability(self):
+        return self._cap
+
+
+@pytest.mark.parametrize("status", ["runtime_missing", "model_missing", "ok"])
+def test_the_embed_status_is_the_gateways_reason_in_our_words(status):
+    from app.ai.console import service
+    from app.ai.gateway import contract
+
+    gateway = contract.Gateway(enabled=True, embed_adapter=_Embed(status))
+    assert service.embed_status_of(gateway) == status
+    assert service.embed_status_of(contract.Gateway(enabled=False)) == "disabled"
+    assert service.embed_status_of(contract.Gateway(enabled=True, embed_adapter=None)) == "unconfigured"
+    assert service.embed_status_of(None) == "disabled"
+
+
+def test_the_document_search_label_and_hint_for_every_state():
+    from app.ai.console import service
+
+    labels = {status: service.embed_label(status) for status in service.EMBED_STATUSES}
+    assert labels == {
+        "disabled": "낱말 검색(의미 검색 기능 꺼짐)",
+        "unconfigured": "낱말 검색(의미 검색 모델 미설치)",
+        "runtime_missing": "낱말 검색(의미 검색 런타임 미설치)",
+        "model_missing": "낱말 검색(의미 검색 모델 미설치)",
+        "failed": "낱말 검색(의미 검색 오류)",
+        "ok": "낱말 검색 + 의미 검색",
+    }
+    assert service.embed_label("ok", pending=40, embedded=2197, chunks=2237) == \
+        "낱말 검색 + 의미 검색 준비 중(색인 2197/2237)"
+    assert service.embed_label("disabled", model_installed=True) == "낱말 검색(의미 검색 기능 꺼짐, 모델 설치됨)"
+    assert service.embed_hint("ok") is None
+    hint = service.embed_hint("disabled")
+    assert "sudo clovirassist ai --with-ai" in hint and "--download-model" in hint and hint.endswith("니다.")
+    assert service.embed_hint("model_missing") == hint
+    assert "ai-cli status" in service.embed_hint("failed")
+
+
+def test_next_step_names_the_server_command_only_when_the_connection_itself_is_fine():
+    from types import SimpleNamespace
+
+    from app.ai.console import service
+
+    config = SimpleNamespace(method=lambda: None, model="m")
+    ok = {"key": "ok"}
+    assert service.next_view(ok, config, {}, credentials={"ready": True},
+                             index={"embed_hint": service.EMBED_HINT}) == {"label": service.EMBED_HINT,
+                                                                         "action": "server"}
+    assert service.next_view(ok, config, {}, credentials={"ready": True}, index={"embed_hint": None}) is None
+    off = service.next_view({"key": "off"}, config, {}, credentials={"ready": True},
+                            index={"embed_hint": service.EMBED_HINT})
+    assert off["action"] == "enable", "연결 할 일이 의미 검색 안내에 가리면 안 된다"
+
+
+def test_the_overview_says_semantic_search_is_off_and_whether_the_model_is_already_there(
+    client, login_as, app, settings,
+):
+    from app.ai import catalog
+    from app.ai.gateway import contract, registry
+
+    csrf = login_as("system_admin")
+    app.state.ai_gateway = contract.Gateway(enabled=False)
+    index = client.get("/api/admin/ai", headers={"X-CSRF-Token": csrf}).json()["index"]
+    assert index["embed_status"] == "disabled"
+    assert index["embed_status_label"] == "낱말 검색(의미 검색 기능 꺼짐)"
+    assert index["model_installed"] is False
+    assert index["pending_embedding"] == index["chunks"] - index["embedded"]
+    assert index["semantic"] is False and "sudo clovirassist ai --with-ai" in index["embed_hint"]
+
+    config = registry.resolve_config(settings)
+    model = catalog.embedding_model(config.embed_model_id)
+    folder = registry.model_dir(config, model)
+    for name in model.required_files:
+        (folder / name).parent.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_bytes(b"x")
+    index = client.get("/api/admin/ai", headers={"X-CSRF-Token": csrf}).json()["index"]
+    assert index["model_installed"] is True
+    assert index["embed_status_label"] == "낱말 검색(의미 검색 기능 꺼짐, 모델 설치됨)"

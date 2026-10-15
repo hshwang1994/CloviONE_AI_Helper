@@ -28,7 +28,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 #: 파서 계약 판. 파싱 결과(텍스트·앵커)가 달라지면 올린다 → 그 판으로 만든 chunk 는 낡는다.
-PARSER_VERSION = "1"
+#: 2 — 첫 조각에 제목 줄과 「공간 · 분류 · 태그」 줄을 싣고, 본문이 빈 문서도 제목 조각 하나를 만든다(D-568). 올리면
+#: 훑기(`sweep_stale`)가 전 문서를 다시 색인하고, 글이 같은 조각의 벡터는 지문으로 다시 쓴다.
+PARSER_VERSION = "2"
 
 #: 임베딩 **방식** 판. 접두사·풀링·정규화·자르기가 달라지면 올린다.
 EMBEDDING_VERSION = "1"
@@ -158,3 +160,12 @@ RECOMMENDED_MODEL_PREFIXES: dict[tuple[str, str], tuple[str, ...]] = {
     ("openai", "api_key"): ("gpt-5", "gpt-4.1", "gpt-4o"),
     ("openai", "chatgpt"): (),
 }
+
+#: 추론 모델의 이름 앞머리(D-570). 추론 모델은 출력 토큰 상한 안에서 생각하는 데 쓴 토큰까지 세므로, 키 방식 요청은 이 모델에
+#: 더 높은 출력 하한을 건다(`app/ai/providers/openai.py::output_tokens`). 모델을 고르는 표가 아니라 이름을 알아보는 표다.
+REASONING_MODEL_PREFIXES: tuple[str, ...] = ("o1", "o3", "o4", "gpt-5", "gpt-6")
+
+
+def is_reasoning_model(model: str | None) -> bool:
+    name = (model or "").strip().lower()
+    return any(name.startswith(prefix) for prefix in REASONING_MODEL_PREFIXES)

@@ -1,9 +1,17 @@
-"""도구 결과 봉투 — 모델이 받는 모양 하나 (D-535).
+"""도구 결과 봉투 — 모델이 받는 모양 하나 (D-535 · 세기 계약).
 
-  성공  {"ok": true, "tool", "total", "truncated", "items": [...], "note"}
-  실패  {"ok": false, "tool", "error", "message"}
+  성공  {"ok": true, "tool", "total", "returned", "offset", "truncated", "items": [...], "note", …extra}
+  실패  {"ok": false, "tool", "error", "message", …extra}
+
+## `total` 은 권한 안의 정확한 수다
+
+`total` 은 **그 도구가 보는 범위(대화 주인의 권한) 안에서 조건에 맞는 전체 건수**이고, `items` 는 그중 한 쪽
+(`offset` 부터 `returned` 건)이다. 모델은 개수를 물으면 `total` 을 그대로 말하고 `items` 의 길이로 세지 않는다
+(`app/llm/prompt.py::ASSISTANT_COUNT_RULE`). 세지 못했으면(시간 초과) `total` 은 `null` 이고 `note` 가 그 사실을 말한다 —
+모르는 수를 돌려준 수로 꾸미지 않는다. `truncated` 는 「이 쪽 뒤에 더 있다」다.
 
 실패 코드는 여섯이다. 범위 밖 대상은 없는 대상과 **같은** `not_found` 와 같은 문장이다 - 존재를 흘리지 않는다.
+`ambiguous` 는 `extra={"candidates": [...]}` 로 후보를 싣는다 — 모델이 사용자에게 고르게 한다.
 런타임은 이 글을 개인정보 가리기 → 글자 상한 → 난스 칸 순서로 감싸 제공자에 보낸다(`app/ai/runtime.py`).
 """
 
@@ -28,6 +36,12 @@ MESSAGES: dict[str, str] = {
     ERROR_BUDGET_EXHAUSTED: "한 번의 답에 실을 수 있는 자료의 양을 넘었습니다. 지금까지 찾은 자료로 답하세요.",
 }
 
+#: 「전체 수를 세지 못했다」(시간 초과)의 note. `total` 이 `null` 일 때 함께 간다.
+TOTAL_UNKNOWN_NOTE = "전체 건수를 제때 세지 못해 total 이 비어 있습니다. 보인 항목만 사실로 말하고 전체 수는 말하지 마세요."
+
+#: `total` 을 안 주면 items 의 길이다. `None` 을 **명시**하면 「세지 못했다」다 — 둘은 다른 사실이라 기본값을 따로 둔다.
+AUTO = object()
+
 
 @dataclass(frozen=True)
 class Execution:
@@ -37,20 +51,41 @@ class Execution:
     content: str
     ok: bool
     count: int = 0
+    #: 권한 안의 전체 건수(화면의 「확인한 내용」이 「N건 중 M건」을 쓴다). 세지 못했으면 None.
+    total: int | None = None
     #: 화면의 「확인한 내용」에 보일 검색어(있을 때만).
     query: str | None = None
     #: 화면의 「참고한 자료」 후보 - 서버가 만든 경로가 있는 항목만(`turn.py` 가 모아 중복을 걷는다).
     sources: tuple = field(default_factory=tuple)
 
 
-def ok(tool: str, items: list, *, total: int | None = None, truncated: bool = False, note: str | None = None,
-       query: str | None = None, sources: tuple = ()) -> Execution:
-    body = {"ok": True, "tool": tool, "total": len(items) if total is None else int(total),
+def ok(tool: str, items: list, *, total=AUTO, truncated: bool | None = None, note: str | None = None,
+       query: str | None = None, sources: tuple = (), offset: int = 0, extra: dict | None = None) -> Execution:
+    """성공 봉투. ``total`` 을 안 주면 items 의 길이, ``None`` 이면 세지 못한 것이다(note 가 없으면 기본 문장을 단다).
+
+    ``truncated`` 를 안 주면 「offset + returned < total」로 정한다.
+    """
+    returned = len(items)
+    offset = max(0, int(offset or 0))
+    if total is AUTO:
+        count: int | None = returned
+    else:
+        count = None if total is None else int(total)
+    if truncated is None:
+        truncated = count is not None and offset + returned < count
+    if count is None and not note:
+        note = TOTAL_UNKNOWN_NOTE
+    body = {"ok": True, "tool": tool, "total": count, "returned": returned, "offset": offset,
             "truncated": bool(truncated), "items": items, "note": note}
+    for key, value in (extra or {}).items():
+        body.setdefault(key, value)
     return Execution(tool=tool, content=json.dumps(body, ensure_ascii=False, default=str), ok=True,
-                     count=len(items), query=query, sources=tuple(sources))
+                     count=returned, total=count, query=query, sources=tuple(sources))
 
 
-def error(tool: str, code: str, message: str | None = None, *, query: str | None = None) -> Execution:
+def error(tool: str, code: str, message: str | None = None, *, query: str | None = None,
+          extra: dict | None = None) -> Execution:
     body = {"ok": False, "tool": tool, "error": code, "message": message or MESSAGES[code]}
-    return Execution(tool=tool, content=json.dumps(body, ensure_ascii=False), ok=False, query=query)
+    for key, value in (extra or {}).items():
+        body.setdefault(key, value)
+    return Execution(tool=tool, content=json.dumps(body, ensure_ascii=False, default=str), ok=False, query=query)

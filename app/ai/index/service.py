@@ -46,6 +46,7 @@ from app.ai import catalog, chunking
 from app.ai.gateway import contract
 from app.ai.models import (
     ANCHOR_BLOCK,
+    ANCHOR_TEXT,
     SOURCE_DOCUMENT,
     SOURCE_FILE,
     STATE_FAILED,
@@ -361,21 +362,50 @@ def _collect_units(db: Session, document: Document) -> list[_Unit]:
     return out
 
 
+def _metadata_line(db: Session, document: Document) -> str:
+    """문서의 자리와 꼬리표 한 줄 — 「공간 인프라 운영, 분류 가이드, 태그 vmware nsx」(D-568).
+
+    본문에 없는 말로도 문서를 찾게 한다: 사람은 「인프라 공간의 VMware 문서」처럼 공간 · 분류 · 태그로 기억한다. 그 셋은
+    조각 표에 열이 없고 생성 열로 만들 수도 없다(다른 표의 값이다) — 그래서 **첫 조각의 글**에 싣는다. 태그 · 분류만 바꾸면
+    문서 판이 안 오르므로 다음 색인(저장 · 파서 판 · 훑기) 때 따라온다.
+    """
+    from app.knowledge import categories as categories_mod
+    from app.knowledge import tags as tags_mod
+    from app.knowledge.models import KnowledgeSpace
+
+    parts: list[str] = []
+    space = db.get(KnowledgeSpace, document.space_id) if document.space_id else None
+    if space is not None and (space.name or "").strip():
+        parts.append(f"공간 {space.name.strip()}")
+    category = categories_mod.of_documents(db, [document.id]).get(document.id)
+    if category is not None and (getattr(category, "name", "") or "").strip():
+        parts.append(f"분류 {category.name.strip()}")
+    names = [t.name.strip() for t in tags_mod.of_documents(db, [document.id]).get(document.id, []) if (t.name or "").strip()]
+    if names:
+        parts.append("태그 " + " ".join(names))
+    return ", ".join(parts)
+
+
 def _document_units(db: Session, document: Document) -> list[_Unit]:
-    """본문 블록 → 단위. 앵커는 **블록 id** 다 (D-198)."""
-    if not document.current_version_id:
-        return []
-    version = db.get(DocumentVersion, document.current_version_id)
-    if version is None:
-        return []
+    """본문 블록 → 단위. 앵커는 **블록 id** 다 (D-198).
+
+    첫 단위에만 제목 줄과 자리 줄(`_metadata_line`)을 얹는다(D-568). 전 chunk 에 얹으면 같은 문장이 chunk 수만큼 반복되어
+    검색에서 제목만으로도 문서 전체가 뜬다. 「첫」은 **글이 있는 첫 블록**이다 — 예전에는 0번 블록이 비면 제목이 어디에도
+    안 실렸다. 본문이 통째로 비어도 제목과 자리 줄로 단위 하나를 만든다 — 제목만 있는 문서도 AI 검색이 찾는다.
+    """
+    version = db.get(DocumentVersion, document.current_version_id) if document.current_version_id else None
     out: list[_Unit] = []
     title = (document.title or "").strip()
-    for ordinal, (block_id, _kind, text) in enumerate(blocks.iter_block_text(version.body or {})):
+    meta = _metadata_line(db, document)
+    head = "\n".join(part for part in (title, meta) if part)
+    first_block_id = ""
+    body_blocks = blocks.iter_block_text(version.body or {}) if version is not None else ()
+    for ordinal, (block_id, _kind, text) in enumerate(body_blocks):
+        if not first_block_id and block_id:
+            first_block_id = block_id
         if not text.strip():
             continue
-        # 첫 블록에만 제목을 얹는다. 전 chunk 에 얹으면 같은 문장이 chunk 수만큼
-        # 반복되어 검색에서 제목만으로도 문서 전체가 뜬다.
-        body = f"{title}\n{text}" if (ordinal == 0 and title) else text
+        body = f"{head}\n{text}" if (not out and head) else text
         out.append(
             _Unit(
                 source_kind=SOURCE_DOCUMENT,
@@ -386,6 +416,20 @@ def _document_units(db: Session, document: Document) -> list[_Unit]:
                     anchor_label=_label_of(text),
                     text=body,
                     ordinal=ordinal,
+                ),
+            )
+        )
+    if not out and title:
+        out.append(
+            _Unit(
+                source_kind=SOURCE_DOCUMENT,
+                file_id=None,
+                unit=ParsedUnit(
+                    anchor_kind=ANCHOR_BLOCK if first_block_id else ANCHOR_TEXT,
+                    anchor_ref=first_block_id,
+                    anchor_label=_label_of(title),
+                    text=head,
+                    ordinal=0,
                 ),
             )
         )

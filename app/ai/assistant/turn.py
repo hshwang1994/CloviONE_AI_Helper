@@ -6,9 +6,12 @@
 ## 도우미 메시지의 구조
 
     {kind: "assistant", status, mode, sources[{type, id, title, route, where?, status?, key?}],
-     tools[{name, label, ok, count, query?}], rounds, elapsed_ms, truncated, notice, model}
+     tools[{name, label, ok, count, total, query?}], rounds, elapsed_ms, truncated, notice, model}
 
-출처는 서버가 모은다(경로가 있는 항목만, 많아야 12개, 중복 없이). 사람은 출처가 아니다. ``notice`` 는 화면이 다르게 그릴
+출처는 서버가 모은다(경로가 있는 항목만, 많아야 30개, 중복 없이). **답에 인용된 것이 먼저다**(D-569) — 답의 글에 그 경로 ·
+id · 티켓 키가 있으면 앞으로, 나머지는 도구를 부른 순서다. 화면은 이 순서대로 그리고, 답 안의 링크는 이 목록의 경로와 같을
+때만 링크가 된다. 사람은 출처가 아니다. ``tools[].total`` 은 목록 도구가 센 권한 안의 전체 수(못 셌거나 단건 도구면 null)이고
+``count`` 는 돌려준 수다 — 화면의 「N건 중 M건」이 이 둘이다. ``notice`` 는 화면이 다르게 그릴
 사실이다 - ``no_results``(도구가 아무것도 찾지 못했다, 정상 답이다), ``closed_without_answer``(찾은 자료로 닫았다).
 「AI 를 쓸 수 없음」은 여기 오지 않는다 - 요청 자체가 409 다(채팅 라우터).
 """
@@ -16,6 +19,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -23,17 +27,19 @@ from sqlalchemy.orm import Session
 
 from app.ai.assistant import catalog, history
 
-MAX_SOURCES = 12
+MAX_SOURCES = 30
 NOTICE_NO_RESULTS = "no_results"
 NOTICE_CLOSED = "closed_without_answer"
+#: 「찾았는데 없었다」를 말할 수 있는 도구 — 목록을 돌려주는 도구다. 하나라도 결과가 있으면 「찾지 못함」이 아니다.
 _SEARCH_TOOLS = frozenset({"search_documents", "search_workspace", "search_tickets", "search_projects",
-                           "find_people", "recent_changes", "my_work", "my_approvals", "search"})
+                           "find_people", "recent_changes", "my_work", "my_approvals", "search",
+                           "my_documents", "my_notifications", "my_activity", "sprint_meetings"})
 _WEEKDAYS = ("월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일")
 
 #: 화면 길잡이 - 도우미가 쓰기 대신 안내할 경로. 화면이 이 경로를 앱 안 링크로 그린다.
 ROUTE_GUIDE = (
     "화면 길잡이: 새 티켓은 /new-ticket, 내 티켓은 /my-tickets, 내 결재함은 /my-approvals, "
-    "사내 문서는 /knowledge, 프로젝트는 /projects 에서 다룹니다."
+    "사내 문서는 /knowledge, 프로젝트는 /projects, 알림은 /notifications, 회차 회의는 /sprint 에서 다룹니다."
 )
 
 
@@ -73,7 +79,29 @@ def _screen_preload(target: dict | None, *, allowed: dict, env: catalog.ToolEnv)
     return execution if execution.ok else None
 
 
-def _sources(executions) -> list[dict]:
+_KEY_SHAPE = re.compile(r"^[A-Za-z0-9-]{3,40}$")
+
+
+def _cited(source: dict, text: str) -> bool:
+    """이 출처가 답의 글에 인용됐는가 — 경로(`?block=` 앞까지) · id · 티켓 키 · 결재 경로 중 하나가 글에 있다."""
+    if not text:
+        return False
+    route = str(source.get("route") or "")
+    base = route.split("?block=", 1)[0]
+    if base and base in text:
+        return True
+    ident = str(source.get("id") or "")
+    if len(ident) >= 8 and ident in text:
+        return True
+    key = source.get("key")
+    if isinstance(key, str) and _KEY_SHAPE.match(key):
+        if re.search(r"(?<![A-Za-z0-9-])" + re.escape(key) + r"(?![A-Za-z0-9-])", text):
+            return True
+    return False
+
+
+def _sources(executions, text: str = "") -> list[dict]:
+    """도구가 돌려준 출처를 모은다 — 경로가 있는 것만, 중복 없이, **답에 인용된 것 먼저**, 많아야 `MAX_SOURCES` 개."""
     out: list[dict] = []
     seen: set = set()
     for execution in executions:
@@ -83,9 +111,9 @@ def _sources(executions) -> list[dict]:
                 continue
             seen.add(key)
             out.append({k: v for k, v in source.items() if v is not None})
-            if len(out) >= MAX_SOURCES:
-                return out
-    return out
+    cited = [s for s in out if _cited(s, text)]
+    rest = [s for s in out if not _cited(s, text)]
+    return (cited + rest)[:MAX_SOURCES]
 
 
 def _tools(executions) -> list[dict]:
@@ -93,7 +121,10 @@ def _tools(executions) -> list[dict]:
     for execution in executions:
         tool = catalog.TOOLS.get(execution.tool)
         label = tool.label if tool else "사내 자료 검색"
-        entry = {"name": execution.tool, "label": label, "ok": bool(execution.ok), "count": int(execution.count)}
+        # 전체 수는 목록 도구만 싣는다 — 단건 도구(티켓 보기 · 문서 읽기 · 진행 현황)의 「1건」은 화면에 뜻이 없다.
+        total = getattr(execution, "total", None) if execution.tool in _SEARCH_TOOLS else None
+        entry = {"name": execution.tool, "label": label, "ok": bool(execution.ok), "count": int(execution.count),
+                 "total": total}
         if execution.query:
             entry["query"] = execution.query
         out.append(entry)
@@ -140,7 +171,7 @@ def run(db: Session, *, owner, user_message, conversation_id: str, runtime, env:
         "kind": "assistant",
         "status": outcome.status,
         "mode": outcome.mode,
-        "sources": _sources(executions),
+        "sources": _sources(executions, outcome.text or ""),
         "tools": _tools(outcome.executions),
         "rounds": outcome.rounds,
         "elapsed_ms": outcome.latency_ms,

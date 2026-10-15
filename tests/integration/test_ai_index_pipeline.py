@@ -408,3 +408,72 @@ def test_a_never_indexed_document_shows_up_as_pending(db, document):
     gateway = _gateway()
     index_service.sweep_stale(db, versions=index_service.current_versions(gateway))
     assert _state(db, document.id).status == STATE_PENDING
+
+
+# ── 첫 조각의 제목 줄과 자리 줄 · 파서 판 2 (D-568) ─────────────────────────────────────────────────────────
+
+
+def test_the_first_chunk_carries_the_space_category_and_tags(db, document):
+    """본문에 없는 말(공간 · 분류 · 태그)로도 문서를 찾는다 — 첫 조각의 글에 한 줄로 싣는다."""
+    from app.knowledge import categories as categories_mod
+    from app.knowledge import tags as knowledge_tags
+
+    category = categories_mod.create(db, DEFAULT_ORG_ID, "보안 가이드")
+    document.category_id = category.id
+    knowledge_tags.set_for_document(db, document, ["vmware", "nsx"])
+    db.flush()
+    _run(db, _gateway())
+    rows = _chunks(db, document.id)
+    lines = rows[0].text_body.split("\n")
+    assert lines[0] == "보안 정책 회의록"
+    assert lines[1].startswith("공간 설계 공간, 분류 보안 가이드, 태그 ")
+    assert "vmware" in lines[1] and "nsx" in lines[1]
+    assert sum(1 for r in rows if "공간 설계 공간" in r.text_body) == 1, "자리 줄이 첫 조각 밖에도 실렸다"
+
+
+def test_an_empty_first_block_does_not_lose_the_title(db, storage):
+    """예전에는 0번 블록이 비면 제목이 어디에도 안 실렸다 — 「첫」은 글이 있는 첫 블록이다."""
+    space = KnowledgeSpace(org_id=DEFAULT_ORG_ID, name="빈 줄 공간", slug="blank-first", owner_kind="organization")
+    db.add(space)
+    db.flush()
+    doc = Document(space_id=space.id, title="빈 줄로 시작하는 문서")
+    db.add(doc)
+    db.flush()
+    versions.snapshot(db, doc, {"type": "doc", "content": [
+        {"type": "paragraph", "content": []},
+        {"type": "paragraph", "content": [{"type": "text", "text": "둘째 블록에 본문이 있습니다."}]},
+    ]}, author_id=None)
+    db.flush()
+    _run(db, _gateway())
+    rows = _chunks(db, doc.id)
+    assert rows and rows[0].text_body.startswith("빈 줄로 시작하는 문서\n공간 빈 줄 공간")
+    assert "둘째 블록에 본문이 있습니다." in rows[0].text_body
+
+
+def test_a_title_only_document_still_becomes_one_searchable_chunk(db, storage):
+    space = KnowledgeSpace(org_id=DEFAULT_ORG_ID, name="제목 공간", slug="title-only", owner_kind="organization")
+    db.add(space)
+    db.flush()
+    doc = Document(space_id=space.id, title="제목만 있는 회의 안건")
+    db.add(doc)
+    db.flush()
+    versions.snapshot(db, doc, {"type": "doc", "content": [{"type": "paragraph", "content": []}]}, author_id=None)
+    db.flush()
+    _run(db, _gateway())
+    rows = _chunks(db, doc.id)
+    assert len(rows) == 1
+    assert rows[0].text_body == "제목만 있는 회의 안건\n공간 제목 공간"
+    assert rows[0].anchor_kind == ANCHOR_BLOCK and rows[0].anchor_ref, "빈 블록이라도 그 블록으로 데려간다"
+
+
+def test_raising_the_parser_version_makes_every_indexed_document_stale(db, document):
+    """파서 판을 올리면 훑기가 다시 색인한다 — 판 1 로 만든 랩의 조각이 판 2 의 첫 조각 줄을 얻는 길이다."""
+    gateway = _gateway()
+    _run(db, gateway)
+    state = _state(db, document.id)
+    assert state.parser_version == catalog.PARSER_VERSION == "2"
+    assert index_service.sweep_stale(db, versions=index_service.current_versions(gateway)) == 0
+    state.parser_version = "1"
+    db.flush()
+    assert index_service.sweep_stale(db, versions=index_service.current_versions(gateway)) == 1
+    assert _state(db, document.id).status == STATE_PENDING

@@ -17,6 +17,7 @@ from sqlalchemy import select
 
 from app.ai.assistant import catalog, results
 from tests.fakes.assistant import tool_env
+from tests.fixtures.org_tree import org_tree, people, resources  # noqa: F401 — fixture 재수출
 
 pytestmark = pytest.mark.integration
 
@@ -68,7 +69,7 @@ def test_the_read_only_transaction_is_really_read_only(app, db, make_user):
 
 def test_every_registered_tool_is_read_only_with_a_read_verb():
     write_verbs = ("create", "update", "delete", "remove", "send", "write", "approve", "reject", "assign", "set_")
-    assert len(catalog.REGISTRY) == 12
+    assert len(catalog.REGISTRY) == 17
     for tool in catalog.REGISTRY:
         assert tool.read_only is True
         assert not tool.name.startswith(write_verbs), tool.name
@@ -96,3 +97,35 @@ def test_the_assistant_package_does_not_import_chat_message_models():
                 pytest.fail(f"{path.name} 가 {module} 를 들인다")
         source = path.read_text(encoding="utf-8")
         assert "TeamChatMessage" not in source and "ChatMessage(" not in source
+
+
+@pytest.fixture()
+def reader_world(db, people, resources, make_ticket, make_space, make_knowledge_document, fake_clock):
+    from tests.fixtures.org_tree import D_A1
+
+    a1 = people["a1"]
+    make_ticket(project=resources["projects"]["a1"], title="읽기 시험 티켓", assignees=[a1.id], body="본문 구절입니다.")
+    space = make_space(name="읽기 시험 공간", dept=D_A1)
+    make_knowledge_document(space=space, title="읽기 시험 문서", text="운영 절차를 적습니다.", created_by=a1,
+                            updated_at=fake_clock.now())
+    db.commit()
+    return {"a1": a1, "project": resources["projects"]["a1"]}
+
+
+@pytest.mark.parametrize("name,arguments", [
+    ("my_documents", {"view": "edited", "sort": "title", "updated_within_days": 30}),
+    ("search_documents", {"query": "운영 절차", "offset": 0}),
+    ("my_work", {"view": "assigned", "sort": "completed", "statuses": ["진행", "완료"], "updated_within_days": 30}),
+    ("search_tickets", {"scope": "team", "query": "본문 구절", "match_body": True, "completed_within_days": 30,
+                        "sort": "updated"}),
+    ("project_activity", {"project": "PROJECT", "days": 60}),
+    ("my_notifications", {"unread_only": True, "days": 30}),
+    ("my_activity", {"days": 30, "kinds": ["tickets", "documents", "comments"]}),
+    ("sprint_meetings", {}),
+])
+def test_every_new_tool_completes_inside_the_read_only_transaction(app, reader_world, name, arguments):
+    """새 도구가 읽기 전용 세션에서 끝까지 돈다 — 숨은 쓰기(열람 기록 같은)가 있으면 DB 가 거절해 `unavailable` 이 된다."""
+    args = {k: (reader_world["project"].id if v == "PROJECT" else v) for k, v in arguments.items()}
+    tool = catalog.TOOLS[name]
+    outcome = catalog.run(tool, tool.args.model_validate(args), tool_env(app, reader_world["a1"]))
+    assert outcome.ok, outcome.content

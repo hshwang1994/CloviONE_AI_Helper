@@ -14,6 +14,7 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
 import { SourceList, safeSourceRoute, SOURCE_ROUTE_PREFIXES } from "./SourceList.jsx";
+import { RAIL_SOURCE_LIMIT, ResultsRail } from "./ResultsRail.jsx";
 import { ThemeModeProvider } from "../../ui/ThemeModeProvider.jsx";
 
 function renderList(sources, props) {
@@ -67,9 +68,30 @@ describe("참고한 자료", () => {
   });
 
   it("허용 경로 판정", () => {
-    expect(SOURCE_ROUTE_PREFIXES).toEqual(["/knowledge/", "/tickets/", "/projects/", "/my-approvals", "/board/"]);
+    expect(SOURCE_ROUTE_PREFIXES).toEqual(["/knowledge/", "/tickets/", "/projects/", "/my-approvals", "/board/", "/sprint"]);
     expect(safeSourceRoute("/my-approvals?id=a1")).toBe("/my-approvals?id=a1");
+    expect(safeSourceRoute("/sprint?team=dep-1&sprint=s-1")).toBe("/sprint?team=dep-1&sprint=s-1");
+    expect(safeSourceRoute("/sprints-x")).toBeNull();
     expect(safeSourceRoute("javascript:alert(1)")).toBeNull();
     expect(safeSourceRoute(null)).toBeNull();
+  });
+
+  it("회의록 출처는 「회의록」 종류로 스프린트 회의 화면을 가리킨다(A8)", () => {
+    renderList([{ type: "sprint", id: "s-1", title: "10월 2주 회차", route: "/sprint?team=dep-1&sprint=s-1" }]);
+    expect(screen.getByRole("link", { name: "10월 2주 회차" })).toHaveAttribute("href", "#/sprint?team=dep-1&sprint=s-1");
+    expect(screen.getByText("회의록")).toBeInTheDocument();
+  });
+});
+
+describe("참고한 자료 레일 (A8)", () => {
+  it("레일은 서버가 싣는 서른 개까지 접지 않고 세우고, 그 뒤만 「더 보기」 뒤에 둔다", async () => {
+    const user = userEvent.setup();
+    const many = Array.from({ length: 35 }, (_, i) => ({ ...DOC, id: "d" + i, title: "문서 " + i, route: "/knowledge/d" + i }));
+    const railMsg = { id: "a1", role: "assistant", created_at: "2026-01-01T00:00:03", structured: { kind: "assistant", sources: many } };
+    render(<ThemeModeProvider><ResultsRail railOpen railMsg={railMsg} railIsLast /></ThemeModeProvider>);
+    expect(RAIL_SOURCE_LIMIT).toBe(30);
+    expect(screen.getAllByRole("link")).toHaveLength(30);
+    await user.click(screen.getByRole("button", { name: "5개 더 보기" }));
+    expect(screen.getAllByRole("link")).toHaveLength(35);
   });
 });

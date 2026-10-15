@@ -18,11 +18,20 @@ import { ChatDaySeparator } from "../../ui/ChatDaySeparator.jsx";
 import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 import { objectParticle } from "../../lib/format.js";
 import {
-  checkedTools, copyText, elapsedLabel, fmtDateSep, fmtTime, msgAgeMs, searchedWords,
+  checkedTools, copyText, elapsedLabel, fmtDateSep, fmtTime, msgAgeMs, searchedWords, toolCountLabel,
 } from "../chat-helpers.js";
 import { BUBBLE_MAX } from "./layout.js";
 import { RichText } from "./RichText.jsx";
-import { SourceList, messageSources, safeSourceRoute } from "./SourceList.jsx";
+import { SourceList, messageSources, visibleSources } from "./SourceList.jsx";
+
+/* 「확인한 내용」 한 줄 — 도구 이름과 검색어를 문장으로 말하고, 서버가 센 수가 있으면 뒤에 「(25건 중 8건)」을 붙인다(D-567). */
+function checkedLine(tool) {
+  const sentence = tool.query
+    ? `${tool.label}에서 「${tool.query}」${objectParticle(tool.query)} 찾았습니다.`
+    : `${tool.label}${objectParticle(tool.label)} 확인했습니다.`;
+  const counted = toolCountLabel(tool);
+  return counted ? `${sentence} (${counted})` : sentence;
+}
 
 // ── 메시지 ──────────────────────────────────────────────────────────────────
 
@@ -41,11 +50,12 @@ export function Message({
   const isAssistant = m.role === "assistant";
   const content = m.content || "";
   /* 도우미 답의 구조(D-535) — 출처 · 확인한 내용 · 걸린 시간은 서버가 잰 값만 보인다. 옛 답(근거 검색 시절)의 인용은
-     문서 출처로 옮겨 그린다(`messageSources`). */
+     문서 출처로 옮겨 그린다(`messageSources`). 답 안의 링크와 티켓 키는 **이 답의 출처에 있는 것만** 링크가 된다(D-538 · D-569) —
+     모델이 지어낸 경로나 키는 글자로 남는다. 레일이 출처를 대신 보여 주는 때(`showSources=false`)에도 링크 판정은 같다. */
   const sources = isAssistant && !errorNotice ? messageSources(st) : [];
-  const keyLinks = new Map(sources
-    .filter((s) => s.type === "ticket" && s.key && safeSourceRoute(s.route))
-    .map((s) => [s.key, s.route]));
+  const linkable = visibleSources(sources);
+  const keyLinks = new Map(linkable.filter((s) => s.type === "ticket" && s.key).map((s) => [s.key, s.route]));
+  const routeLinks = new Set(linkable.map((s) => s.route));
   const tools = isAssistant && !errorNotice ? checkedTools(st) : [];
   const words = isAssistant && st.notice === "no_results" ? searchedWords(st) : [];
   const elapsed = isAssistant && !errorNotice ? elapsedLabel(st) : null;
@@ -76,8 +86,8 @@ export function Message({
       >
         {/* 화자 구분은 색/정렬뿐이라 스크린리더엔 안 들린다, 텍스트로도 알린다. */}
         <span className="sr-only">{isUser ? "나: " : "도우미: "}</span>
-        {/* 도우미 답은 머리글, 목록, 키-값으로 구조화(텍스트 노드 전용). 글 속 티켓 키는 그 답의 출처에 있을 때만 링크다. */}
-        {content ? (isAssistant ? <RichText text={content} keyLinks={keyLinks} /> : (
+        {/* 도우미 답은 머리글, 목록, 키-값, 굵게로 구조화(텍스트 노드 전용). 글 속 링크와 티켓 키는 그 답의 출처에 있을 때만 링크다. */}
+        {content ? (isAssistant ? <RichText text={content} keyLinks={keyLinks} routeLinks={routeLinks} /> : (
           <Typography sx={{ m: 0, fontSize: FONT_SIZE.body, lineHeight: 1.6, whiteSpace: "pre-wrap", ...KO_WORD_BREAK }}>{content}</Typography>
         )) : null}
         {attachments.length ? (
@@ -117,9 +127,7 @@ export function Message({
               <Box component="ul" role="list" sx={{ listStyle: "none", m: 0, mt: 0.5, p: 0, display: "grid", gap: 0.25 }}>
                 {tools.map((tool, i) => (
                   <Box key={i} component="li" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>
-                    {tool.query
-                      ? `${tool.label}에서 「${tool.query}」${objectParticle(tool.query)} 찾았습니다.`
-                      : `${tool.label}${objectParticle(tool.label)} 확인했습니다.`}
+                    {checkedLine(tool)}
                   </Box>
                 ))}
               </Box>

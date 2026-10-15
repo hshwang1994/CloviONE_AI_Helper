@@ -554,6 +554,12 @@ def build_filters(
         sort_dir=sort_dir,
         created_from=getattr(query, "created_from", None),
         created_to=getattr(query, "created_to", None),
+        # AI 도우미의 티켓 도구만 주는 칸이다(D-567). 화면 질의에는 이 이름이 없어 `None` 이고 화면 목록은 그대로다.
+        body_search=bool(getattr(query, "body_search", False)),
+        updated_from=getattr(query, "updated_from", None),
+        updated_to=getattr(query, "updated_to", None),
+        completed_from=getattr(query, "completed_from", None),
+        completed_to=getattr(query, "completed_to", None),
         est_wd_min=getattr(query, "est_wd_min", None),
         est_wd_max=getattr(query, "est_wd_max", None),
         act_wd_min=getattr(query, "act_wd_min", None),

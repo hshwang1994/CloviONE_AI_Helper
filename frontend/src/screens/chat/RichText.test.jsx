@@ -61,3 +61,92 @@ describe("RichText — 펜스 코드블록", () => {
     expect(container.querySelector("pre code").textContent).toBe("code");
   });
 });
+
+/* A8(D-569) — 답 안의 「**굵게**」는 굵게, 「[제목](경로)」는 **그 답의 출처와 같은 경로일 때만** 앱 안 링크다.
+ * 모델이 지어낸 경로는 앱 안 경로 모양이어도 링크가 되지 않고 원래 글자 그대로 남는다. 바깥 주소는 어느 경우에도 앵커가 아니다. */
+describe("RichText — 굵게 · 출처 링크 · 마크다운 머리글", () => {
+  it("「**글**」은 <strong> 으로 그린다", () => {
+    const { container } = render(<RichText text="**중요한** 내용입니다." />);
+    const strong = container.querySelector("strong");
+    expect(strong).not.toBeNull();
+    expect(strong.textContent).toBe("중요한");
+    expect(container.textContent).toBe("중요한 내용입니다.");
+  });
+
+  it("출처에 있는 경로의 링크는 같은 창의 해시 링크다", () => {
+    const { getByRole } = render(
+      <RichText text="[연차 규정](/knowledge/d-1) 을 보세요." routeLinks={new Set(["/knowledge/d-1"])} />,
+    );
+    expect(getByRole("link", { name: "연차 규정" })).toHaveAttribute("href", "#/knowledge/d-1");
+  });
+
+  it("출처에 없는 경로는 앱 안 경로 모양이어도 링크가 아니라 원래 글자 그대로다", () => {
+    const { container } = render(
+      <RichText text="[지어낸 문서](/knowledge/d-9) 를 보세요." routeLinks={new Set(["/knowledge/d-1"])} />,
+    );
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toContain("[지어낸 문서](/knowledge/d-9)");
+  });
+
+  it("출처 경로가 없으면(routeLinks 없음) 어떤 마크다운 링크도 링크가 아니다", () => {
+    const { container } = render(<RichText text="[연차 규정](/knowledge/d-1)" />);
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toBe("[연차 규정](/knowledge/d-1)");
+  });
+
+  it("문단 자리(?block=)만 다르면 같은 문서다 — 링크는 출처의 경로로 간다", () => {
+    const { getByRole } = render(
+      <RichText text="[연차 규정](/knowledge/d-1?block=b9)" routeLinks={new Set(["/knowledge/d-1?block=b2"])} />,
+    );
+    expect(getByRole("link", { name: "연차 규정" })).toHaveAttribute("href", "#/knowledge/d-1?block=b2");
+  });
+
+  it("「[글](https://…)」의 바깥 주소는 앵커가 되지 않는다(복사 단추로만 남는다)", () => {
+    const { container } = render(
+      <RichText text="[바깥](https://evil.example/a) 참고" routeLinks={new Set(["/knowledge/d-1", "https://evil.example/a"])} />,
+    );
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector("button").textContent).toBe("https://evil.example/a");
+    expect(container.textContent).toContain("[바깥](");
+  });
+
+  it("굵게 안의 출처 링크도 링크다", () => {
+    const { container } = render(
+      <RichText text="**[연차 규정](/knowledge/d-1)**" routeLinks={new Set(["/knowledge/d-1"])} />,
+    );
+    const anchor = container.querySelector("strong a");
+    expect(anchor).not.toBeNull();
+    expect(anchor).toHaveAttribute("href", "#/knowledge/d-1");
+  });
+
+  it("목록 항목 · 키-값 값 · 머리글 안에서도 같은 규칙이다", () => {
+    const routes = new Set(["/knowledge/d-1", "/tickets/t-1"]);
+    const { getByRole, container } = render(
+      <RichText
+        text={"[요약] **두 건**\n- [연차 규정](/knowledge/d-1) 홍길동, 2026-10-01\n- [가짜](/tickets/zz)\n\n문서: [연차 규정](/knowledge/d-1)\n티켓: [결재 화면](/tickets/t-1)"}
+        routeLinks={routes}
+      />,
+    );
+    expect(container.querySelector("h4 strong").textContent).toBe("두 건");
+    expect(container.querySelectorAll('a[href="#/knowledge/d-1"]')).toHaveLength(2);
+    expect(getByRole("link", { name: "결재 화면" })).toHaveAttribute("href", "#/tickets/t-1");
+    expect(container.textContent).toContain("[가짜](/tickets/zz)");
+  });
+
+  it("「# 제목」 · 「## 제목」은 머리글로 그린다(글자 그대로 남지 않는다)", () => {
+    const { getByRole, container } = render(<RichText text={"# 요약\n본문입니다.\n## 세부 사항 ##"} />);
+    expect(getByRole("heading", { name: "요약" })).toBeInTheDocument();
+    expect(getByRole("heading", { name: "세부 사항" })).toBeInTheDocument();
+    expect(container.textContent).not.toContain("#");
+  });
+
+  it("코드 블록 안의 굵게 · 링크는 해석하지 않는다", () => {
+    const { container } = render(
+      <RichText text={"```\n**not bold** [x](/knowledge/d-1)\n```"} routeLinks={new Set(["/knowledge/d-1"])} />,
+    );
+    const code = container.querySelector("pre code");
+    expect(code.textContent).toBe("**not bold** [x](/knowledge/d-1)");
+    expect(container.querySelector("strong")).toBeNull();
+    expect(container.querySelector("a")).toBeNull();
+  });
+});

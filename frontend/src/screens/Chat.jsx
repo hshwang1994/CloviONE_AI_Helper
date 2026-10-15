@@ -169,7 +169,7 @@ export function Chat() {
       : convs.isError ? <ErrorState layout="region" error={convs.error} onRetry={() => convs.refetch()} />
       : unavailable ? <AssistantUnavailable assistant={assistant} />
       : <Welcome mode={mascot} title="무엇을 도와드릴까요?" busy={starting} onPick={prefillFromPrompt}
-          help="내 업무와 사내 자료를 내 권한 안에서 찾아 답합니다." />)
+          help="문서, 티켓, 프로젝트, 결재, 알림, 회의록을 내 권한 안에서 찾아 답합니다. 팀 채팅 대화는 찾지 않습니다." />)
     : thread.isLoading ? <Skeleton lines={3} />
     : thread.isError && !items.length ? <ErrorState layout="region" error={thread.error} onRetry={() => thread.refetch()} />
     : unavailable ? <AssistantUnavailable assistant={assistant} />

@@ -25,6 +25,35 @@ from typing import Protocol
 from app.core.search_text import matches_folded
 
 
+def instant_of(value) -> datetime | None:
+    """시각 조건 하나 → naive UTC `datetime`. `datetime` 은 그대로, 'YYYY-MM-DD' · ISO 문자열은 읽는다. 못 읽으면 None."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None) if value.tzinfo else value
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day)
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=None) if parsed.tzinfo else parsed
+
+
+def _within(stamp, low, high, *, missing_ok: bool = False) -> bool:
+    """실시간 폴백 경로의 시각 범위 판정 — SQL 쪽(`query.filter_clauses`)과 같은 반개구간 `[low, high)`."""
+    lo, hi = instant_of(low), instant_of(high)
+    if lo is None and hi is None:
+        return True
+    if stamp is None:
+        return missing_ok
+    if lo is not None and stamp < lo:
+        return False
+    if hi is not None and stamp >= hi:
+        return False
+    return True
+
+
 def as_filter_values(value) -> tuple[str, ...]:
     """필터 값 하나와 여러 개를 같은 튜플로 편다.
 
@@ -138,6 +167,13 @@ class TicketFilters:
     sort_dir: str = "desc"
     created_from: str | None = None
     created_to: str | None = None
+    # AI 도우미의 티켓 도구만 거는 조건(D-567) — 화면 질의(`schemas.TicketListQuery`)에는 이 칸이 없어 `build_filters` 가
+    # `getattr` 로 읽고, 화면 목록은 그대로다. 시각은 naive UTC 순간(`datetime`) 이나 ISO 문자열이다.
+    body_search: bool = False                       # 검색어를 본문(`body_markdown`)에서도 찾는다(제목 · 이름과 OR)
+    updated_from: "datetime | str | None" = None
+    updated_to: "datetime | str | None" = None
+    completed_from: "datetime | str | None" = None
+    completed_to: "datetime | str | None" = None
     est_wd_min: float | None = None
     est_wd_max: float | None = None
     act_wd_min: float | None = None
@@ -181,10 +217,15 @@ class TicketFilters:
         assignees = as_filter_values(self.assignee_id)
         if assignees and not set(ticket.assignee_ids).intersection(assignees):
             return False
-        # SQL 쪽(`query.filter_clauses`)과 같은 뜻이다 — 제목 또는 티켓 이름, 공용 접기 규칙.
+        # SQL 쪽(`query.filter_clauses`)과 같은 뜻이다 — 제목 또는 티켓 이름(본문까지 찾으면 본문도), 공용 접기 규칙.
         if self.search and not (
             matches_folded(ticket.title, self.search) or matches_folded(ticket.key, self.search)
+            or (self.body_search and matches_folded(ticket.body_markdown, self.search))
         ):
+            return False
+        if not _within(getattr(ticket, "completed_at", None), self.completed_from, self.completed_to):
+            return False
+        if not _within(getattr(ticket, "updated_at", None), self.updated_from, self.updated_to, missing_ok=True):
             return False
         start, end = self.due_range
         if start is not None or end is not None:

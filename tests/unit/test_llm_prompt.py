@@ -139,3 +139,40 @@ def test_an_empty_body_is_refused_rather_than_summarized():
     """빈 본문으로 부르면 모델은 무언가를 지어낸다. 부르지 않는 편이 낫다."""
     with pytest.raises(prompt.EmptyBodyError):
         prompt.build_prompt(body="   \n\t ", nonce=NONCE)
+
+
+# ── AI 도우미의 고정 틀 (D-567 · D-569) ─────────────────────────────────────────────────────────────────────
+
+
+import pytest  # noqa: E402
+
+from app.ai.prompts import catalog as prompt_catalog  # noqa: E402
+
+
+@pytest.mark.parametrize("search_only", [False, True])
+def test_the_count_and_evidence_rules_are_in_the_fixed_frame_for_both_modes(search_only):
+    slot = prompt_catalog.get_slot(prompt_catalog.ASSISTANT)
+    system = prompt.assistant_system(role=slot.role, format_line=slot.format_line,
+                                     instruction="관리자가 바꾼 지시문입니다.", grounding=slot.grounding,
+                                     context_lines=("오늘은 2026년 10월 15일 목요일입니다(한국 시간).",),
+                                     search_only=search_only)
+    assert prompt.ASSISTANT_COUNT_RULE in system and prompt.ASSISTANT_EVIDENCE_RULE in system
+    # 틀은 지시문보다 앞에 선다 — 관리자 지시문은 틀을 바꾸지 못하고 그 뒤에 덧붙는다.
+    assert system.index(prompt.ASSISTANT_COUNT_RULE) < system.index("관리자가 바꾼 지시문입니다.")
+    assert system.index(prompt.DATA_NOT_INSTRUCTIONS) < system.index(prompt.ASSISTANT_COUNT_RULE)
+
+
+def test_the_count_rule_names_the_identity_tools_and_forbids_searching_the_askers_name():
+    rule = prompt.ASSISTANT_COUNT_RULE
+    for tool in ("my_documents", "my_work", "my_approvals", "my_notifications", "my_activity"):
+        assert tool in rule
+    assert "total" in rule and "items 의 길이로 세지 않습니다" in rule
+    assert "이름을 검색어로 넣지 않습니다" in rule
+
+
+def test_the_assistant_format_line_asks_for_source_routes_and_no_tables():
+    slot = prompt_catalog.get_slot(prompt_catalog.ASSISTANT)
+    assert "route 는 결과의 route 값을 그대로" in slot.format_line
+    assert "표와 # 머리글은 쓰지 않습니다" in slot.format_line
+    assert "몇 건 중 몇 건" in slot.instruction
+    assert slot.format_line.endswith(".")

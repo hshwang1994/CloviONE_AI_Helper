@@ -19,9 +19,9 @@ from sqlalchemy import case, false, func, or_, select
 
 from app.core.dates import parse_date
 from app.core.models_base import NAMES_SEP
-from app.core.search_text import contains_folded
+from app.core.search_text import contains_folded, like_folded, pattern_for
 from app.tickets.models import PROJECT_LINK_OK, TicketCache, api_page_id_expr
-from app.tickets.repository import PageSpec, TicketFilters, as_filter_values
+from app.tickets.repository import PageSpec, TicketFilters, as_filter_values, instant_of
 from app.work import workflow
 
 
@@ -53,6 +53,8 @@ ORDER = (
 SORT_KEYS = frozenset({
     "created_at", "updated_at", "due_date", "title", "status", "priority", "difficulty",
     "est_wd", "act_wd", "tid", "key",
+    # 「최근에 끝낸 순」 — AI 도우미의 티켓 도구가 쓴다(D-567). 끝나지 않은 티켓은 값이 없어 어느 방향이든 끝에 선다.
+    "completed_at",
 })
 
 # 우선순위는 업무 순서다. 문자열 가나다(긴급이 높음보다 뒤)로 정렬하면 틀린 일이 된다.
@@ -221,6 +223,9 @@ def filter_clauses(f: TicketFilters | None) -> list:
     # 접은 뒤 빈 검색어(공백·제로폭 공백만)는 조건이 아니다.
     search_clause = contains_folded((TicketCache.title, TicketCache.canonical_key), f.search)
     if search_clause is not None:
+        if f.body_search:
+            # 본문까지(AI 도우미, D-567). 제목 · 이름 절과 OR 이다 — 본문에만 있는 구절도 찾는다. 범위 절은 따로 AND 로 걸린다.
+            search_clause = or_(search_clause, like_folded(TicketCache.body_markdown, pattern_for(f.search)))
         out.append(search_clause)
     start, end = (parse_date(v) for v in f.due_range)
     if start is not None or end is not None:
@@ -235,6 +240,16 @@ def filter_clauses(f: TicketFilters | None) -> list:
         out.append(TicketCache.created_at >= created_from)
     if created_to is not None:
         out.append(TicketCache.created_at < created_to + timedelta(days=1))
+    # 바뀐 시각 · 끝난 시각 범위(반개구간). 끝난 시각이 없는(끝나지 않은) 티켓은 끝난 시각 조건에서 빠진다.
+    for column, low, high in (
+        (TicketCache.updated_at, f.updated_from, f.updated_to),
+        (TicketCache.completed_at, f.completed_from, f.completed_to),
+    ):
+        lo, hi = instant_of(low), instant_of(high)
+        if lo is not None:
+            out.append(column >= lo)
+        if hi is not None:
+            out.append(column < hi)
     out.extend(number_range_clauses(TicketCache.est_wd, f.est_wd_min, f.est_wd_max))
     out.extend(number_range_clauses(TicketCache.act_wd, f.act_wd_min, f.act_wd_max))
     if f.exclude_statuses:

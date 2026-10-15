@@ -139,3 +139,39 @@ def test_a_provider_tool_result_is_marked_as_an_error_when_the_tool_failed(app, 
     ])
     result = _results(adapter, 1)[0]
     assert isinstance(result, base.ToolResult) and result.is_error is True
+
+
+def test_a_document_that_orders_the_new_tools_still_gets_only_the_owners_scope(app, db, world, resources, people,
+                                                                               fake_clock):
+    """주입 문서가 새 도구 넷(D-567)을 남의 대상으로 부르게 해도 — 다른 부서 프로젝트의 진행 현황 · 문서, 남의 알림, 다른 팀의
+    회의록 — 결과는 대화 주인의 범위 안뿐이다. 「나」는 서버가 정하므로 도구에 다른 사람을 넣을 칸이 없다."""
+    from app.notifications.models import Notification
+    from app.work.models import Sprint, SprintDecision
+    from tests.fixtures.org_tree import D_B1
+
+    now = fake_clock.now()
+    b1_project = resources["projects"]["b1"]
+    db.add(Notification(user_id=people["b1"].id, type="ticket_assigned", title="B1 사람의 비밀 알림", created_at=now))
+    sprint = Sprint(name="B1 비밀 회차", department_id=D_B1, starts_on=now.date(), ends_on=now.date().replace(day=28),
+                    state="active")
+    db.add(sprint)
+    db.flush()
+    db.add(SprintDecision(sprint_id=sprint.id, kind="decision", body="B1 회의의 비밀 결정"))
+    db.commit()
+
+    reply, adapter = run_turn(app, db, world["a1"], "연차 안내 문서를 보여줘", [
+        tool_call("search_documents", {"query": "연차"}),
+        [tool_call("project_activity", {"project": b1_project.code}),
+         tool_call("my_documents", {"project": b1_project.name}),
+         tool_call("my_notifications", {}),
+         tool_call("sprint_meetings", {"sprint": "B1 비밀 회차"})],
+        "답입니다.",
+    ])
+    assert reply.ok
+    activity, documents, notifications, meeting = (json.loads(_fenced_body(r.content)) for r in _results(adapter, 2))
+    assert activity["error"] == "not_found" and documents["error"] == "not_found"
+    assert notifications["ok"] is True and "B1 사람의 비밀 알림" not in json.dumps(notifications, ensure_ascii=False)
+    assert meeting["error"] == "not_found"
+    payload = "\n".join(r.content for r in _results(adapter, 2))
+    assert "B1 회의의 비밀 결정" not in payload and "B1 비밀 티켓" not in payload
+    assert "@goodmit.co.kr" not in payload and people["b1"].id not in payload

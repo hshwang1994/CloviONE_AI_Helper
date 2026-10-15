@@ -6,7 +6,8 @@ AI 에게는 문장을 쓴다. 검색창 규칙(접은 질의 한 덩이 · 3자
 * 좋은 경우 — 사용자가 든 질문들이 찾을 낱말만 남긴다.
 * 뜻을 바꾸지 않는다 — 조사는 남는 어간이 2자 이상일 때만 걷는다(「회의」 · 「휴가」가 「회」 · 「휴」가 되지 않는다).
 * 질의 문법이 들어갈 수 없다 — 낱말은 `[0-9a-z가-힣]` 뿐이다(FTS 의 `& | ! : * ( )`, LIKE 의 `% _ \\`).
-* 상한 — 여섯 개, 중복 없음, 표시형과 달리 질문 원문은 100자로 자르지 않는다.
+* 상한 — 여덟 개(D-568), 중복 없음, 표시형과 달리 질문 원문은 100자로 자르지 않는다.
+* 라틴 · 한글이 붙은 낱말은 통째 낱말 뒤에 조각을 함께 낸다(「sk하이닉스」 → 「하이닉스」 · 「sk」, D-568). 조각도 불용어를 지난다.
 """
 import re
 
@@ -57,10 +58,33 @@ def test_query_syntax_cannot_ride_along():
     assert words == ("보안", "정책", "100", "확인", "연차", "신청")
 
 
-def test_at_most_six_words_in_order_without_duplicates():
-    words = keywords("가나다 라마바 사아자 차카타 파하타 나다라 마바사 가나다 아자차")
+def test_at_most_eight_words_in_order_without_duplicates():
+    words = keywords("가나다 라마바 사아자 차카타 파하타 나다라 마바사 가나다 아자차 하하하 호호호")
+    assert MAX_KEYWORDS == 8
     assert len(words) == MAX_KEYWORDS
-    assert words == ("가나다", "라마바", "사아자", "차카타", "파하타", "나다라")
+    assert words == ("가나다", "라마바", "사아자", "차카타", "파하타", "나다라", "마바사", "아자차")
+
+
+@pytest.mark.parametrize("question,expected", [
+    ("SK하이닉스 프로젝트 진행된 작업", ("sk하이닉스", "하이닉스", "sk", "프로젝트", "진행", "작업")),
+    ("sk하이닉스의 k8s 클러스터", ("sk하이닉스", "하이닉스", "sk", "k8s", "클러스터")),
+    ("2031년 우주 출장 규정", ("2031년", "2031", "우주", "출장", "규정")),
+    # 조각이 불용어(「관련」)면 그 조각은 버린다 — 통째 낱말은 남는다.
+    ("vm관련 자료", ("vm관련", "vm")),
+    # 한 글자 조각은 버린다(전 행에 걸린다).
+    ("a팀 회의", ("a팀", "회의")),
+    # 라틴과 숫자만이면 혼합이 아니다 — 나누지 않는다.
+    ("k8s vsphere8", ("k8s", "vsphere8")),
+])
+def test_mixed_latin_and_hangul_words_also_yield_their_parts(question, expected):
+    assert keywords(question) == expected
+
+
+def test_parts_count_toward_the_limit_and_can_be_turned_off():
+    assert keywords("SK하이닉스 프로젝트", split_mixed=False) == ("sk하이닉스", "프로젝트")
+    many = keywords("ab가나 cd다라 ef마바 gh사아")
+    assert len(many) == MAX_KEYWORDS and many[:3] == ("ab가나", "가나", "ab")
+    assert keywords("SK하이닉스 프로젝트", limit=2) == ("sk하이닉스", "하이닉스")
 
 
 def test_the_question_for_the_model_is_not_cut_at_the_display_limit():

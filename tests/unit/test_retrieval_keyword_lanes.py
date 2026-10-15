@@ -51,3 +51,54 @@ def test_hostile_keywords_never_reach_the_query_string():
     # 남는 낱말이 없으면 낱말 레인이 아니라 예전 레인이다.
     sql, _ = _sql(query_mod.fts_lane("a & b", keywords=("a&b", "!"), limit=5))
     assert "plainto_tsquery" in sql
+
+
+# ── 낱말의 무게 (D-568) ──────────────────────────────────────────────────────────────────────────────────────
+
+
+def test_the_weight_factor_falls_as_the_word_gets_common():
+    """드문 낱말이 흔한 낱말보다 무겁다 — df 가 커질수록 배율이 줄고, 아래 한계에서 멈춘다."""
+    n = 2000
+    factors = [query_mod.idf_factor(n, df) for df in (0, 1, 5, 20, 100, 500, 1000, 2000)]
+    assert factors == sorted(factors, reverse=True)
+    assert factors[0] == 1.0
+    assert factors[-1] == query_mod.MIN_WEIGHT_FACTOR
+    assert all(query_mod.MIN_WEIGHT_FACTOR <= f <= 1.0 for f in factors)
+    # 빈 범위(볼 수 있는 조각이 없다)는 같은 무게다 — 0 으로 나누지 않는다.
+    assert query_mod.idf_factor(0, 0) == 1.0
+
+
+def test_document_frequency_is_one_statement_inside_the_permission_clause():
+    narrowing = query_mod.DocumentChunk.document_id.in_(["d-1"])
+    sql, params = _sql(query_mod.df_statement(("연차", "신청"), narrowing=narrowing))
+    assert sql.count("count(*) FILTER (WHERE") == 2, "낱말마다 df 칸이 하나여야 한다"
+    assert "document_chunks.document_id IN" in sql, "권한 절 없이 세면 숨은 문서의 낱말 분포가 샌다"
+    assert {"%연차%", "%신청%"} <= {v for v in params.values() if isinstance(v, str)}
+
+
+def test_expanded_words_weigh_half_and_without_a_session_the_weights_are_uniform():
+    weights = query_mod.keyword_weights(None, ("vmware",), ("vsphere",))
+    assert weights == {
+        "vmware": query_mod.KEYWORD_HIT_WEIGHT,
+        "vsphere": query_mod.KEYWORD_HIT_WEIGHT * query_mod.EXPANDED_WEIGHT_FACTOR,
+    }
+    assert query_mod.keyword_weights(None, (), ()) == {}
+
+
+def test_the_trigram_score_uses_the_given_weights_and_the_expanded_words_join_both_lanes():
+    sql, params = _sql(query_mod.trgm_lane("vmware 문서", keywords=("vmware",), expanded=("vsphere",),
+                                           weights={"vmware": 0.41, "vsphere": 0.07}, limit=5))
+    assert 0.41 in params.values() and 0.07 in params.values()
+    assert "%vsphere%" in params.values()
+    _fts, fts_params = _sql(query_mod.fts_lane("vmware 문서", keywords=("vmware",), expanded=("vsphere",), limit=5))
+    assert "vmware:* | vsphere:*" in fts_params.values()
+
+
+def test_keyword_groups_tie_parts_and_synonyms_to_their_word():
+    """「모든 낱말이 든 문서」는 묶음마다 하나만 있으면 된다 — 「SK 하이닉스」라고 쓴 문서는 「sk」 조각 없이도 묶음을 채운다."""
+    groups = query_mod.keyword_groups(("sk하이닉스", "하이닉스", "sk", "프로젝트"), ("hynix",))
+    assert groups == [("sk하이닉스", "하이닉스", "sk", "hynix"), ("프로젝트",)]
+    groups = query_mod.keyword_groups(("vmware", "네트워크"), ("vsphere", "nsx"))
+    assert groups == [("vmware", "vsphere"), ("네트워크", "nsx")]
+    # 순수 한글 낱말 안의 다른 낱말은 조각이 아니다 — 묶지 않는다.
+    assert query_mod.keyword_groups(("회의록", "회의"), ()) == [("회의록",), ("회의",)]

@@ -128,7 +128,7 @@ export function AssistantPanel({ open, onClose }) {
         layout="card"
         icon={<MascotPose mode="listening" place="emptyCard" decorative />}
         title="무엇을 도와드릴까요?"
-        help={target ? screenContextLine(target) : "내 업무와 사내 자료를 내 권한 안에서 찾아 답합니다."}
+        help={target ? screenContextLine(target) : "문서, 티켓, 프로젝트, 결재, 알림, 회의록을 내 권한 안에서 찾아 답합니다. 팀 채팅 대화는 찾지 않습니다."}
       />
       {/* 제안 칩 — 빈 화면에서 무엇을 물어볼 수 있는지 보여 준다. 대화가 시작되면 비켜 준다. */}
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, justifyContent: "center" }}>

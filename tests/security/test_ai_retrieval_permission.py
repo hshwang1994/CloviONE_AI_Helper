@@ -196,8 +196,10 @@ def test_out_of_scope_rows_cannot_crowd_out_my_own(db, people, gateway):
     # 깨는 것이 id 라 내 문서가 우연히 상한 안에 들어오고, 그러면 아래 반례가 성립하지
     # 않는다 — 「우연히 통과하는 시험」은 없는 시험보다 나쁘다.
     theirs = _space(db, slug="b1-space", dept=D_B1)
+    # 제목에도 질의를 넣는다 — 첫 조각에는 제목 줄과 자리 줄(「공간 …」)이 붙으므로(D-568) 본문만 같으면 조각이 길어져
+    # 점수가 내 문서 아래로 내려간다. 반례는 「범위 밖이 더 높다」여야 한다.
     for index in range(query_mod.LANE_CANDIDATES + 20):
-        _document(db, theirs, f"B-1 계약서 {index}", f"{QUERY} 확인")
+        _document(db, theirs, f"{QUERY} {index}", f"{QUERY} 확인")
     mine = _space(db, slug="a1-space", dept=D_A1)
     ours = _document(db, mine, "A-1 계약서", f"{SECRET_SENTENCE} 뒤에 붙는 긴 설명. " * 20)
     _index(db, gateway)

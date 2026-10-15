@@ -13,9 +13,13 @@ S10 의 말뭉치(`retrieval_corpus.py` — 이 저장소의 한국어 문서를
 
 정답은 그 chunk 하나다. 세 갈래를 잰다(벡터 없이 — 의미 검색 모델이 없는 설치가 흔하고, 낱말 레인이 혼자 짊어지는 경우를 본다):
 
-  * `old_natural` 낱말 없는 옛 레인(검색창 규칙)에 문장 질문 — 고치기 전의 AI 검색
-  * `new_natural` 낱말 레인(D-536)에 문장 질문 — 고친 뒤의 AI 검색
-  * `new_bare`    낱말 레인에 낱말 질문 — 기준
+  * `old_natural`   낱말 없는 옛 레인(검색창 규칙)에 문장 질문 — 고치기 전의 AI 검색
+  * `d536_natural`  D-536 의 낱말 레인(낱말 여섯 · 같은 무게 · 동의어 없음)에 문장 질문 — 순위를 고치기(D-568) 전
+  * `new_natural`   지금의 낱말 레인(낱말 여덟 · 혼합 토큰 조각 · 동의어 절반 · df 무게, D-568)에 문장 질문
+  * `new_bare`      지금의 낱말 레인에 낱말 질문 — 기준
+
+`d536_natural` 과 `new_natural` 은 **같은 실행 · 같은 질문**에서 잰다 — 말뭉치가 이 저장소의 `docs/` 라 실행마다 조금씩 바뀌므로,
+다른 날 잰 두 수를 나란히 놓으면 순위의 차이가 아니라 말뭉치의 차이를 본다.
 
 관문은 `new_natural` 의 Recall@5 ≥ `new_bare` 의 Recall@5 × 0.8 이다. 제품의 레인 SQL(`app/ai/retrieval/query.py`)과 융합
 (`fusion.fuse`)을 **그대로** 부른다 — 여기서 SQL 을 다시 쓰면 잰 것과 운영이 도는 것이 다른 질의가 된다.
@@ -98,7 +102,8 @@ def make_queries(rng: random.Random, chunks: list[dict]) -> list[dict]:
     for chunk in rng.sample(pool, len(pool)):
         if len(out) >= QUERIES:
             break
-        words = [w for w in keywords(chunk["text"], limit=40) if _HANGUL_WORD.match(w)]
+        # 질문 만들기는 D-568 전과 같은 낱말 뽑기로 한다(조각을 나누지 않는다) — 같은 씨앗이면 같은 질문 집합이다.
+        words = [w for w in keywords(chunk["text"], limit=40, split_mixed=False) if _HANGUL_WORD.match(w)]
         if len(words) < 2:
             continue
         a, b = rng.sample(words, 2)
@@ -113,14 +118,28 @@ def make_queries(rng: random.Random, chunks: list[dict]) -> list[dict]:
     return out
 
 
-def rank(db, labels, text: str, words, *, lane_limit: int) -> list[str]:
+def rank(db, labels, text: str, words, *, lane_limit: int, expanded=(), weights=None) -> list[str]:
     from app.ai.retrieval import fusion
     from app.ai.retrieval import query as query_mod
 
-    trgm = [labels[str(r[0])] for r in db.execute(query_mod.trgm_lane(text, keywords=words, limit=lane_limit)).all()]
-    fts = [labels[str(r[0])] for r in db.execute(query_mod.fts_lane(text, keywords=words, limit=lane_limit)).all()]
+    trgm = [labels[str(r[0])] for r in db.execute(query_mod.trgm_lane(
+        text, keywords=words, expanded=expanded, weights=weights, limit=lane_limit)).all()]
+    fts = [labels[str(r[0])] for r in db.execute(query_mod.fts_lane(
+        text, keywords=words, expanded=expanded, limit=lane_limit)).all()]
     fused = fusion.fuse({fusion.LANE_TRGM: trgm, fusion.LANE_FTS: fts}, limit=10)
     return [row.key for row in fused]
+
+
+def rank_now(db, labels, raw: str, *, lane_limit: int) -> list[str]:
+    """지금의 AI 검색과 같은 순서(D-568) — 낱말 · 동의어 · df 무게를 `retrieve` 와 같은 함수로 만든다(권한 절만 없다)."""
+    from app.ai.retrieval import query as query_mod
+    from app.core.search_text import keywords
+
+    text = query_mod.normalize_query(raw)
+    words = keywords(raw)
+    expanded = query_mod.expand_keywords(words)
+    weights = query_mod.keyword_weights(db, words, expanded)
+    return rank(db, labels, text, words, lane_limit=lane_limit, expanded=expanded, weights=weights)
 
 
 def score(pairs) -> dict:
@@ -155,15 +174,16 @@ def main() -> int:
     url = retrieval_fusion.build_database(args.pg_url, chunks, {})
 
     engine = create_engine(normalize_database_url(url), future=True)
-    pairs = {"old_natural": [], "new_natural": [], "new_bare": []}
+    pairs = {"old_natural": [], "d536_natural": [], "new_natural": [], "new_bare": []}
     with Session(engine) as db:
         labels = dict(db.execute(select(DocumentChunk.id, DocumentChunk.anchor_label)).all())
         for item in queries:
             natural = query_mod.normalize_query(item["natural"])
-            bare = query_mod.normalize_query(item["bare"])
+            d536_words = keywords(item["natural"], limit=6, split_mixed=False)
             pairs["old_natural"].append((rank(db, labels, natural, (), lane_limit=args.lane_limit), item["gold"]))
-            pairs["new_natural"].append((rank(db, labels, natural, keywords(item["natural"]), lane_limit=args.lane_limit), item["gold"]))
-            pairs["new_bare"].append((rank(db, labels, bare, keywords(item["bare"]), lane_limit=args.lane_limit), item["gold"]))
+            pairs["d536_natural"].append((rank(db, labels, natural, d536_words, lane_limit=args.lane_limit), item["gold"]))
+            pairs["new_natural"].append((rank_now(db, labels, item["natural"], lane_limit=args.lane_limit), item["gold"]))
+            pairs["new_bare"].append((rank_now(db, labels, item["bare"], lane_limit=args.lane_limit), item["gold"]))
     engine.dispose()
 
     report = {"seed": SEED, "chunks": len(chunks), "queries": len(queries), "gate": GATE,

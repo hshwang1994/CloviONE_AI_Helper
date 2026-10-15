@@ -87,8 +87,10 @@ beforeEach(() => {
 describe("AI 도우미 — 쓸 수 있을 때의 첫 화면", () => {
   it("할 수 있는 일만 약속하고 시작 예시를 보인다", async () => {
     renderChat();
-    expect(await screen.findByText("내 업무와 사내 자료를 내 권한 안에서 찾아 답합니다.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "이번 주 마감인 내 티켓을 알려 줘" })).toBeInTheDocument();
+    // 찾는 범위를 이름으로 말하고, 팀 채팅은 찾지 않는다는 사실을 함께 말한다(A8 · 사용자 결정 2026-10-15).
+    expect(await screen.findByText("문서, 티켓, 프로젝트, 결재, 알림, 회의록을 내 권한 안에서 찾아 답합니다. 팀 채팅 대화는 찾지 않습니다.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "내가 담당하는 미완료 티켓을 알려 줘" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "내가 작성한 문서가 몇 개야?" })).toBeInTheDocument();
     expect(screen.queryByText(/티켓 생성/)).toBeNull();
     expect(screen.getByLabelText("메시지 입력")).not.toBeDisabled();
   });

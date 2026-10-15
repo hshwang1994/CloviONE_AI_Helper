@@ -49,7 +49,19 @@ MODELS_URL = API_BASE + "/models"
 ALLOWLIST = "services"
 
 MIN_OUTPUT_TOKENS = 1024
+#: 추론 모델(`app/ai/catalog.py::is_reasoning_model`)의 출력 토큰 하한(D-570). 도우미 한 차례는 도구 결과를 읽고 생각한 뒤 목록을
+#: 쓰는데, 생각에 쓴 토큰이 상한을 먹으면 답이 `incomplete` 로 잘리거나 빈 글이 된다. 키 방식에만 건다 — 계정 방식은 이 인자를
+#: 보낼 수 없다. 모델 이름은 카탈로그 한 곳에만 적는다(D-201).
+REASONING_OUTPUT_FLOOR = 8192
 CHATGPT_ACCESS_FIELD = "access_token"
+
+
+def output_tokens(model: str | None, requested) -> int:
+    """키 방식 요청의 `max_output_tokens` — 액션의 값에 하한 둘(모든 모델 · 추론 모델)을 건다."""
+    from app.ai import catalog
+
+    floor = REASONING_OUTPUT_FLOOR if catalog.is_reasoning_model(model) else MIN_OUTPUT_TOKENS
+    return max(int(requested or 0), floor)
 
 CODE_PLAN_LIMIT = "plan_usage_limit"
 CODE_NOT_ELIGIBLE = "plan_not_eligible"
@@ -223,7 +235,7 @@ def request_body(*, system: str, user: str, model: str, max_output_tokens: int, 
     if chatgpt:
         body["stream"] = True
     else:
-        body["max_output_tokens"] = max(int(max_output_tokens), MIN_OUTPUT_TOKENS)
+        body["max_output_tokens"] = output_tokens(model, max_output_tokens)
     return body
 
 
@@ -484,7 +496,7 @@ def converse_body(*, system: str, turns, tools, tool_choice: str, model: str, ma
     if chatgpt:
         body["stream"] = True
     else:
-        body["max_output_tokens"] = max(int(max_output_tokens), MIN_OUTPUT_TOKENS)
+        body["max_output_tokens"] = output_tokens(model, max_output_tokens)
         body["include"] = ["reasoning.encrypted_content"]
     return body
 

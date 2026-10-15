@@ -242,23 +242,116 @@ def chatgpt_view(runtime, db: Session) -> dict:
     }
 
 
-def index_view(db: Session, gateway) -> dict | None:
-    """문서 색인과 의미 검색 모델 상태. 못 세면 None(0 과 「못 셌다」는 다른 사실이다)."""
+# ── 문서 검색(의미 검색) 상태 (D-570) ──────────────────────────────────────────
+#
+# 예전에는 `index.semantic`(임베딩 능력이 있는가) 하나로 「낱말 검색(의미 검색 모델 없음)」을 골랐다. 랩은 모델 파일이 있는데
+# AI 사용이 꺼져 있었고(설치기가 upgrade 마다 `AI_ENABLED=false` 를 다시 썼다), 화면은 「모델 없음」이라고 했다 — 고칠 사람이
+# 엉뚱한 일을 하게 만드는 문장이다. 그래서 게이트웨이가 말하는 까닭(`Capability.status`)을 그대로 낱말로 옮기고, 꺼져 있을 때도
+# 모델 파일이 이미 있는지를 값싼 파일 검사로 함께 말한다(모델을 올리지 않는다).
+EMBED_OK = "ok"
+EMBED_DISABLED = "disabled"
+EMBED_UNCONFIGURED = "unconfigured"
+EMBED_RUNTIME_MISSING = "runtime_missing"
+EMBED_MODEL_MISSING = "model_missing"
+EMBED_FAILED = "failed"
+EMBED_STATUSES = (EMBED_DISABLED, EMBED_UNCONFIGURED, EMBED_RUNTIME_MISSING, EMBED_MODEL_MISSING, EMBED_FAILED, EMBED_OK)
+
+#: 「문서 검색」 칸의 값(낱말). 준비 중(벡터를 채우는 중)은 `embed_label` 이 수를 붙인다.
+EMBED_LABELS: dict[str, str] = {
+    EMBED_OK: "낱말 검색 + 의미 검색",
+    EMBED_DISABLED: "낱말 검색(의미 검색 기능 꺼짐)",
+    EMBED_UNCONFIGURED: "낱말 검색(의미 검색 모델 미설치)",
+    EMBED_RUNTIME_MISSING: "낱말 검색(의미 검색 런타임 미설치)",
+    EMBED_MODEL_MISSING: "낱말 검색(의미 검색 모델 미설치)",
+    EMBED_FAILED: "낱말 검색(의미 검색 오류)",
+}
+#: 의미 검색을 켜는 방법 — 서버에서 한 번 실행한다(글만, 화면에 단추가 없다). 설치 명령의 `ai` 부명령이 런타임 · 모델 확인 · 유닛
+#: 재시작까지 한다(`deploy/install.sh`).
+EMBED_HINT = (
+    "의미 검색을 켜려면 서버에서 sudo clovirassist ai --with-ai 를 실행하세요. "
+    "모델 파일이 없으면 --download-model 을 함께 줍니다."
+)
+EMBED_HINT_FAILED = "의미 검색이 실패하고 있습니다. 서버에서 sudo clovirassist ai-cli status 로 까닭을 확인하세요."
+NEXT_SERVER = "server"
+
+
+def embed_label(status: str, *, pending: int | None = None, embedded: int | None = None, chunks: int | None = None,
+                model_installed: bool | None = None) -> str:
+    """임베딩 상태 → 「문서 검색」 칸의 낱말. 켜졌고 아직 벡터를 채우는 중이면 그 수를 붙인다."""
+    if status == EMBED_OK and pending:
+        return f"낱말 검색 + 의미 검색 준비 중(색인 {int(embedded or 0)}/{int(chunks or 0)})"
+    if status == EMBED_DISABLED and model_installed:
+        return "낱말 검색(의미 검색 기능 꺼짐, 모델 설치됨)"
+    return EMBED_LABELS.get(status, EMBED_LABELS[EMBED_FAILED])
+
+
+def embed_hint(status: str) -> str | None:
+    """의미 검색이 서지 않았을 때 서버에서 할 일 한 문장. 정상이면 None."""
+    if status == EMBED_OK:
+        return None
+    if status == EMBED_FAILED:
+        return EMBED_HINT_FAILED
+    return EMBED_HINT
+
+
+def _model_files_present(settings) -> bool | None:
+    """꺼져 있을 때 모델 파일이 이미 있는가 — 설정의 모델 자리에서 필요한 파일이 다 있는지만 본다(읽지 않는다). 모르면 None."""
+    try:
+        from app.ai import catalog
+        from app.ai.gateway import registry
+
+        config = registry.resolve_config(settings)
+        model = catalog.embedding_model(config.embed_model_id)
+        if model is None or not config.model_root:
+            return None
+        folder = registry.model_dir(config, model)
+        return all((folder / name).is_file() for name in model.required_files)
+    except Exception:  # noqa: BLE001 - 파일 검사가 화면을 깨지 않는다
+        return None
+
+
+def embed_status_of(gateway) -> str:
+    """게이트웨이의 임베딩 능력 → 여섯 낱말 중 하나. 게이트웨이가 없으면(시험 · 옛 설치) 꺼짐으로 본다."""
+    if gateway is None:
+        return EMBED_DISABLED
+    try:
+        status = gateway.capabilities().embed.status
+    except Exception:  # noqa: BLE001
+        return EMBED_FAILED
+    return status if status in EMBED_STATUSES else EMBED_FAILED
+
+
+def index_view(db: Session, gateway, *, settings=None) -> dict | None:
+    """문서 색인과 의미 검색 상태. 못 세면 None(0 과 「못 셌다」는 다른 사실이다).
+
+    `embed_status` 는 `disabled | unconfigured | runtime_missing | model_missing | failed | ok` 이고 `embed_status_label` 이 화면의
+    「문서 검색」 낱말이다. `pending_embedding` 은 벡터가 아직 없는 조각 수다(켜진 뒤 색인 레인이 채운다). `semantic` 은 옛 화면이
+    읽던 값이라 그대로 둔다(의미 검색이 지금 되는가).
+    """
     from app.ai.index import service as index_service
 
     try:
         health = index_service.index_health(db)
     except Exception:  # noqa: BLE001 - 표가 아직 없는 설치도 있다
         return None
-    semantic = None
-    if gateway is not None:
-        try:
-            semantic = bool(gateway.capabilities().embed.available)
-        except Exception:  # noqa: BLE001
-            semantic = None
+    status = embed_status_of(gateway)
+    chunks = health.get("chunks")
+    embedded = health.get("embedded")
+    pending = health.get("pending_embedding")
+    model_installed = _model_files_present(settings) if status == EMBED_DISABLED and settings is not None else None
+    documents = health.get("documents") or {}
     return {
-        "documents": health.get("documents"), "chunks": health.get("chunks"), "embedded": health.get("embedded"),
-        "semantic": semantic,
+        "documents": documents,
+        "documents_total": sum(int(v or 0) for v in documents.values()) if isinstance(documents, dict) else None,
+        "chunks": chunks,
+        "embedded": embedded,
+        "pending_embedding": pending,
+        "semantic": status == EMBED_OK,
+        "embed_status": status,
+        "embed_status_label": embed_label(status, pending=pending if status == EMBED_OK else None, embedded=embedded,
+                                          chunks=chunks, model_installed=model_installed),
+        "embed_hint": embed_hint(status),
+        "model_installed": model_installed,
     }
 
 
@@ -318,14 +411,16 @@ def facts_view(config, status: dict, *, credentials: dict, caps: dict, index: di
     tools = (caps or {}).get("tools")
     if tools in TOOLS_FACT:
         facts.append({"key": "tools", "label": "도구 호출", "value": TOOLS_FACT[tools]})
-    if index and index.get("semantic") is not None:
-        facts.append({"key": "search", "label": "문서 검색",
-                      "value": "의미 검색" if index["semantic"] else "낱말 검색(의미 검색 모델 없음)"})
+    if index and index.get("embed_status_label"):
+        facts.append({"key": "search", "label": "문서 검색", "value": index["embed_status_label"]})
     return facts
 
 
-def next_view(display: dict, config, status: dict, *, credentials: dict) -> dict | None:
-    """「다음 할 일」 한 문장과 자리(D-558). 정상이면 None — 할 일이 없다."""
+def next_view(display: dict, config, status: dict, *, credentials: dict, index: dict | None = None) -> dict | None:
+    """「다음 할 일」 한 문장과 자리(D-558). 정상이고 의미 검색도 섰으면 None — 할 일이 없다.
+
+    연결이 정상인데 의미 검색이 서지 않았으면 서버에서 할 일 한 문장을 낸다(자리 `server` — 화면에는 단추가 없고 글만 선다, D-570).
+    """
     key = display.get("key")
     method = config.method()
     account = bool(method is not None and method.account)
@@ -357,11 +452,14 @@ def next_view(display: dict, config, status: dict, *, credentials: dict) -> dict
         if account:
             return {"label": "ChatGPT 계정에 다시 로그인한 뒤 지금 확인을 누르세요.", "action": NEXT_LOGIN}
         return {"label": "API 키를 확인해 다시 저장한 뒤 지금 확인을 누르세요.", "action": NEXT_API_KEY}
+    hint = (index or {}).get("embed_hint")
+    if key == "ok" and hint:
+        return {"label": hint, "action": NEXT_SERVER}
     return None
 
 
 def overview(db: Session, runtime, secrets, settings_cache, *, gateway=None, admin_user_id: str | None = None,
-             now: datetime | None = None) -> dict:
+             now: datetime | None = None, settings=None) -> dict:
     """화면이 한 번에 받는 값. ``admin_user_id`` · ``now`` 가 있으면 그 관리자의 열린 로그인 시도를 「로그인 진행 중」으로 본다."""
     from app.ai.credentials import oauth
     from app.ai.credentials import state as state_mod
@@ -371,7 +469,7 @@ def overview(db: Session, runtime, secrets, settings_cache, *, gateway=None, adm
     outbound = runtime.outbound
     status = runtime.status(db)
     job = pending_verify(db)
-    index = index_view(db, gateway)
+    index = index_view(db, gateway, settings=settings)
     method = config.method()
     chatgpt = chatgpt_view(runtime, db)
     credentials = credentials_view(config, secrets, chatgpt=chatgpt)
@@ -408,7 +506,7 @@ def overview(db: Session, runtime, secrets, settings_cache, *, gateway=None, adm
         # 상태 면은 이 셋만 그린다(D-558): 자격이 갖춰졌는가 · 그릴 줄 · 다음 할 일.
         "credentials": credentials,
         "facts": facts_view(config, status, credentials=credentials, caps=caps, index=index),
-        "next": next_view(display, config, status, credentials=credentials),
+        "next": next_view(display, config, status, credentials=credentials, index=index),
         "login": login,
         "providers": providers_view(secrets, chatgpt_connected=bool(chatgpt["connected"])),
         "features": {key: values.get(key) is True for key in FEATURE_KEYS},

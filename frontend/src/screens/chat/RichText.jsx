@@ -1,15 +1,18 @@
 import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { parseBlocks } from "../chat-helpers.js";
-import { linkifyText } from "./links.jsx";
+import { parseBlocks, parseInline } from "../chat-helpers.js";
+import { renderInline } from "./links.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
 
 /* 리치 텍스트 — parseBlocks 결과를 머리글/목록/키-값/문단으로 렌더한다(텍스트 노드 전용).
- * 머리글은 본문(0.9375rem)보다 커야 '머리글'로 읽힌다. 크기는 전부 rem이라 4K에서 함께 커진다. */
-export function RichText({ text, keyLinks }) {
-  // 글 속 티켓 키는 그 답의 출처에 있을 때만 링크가 된다(`linkifyText` 의 셋째 인자).
-  const linkify = (value, key) => linkifyText(value, key, keyLinks);
+ * 머리글은 본문(0.9375rem)보다 커야 '머리글'로 읽힌다. 크기는 전부 rem이라 4K에서 함께 커진다.
+ *
+ * 줄 안의 「**굵게**」는 굵게, 「[제목](경로)」는 **그 답의 출처와 같은 경로일 때만** 앱 안 링크다(A8, D-569) — 출처에 없는
+ * 링크는 원래 글자 그대로 남는다. `routeLinks` 는 그 답의 출처 경로들, `keyLinks` 는 출처에 있는 티켓 키 → 경로다.
+ * 코드 블록은 이 해석을 거치지 않는다. */
+export function RichText({ text, keyLinks, routeLinks }) {
+  const linkify = (value, key) => renderInline(parseInline(value, { routeLinks, keyLinks }), key);
   return (
     <>
       {parseBlocks(text).map((b, bi) => {

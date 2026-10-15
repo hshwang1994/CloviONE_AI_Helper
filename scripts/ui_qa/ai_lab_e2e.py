@@ -3,8 +3,12 @@
 - 아무것도 고치지 않는다. 설정을 바꾸지 않고, 만든 대화는 끝에 지운다(`--keep` 이면 남긴다).
 - 비밀은 명령행에 받지 않는다. QA 계정 비밀번호는 환경 변수 `UI_QA_PASSWORD`(이메일은 `UI_QA_EMAIL`, 기본 ui-qa@goodmit.co.kr)다.
   결과 파일에 토큰 · 키 · 비밀번호 · 이메일 주소를 적지 않는다(이메일은 가린다).
-- TLS 는 검증한다. 신뢰 기준점은 `UI_QA_TLS_CA`(없으면 `dist/ops/<DNS 이름>.crt`, 그것도 없으면 시스템 기준점)다.
+- TLS 는 검증한다. 신뢰 기준점은 `--cacert` → `UI_QA_TLS_CA` → `dist/ops/<DNS 이름>.crt` → 시스템 기준점 순서다. `--insecure` 는
+  검증을 끄고 그 사실을 결과에 적는다.
 - 「자격 저장」 · 「모델 목록」 · 「실제 답」 · 「문서 검색」 을 섞지 않는다(계획 4절) — 각 줄이 따로 PASS · FAIL · 미측정이다.
+- 대체 모드는 실패다(A9): 답이 `mode == search_only`(도구 없이 서버가 먼저 찾은 자료로만 답함)이면 그 질문은 FAIL 이고, 연결 면의
+  `capabilities.tools == unsupported`(모델이 도구를 거절함)도 FAIL 줄이다. 요약 줄에 대체 모드 답의 수를 함께 찍는다.
+- 로그인 · 질문 보내기 · 답 기다리기는 `ai_lab_common.py` 와 진실 하네스(`ai_truth_e2e.py`)가 함께 쓴다.
 
     UI_QA_PASSWORD=… python -m scripts.ui_qa.ai_lab_e2e                      # 랩(기본 대상은 `capture.DEFAULT_BASE_URL`)
     UI_QA_PASSWORD=… python -m scripts.ui_qa.ai_lab_e2e --base http://127.0.0.1:8765 --label local
@@ -18,10 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
-import time
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -32,6 +33,20 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.ui_qa.ai_lab_common import (  # noqa: E402 - 저장소 뿌리를 path 에 넣은 뒤에 읽는다
+    LoginError,
+    await_reply,
+    create_conversation,
+    delete_conversation,
+    json_of,
+    log,
+    login,
+    make_client,
+    mask_emails,
+    post_question,
+    resolve_verify,
+    utf8_console,
+)
 from scripts.ui_qa.capture import DEFAULT_BASE_URL as DEFAULT_BASE  # noqa: E402 - 대상 호스트는 한 곳이 정한다
 
 OUT_DIR = ROOT / "dist" / "ui-qa" / "ai-lab-e2e"
@@ -50,27 +65,9 @@ QUESTIONS = [
     ("leave_howto", "연차 신청은 어떻게 하나요?"),
     ("missing_doc", "2031년 우주 출장 규정을 알려 줘"),
 ]
-EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
-
-def mask_emails(text: str) -> str:
-    def one(m):
-        local, _, domain = m.group(0).partition("@")
-        return f"{local[:1]}****{local[-1:]}@{domain}"
-    return EMAIL_RE.sub(one, text or "")
-
-
-def _ca_path(base: str) -> str | bool:
-    env = os.environ.get("UI_QA_TLS_CA")
-    if env:
-        return env
-    host = urlsplit(base).hostname or ""
-    candidate = ROOT / "dist" / "ops" / f"{host}.crt"
-    return str(candidate) if candidate.exists() else True
-
-
-def log(msg: str) -> None:
-    print(msg, flush=True)
+#: 대체 모드(도구 없이 답함). 이 모드의 답은 실패다(A9).
+MODE_SEARCH_ONLY = "search_only"
 
 
 class Run:
@@ -86,12 +83,14 @@ class Run:
         self.rows.append({"key": key, "verdict": verdict, "detail": detail})
         log(f"[{verdict:^8}] {key}: {json.dumps(detail, ensure_ascii=False)[:300]}")
 
+    @property
+    def fallback_answers(self) -> int:
+        """대체 모드로 끝난 답의 수."""
+        return sum(1 for c in self.chat if c.get("mode") == MODE_SEARCH_ONLY)
 
-def _json(res: httpx.Response):
-    try:
-        return res.json()
-    except ValueError:
-        return {"__text__": (res.text or "")[:300]}
+
+# 옛 이름 — 이 파일 안의 호출부가 쓰던 이름을 그대로 둔다.
+_json = json_of
 
 
 def _public_overview(body: dict) -> dict:
@@ -116,6 +115,28 @@ def _public_overview(body: dict) -> dict:
         "capabilities": body.get("capabilities"),
         "index": body.get("index"),
     }
+
+
+def tools_verdict(capabilities) -> str:
+    """연결 면의 도구 호출 능력 → 판정. 모델이 도구를 거절하면(`unsupported`) 실패다(A9), 아직 안 쟀으면 미측정이다."""
+    tools = (capabilities or {}).get("tools") if isinstance(capabilities, dict) else None
+    if tools == "ok":
+        return "PASS"
+    if tools == "unsupported":
+        return "FAIL"
+    return "SKIPPED"
+
+
+def chat_verdict(user_message: dict, structured: dict) -> str:
+    """질문 하나의 판정. 처리 실패 · 오류 안내 · 대체 모드(`search_only`)는 실패다."""
+    if (user_message or {}).get("processing_status") != "done":
+        return "FAIL"
+    st = structured or {}
+    if st.get("error_notice"):
+        return "FAIL"
+    if st.get("mode") == MODE_SEARCH_ONLY:
+        return "FAIL"
+    return "PASS"
 
 
 def measure_connection(client: httpx.Client, headers: dict, run: Run) -> dict:
@@ -145,6 +166,11 @@ def measure_connection(client: httpx.Client, headers: dict, run: Run) -> dict:
     run.row("model.chosen", "PASS" if config.get("model") else "FAIL", {"model": config.get("model")})
     run.row("state", "PASS" if display in ("ok", "unverified", "verifying") else ("FAIL" if display else "SKIPPED"),
             {"display": shown.get("display"), "generation_enabled": config.get("generation_enabled")})
+    # 도구 호출 능력(A9) — 거절하면 도우미는 대체 모드로만 답한다.
+    caps = shown.get("capabilities") or {}
+    run.row("capabilities.tools", tools_verdict(caps),
+            {"tools": caps.get("tools") if isinstance(caps, dict) else None,
+             "checked_at": caps.get("checked_at") if isinstance(caps, dict) else None})
     return shown
 
 
@@ -162,26 +188,6 @@ def _first_ticket_key(client: httpx.Client, headers: dict) -> str:
     return "ABC-1"
 
 
-def _await_reply(client: httpx.Client, headers: dict, conversation_id: str, user_message_id: str, *, timeout: float) -> dict:
-    started = time.monotonic()
-    last = None
-    while time.monotonic() - started < timeout:
-        time.sleep(1.5)
-        r = client.get(f"/api/conversations/{conversation_id}/messages", headers=headers)
-        if r.status_code != 200:
-            last = {"status": r.status_code}
-            continue
-        items = (_json(r).get("items") or [])
-        mine = next((m for m in items if m.get("message_id") == user_message_id), None)
-        if mine is None:
-            continue
-        reply = next((m for m in items if m.get("role") == "assistant" and str(m.get("message_id", "")).startswith(f"a-{user_message_id}")), None)
-        if mine.get("processing_status") in ("done", "failed") and reply is not None:
-            return {"user": mine, "reply": reply, "seconds": round(time.monotonic() - started, 1)}
-        last = {"processing_status": mine.get("processing_status")}
-    return {"timeout": True, "last": last, "seconds": round(time.monotonic() - started, 1)}
-
-
 def measure_chat(client: httpx.Client, headers: dict, run: Run, *, timeout: float, keep: bool) -> None:
     s = client.get("/api/ai/status", headers=headers)
     status = _json(s)
@@ -192,45 +198,42 @@ def measure_chat(client: httpx.Client, headers: dict, run: Run, *, timeout: floa
         run.row("chat", "SKIPPED", {"why": "도우미를 쓸 수 없다", "reason": (assistant or {}).get("reason")})
         return
     ticket = _first_ticket_key(client, headers)
-    c = client.post("/api/conversations", json={"title": f"AI 실측 {run.started:%m-%d %H:%M}"}, headers=headers)
-    if c.status_code != 201:
-        run.row("chat", "FAIL", {"create_status": c.status_code, "body": _json(c)})
+    conversation_id, created = create_conversation(client, headers, f"AI 실측 {run.started:%m-%d %H:%M}")
+    if conversation_id is None:
+        run.row("chat", "FAIL", {"create_status": created.get("status"), "body": created.get("body")})
         return
-    conversation_id = (_json(c).get("conversation") or {}).get("id") or _json(c).get("id")
     try:
         for key, template in QUESTIONS:
             question = template.format(ticket=ticket)
-            client_message_id = "ailab-" + uuid.uuid4().hex[:16]
-            p = client.post(f"/api/conversations/{conversation_id}/messages",
-                            json={"content": question, "client_message_id": client_message_id}, headers=headers, timeout=60)
-            if p.status_code != 202:
-                run.chat.append({"key": key, "question": question, "verdict": "FAIL", "post_status": p.status_code, "body": _json(p)})
-                log(f"[  FAIL  ] chat.{key}: POST {p.status_code}")
+            status_code, posted = post_question(client, headers, conversation_id, question, prefix="ailab-")
+            if status_code != 202:
+                run.chat.append({"key": key, "question": question, "verdict": "FAIL", "post_status": status_code, "body": posted})
+                log(f"[  FAIL  ] chat.{key}: POST {status_code}")
                 continue
-            user_message_id = _json(p)["message"]["message_id"]
-            got = _await_reply(client, headers, conversation_id, user_message_id, timeout=timeout)
+            user_message_id = posted["message"]["message_id"]
+            got = await_reply(client, headers, conversation_id, user_message_id, timeout=timeout)
             if got.get("timeout"):
                 run.chat.append({"key": key, "question": question, "verdict": "FAIL", "timeout_seconds": got["seconds"], "last": got.get("last")})
                 log(f"[  FAIL  ] chat.{key}: {got['seconds']}초 안에 답이 없다")
                 continue
             reply = got["reply"]
             st = reply.get("structured") or {}
-            ok = got["user"].get("processing_status") == "done" and not st.get("error_notice")
             entry = {
-                "key": key, "question": question, "verdict": "PASS" if ok else "FAIL",
+                "key": key, "question": question, "verdict": chat_verdict(got["user"], st),
                 "seconds": got["seconds"], "status": st.get("status"), "mode": st.get("mode"), "notice": st.get("notice"),
                 "rounds": st.get("rounds"), "elapsed_ms": st.get("elapsed_ms"), "model": st.get("model"),
                 "sources": len(st.get("sources") or []), "tools": [t.get("name") for t in st.get("tools") or []],
                 "error_code": got["user"].get("error_code"),
                 "answer_head": mask_emails((reply.get("content") or "")[:240]),
             }
+            if st.get("mode") == MODE_SEARCH_ONLY:
+                entry["why"] = "도구 없이 대체 모드로 답했습니다."
             run.chat.append(entry)
             log(f"[{entry['verdict']:^8}] chat.{key}: {entry['seconds']}s mode={entry['mode']} notice={entry['notice']} "
                 f"sources={entry['sources']} → {entry['answer_head'][:80]!r}")
     finally:
         if not keep:
-            d = client.delete(f"/api/conversations/{conversation_id}", headers=headers)
-            run.notes.append(f"대화 삭제 {d.status_code}")
+            run.notes.append(f"대화 삭제 {delete_conversation(client, headers, conversation_id)}")
         else:
             run.notes.append(f"대화 남김 {conversation_id}")
 
@@ -238,8 +241,8 @@ def measure_chat(client: httpx.Client, headers: dict, run: Run, *, timeout: floa
 def write_results(run: Run, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     data = {"base": run.base, "label": run.label, "started_at": run.started.isoformat(), "rows": run.rows, "chat": run.chat,
-            "notes": run.notes}
-    (out_dir / f"{run.label}.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+            "fallback_answers": run.fallback_answers, "notes": run.notes}
+    (out_dir / f"{run.label}.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8", newline="\n")
     lines = [f"# AI 실측 — {run.label} ({run.base})", "", f"시작: {run.started:%Y-%m-%d %H:%M} UTC", "",
              "| 항목 | 판정 | 내용 |", "|---|---|---|"]
     for r in run.rows:
@@ -249,14 +252,16 @@ def write_results(run: Run, out_dir: Path) -> Path:
         for c in run.chat:
             lines.append(f"| {c['question']} | {c['verdict']} | {c.get('seconds', '')} | {c.get('mode', '')} | {c.get('notice') or ''} | "
                          f"{c.get('sources', '')} | {','.join(c.get('tools') or [])} | {(c.get('answer_head') or '').replace('|', '/').replace(chr(10), ' ')[:120]} |")
+        lines += ["", f"대체 모드(search_only) 답: {run.fallback_answers}건"]
     if run.notes:
         lines += ["", *[f"- {n}" for n in run.notes]]
     path = out_dir / f"{run.label}.md"
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     return path
 
 
 def main(argv: list[str] | None = None) -> int:
+    utf8_console()
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("--base", default=DEFAULT_BASE)
     parser.add_argument("--label", default=None, help="결과 파일 이름(기본: 호스트 이름)")
@@ -264,6 +269,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-chat", action="store_true")
     parser.add_argument("--keep", action="store_true", help="만든 대화를 지우지 않는다")
     parser.add_argument("--out", default=str(OUT_DIR))
+    parser.add_argument("--cacert", default=None, help="TLS 기준점 파일(자가 서명 인증서)")
+    parser.add_argument("--insecure", action="store_true", help="TLS 검증을 끈다(결과에 그 사실을 적는다)")
     args = parser.parse_args(argv)
 
     password = os.environ.get("UI_QA_PASSWORD")
@@ -273,18 +280,21 @@ def main(argv: list[str] | None = None) -> int:
     email = os.environ.get("UI_QA_EMAIL", "ui-qa@goodmit.co.kr")
     label = args.label or (urlsplit(args.base).hostname or "lab").replace(".", "-")
     run = Run(args.base, label)
-    client = httpx.Client(base_url=args.base, timeout=90, verify=_ca_path(args.base))
-    r = client.post("/login", json={"email": email, "password": password})
-    if r.status_code != 200:
-        print(f"로그인 실패 {r.status_code}", file=sys.stderr)
+    if args.insecure:
+        run.notes.append("TLS 검증을 끄고 쟀습니다(--insecure).")
+    client = make_client(args.base, verify=resolve_verify(args.base, cacert=args.cacert, insecure=args.insecure))
+    try:
+        headers = login(client, email, password)
+    except LoginError as exc:
+        print(str(exc), file=sys.stderr)
         return 2
-    headers = {"X-CSRF-Token": r.json()["csrf_token"]}
     measure_connection(client, headers, run)
     if not args.skip_chat:
         measure_chat(client, headers, run, timeout=args.timeout, keep=args.keep)
     path = write_results(run, Path(args.out))
     failed = [r for r in run.rows if r["verdict"] == "FAIL"] + [c for c in run.chat if c["verdict"] == "FAIL"]
-    log(f"AI_LAB_E2E {'OK' if not failed else 'FAILED'} rows={len(run.rows)} chat={len(run.chat)} failed={len(failed)} → {path}")
+    log(f"AI_LAB_E2E {'OK' if not failed else 'FAILED'} rows={len(run.rows)} chat={len(run.chat)} failed={len(failed)} "
+        f"fallback={run.fallback_answers} → {path}")
     return 0
 
 

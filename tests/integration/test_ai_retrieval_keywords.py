@@ -158,3 +158,99 @@ def test_keyword_branches_stay_inside_the_permission_filter(db, make_user, space
     db.flush()
     result = retrieval.retrieve(db, member, raw_query="휴가 신청은 어떻게 하나요?", gateway=_gateway())
     assert "휴가 비밀 규정" not in _titles(result)
+
+
+# ── 낱말의 무게 · 혼합 토큰 (D-568) ──────────────────────────────────────────────────────────────────────────
+
+
+@pytest.fixture()
+def weighted_world(db):
+    space = KnowledgeSpace(org_id=DEFAULT_ORG_ID, name="벤치 공간", slug="weights-kw", owner_kind="organization")
+    db.add(space)
+    db.flush()
+    for index in range(10):
+        _make(db, space, f"주간 메모 {index}", f"프로젝트 일정과 현황판을 {index}번째로 정리합니다.")
+    made = {
+        "rare": _make(db, space, "장비 점검", "하이닉스 장비 점검 결과를 적습니다."),
+        "common": _make(db, space, "회의 정리", "프로젝트 일정과 현황판 회의를 정리합니다."),
+        "spaced": _make(db, space, "고객 장비", "SK 하이닉스 장비 교체 계획입니다."),
+    }
+    index_service.run_once(db, gateway=_gateway(), limit=50)
+    db.flush()
+    return made
+
+
+def _lane_documents(db, stmt):
+    from sqlalchemy import select
+
+    from app.ai.models import DocumentChunk
+
+    keys = [str(row[0]) for row in db.execute(stmt).all()]
+    owners = dict(db.execute(select(DocumentChunk.id, DocumentChunk.document_id)
+                             .where(DocumentChunk.id.in_(keys))).all())
+    return [owners[k] for k in keys]
+
+
+def test_a_rare_word_outweighs_two_common_words(db, reader, weighted_world):
+    """「하이닉스 프로젝트 현황」 — 맞은 낱말 수만 세면 흔한 낱말 둘이 이긴다. 가시 조각 안의 df 로 무게를 주면 드문 낱말이 이긴다."""
+    question = "하이닉스 프로젝트 현황"
+    text = query_mod.normalize_query(question)
+    words = ("하이닉스", "프로젝트", "현황")
+    rare, common = weighted_world["rare"].id, weighted_world["common"].id
+    # 반례 — 같은 무게(예전 동작)에서는 흔한 낱말 둘을 가진 문서가 위다.
+    uniform = _lane_documents(db, query_mod.trgm_lane(text, keywords=words, limit=50))
+    assert uniform.index(common) < uniform.index(rare), uniform
+    weights = query_mod.keyword_weights(db, words, ())
+    assert weights["하이닉스"] > weights["프로젝트"] and weights["하이닉스"] > weights["현황"]
+    weighted = _lane_documents(db, query_mod.trgm_lane(text, keywords=words, weights=weights, limit=50))
+    assert weighted.index(rare) < weighted.index(common), weighted
+
+
+def test_a_mixed_token_reaches_a_document_that_spaces_it_out(db, reader, weighted_world):
+    """「SK하이닉스」로 물어도 「SK 하이닉스」라고 쓴 조각이 걸린다 — 전문검색은 띄어 쓴 두 어절을 조각 낱말로 맞춘다."""
+    text = query_mod.normalize_query("SK하이닉스")
+    spaced = weighted_world["spaced"].id
+    whole_only = _lane_documents(db, query_mod.fts_lane(text, keywords=("sk하이닉스",), limit=50))
+    assert spaced not in whole_only, "반례가 서지 않는다 — 통째 낱말만으로도 걸리면 이 시험은 아무것도 가르지 않는다"
+    parts = _lane_documents(db, query_mod.fts_lane(text, keywords=("sk하이닉스", "하이닉스", "sk"), limit=50))
+    assert spaced in parts
+    result = retrieval.retrieve(db, reader, raw_query="SK하이닉스 장비 교체 계획 알려줘", gateway=_gateway())
+    assert result.keywords[:3] == ("sk하이닉스", "하이닉스", "sk")
+    assert _titles(result)[0] == "고객 장비", _titles(result)
+
+
+def test_document_level_retrieval_folds_chunks_and_counts_documents(db, reader, weighted_world):
+    """문서 단위(`distinct_documents`)는 문서마다 한 줄이고, 세기는 같은 조건 · 같은 권한 절로 문서를 센다."""
+    result = retrieval.retrieve(db, reader, raw_query="프로젝트 현황판", gateway=_gateway(), distinct_documents=True,
+                                top_k=5)
+    ids = [c.document_id for c in result.citations]
+    assert len(ids) == len(set(ids)) == 5
+    counted = retrieval.count_matching_documents(db, reader, text="프로젝트 현황판", words=result.keywords,
+                                                 expanded=result.expanded)
+    assert counted is not None and counted.documents == counted.total == 11
+    assert counted.with_every_word == 11
+    second = retrieval.retrieve(db, reader, raw_query="프로젝트 현황판", gateway=_gateway(), distinct_documents=True,
+                                top_k=5, offset=5)
+    assert not set(ids) & {c.document_id for c in second.citations}, "쪽을 넘겼는데 같은 문서가 또 나왔다"
+
+
+def test_workspace_search_splits_mixed_tokens_but_the_search_screen_keeps_its_rule(db, app, make_user, make_ticket,
+                                                                                    portal_project, fake_clock):
+    """「SK하이닉스」 — 도우미의 통합 검색(`match="any"`)은 조각 「하이닉스」로 「하이닉스 장비 교체」 티켓을 찾는다. 통합 검색
+    화면(`match="all"`, P-123)은 낱말을 뽑지 않으므로 예전처럼 통째 구절만 찾는다 — 이 변경이 화면을 바꾸지 않았다는 반례다."""
+    from app.core.scope import principal_from_user
+    from app.search import service as search_service
+    from app.search.indexer import reindex_all
+
+    viewer = make_user(email="kw-ws@goodmit.co.kr", role="user", display_name="ws")
+    viewer.org_id = DEFAULT_ORG_ID
+    make_ticket(project=portal_project, title="하이닉스 장비 교체")
+    db.commit()
+    reindex_all(db, tickets=app.state.repositories.tickets, now=fake_clock.now())
+    db.commit()
+    principal = principal_from_user(db, viewer)
+    ai = search_service.search(db, raw_query="SK하이닉스", principal=principal, match=search_service.MATCH_ANY)
+    screen = search_service.search(db, raw_query="SK하이닉스", principal=principal)
+    titles = [hit["title"] for group in ai["groups"] for hit in group["items"]]
+    assert "하이닉스 장비 교체" in titles
+    assert screen["total"] == 0, "통합 검색 화면의 규칙이 바뀌었다(P-123)"

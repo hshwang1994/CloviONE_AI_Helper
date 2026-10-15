@@ -9,7 +9,12 @@
  * 폴링/쿼리 상태는 useChat.js가 가져갔다.
  *
  * 동작은 한 줄도 바꾸지 않았다(순수 이동). chat-helpers.test.js의 47개 단언이 그 증거다.
+ *
+ * 답 안의 굵게 · 링크 · 티켓 키를 조각으로 나누는 일(`parseInline`)도 여기 있다 — 조각은 평범한 객체이고, 그것을 React 노드로
+ * 바꾸는 일은 `chat/links.jsx::renderInline` 이 한다(D-569).
  */
+
+import { trimUrlTail } from "./chat-text.js";
 
 // ── 시각 표시 ───────────────────────────────────────────────────────────────
 
@@ -101,14 +106,15 @@ export function pollDelayMs(fails) {
 // ── 시작 예시·저장 키 ───────────────────────────────────────────────────────
 
 /* 시작 예시 — 도우미가 **실제로 할 수 있는 일**만 적는다(D-535). 예전 목록은 티켓 만들기처럼 할 수 없는 일을 약속했다.
- * 누르면 입력 칸에 채운다(바로 보내지 않는다). */
+ * 누르면 입력 칸에 채운다(바로 보내지 않는다). 여섯 개를 지킨다 — 첫 화면 폭(46rem)에서 두 줄로 선다(WelcomeStatus.jsx).
+ * 「내가 작성한 문서」와 「내가 담당하는 미완료 티켓」은 묻는 사람을 서버가 정하는 도구가 답한다(D-567). */
 export const QUICK_PROMPTS = [
   "오늘 내가 할 일을 정리해 줘",
-  "이번 주 마감인 내 티켓을 알려 줘",
+  "내가 담당하는 미완료 티켓을 알려 줘",
   "내가 결재할 건이 있는지 알려 줘",
   "내 프로젝트 진행 상황을 알려 줘",
   "휴가 신청 방법을 사내 문서에서 찾아 줘",
-  "이번 주에 바뀐 문서를 알려 줘",
+  "내가 작성한 문서가 몇 개야?",
 ];
 
 export const CHAT_LAST_CONV_KEY = "chat.lastConversationId"; // 새로고침 후 열려 있던 대화 복원용(세션 한정)
@@ -174,8 +180,12 @@ export function downscaleImage(file) {
  * 러너(assistant.py)가 이미 쓰는 관례만 알아본다: "[머리글]"·"■ 머리글", "1. …"·"- …" 목록,
  * 윗 항목의 들여쓴 딸린 줄, 2줄 이상 이어지는 "키: 값" 표. 새 문법은 만들지 않는다.
  * 글자는 오직 JSX 텍스트 노드(textContent)로만 들어간다 — innerHTML 금지(CLAUDE.md §2). */
-export const RE_HEAD_BRACKET = /^\[([^\]]{1,40})\]\s*(.*)$/;
+// 「[제목](경로)」로 시작하는 줄은 머리글이 아니라 링크다 — 닫는 괄호 바로 뒤가 여는 괄호면 머리글로 읽지 않는다(A8).
+export const RE_HEAD_BRACKET = /^\[([^\]]{1,40})\](?!\()\s*(.*)$/;
 export const RE_HEAD_BULLET = /^■\s*(.+)$/;
+// 마크다운 머리글(「# 제목」 ~ 「### 제목」). 서버의 형식 지시는 쓰지 말라고 하지만, 모델이 쓰면 글자 그대로 두지 않고 머리글로 그린다(A8).
+// 끝의 「 ##」 닫기는 떼고, 「#제목」처럼 띄어 쓰지 않은 줄과 「####」 이상은 머리글이 아니다.
+export const RE_HEAD_HASH = /^#{1,3}\s+(.+?)(?:\s+#+)?\s*$/;
 export const RE_ORDERED = /^(\d{1,3})\.\s+(.*)$/;
 export const RE_UNORDERED = /^-\s+(.*)$/;
 export const RE_SUBLINE = /^\s{2,}(\S.*)$/;
@@ -215,6 +225,7 @@ export function classifyLine(line) {
   if ((m = RE_ORDERED.exec(body))) return { kind: "item", marker: m[1] + ".", text: m[2] };
   if ((m = RE_UNORDERED.exec(body))) return { kind: "item", marker: "", text: m[1] };
   if (sub) return { kind: "sub", text: sub[1], raw: line };
+  if ((m = RE_HEAD_HASH.exec(line))) return { kind: "head", text: m[1], note: "" };
   if ((m = RE_HEAD_BRACKET.exec(line))) return { kind: "head", text: m[1], note: m[2] };
   if ((m = RE_HEAD_BULLET.exec(line))) return { kind: "head", text: m[1], note: "" };
   return kvOf(line) || { kind: "text", text: line };
@@ -275,9 +286,156 @@ export function parseBlocks(source) {
 }
 
 // 답변 프로즈 안에 맨 http(s):// URL이 섞여 있으면 이전엔 죽은 평문으로만 보였다. 지금은
-// 전부 PlainUrl(복사 버튼)로 낸다. 실제로 쪼개 쓰는 linkifyText는 JSX를 돌려주므로
-// chat/links.jsx에 남는다 — 이 모듈은 패턴만 소유한다.
+// 전부 PlainUrl(복사 버튼)로 낸다. 쪼개는 일은 아래 `plainSegments` 가 하고, 조각을 그리는
+// linkifyText · renderInline 은 JSX를 돌려주므로 chat/links.jsx에 남는다.
 export const URL_RE = /(https?:\/\/[^\s]+)/g;
+
+// ── 답 안의 굵게 · 링크 · 티켓 키 (A8, D-569) ──────────────────────────────────
+//
+// 모델은 마크다운을 쓴다(「**굵게**」, 「[제목](/knowledge/…)」). 예전에는 그 글자가 말풍선에 그대로 보였다. 이제 조각으로 나눠
+// 굵게는 굵게, 링크는 링크로 그린다. 링크에는 규칙이 하나 있다 — **그 답의 서버 출처와 같은 경로일 때만** 링크가 된다. 모델이
+// `/knowledge/<지어낸 id>` 를 써도, 앱 안 경로 모양이 맞아도, 출처에 없으면 원래 글자 그대로 남는다. 링크가 가는 곳은 언제나
+// 서버가 만든 출처의 경로다(모델이 붙인 `?block=` 값이 달라도 출처의 경로로 간다). 바깥 주소는 어느 경우에도 앵커가 아니다.
+
+/* 「참고한 자료」와 답 안 링크가 받는 앱 안 경로 — 서버가 만든 출처의 모양이다(D-535 · D-538).
+ * 「/」로 끝나는 갈래는 그 아래 경로를, 아닌 갈래는 그 경로 자체나 질의(`?`)가 붙은 것만 받는다 — `/sprints-x` 를 `/sprint` 로 읽지 않는다. */
+export const SOURCE_ROUTE_PREFIXES = ["/knowledge/", "/tickets/", "/projects/", "/my-approvals", "/board/", "/sprint"];
+
+function routeHasPrefix(route, prefix) {
+  if (prefix.endsWith("/")) return route.startsWith(prefix);
+  return route === prefix || route.startsWith(prefix + "?");
+}
+
+/** 앱 안 출처 경로면 그 값, 아니면 null. 바깥 주소 · `//` 로 시작하는 값 · 허용 밖 경로는 버린다. */
+export function safeSourceRoute(route) {
+  if (typeof route !== "string" || !route.startsWith("/") || route.startsWith("//")) return null;
+  return SOURCE_ROUTE_PREFIXES.some((prefix) => routeHasPrefix(route, prefix)) ? route : null;
+}
+
+/** 경로에서 `block` 질의만 뗀다(문서의 문단 자리). 같은 문서를 가리키는지 볼 때 쓴다. */
+export function stripBlock(route) {
+  if (typeof route !== "string") return "";
+  const q = route.indexOf("?");
+  if (q < 0) return route;
+  const kept = route.slice(q + 1).split("&").filter((p) => p && p !== "block" && !p.startsWith("block="));
+  return kept.length ? route.slice(0, q) + "?" + kept.join("&") : route.slice(0, q);
+}
+
+/* 마크다운 링크 「[글](경로)」 — 글에는 대괄호와 줄바꿈이, 경로에는 괄호와 공백이 없다. 정규식은 전역(g)이 아니다(lastIndex 상태가 없다). */
+export const INLINE_LINK_RE = /\[([^[\]\n]{1,200})\]\(([^()\s]{1,500})\)/;
+/* 굵게 「**글**」 — 안의 글은 비지 않고, 앞뒤가 공백이나 별표가 아니며, 줄을 넘지 않는다. 가장 짧게 맞춘다(뒤 묶음도 `??` 로
+ * 게으르게 — 아니면 「**a** 와 **b**」가 굵게 하나로 묶인다). */
+export const BOLD_RE = /\*\*([^\s*](?:[^\n]*?[^\s*])??)\*\*/;
+const BOLD_MARKS = /\*\*([^*\n]+)\*\*/g;
+
+// 티켓 키는 글자 · 숫자 · 하이픈뿐이다. 그 모양만 받아 정규식 메타문자가 들어올 자리를 없앤다.
+const KEY_SHAPE = /^[A-Za-z0-9-]{3,40}$/;
+const KEY_CHAR = /[A-Za-z0-9-]/;
+
+function mergeText(segments) {
+  const out = [];
+  for (const seg of segments) {
+    if (!seg) continue;
+    if (seg.t === "text") {
+      if (!seg.text) continue;
+      const prev = out[out.length - 1];
+      if (prev && prev.t === "text") prev.text += seg.text;
+      else out.push({ t: "text", text: seg.text });
+      continue;
+    }
+    out.push(seg);
+  }
+  return out;
+}
+
+/* 글 속 티켓 키 → 조각. **그 답의 출처에 있는 키만**이다(D-538). 키 앞뒤가 글자 · 숫자 · 하이픈이면 키가 아니다 —
+   「ABC-1」이 「ABC-12」 안에서 링크가 되지 않는다. */
+function keySegments(text, keyLinks) {
+  if (!text) return [];
+  if (!keyLinks || !keyLinks.size) return [{ t: "text", text }];
+  const keys = [...keyLinks.keys()].filter((k) => KEY_SHAPE.test(k)).sort((a, b) => b.length - a.length);
+  if (!keys.length) return [{ t: "text", text }];
+  const re = new RegExp("(" + keys.join("|") + ")(?![A-Za-z0-9-])", "g");
+  const out = [];
+  let last = 0;
+  let m;
+  while ((m = re.exec(text))) {
+    if (m.index > 0 && KEY_CHAR.test(text[m.index - 1])) {
+      re.lastIndex = m.index + 1;
+      continue;
+    }
+    if (m.index > last) out.push({ t: "text", text: text.slice(last, m.index) });
+    out.push({ t: "key", key: m[1], route: keyLinks.get(m[1]) });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ t: "text", text: text.slice(last) });
+  return out;
+}
+
+/** 굵게와 링크가 없는 글 → 조각(글 · 바깥 주소 · 티켓 키). 주소 끝의 문장 부호와 남는 닫는 괄호는 주소에서 떼어 뒤 글에 붙인다
+ *  (팀 채팅 말풍선과 같은 `trimUrlTail`). 바깥 주소는 `url` 조각이고 화면은 복사 단추로 그린다 — 앵커가 아니다. */
+export function plainSegments(text, { keyLinks } = {}) {
+  const parts = String(text == null ? "" : text).split(URL_RE);
+  const out = [];
+  let carry = "";
+  parts.forEach((part, i) => {
+    if (i % 2 === 1) {
+      const raw = trimUrlTail(part);
+      carry = part.slice(raw.length);
+      out.push({ t: "url", url: raw });
+    } else {
+      out.push(...keySegments(carry + part, keyLinks));
+      carry = "";
+    }
+  });
+  return mergeText(out);
+}
+
+/* 출처 경로들 → 「block 을 뗀 경로 → 서버가 준 경로」. 안전하지 않은 경로는 처음부터 넣지 않는다. */
+function routeTargets(routeLinks) {
+  const out = new Map();
+  if (!routeLinks || typeof routeLinks[Symbol.iterator] !== "function") return out;
+  for (const route of routeLinks) {
+    const safe = safeSourceRoute(route);
+    if (!safe) continue;
+    const key = stripBlock(safe);
+    if (!out.has(key)) out.set(key, safe);
+  }
+  return out;
+}
+
+function inlineSpans(text, targets, keyLinks, depth) {
+  const out = [];
+  let rest = text;
+  while (rest) {
+    const link = INLINE_LINK_RE.exec(rest);
+    const bold = depth === 0 ? BOLD_RE.exec(rest) : null;
+    const m = link && (!bold || link.index < bold.index) ? link : bold;
+    if (!m) {
+      out.push(...plainSegments(rest, { keyLinks }));
+      break;
+    }
+    if (m.index > 0) out.push(...plainSegments(rest.slice(0, m.index), { keyLinks }));
+    if (m === link) {
+      const safe = safeSourceRoute(link[2]);
+      const target = safe ? targets.get(stripBlock(safe)) : undefined;
+      if (target) out.push({ t: "link", route: target, label: link[1].replace(BOLD_MARKS, "$1") });
+      else out.push(...plainSegments(link[0], { keyLinks }));   // 출처에 없는 링크 — 원래 글자 그대로
+    } else {
+      out.push({ t: "bold", children: inlineSpans(bold[1], targets, keyLinks, depth + 1) });
+    }
+    rest = rest.slice(m.index + m[0].length);
+  }
+  return mergeText(out);
+}
+
+/** 답 한 줄(또는 문단) → 조각 배열. 조각은 다섯 가지다:
+ *    {t:"text", text} · {t:"bold", children:[조각]} · {t:"link", route, label} · {t:"key", key, route} · {t:"url", url}
+ *  `routeLinks` 는 그 답의 출처 경로(Set 이나 배열 — `block` 이 붙어 있어도 된다), `keyLinks` 는 티켓 키 → 경로(Map)다.
+ *  링크는 경로가 앱 안 출처 모양이고 `block` 을 뗀 값이 출처의 것과 같을 때만 서고, 가는 곳은 그 출처의 경로다. */
+export function parseInline(text, { routeLinks, keyLinks } = {}) {
+  return inlineSpans(String(text == null ? "" : text), routeTargets(routeLinks), keyLinks, 0);
+}
 
 // ── 도우미 답의 구조 (D-535) ─────────────────────────────────────────────────
 
@@ -300,6 +458,17 @@ export function searchedWords(structured) {
   return checkedTools(structured)
     .map((t) => (typeof t.query === "string" ? t.query.trim() : ""))
     .filter((q) => q && !seen.has(q) && seen.add(q));
+}
+
+/* 「확인한 내용」 한 줄 뒤에 붙는 수 — 서버가 센 전체 수(`total`, 권한 안의 정확한 수)와 이번에 받은 수(`count`)다(D-567).
+ * 전체가 더 많으면 「25건 중 8건」, 같으면 「8건」, 전체 수를 모르면(null) 아무것도 붙이지 않는다 — 모르는 수를 지어내지 않는다. */
+export function toolCountLabel(tool) {
+  const total = tool && typeof tool.total === "number" && Number.isFinite(tool.total) ? tool.total : null;
+  if (total == null) return null;
+  const count = typeof tool.count === "number" && Number.isFinite(tool.count) ? tool.count : 0;
+  if (total > count) return `${total}건 중 ${count}건`;
+  if (total === count && total > 0) return `${total}건`;
+  return null;
 }
 
 // ── 전송·오류 ───────────────────────────────────────────────────────────────

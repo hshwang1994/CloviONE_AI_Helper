@@ -68,7 +68,7 @@ def _overview(request: Request, db: Session) -> dict:
     user = getattr(request.state, "user", None)
     return service.overview(db, _runtime(request), _secrets(request), request.app.state.settings_cache,
                             gateway=_gateway(request), admin_user_id=getattr(user, "id", None),
-                            now=request.app.state.clock.now())
+                            now=request.app.state.clock.now(), settings=request.app.state.settings)
 
 
 def _session_secret(request: Request) -> str:

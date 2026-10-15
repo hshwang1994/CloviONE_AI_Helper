@@ -86,6 +86,49 @@ describe("도우미 답의 구조", () => {
   });
 });
 
+/* A8(D-569) — 답 안의 「[제목](경로)」는 그 답의 출처에 있는 경로일 때만 링크이고, 「확인한 내용」은 서버가 센 전체 수를 함께 말한다. */
+describe("답 안의 출처 링크와 확인한 수", () => {
+  const SOURCES = [
+    { type: "document", id: "d1", title: "연차 규정", route: "/knowledge/d1?block=b1" },
+    { type: "ticket", id: "t-1", title: "결재 화면", route: "/tickets/t-1", key: "ABCDEF-12" },
+    { type: "sprint", id: "s-1", title: "10월 2주 회차", route: "/sprint?team=dep-1&sprint=s-1" },
+  ];
+
+  it("출처에 있는 경로만 링크가 되고, 지어낸 경로는 글자 그대로 남는다", () => {
+    renderMessage(answer({ kind: "assistant", sources: SOURCES },
+      "- [규정 문서](/knowledge/d1) **중요**\n- [회의 결정](/sprint?team=dep-1&sprint=s-1)\n- [없는 문서](/knowledge/zz)"));
+    expect(screen.getByRole("link", { name: "규정 문서" })).toHaveAttribute("href", "#/knowledge/d1?block=b1");
+    expect(screen.getByRole("link", { name: "회의 결정" })).toHaveAttribute("href", "#/sprint?team=dep-1&sprint=s-1");
+    expect(screen.queryByRole("link", { name: "없는 문서" })).toBeNull();
+    expect(screen.getByText(/\[없는 문서\]\(\/knowledge\/zz\)/)).toBeInTheDocument();
+    expect(screen.getByText("중요").tagName).toBe("STRONG");
+  });
+
+  it("레일이 출처를 대신 보여 줄 때(말풍선 안 출처 숨김)도 답 안 링크는 그대로다", () => {
+    renderMessage(answer({ kind: "assistant", sources: SOURCES }, "[규정 문서](/knowledge/d1)를 보세요."), { showSources: false });
+    expect(screen.getByRole("link", { name: "규정 문서" })).toHaveAttribute("href", "#/knowledge/d1?block=b1");
+    expect(screen.queryByRole("link", { name: "연차 규정" })).toBeNull();
+  });
+
+  it("오류 안내 말풍선의 마크다운 링크는 링크가 아니다(출처가 없다)", () => {
+    renderMessage(answer({ kind: "assistant", error_notice: true, sources: SOURCES }, "[규정 문서](/knowledge/d1)"));
+    expect(screen.queryByRole("link", { name: "규정 문서" })).toBeNull();
+  });
+
+  it("「확인한 내용」은 전체 수가 더 많으면 「N건 중 M건」을, 같으면 「N건」을, 모르면 아무것도 붙이지 않는다", async () => {
+    const user = userEvent.setup();
+    renderMessage(answer({ kind: "assistant", tools: [
+      { name: "search_documents", label: "사내 문서 검색", ok: true, count: 8, total: 25, query: "연차" },
+      { name: "my_documents", label: "내 문서", ok: true, count: 3, total: 3 },
+      { name: "my_work", label: "내 업무", ok: true, count: 2, total: null },
+    ] }));
+    await user.click(screen.getByRole("button", { name: "확인한 내용 보기" }));
+    expect(screen.getByText("사내 문서 검색에서 「연차」를 찾았습니다. (25건 중 8건)")).toBeInTheDocument();
+    expect(screen.getByText("내 문서를 확인했습니다. (3건)")).toBeInTheDocument();
+    expect(screen.getByText("내 업무를 확인했습니다.")).toBeInTheDocument();
+  });
+});
+
 describe("입력 중 말풍선", () => {
   it("서버가 적은 진행 문구를 보인다", () => {
     render(<ThemeModeProvider><TypingBubble label="사내 문서를 찾고 있습니다." /></ThemeModeProvider>);

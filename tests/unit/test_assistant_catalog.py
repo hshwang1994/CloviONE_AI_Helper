@@ -60,23 +60,28 @@ def test_screen_words_are_complete_korean(tool):
         assert "·" not in text and "—" not in text and "해당" not in text
 
 
-def test_names_are_unique_and_there_are_twelve():
+def test_names_are_unique_and_there_are_seventeen():
     names = [tool.name for tool in catalog.REGISTRY]
-    assert len(names) == len(set(names)) == 12
+    assert len(names) == len(set(names)) == 17
+    assert {"my_documents", "project_activity", "my_notifications", "my_activity", "sprint_meetings"} <= set(names)
 
 
 def test_document_tools_need_document_read_and_people_need_team_chat():
     gates = {tool.name: (tool.permission, tool.flag) for tool in catalog.REGISTRY}
     assert gates["search_documents"] == ("DOCUMENT_READ", None)
     assert gates["get_document"] == ("DOCUMENT_READ", None)
+    assert gates["my_documents"] == ("DOCUMENT_READ", None)
     assert gates["find_people"] == (None, "team_chat_enabled")
+    for name in ("project_activity", "my_notifications", "my_activity", "sprint_meetings"):
+        assert gates[name] == (None, None), name
 
 
 def test_available_tools_filter_by_permission_and_flag():
     everything = catalog.available_tools(can=lambda key: True, flag=lambda key: True)
-    assert len(everything) == 12
+    assert len(everything) == 17
     no_docs = {t.name for t in catalog.available_tools(can=lambda key: key != "DOCUMENT_READ", flag=lambda key: True)}
-    assert {"search_documents", "get_document"}.isdisjoint(no_docs)
+    assert {"search_documents", "get_document", "my_documents"}.isdisjoint(no_docs)
+    assert "project_activity" in no_docs, "문서 권한이 없어도 프로젝트 진행 현황은 쓴다(문서 칸만 빠진다)"
     no_chat = {t.name for t in catalog.available_tools(can=lambda key: True, flag=lambda key: False)}
     assert "find_people" not in no_chat and "my_work" in no_chat
 
@@ -96,3 +101,40 @@ def test_execute_refuses_bad_arguments_before_opening_a_session(arguments):
     call = base.ToolCall(id="c1", name="my_work", arguments=arguments)
     result = catalog.execute(call, allowed=allowed, env=None)
     assert '"invalid_arguments"' in result.content
+
+
+def test_every_description_is_complete_korean_sentences():
+    """설명은 마침표로 끝나는 완전한 문장들이다 — 조각 문장 · 번역투 · 서류 말투를 쓰지 않는다(CLAUDE.md §10)."""
+    for tool in catalog.REGISTRY:
+        for sentence in [s for s in tool.description.split(". ") if s]:
+            assert sentence.rstrip(".").strip(), tool.name
+        for word in ("이를 통해", "수행한다", "한눈에"):
+            assert word not in tool.description, (tool.name, word)
+        for name, prop in tool.spec().parameters["properties"].items():
+            assert prop["description"].endswith("."), (tool.name, name)
+            assert "·" not in prop["description"] and "해당" not in prop["description"], (tool.name, name)
+
+
+def test_the_routing_sentences_point_identity_questions_at_the_identity_tools():
+    """「내가 작성한 문서」를 이름 문자열로 검색하던 결함(계획 4절) — 설명이 신원 도구로 보낸다."""
+    tools = catalog.TOOLS
+    assert "my_documents" in tools["search_documents"].description
+    assert "내가 작성한 문서" in tools["my_documents"].description
+    assert "total" in tools["my_documents"].description and "total" in tools["my_work"].description
+    assert "search_documents" in tools["search_workspace"].description
+    assert "project_activity" in tools["search_projects"].description
+    assert "후보" in tools["project_activity"].description and "후보" in tools["get_project_summary"].description
+
+
+@pytest.mark.parametrize("name,arguments", [
+    ("search_documents", {"query": "연차", "project": None, "offset": 41}),
+    ("my_documents", {"view": "everything"}),
+    ("search_tickets", {"scope": "team", "statuses": ["끝남"]}),
+    ("my_activity", {"days": 91}),
+    ("my_notifications", {"days": 61}),
+    ("project_activity", {"project": "a", "days": 181}),
+    ("my_documents", {"view": "authored", "user_id": "someone"}),
+])
+def test_out_of_range_or_foreign_arguments_are_refused(name, arguments):
+    with pytest.raises(ValidationError):
+        catalog.TOOLS[name].args.model_validate(arguments)
