@@ -48,8 +48,9 @@
     `clovirassist-mail.goodmit.co.kr → 221.147.80.201`. 회선 업체 — PTR `221.147.80.201 → clovirassist-mail.goodmit.co.kr`(또는 NAT). M365 관리자 —
     인증 확인 · (선택) 발신자 사진. 요청문은 메일 설정 ⑤ 「담당자에게 요청하기」에 그대로 있다. 레코드가 들어오면 메일 설정에서 서버 이름(HELO)을
     `clovirassist-mail.goodmit.co.kr` 로 바꾸고 점검을 다시 한다.
-  ③ 에지(221.147.80.210) · 사내 DNS 담당 — 사내 사용자의 자가 서명 경고 해소(사내 DNS 를 에지로 · 에지 인증서를 랩에 · 사내 CA 중 하나, 권장 첫째),
-    에지의 `X-Forwarded-For` 확인 뒤 `--upstream-proxy 10.100.64.96`(P-143).
+  ③ 사내 DNS 담당 — 사내 사용자의 자체 서명 경고 해소. 권장은 사내 DNS 의 `clovirassist.goodmit.co.kr` 를 에지의 안쪽 주소
+    **10.100.64.96** 으로 돌리는 것이다(유효한 인증서로 200, 사용자 주소 유지 — 확인함). 공개 주소 221.147.80.210 으로 돌리면 사내 전원이
+    회사 출구 주소 하나로 보인다. 에지 앞단 프록시 신뢰는 끝났다(P-143, 15:07).
   ④ (선택) 일반 사용자 계정으로 AI 권한 제한 한 문항(P-132).
 
 ## 끝남 — 기능 개선 회차: 조직 아바타 · 클로비 패널 · AI 연결 · 메일 · 게임(구슬 레이스) (2026-10-12)
@@ -185,7 +186,7 @@
 - branch: `ui/mui-migration`
 - last_stable_commit: **`eec4886c`** — 이번 회차도 안 옮긴다.
 - deployed: **`e51506e9`** (2026-10-15 14:23 KST) — 마이그레이션 없음, Stage 18 VERIFY_OK, `verify_deploy.sh` 두 이름 DEPLOY_VERIFY_OK. 스냅샷
-  `/var/backups/clovirassist/20261015-142305`(그 전 `20261015-130128` = `e8c1cbbc`). 되돌리려면 `sudo clovirassist rollback`. 랩 값 —
+  `/var/backups/clovirassist/20261015-142305`(그 전 `20261015-130128` = `e8c1cbbc`). 15:07 에 같은 코드로 `upgrade --upstream-proxy 10.100.64.96` 을 한 번 더 했다(스냅샷 `20261015-150715`). 되돌리려면 `sudo clovirassist rollback`. 랩 값 —
   대표 주소 `https://clovirassist.goodmit.co.kr`(별칭 `clovirassist.gooddi.lab`, 새 자체 서명 인증서 `dist/ops/clovirassist.goodmit.co.kr.crt`),
   `AI_ENABLED=true` · 매니페스트 `with_ai=1`, AI 는 ChatGPT 계정 · `gpt-6.1-sol` · 도구 호출 사용 가능, 메일은 발송 켬 · 로컬 릴레이 · 직접 전달 ·
   DKIM 서명(서버 이름은 아직 `clovirassist.gooddi.lab` — DNS 담당자의 A 레코드 뒤에 바꾼다). 로컬 `dist/ops/server.env` 의 `BASE_URL` · `DNS_NAME` 은
