@@ -99,7 +99,8 @@ MAIL_RELAY_ROUTES = (
 
 # ── 지시서 69 화면 ─────────────────────────────────────────────────────────────
 C69: list[Case] = [
-    Case("01", "홈", "/me", check="[aria-label='내 티켓']"),
+    # 홈 업무 판(D-589 이후 「내 티켓」 구역 이름이 없어졌다 — 판 격자의 표지로 상태를 확인한다).
+    Case("01", "홈", "/me", check="[data-testid=home-body-grid]"),
     Case("01-zero", "홈 · 티켓 0건", "/me", routes=(("**/api/home/today*", "empty_buckets"),), check=E),
     Case("02", "내 티켓 · 조건 0건", "/my-tickets?q=zzzz-none-r23", check=E),
     Case("02-default", "내 티켓 · 기본(종료 제외) 0건", "/my-tickets", routes=(("**/api/tickets/mine*", "empty"),), check=E),
@@ -139,6 +140,9 @@ C69: list[Case] = [
     Case("19", "스프린트 회의 · 회차 고르기 전", "/sprint?{sprint_idle_q}", check=E),
     Case("19-none", "스프린트 회의 · 회차 없음", "/sprint?{sprint_none_q}", check=E),
     Case("20", "스프린트 회의 · 회차", "/sprint?{sprint_q}", check="main"),
+    Case("20-empty", "스프린트 회의 · 담긴 티켓이 없는 회차", "/sprint?{sprint_q}",
+         routes=(("**/api/work/sprints/*/meeting*", "empty_meeting"),), check="main",
+         note="회의 응답의 집계 · 그림 · 논의 목록을 비운다(r23 #51)"),
     Case("21", "문서", "/knowledge", check=LIST_E),
     Case("22", "문서 휴지통 · 문서 0건", "/team-docs/trash?kind=document", routes=((re.compile(r"/api/trash\?"), "empty_trash_docs"),), check=E),
     Case("22-data", "문서 휴지통", "/team-docs/trash", check="main"),
@@ -500,10 +504,28 @@ def _mail_relay(kind: str):
     return _rewrite(status)
 
 
+def _empty_meeting(data):
+    """스프린트 회의 응답에서 담긴 티켓을 모두 비운다 — 집계 0, 번다운 · 건강 · 업무량 없음, 논의 묶음 0건, 범위 추적 없음."""
+    out = dict(data)
+    if isinstance(out.get("summary"), dict):
+        out["summary"] = {k: (0 if isinstance(v, (int, float)) else v) for k, v in out["summary"].items()}
+    out["burndown"] = None
+    out["health"] = None
+    out["workload"] = None
+    out["tickets"] = []
+    if isinstance(out.get("discuss"), dict):
+        out["discuss"] = {k: ({**v, "items": [], "total": 0} if isinstance(v, dict) else v) for k, v in out["discuss"].items()}
+    if isinstance(out.get("scope"), dict):
+        out["scope"] = {**out["scope"], "tracked": False, "added": 0, "removed": 0}
+    return out
+
+
 def _handler(kind: str):
     """`routes` 의 종류 → Playwright 처리기. 실제 응답을 받아 값만 고친다(모양이 서버와 어긋나지 않는다)."""
     from scripts.ui_qa.state_capture import _empty_lists, _rewrite
 
+    if kind == "empty_meeting":
+        return _rewrite(_empty_meeting)
     if kind.startswith("mail_relay_"):
         return _mail_relay(kind)
     if kind == "empty":
