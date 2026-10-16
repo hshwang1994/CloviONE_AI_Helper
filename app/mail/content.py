@@ -222,7 +222,7 @@ def password_reset_content(*, product: str, base_url: str, subject: str, name: s
         preheader=f"{hours}시간 안에 새 비밀번호를 설정하세요.",
         heading="비밀번호 재설정을 요청하셨습니다.",
         lead=[f"{name} 님, 아래 단추를 눌러 새 비밀번호를 설정하세요."],
-        action=("새 비밀번호 설정하기", link),
+        action=("새 비밀번호 설정", link),
         fallback_url=link,
         notes=[
             f"이 링크는 {hours}시간 뒤에 만료되며 한 번만 쓸 수 있습니다.",
@@ -237,17 +237,17 @@ def password_reset_content(*, product: str, base_url: str, subject: str, name: s
 def invite_content(*, product: str, base_url: str, subject: str, name: str, email: str, link: str, days: int) -> MailContent:
     return MailContent(
         subject=subject,
-        preheader=f"{product} 계정이 만들어졌습니다. 비밀번호를 설정하고 로그인하세요.",
-        heading=f"{product} 계정이 만들어졌습니다.",
+        preheader=f"{product} 계정이 준비되었습니다. 비밀번호를 설정하고 로그인하세요.",
+        heading=f"{product} 계정이 준비되었습니다.",
         lead=[f"{name} 님, 아래 단추를 눌러 비밀번호를 설정한 뒤 로그인하세요."],
         facts=[("계정", email), ("로그인 주소", _link(base_url, "/login"))],
-        action=("비밀번호 설정하기", link),
+        action=("비밀번호 설정", link),
         fallback_url=link,
         notes=[
             f"이 링크는 {days}일 뒤에 만료되며 한 번만 쓸 수 있습니다.",
             "임시 비밀번호는 메일로 보내지 않습니다.",
         ],
-        footer_reason=_footer("{product} 관리자가 계정을 만들어 보낸 메일입니다.", product),
+        footer_reason=_footer("{product} 관리자가 계정을 추가하면서 보낸 메일입니다.", product),
         product_name=product,
         eyebrow="계정 초대",
     )
@@ -277,14 +277,14 @@ def approval_requested_content(
     return MailContent(
         subject=subject,
         preheader=f"{requester} 님이 승인을 요청했습니다.",
-        heading="결재할 승인 요청이 있습니다.",
-        lead=[f"{requester} 님이 올린 요청을 검토하고 승인하거나 반려하세요."],
+        heading="처리할 승인 요청이 있습니다.",
+        lead=[f"{requester} 님이 올린 요청을 검토하고 승인하거나 거절하세요."],
         facts=[("요청 유형", type_label), ("요청한 사람", requester), ("대상", target)],
         action=("승인 화면에서 보기", link),
         fallback_url=link,
-        footer_reason=_footer("{product}에서 이 요청을 결재할 수 있는 사람에게 보낸 메일입니다.", product),
+        footer_reason=_footer("{product}에서 이 요청을 처리할 수 있는 사람에게 보낸 메일입니다.", product),
         product_name=product,
-        eyebrow="결재 요청",
+        eyebrow="승인 요청",
     )
 
 
@@ -294,7 +294,7 @@ def test_content(
 ) -> MailContent:
     """시험 메일. 외부 SMTP 는 서버 · 보안 연결을, 로컬 릴레이는 전달 방식(``delivery_label``)을 사실로 적는다 — 릴레이 모드에
     외부 SMTP 값이 적히던 결함(P4 ④)을 고쳤다."""
-    facts = [("보낸 시각", kst_text(sent_at)), ("보내는 방법", mode_label), ("메일 서버", server)]
+    facts = [("보낸 시각", kst_text(sent_at)), ("발송 방식", mode_label), ("메일 서버", server)]
     facts.append(("전달 방식", delivery_label) if delivery_label else ("보안 연결", security_label))
     return MailContent(
         subject=subject,
@@ -322,7 +322,7 @@ NOTIFICATION_HEADINGS = {
     "approval_cancelled": "승인 요청이 취소됐습니다.",
     "approval_delegated": "승인 권한을 위임받았습니다.",
     "chat_invited": "채팅방에 초대됐습니다.",
-    "chat_mentioned": "채팅에서 나를 불렀습니다.",
+    "chat_mentioned": "채팅에서 언급됐습니다.",
     "document_comment": "문서에 새 댓글이 있습니다.",
     "board_comment": "게시글에 새 댓글이 있습니다.",
     "idea_status_changed": "제안의 상태가 바뀌었습니다.",
@@ -341,9 +341,9 @@ NOTIFICATION_LEADS = {
     "approval_overdue": "{name} 님이 처리할 승인 요청이 기한을 넘겼습니다.",
     "approval_expired": "{name} 님과 관련된 승인 대기 건이 기한을 넘겨 만료됐습니다.",
     "approval_cancelled": "{name} 님이 올린 승인 요청을 다른 사람이 취소했습니다.",
-    "approval_delegated": "{name} 님이 다른 사람의 승인 권한을 대신 위임받았습니다.",
+    "approval_delegated": "{name} 님이 다른 사람의 승인 권한을 위임받았습니다.",
     "chat_invited": "{name} 님을 채팅방에 초대했습니다.",
-    "chat_mentioned": "{name} 님을 채팅에서 불렀습니다.",
+    "chat_mentioned": "{name} 님을 채팅에서 언급했습니다.",
     "document_comment": "{name} 님과 관련된 문서에 새 댓글이 달렸습니다.",
     "board_comment": "{name} 님이 쓴 게시글에 새 댓글이 달렸습니다.",
     "idea_status_changed": "{name} 님이 올린 제안의 상태가 바뀌었습니다.",
@@ -430,7 +430,7 @@ def notification_content(
         action=(f"{product}에서 보기", link),
         fallback_url=link,
         footer_reason=_footer(f"이 메일은 {{product}}의 {type_label} 알림 설정에 따라 보냈습니다.", product),
-        footer_links=[("알림 메일 설정 바꾸기", _link(base_url, "/#/profile"))],
+        footer_links=[("알림 메일 설정 열기", _link(base_url, "/#/profile"))],
         product_name=product,
         eyebrow=f"{type_label} 알림",
         unsubscribe_url=_link(base_url, "/#/profile"),

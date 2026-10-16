@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """로컬 릴레이의 부품 — 인증서 · 로그 · 큐 · SPF · 준비 점검 판정 (계획 M7, D-551).
 
 못박는 것:
@@ -262,7 +263,7 @@ def test_a_domain_the_system_resolver_knows_keeps_the_old_judgement():
                      a={"clovirassist.gooddi.lab": [IP]}, ptr={IP: ["clovirassist.gooddi.lab"]})
     rows, spf, seen = _sender(system, [])
     assert seen is True and rows["spf"]["state"] == rr.OK and rows["dmarc"]["state"] == rr.WARN
-    assert rows["sender_domain_public"]["message"] == "보내는 도메인(goodmit.co.kr)을 DNS 에서 찾았습니다."
+    assert rows["sender_domain_public"]["message"] == "보내는 도메인(goodmit.co.kr)을 DNS에서 찾았습니다."
     assert rows["ptr_fcrdns"]["state"] == rr.OK and rows["helo_dns"]["state"] == rr.OK
 
 
@@ -309,7 +310,7 @@ def test_requests_for_groups_records_by_owner_with_a_copyable_text():
     assert [r["owner"] for r in requests] == [rr.OWNER_DNS, rr.OWNER_NETWORK]
     dns, ptr = requests
     assert [r["key"] for r in dns["records"]] == ["spf", "dkim", "dmarc", "helo"]
-    assert "example.com 도메인의 DNS 에 아래 레코드를 넣어 주세요." in dns["text"]
+    assert "example.com 도메인의 DNS에 아래 레코드를 넣어 주세요." in dns["text"]
     assert "v=spf1 ip4:203.0.113.5 include:spf.protection.outlook.com -all" in dns["text"]
     assert "ca1._domainkey.example.com" in dns["text"]
     assert ptr["records"][0]["key"] == "ptr" and "203.0.113.5" in ptr["text"] and "mail.example.com" in ptr["text"]
@@ -422,7 +423,7 @@ def test_lab_web_ip_differs_from_egress_so_a_mail_name_ptr_and_nat_are_proposed(
     assert records["ptr"]["value"] == "clovirassist-mail.goodmit.co.kr" and "gooddi.lab" not in str(records["ptr"])
     # 정보 줄 · 정렬 줄 · 서버 이름 줄
     assert rows["egress_vs_web"]["state"] == rr.OK and WEB in rows["egress_vs_web"]["message"] and EGRESS in rows["egress_vs_web"]["message"]
-    assert rows["sender_alignment"]["state"] == rr.OK and "정렬됐습니다" in rows["sender_alignment"]["message"]
+    assert rows["sender_alignment"]["state"] == rr.OK and "같은 도메인(goodmit.co.kr)을 씁니다" in rows["sender_alignment"]["message"]
     assert rows["helo_dns"]["state"] == rr.FAIL and "clovirassist-mail.goodmit.co.kr" in rows["helo_dns"]["need"]
     assert rows["dmarc"]["state"] == rr.OK and rows["dmarc"]["need"] == rr.DMARC_NONE_ADVICE
     assert got["web_ip"] == WEB and got["helo_suggestion"]["name"] == "clovirassist-mail.goodmit.co.kr"
@@ -434,7 +435,7 @@ def test_lab_web_ip_differs_from_egress_so_a_mail_name_ptr_and_nat_are_proposed(
     assert [r["key"] for r in dns["records"]] == ["spf", "dkim", "helo"] and "_dmarc" not in dns["text"]
     assert f"참고: {rr.DMARC_KEEP}" in dns["text"] and f"참고: {rr.DMARC_NONE_ADVICE}" in dns["text"]
     ptr = requests[rr.OWNER_NETWORK]
-    assert "clovirassist-mail.goodmit.co.kr" in ptr["text"] and "NAT" in ptr["text"] and f"{WEB} 의" in ptr["text"]
+    assert "clovirassist-mail.goodmit.co.kr" in ptr["text"] and "NAT" in ptr["text"] and f"{WEB}의" in ptr["text"]
     mailbox = requests[rr.OWNER_MAILBOX]
     assert mailbox["title"] == "발신자 표시 요청" and mailbox["provider"] == "Microsoft 365"
     assert "Microsoft 365" in mailbox["text"] and "compauth=pass" in mailbox["text"] and "noreply@goodmit.co.kr" in mailbox["text"]
@@ -456,7 +457,7 @@ def test_when_the_web_address_shares_the_mail_ip_the_web_name_is_the_server_name
     ptr_text = next(r["text"] for r in got["requests"] if r["owner"] == rr.OWNER_NETWORK)
     assert "clovirassist.goodmit.co.kr" in ptr_text and "NAT" not in ptr_text, "같은 IP 면 NAT 대안을 말하지 않는다"
     rows = _by_key(got["checks"])
-    assert "메일 설정의 서버 이름(HELO)" in rows["helo_dns"]["need"] and rows["helo_dns"]["where"] == "메일 설정"
+    assert "메일 설정의 메일 서버 이름(HELO)" in rows["helo_dns"]["need"] and rows["helo_dns"]["where"] == "메일 설정"
 
 
 def test_after_the_records_pass_only_the_optional_mailbox_request_remains():

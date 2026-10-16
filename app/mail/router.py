@@ -194,7 +194,7 @@ def status(request: Request, db: Session = Depends(get_db), principal: Principal
         "pending_unconfigured_count": pending_unconfigured_count(db, now=now),
         "backlog": {"count": pending_unconfigured_count(db, now=now), "window_days": backlog_window_days(db)},
         "base_url": _base_url_state(request, can_configure),
-        # 로컬 릴레이(M7, D-551) - 그 방식일 때만 구성 요소 상태와 최근 바깥 전달을 싣는다(상태 면의 두 줄).
+        # 로컬 릴레이(M7, D-551) - 그 방식일 때만 구성 요소 상태 · 최근 바깥 전달 · 준비 점검 요약을 싣는다(상태 면의 줄).
         "relay": relay,
         "capabilities": {
             "can_configure": can_configure,
@@ -207,15 +207,26 @@ def status(request: Request, db: Session = Depends(get_db), principal: Principal
     }
 
 
+def _readiness_brief(readiness: dict | None, config) -> dict | None:
+    """상태 면의 「DNS 인증」 줄이 쓰는 준비 점검 요약(D-592) — 줄마다 이름과 상태만 싣는다. 문장 · 레코드 · 요청 내용은 설정
+    권한의 `/relay` 가 준다. 점검한 뒤 설정이 바뀌었으면 ``stale`` 이다(옛 결과를 지금 설정의 것처럼 보이지 않는다)."""
+    if not isinstance(readiness, dict):
+        return None
+    checks = [{"key": c.get("key"), "label": c.get("label"), "state": c.get("state")}
+              for c in readiness.get("checks") or [] if isinstance(c, dict)]
+    return {"checked_at": readiness.get("checked_at"), "delivery": readiness.get("delivery"),
+            "stale": readiness.get("fingerprint") != config.relay_fingerprint, "checks": checks}
+
+
 def _status_relay(request: Request, db: Session, config) -> dict | None:
     if not config.local_relay:
         return None
-    from app.mail import relay_tracking
+    from app.mail import relay_readiness, relay_tracking
 
     status, detail = _helper_status(request, config)
     component = _component_view(status, config, detail)
     return {"delivery": config.relay.delivery, "component": {k: component[k] for k in ("state", "label", "message", "help", "stale")},
-            "outer": relay_tracking.last_outcome(db)}
+            "outer": relay_tracking.last_outcome(db), "readiness": _readiness_brief(relay_readiness.load(db), config)}
 
 
 # ── 설정 (D-545 · D-548) ──────────────────────────────────────────────────────
@@ -319,8 +330,8 @@ def _bind_sender_domain(value: dict, stored: dict) -> None:
         return
     if value.get("mode") == "local_relay" and relay.get("dkim_enabled"):
         raise ValidationAppError(
-            f"보내는 주소의 도메인({new_domain})이 DKIM 키를 만든 도메인({key_domain})과 다릅니다. "
-            "다른 도메인으로 보내려면 DKIM 서명을 끄고 저장한 뒤 그 도메인의 키를 새로 만드세요."
+            f"보내는 주소의 도메인({new_domain})이 DKIM 키를 추가한 도메인({key_domain})과 다릅니다. "
+            "다른 도메인으로 보내려면 DKIM 서명 선택을 해제해 저장한 뒤 그 도메인의 키를 새로 추가하세요."
         )
     relay["dkim_public"] = ""
 
@@ -657,7 +668,7 @@ def inbox_confirm(
     if detail.get("kind") != KIND_TEST:
         raise ValidationAppError("시험 메일만 받은 편지함 확인을 기록할 수 있습니다.")
     if detail.get("status") != MAIL_SENT:
-        raise ConflictError("다음 서버가 아직 접수하지 않은 시험 메일입니다. 접수된 뒤에 확인하세요.")
+        raise ConflictError("메일 서버가 아직 접수하지 않은 시험 메일입니다. 접수된 뒤에 기록하세요.")
     now = request.app.state.clock.now()
     record = progress.record_inbox(db, delivery_id=body.delivery_id, received=body.received,
                                    user_id=request.state.user.id, now=now)
@@ -713,7 +724,7 @@ def verify_result(job_id: str, request: Request, db: Session = Depends(get_db)):
     if job.status == STATUS_SUCCEEDED:
         result = {"ok": True, "message": "메일 서버 연결을 확인했습니다. 메일은 보내지 않았습니다."}
     elif job.status == STATUS_FAILED:
-        result = {"ok": False, "message": (job.last_error or "").strip() or "메일 서버 연결을 확인하지 못했습니다."}
+        result = {"ok": False, "message": (job.last_error or "").strip() or "메일 서버 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."}
     elif job.status == STATUS_CANCELLED:
         result = {"ok": False, "message": "연결 확인이 취소됐습니다."}
     return {
@@ -733,7 +744,7 @@ def verify_result(job_id: str, request: Request, db: Session = Depends(get_db)):
 # 인자도 없다. 기존 메일 발송 구성이 있는 서버에서는 헬퍼가 거절한다.
 
 COMPONENT_WORDS = {
-    "ready": ("구성 요소 준비됨", "이 서버에 설치돼 있고 꺼져 있습니다."),
+    "ready": ("구성 요소 준비됨", "이 서버에 설치돼 있고 비활성화되어 있습니다."),
     "running": ("동작 중", "로컬 릴레이가 메일을 받아 바깥으로 전달하고 있습니다."),
     "stopped": ("멈춤", "메일 발송 구성 요소가 동작하지 않습니다."),
     "not_installed": ("설치되지 않음", "이 서버에는 로컬 릴레이 구성 요소가 설치되지 않았습니다."),
@@ -744,7 +755,7 @@ COMPONENT_WORDS = {
 COMPONENT_HELP = {
     "not_installed": "외부 SMTP 사용을 고르거나 서버에서 구성 요소를 설치하세요.",
     "foreign": "그 구성을 쓰려면 '외부 SMTP 사용'에서 그 서버를 지정하세요.",
-    "stopped": "로컬 릴레이를 다시 켜 보세요. 계속 멈추면 기술 정보를 확인하세요.",
+    "stopped": "로컬 릴레이 활성화를 다시 누르세요. 계속 멈추면 기술 정보를 확인하세요.",
 }
 DEFAULT_DKIM_SELECTOR = "ca1"
 
@@ -832,7 +843,7 @@ def _relay_view(request: Request, db: Session) -> dict:
 
 def _require_local_relay(config) -> None:
     if not config.local_relay:
-        raise ConflictError("보내는 방법을 ClovirAssist 로컬 릴레이로 저장한 뒤에 쓸 수 있습니다.")
+        raise ConflictError("발송 방식을 ClovirAssist 로컬 릴레이로 저장한 뒤에 쓸 수 있습니다.")
 
 
 def _apply_relay(request: Request, db: Session, *, reason: str) -> dict:
@@ -912,7 +923,7 @@ def relay_dkim(request: Request, body: RelayDkimRequest | None = None, db: Sessi
     config = config_from_db(db)
     _require_local_relay(config)
     if not config.sender_domain:
-        raise ValidationAppError("보내는 사람 주소를 먼저 저장하세요. 그 도메인으로 키를 만듭니다.")
+        raise ValidationAppError("보내는 사람 주소를 먼저 저장하세요. 키는 그 주소의 도메인으로 추가됩니다.")
     selector = ((body.selector if body else None) or config.relay.dkim_selector or DEFAULT_DKIM_SELECTOR).strip().lower()
     if not relay_files.SELECTOR_RE.match(selector):
         raise ValidationAppError("DKIM 선택자는 영문 소문자와 숫자, 하이픈으로 씁니다.")
@@ -923,7 +934,7 @@ def relay_dkim(request: Request, body: RelayDkimRequest | None = None, db: Sessi
         result="success" if reply.ok else "failure",
     )
     if not (reply.available and reply.ok):
-        raise ConflictError(reply.detail or "DKIM 키를 만들지 못했습니다.")
+        raise ConflictError(reply.detail or "DKIM 키를 추가하지 못했습니다.")
     value = _stored_smtp(db)
     relay = dict(value.get("relay") or {})
     relay.update({"dkim_selector": selector, "dkim_public": str((reply.data or {}).get("public") or "")})
@@ -988,7 +999,7 @@ def relay_flush(request: Request, db: Session = Depends(get_db)):
         after={"available": reply.available, "ok": reply.ok}, result="success" if reply.ok else "failure",
     )
     if not (reply.available and reply.ok):
-        raise ConflictError(reply.detail or "큐를 다시 보내지 못했습니다.")
+        raise ConflictError(reply.detail or "큐에 남은 메일을 다시 보내지 못했습니다. 잠시 후 다시 시도해 주세요.")
     return {"result": {"ok": True, "message": reply.detail}}
 
 

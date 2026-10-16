@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """메일 상태 낱말 — 확인한 단계까지만 말한다 (계획 M2, D-555).
 
 못박는 것:
@@ -31,7 +32,7 @@ pytestmark = pytest.mark.unit
     ("sent", {"mode": "local_relay", "remote_status": "expired"}, "전달 시간이 지남"),
     ("failed", {}, "보내지 못함"),
     ("cancelled", {}, "취소됨"),
-    ("superseded", {}, "보내지 않음(의미가 없어짐)"),
+    ("superseded", {}, "보내지 않음(필요 없어짐)"),
 ])
 def test_each_stage_has_its_word(status, kwargs, word):
     assert labels.delivery_word(status, **kwargs) == word

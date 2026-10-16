@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """메일 설정의 일곱 단계와 다음 할 일 (기능 개선 회차 P4, D-560).
 
 못박는 성질:
@@ -56,7 +57,7 @@ def test_the_seven_steps_are_fixed_and_a_fresh_install_starts_at_enable():
                               test=None, inbox=None)
     assert [s["key"] for s in result["steps"]] == [k for k, _ in progress.STEPS]
     assert _states(result) == ["current", "todo", "todo", "todo", "todo", "todo", "todo"]
-    assert result["next"]["key"] == "enable" and result["next"]["hint"] == "메일 발송을 켜고 저장하세요."
+    assert result["next"]["key"] == "enable" and result["next"]["hint"] == "메일 발송을 활성화하고 저장하세요."
     assert result["done_count"] == 0 and result["complete"] is False
 
 
@@ -121,7 +122,7 @@ def test_acceptance_is_not_arrival_and_the_person_records_the_inbox():
     sent = {"id": "d1", "status": "sent", "remote_status": None}
     waiting = progress.compute(_config(), _Secrets(), health=_health("ok"), relay=None, test=sent, inbox=None)
     assert _states(waiting) == ["done"] * 6 + ["current"]
-    assert waiting["next"]["hint"] == "받은 편지함에서 시험 메일을 확인한 뒤 「받았습니다」를 누르세요."
+    assert waiting["next"]["hint"] == "받은 편지함에서 시험 메일을 확인한 뒤 「받은 편지함에서 확인함」 또는 「받은 편지함에 없음」을 누르세요."
 
     received = progress.compute(_config(), _Secrets(), health=_health("ok"), relay=None, test=sent,
                                 inbox={"delivery_id": "d1", "received": True})

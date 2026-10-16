@@ -136,6 +136,15 @@ def test_catalog_covers_every_mutable_type():
     assert all(row["label"] and row["help"] for row in catalog)
 
 
+def test_every_notification_type_has_one_group_in_table_order():
+    """D-592 — 「메일 알림 종류」는 범주별로 선다. 유형마다 범주가 꼭 하나이고, 범주를 펼친 순서가 유형 표의 순서와 같다
+    (표에 새 유형을 더하고 범주를 잊으면 「기타」로 새지 않게 여기서 잡는다)."""
+    flat = [key for _group, keys in prefs.NOTIFICATION_GROUPS for key in keys]
+    assert flat == list(prefs.NOTIFICATION_TYPES)
+    assert len(set(flat)) == len(flat)
+    assert all(prefs.NOTIFICATION_GROUP_OF[key] for key in prefs.MAILABLE_TYPES)
+
+
 # NOTI-03: chat_invited가 이 레지스트리(NOTIFICATION_TYPES)에 없는데 프로덕션에는 실제로
 # 발생했다는 기록이 있었다 — 재조사하니 chat_invited 자체는 이미 등록돼 있었지만(오래전
 # 정정, 이 낡은 기록만 안 갱신됨), 같은 클래스의 결함이 실제로 여섯 건 더 있었다:

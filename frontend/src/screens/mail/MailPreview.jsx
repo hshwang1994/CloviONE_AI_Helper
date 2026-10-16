@@ -8,7 +8,7 @@ import { api } from "../../lib/api.js";
 import { ErrorState, Field, FieldRow, Segmented, Skeleton } from "../../ui/kit.jsx";
 import { FONT_SIZE, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js";
 
-/* 메일 모양 미리 보기 (계획 M3, D-549) — 관리자가 사람들이 받는 메일의 모양을 본다. 디자인 검수 도구다.
+/* 메일 미리 보기 (계획 M3, D-549 · D-592) — 관리자가 사람들이 받는 메일의 모양을 본다. 디자인 검수 도구다.
  *
  * 종류(열 가지) · 보기(HTML · 텍스트) · 폭(데스크톱 680 · 모바일 375) · 테마(라이트 · 다크)를 고른다. 보기 · 폭 · 테마는 보는 방식 전환이라
  * 세그먼티드다(RULES §3). 테마는 서버가 그린다(D-571): 다크는 메일 앱의 다크 규칙을 강제로 세운 HTML 이고 라이트는 보는 사람의 운영체제가
@@ -64,12 +64,15 @@ export function MailPreview() {
             {data.subject}
           </Typography>
           {/* 견본 틀이다 — 메일 앱이 메일을 그리는 바탕을 흉내 내는 오목면이고, 그 안의 흰 판은 메일 자신이다. 판 안의 카드가 아니라
-              부품 갤러리의 견본 틀과 같은 자리라 시각 프로브(`nested_card`)에 그 사실을 말한다(`data-allow-nested`). */}
+              부품 갤러리의 견본 틀과 같은 자리라 시각 프로브(`nested_card`)에 그 사실을 말한다(`data-allow-nested`).
+              틀은 메일 폭(데스크톱 680 · 모바일 375)만큼만 서고 도구 줄과 같은 왼쪽 선에서 시작한다(D-592) — 판 폭 오목면 한가운데에
+              메일만 떠 있으면 넓은 회색 안의 좁은 카드로 읽혔다(캡처 r23 45). 판이 메일보다 좁으면 틀 안에서 가로로 굴린다. */}
           <Box
             data-allow-nested=""
+            data-testid="mail-preview-well"
             sx={{
               bgcolor: "background.inset", border: 1, borderColor: "divider", borderRadius: `${RADIUS.md}px`,
-              p: 2, overflowX: "auto", display: "flex", justifyContent: "center",
+              p: 2, overflowX: "auto", display: "flex", width: "fit-content", maxWidth: "100%",
             }}
           >
             {view === "html" ? (

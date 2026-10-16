@@ -48,7 +48,7 @@ REASON_NO_EMAIL = "no_email"
 RECIPIENT_REASON_LABELS: dict[str, str] = {
     REASON_NOT_MAILABLE: "메일로 보낼 수 없는 알림이라 보내지 않았습니다.",
     REASON_TYPE_NOT_ALLOWED: "관리자가 이 알림을 메일로 보내지 않기로 해 보내지 않았습니다.",
-    REASON_OPTED_OUT: "받는 사람이 메일 알림을 꺼서 보내지 않았습니다.",
+    REASON_OPTED_OUT: "받는 사람이 메일 알림을 받지 않기로 해 보내지 않았습니다.",
     REASON_TYPE_OPTED_OUT: "받는 사람이 이 알림을 메일로 받지 않기로 해 보내지 않았습니다.",
     REASON_INACTIVE: "받을 계정이 비활성이라 보내지 않았습니다.",
     REASON_NO_EMAIL: "받을 계정에 이메일이 없어 보내지 않았습니다.",
@@ -241,13 +241,15 @@ def recipient_view(db: Session, pref, *, admin: bool = True, role: str | None = 
 
 
 def admin_catalog(db: Session) -> dict:
-    """관리 화면이 그리는 허용 목록 - 메일로 보낼 수 있는 유형 전부와 지금 허용한 것, 그리고 오래된 메일의 기준."""
-    from app.profiles.prefs import NOTIFICATION_TYPES
+    """관리 화면이 그리는 허용 목록 - 메일로 보낼 수 있는 유형 전부와 지금 허용한 것, 그리고 오래된 메일의 기준.
+    유형마다 범주(`group`)를 싣는다 — 화면이 범주별로 세운다(D-592)."""
+    from app.profiles.prefs import NOTIFICATION_GROUP_OF, NOTIFICATION_TYPES
 
     return {
         "allowed": list(allowed_types(db)),
         "catalog": [
-            {"key": key, "label": NOTIFICATION_TYPES[key][0], "help": NOTIFICATION_TYPES[key][1]}
+            {"key": key, "label": NOTIFICATION_TYPES[key][0], "help": NOTIFICATION_TYPES[key][1],
+             "group": NOTIFICATION_GROUP_OF.get(key, "기타")}
             for key in MAILABLE_TYPES
         ],
         "max_age_days": max_age_days(db),

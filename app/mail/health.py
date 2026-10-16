@@ -71,7 +71,7 @@ STATE_FAILING = "failing"
 
 STATE_LABELS = {
     STATE_DISABLED: "사용 안 함",
-    STATE_UNCONFIGURED: "설정 덜 됨",
+    STATE_UNCONFIGURED: "설정 미완료",
     STATE_UNVERIFIED: "확인 전",
     STATE_OK: "정상",
     STATE_FAILING: "발송 실패",

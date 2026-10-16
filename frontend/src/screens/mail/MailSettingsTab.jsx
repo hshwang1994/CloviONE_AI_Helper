@@ -20,36 +20,43 @@ import { InboxIconHelp } from "./InboxIconHelp.jsx";
 import { MailStatusCard, STATE_TONE, testWord } from "./MailStatusCard.jsx";
 import { PRESET_CUSTOM, SMTP_PRESETS, presetByKey, presetOf, presetPatch } from "./presets.js";
 import {
-  MAIL_RELAY_KEY, RelayAdvancedFields, RelayFields, RelayReadOnly, RelayReadiness, RelayVerifyContext, SubHeading,
-  readinessSummary, useReadinessCheck, useRelayQuery,
+  MAIL_RELAY_KEY, RelayAdvancedFields, RelayBriefChecks, RelayDiagnosis, RelayFields, RelayReadOnly, RelayRequests,
+  RelayVerifyContext, SubHeading, useReadinessCheck, useRelayQuery,
 } from "./RelaySection.jsx";
 
-/* 메일 · 설정 탭 (계획 M1 · M4, D-548 · D-560 · D-574) — 다섯 구획이 관리자의 작업 순서대로 선다.
+/* 메일 · 설정 탭 (계획 M1 · M4, D-548 · D-560 · D-574 · D-592) — 여섯 구획이 관리자의 작업 순서대로 선다.
  *
- *   ① 상태 요약          독립된 판(`MailStatusCard`): 상태 낱말 · 한 문장 · 「지금 할 일」과 [이동] · 일곱 단계 · 사실 띠 · 기술 정보
- *   ② 기본 설정          메일 발송 사용 · 보내는 방법 · 보내는 주소와 이름
- *   ③ 전달 방법 설정     **고른 방법의 칸만** — 외부 SMTP(제공자 프리셋 · 서버 · 계정 · 인증서 확인) 또는 로컬 릴레이(구성 요소 · 전달 방식)
- *   ④ 연결과 발송 확인   설정 줄 셋: 연결 확인 · 시험 메일 · 받은 편지함 확인. 단추는 저장한 설정으로만 돈다
- *   ⑤ 문제 해결과 고급   접기 하나(`Disclosure`, 처음에는 닫힘, 머리 요약 = 준비 점검 한 문장): 바깥으로 보내기 준비 · 받은 편지함
- *                        아이콘 · 고급 설정(사설 CA · 응답 대기 시간 | 받는 도메인별 전달 서버 · 비교할 공개 DNS)
+ *   ① 발송 상태              독립된 판(`MailStatusCard`): 상태 줄 넷(메일 발송 가능 · SMTP 수락 · DNS 인증 · 받은 편지함 확인) ·
+ *                            「지금 할 일」과 [이동] · 설정 단계 · 기술 정보
+ *   ② 발신 정보              메일 발송 사용 · 보내는 주소와 이름 · 웹 서비스 주소(읽기 전용)
+ *   ③ 전달 방식과 서버 이름  발송 방식과 **고른 방식의 칸만** — 외부 SMTP(제공자 프리셋 · 서버 · 계정 · 인증서 확인) 또는 로컬
+ *                            릴레이(구성 요소 · 전달 방식 · 메일 서버 식별 정보). 직접 전달이 아니면 메일 서버 이름(HELO)의 지금 값을
+ *                            한 줄로 보인다
+ *   ④ 연결과 시험 발송       설정 줄 셋: 연결 확인 · 시험 메일 · 받은 편지함 확인. 단추는 저장한 설정으로만 돈다
+ *   ⑤ DNS 인증 진단          펼친 채: 점검 한 문장 · 항목별 상태와 고칠 곳 · 서버 이름 제안(로컬 릴레이). 외부 SMTP 면 점검하지
+ *                            않는다고 쓴다
+ *   ⑥ 요청 내용과 기술 상세  접기 하나(`Disclosure`, 처음에는 닫힘): 담당자에게 보낼 요청 내용 · 복사할 DNS 레코드 · 받은 편지함
+ *                            아이콘 · 고급 설정(사설 CA · 응답 대기 시간 | 받는 도메인별 전달 서버 · 비교할 공개 DNS)
  *
- * ②~⑤ 는 한 판 위의 구획이고 판 발(`ActionFooter sticky`)의 「저장」 하나가 비밀번호까지 한 번에 싣는다 — 예전에는 비밀번호만 즉시
- * 저장되고 나머지는 따로 저장해, 한쪽만 저장된 채 창을 닫는 일이 있었다. 그래서 이 폼의 켜고 끄는 칸(메일 발송 사용 · 서버 인증서 확인)은
- * 스위치가 아니라 체크박스다 - 스위치는 누르는 즉시 저장되는 설정에만 쓴다(RULES §3).
+ * 보내는 주소 · 메일 서버 이름(HELO) · 웹 서비스 주소는 서로 다른 값이다(D-592). 화면은 셋을 다른 줄 · 다른 제목 아래 두고, 하나를
+ * 바꿔도 나머지가 바뀌지 않는다고 ② 머리에서 한 번 말한다. 긴 요청 내용과 DNS 레코드 원문은 ⑥ 접기 안이다.
  *
- * 예전 화면 머리의 「연결 확인」 · 「시험 메일 보내기」는 ④ 의 줄로 내려왔다. 단추가 결과와 같은 줄에 서야 무엇을 눌렀고 무엇이
- * 나왔는지가 한눈에 이어진다. 「지금 할 일」의 [이동] 은 그 줄로 굴리고 단추에 초점을 옮긴다 — 누르는 일은 사람이 한다.
- * 손으로 짠 접기 넷(고급 설정 · 진단 · 레코드 · 전달 서버)은 ⑤ 의 접기 하나와 그 안의 소제목이 되었다.
+ * ②~⑥ 은 한 판 위의 구획이고 판 발(`ActionFooter sticky`)의 「저장」 하나가 비밀번호까지 한 번에 싣는다 — 예전에는 비밀번호만 즉시
+ * 저장되고 나머지는 따로 저장해, 한쪽만 저장된 채 창을 닫는 일이 있었다. 그래서 이 폼의 켜고 끄는 칸(메일 발송 사용 · 서버 인증서
+ * 확인)은 스위치가 아니라 체크박스다 - 스위치는 누르는 즉시 저장되는 설정에만 쓴다(RULES §3). 설정 줄은 묶음 폭(`SettingRows
+ * width="form"`, D-590)을 받아 이름과 체크박스 · 단추가 한 묶음으로 보인다 — 판 끝까지 늘면 1920 에서 체크박스가 이름에서 1,500px
+ * 떨어졌다.
  *
- * 저장하면 서버가 보낼 수 있는 설정일 때 연결 확인을 저절로 시작하고, 상태 면이 「확인하는 중」을 보인다(60초 상한). 설정 권한이
- * 없는 역할은 같은 다섯 구획의 읽기 전용 값과 한 줄 안내를 본다.
+ * 「지금 할 일」의 [이동] 은 ④ 의 그 줄로 굴리고 단추에 초점을 옮긴다 — 누르는 일은 사람이 한다. 저장하면 서버가 보낼 수 있는 설정일
+ * 때 연결 확인을 저절로 시작하고, 상태 면이 「확인하는 중」을 보인다(60초 상한). 설정 권한이 없는 역할은 같은 여섯 구획의 읽기 전용
+ * 값과 한 줄 안내를 본다.
  */
 
 /* 폼 줄의 칸 폭 — 12칸 격자(`FieldRow` 기본, 칸 폭을 보는 컨테이너 질의)에서 넓을 때 몇 칸, 두 칸 격자일 때 몇 칸. 좁은 판(모바일)
    에서는 한 칸씩 쌓인다. 예전의 고정 열(`2fr 12rem 8rem`)은 390 에서 서버 주소 칸을 20px 로 눌렀다(캡처 m4-1, D-574). */
 export const FIELD_SPAN = {
   half: { wide: 6, mid: 1 }, server: { wide: 6, mid: 2 }, security: { wide: 4, mid: 1 }, port: { wide: 2, mid: 1 },
-  main: { wide: 8, mid: 1 }, side: { wide: 4, mid: 1 },
+  main: { wide: 8, mid: 1 }, side: { wide: 4, mid: 1 }, third: { wide: 4, mid: 1 },
 };
 
 export const MAIL_SETTINGS_KEY = ["mail-settings"];
@@ -66,13 +73,16 @@ const EMPTY = {
   timeout_seconds: 20, tls_verify: true, ca_pem: "", mode: "external", relay: EMPTY_RELAY,
 };
 
-/* 구획 머리의 id — 「지금 할 일」의 [이동] 이 굴려 갈 자리다. 서버의 자리(`progress.ANCHORS`)를 구획 넷과 ④ 의 줄 셋으로 옮긴다. */
+/* 구획 머리의 id — 「지금 할 일」의 [이동] 이 굴려 갈 자리다. 서버의 자리(`progress.ANCHORS`)를 구획 다섯과 ④ 의 줄 셋으로 옮긴다.
+   발송 방식은 ③ 「전달 방식과 서버 이름」의 첫 칸이다(D-592). */
 export const SECTION_IDS = {
-  basics: "mail-section-basics", method: "mail-section-method", checks: "mail-section-checks", advanced: "mail-section-advanced",
+  basics: "mail-section-basics", method: "mail-section-method", checks: "mail-section-checks", diagnosis: "mail-section-diagnosis",
+  advanced: "mail-section-advanced",
 };
 const SECTION_OF_ANCHOR = {
-  "section:enable": "basics", "section:method": "basics", "section:inputs": "basics", "section:relay": "method",
-  "action:verify": "checks", "action:test": "checks", "action:inbox": "checks", "section:advanced": "advanced",
+  "section:enable": "basics", "section:method": "method", "section:inputs": "basics", "section:relay": "method",
+  "action:verify": "checks", "action:test": "checks", "action:inbox": "checks", "section:diagnosis": "diagnosis",
+  "section:advanced": "advanced",
 };
 const ROW_OF_ANCHOR = { "action:verify": "verify", "action:test": "test", "action:inbox": "inbox" };
 
@@ -162,11 +172,11 @@ function testValue(test, waiting) {
   );
 }
 
-/* ④ 연결과 발송 확인 — 설정 줄 셋. 받은 편지함 확인(D-560 ⑦)은 접수된 시험 메일 한 통에 대해 사람이 「받았습니다」 · 「못 받았습니다」를
+/* ④ 연결과 시험 발송 — 설정 줄 셋. 받은 편지함 확인(D-560 ⑦)은 접수된 시험 메일 한 통에 대해 사람이 「받았습니다」 · 「못 받았습니다」를
    기록한다. 제품은 도착을 잴 수 없으므로 이 기록이 일곱째 단계의 유일한 근거다. 받는 쪽 메일 서버까지 간 시험 메일만 묻는다 — 수신측이
    거부했거나(bounced) 만료된(expired) 메일, 아직 전달 중인 메일은 묻지 않는다(D-555). 바깥 추적이 없는 외부 SMTP(`remote_status` 없음)는
    「메일 서버가 접수함」까지가 아는 전부라 그대로 묻는다. 운영 권한이 없으면 단추 없이 지금 상태만 보인다. */
-function MailChecks({ status, checks, verify, dirty, relayLocal, onOpenAdvanced }) {
+function MailChecks({ status, checks, verify, dirty, relayLocal, onOpenDiagnosis }) {
   const qc = useQueryClient();
   const toast = useToast();
   const caps = status.capabilities || {};
@@ -207,13 +217,13 @@ function MailChecks({ status, checks, verify, dirty, relayLocal, onOpenAdvanced 
         rest={inbox.at ? fmtListStamp(inbox.at) : null} />
     );
   } else if (rejected) {
-    inboxValue = "수신측이 시험 메일을 거부해 받은 편지함을 확인할 수 없습니다. ‘문제 해결과 고급’의 요청 내용을 담당자에게 보내세요.";
+    inboxValue = "수신측에 시험 메일을 전달하지 못해 받은 편지함을 확인할 수 없습니다. ‘DNS 인증 진단’에서 막는 항목을 확인하세요.";
   } else if (test && (["queued", "retrying"].includes(test.status) || remote === "deferred")) {
     inboxValue = "시험 메일이 아직 전달되는 중입니다.";
   } else {
     inboxValue = "시험 메일이 받는 쪽까지 간 뒤에 기록할 수 있습니다.";
   }
-  const showDiagnosis = relayLocal && onOpenAdvanced && (rejected || (recorded && !inbox.received));
+  const showDiagnosis = relayLocal && onOpenDiagnosis && (rejected || (recorded && !inbox.received));
   /* 아직 결과가 없는 줄의 문장은 흐린 글자다 — 결과(점 + 낱말)와 묻는 문장만 진한 글자로 선다. */
   const verifyShown = verifyValue(h, verifying);
   const testShown = testValue(test, checks.testWaiting);
@@ -227,17 +237,17 @@ function MailChecks({ status, checks, verify, dirty, relayLocal, onOpenAdvanced 
       </Box>
     );
   } else if (showDiagnosis) {
-    inboxAction = <Button onClick={onOpenAdvanced}>진단 보기</Button>;
+    inboxAction = <Button onClick={onOpenDiagnosis}>진단 보기</Button>;
   }
 
   return (
-    <FormSection titleAs="h2" title={<SectionTitleText id={SECTION_IDS.checks}>연결과 발송 확인</SectionTitleText>}>
+    <FormSection titleAs="h2" title={<SectionTitleText id={SECTION_IDS.checks}>연결과 시험 발송</SectionTitleText>}>
       {operate && dirty ? (
         <Typography id={DIRTY_HINT_ID} variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>저장한 뒤에 확인할 수 있습니다.</Typography>
       ) : null}
       {checks.problem ? <Callout tone="danger" compact>{checks.problem}</Callout> : null}
       {recordError ? <Callout tone="danger" compact>{recordError}</Callout> : null}
-      <Box sx={{ minWidth: 0 }}>
+      <SettingRows width="form">
         <Box data-check-row="verify">
           <SettingRow
             label="연결 확인" value={verifyShown} tone={muted(verifyShown)}
@@ -269,12 +279,12 @@ function MailChecks({ status, checks, verify, dirty, relayLocal, onOpenAdvanced 
             action={inboxAction}
           />
         </Box>
-      </Box>
+      </SettingRows>
     </FormSection>
   );
 }
 
-/* ⑤ 문제 해결과 고급 — 구획 머리는 접기의 단추이고, 그 단추를 h2 가 감싼다(`Disclosure titleAs`, P-137).
+/* ⑥ 요청 내용과 기술 상세 — 구획 머리는 접기의 단추이고, 그 단추를 h2 가 감싼다(`Disclosure titleAs`, P-137).
    위 구획과는 선 하나로 갈린다(구획 머리의 선과 같은 선이다). */
 function AdvancedSection({ open, onToggle, summary, children }) {
   return (
@@ -282,7 +292,7 @@ function AdvancedSection({ open, onToggle, summary, children }) {
       component="section" id={SECTION_IDS.advanced} aria-labelledby="mail-advanced-title"
       sx={{ minWidth: 0, borderTop: 1, borderColor: "rule", pt: 1.5 }}
     >
-      <Disclosure id="mail-advanced" title="문제 해결과 고급" titleAs="h2" titleId="mail-advanced-title"
+      <Disclosure id="mail-advanced" title="요청 내용과 기술 상세" titleAs="h2" titleId="mail-advanced-title"
         summary={summary} open={open} onToggle={onToggle}>
         <Box sx={{ display: "grid", gap: 3, minWidth: 0 }}>{children}</Box>
       </Disclosure>
@@ -292,6 +302,53 @@ function AdvancedSection({ open, onToggle, summary, children }) {
 
 function hasIconHelp(help) {
   return Boolean(help && Array.isArray(help.inbox_icon) && help.inbox_icon.length);
+}
+
+/* ② 발신 정보의 머리 문장(D-592) — 세 값은 하는 일이 다르다. 보내는 주소는 받는 사람이 메일 앱에서 보는 주소, 메일 서버 이름(HELO)은
+   메일 서버끼리 이 서버를 소개하는 이름, 웹 서비스 주소는 메일 속 링크가 여는 주소다. 하나를 바꿔도 나머지가 따라 바뀌지 않는다. */
+const ADDRESS_NOTE = "보내는 주소, 메일 서버 이름(HELO), 웹 서비스 주소는 서로 따로 정합니다. 하나를 바꿔도 나머지는 바뀌지 않습니다.";
+
+/* 웹 서비스 주소 한 줄(D-592) — 메일 속 링크가 여는 주소다. 이 화면에서 바꾸지 않는다(‘OS와 서비스’의 서비스 주소). 값은 서버가 준
+   지금 주소이고, 모르면 모른다고 쓴다. */
+function WebAddressRow({ baseUrl }) {
+  const value = baseUrl && baseUrl.value ? baseUrl.value : null;
+  return (
+    <SettingRows width="form">
+      <SettingRow
+        last label="웹 서비스 주소" value={value || "확인할 수 없음"} tone={value ? undefined : "muted"}
+        description="메일 속 링크가 여는 주소입니다. ‘OS와 서비스’의 서비스 주소에서 바꿉니다."
+      />
+    </SettingRows>
+  );
+}
+
+/* 메일 서버 이름(HELO) 한 줄(D-592) — 인터넷으로 직접 전달하지 않을 때다. 이 서버는 메일을 넘겨받는 서버(외부 SMTP · 상위 SMTP)에만
+   자기 이름을 대고, 받는 쪽에는 그 서버의 이름이 보인다. 직접 전달이면 ‘전달 방식과 서버 이름’의 칸이 같은 값을 고친다. */
+function HeloRow({ helo, upstream }) {
+  return (
+    <SettingRows width="form">
+      <SettingRow
+        last label="메일 서버 이름(HELO)" value={helo || "이 서버의 기본 이름"} tone={helo ? undefined : "muted"}
+        description={`${upstream}에 이 서버를 소개하는 이름입니다. 받는 쪽에는 ${upstream}의 이름이 보입니다.`}
+      />
+    </SettingRows>
+  );
+}
+
+/* ⑤ DNS 인증 진단(D-592) — 펼친 채 선다. 인터넷으로 직접 전달할 때 받는 쪽이 이 서버를 믿는 데 필요한 SPF · DKIM · 역방향 이름(PTR) ·
+   메일 서버 이름(HELO)을 항목별 상태와 고칠 곳으로 보인다. 외부 SMTP 와 상위 SMTP 는 DNS 인증이 그 서버의 몫이라 그렇다고 쓴다 —
+   점검하지 않은 것을 통과로 보이지 않는다. 요청 내용 원문과 DNS 레코드는 ⑥ 의 접기 안이다. */
+function DiagnosisSection({ local, direct, action, children }) {
+  let lead;
+  if (!local) lead = "외부 SMTP를 쓰면 이 서버가 DNS 인증을 점검하지 않습니다. SPF와 DKIM은 메일 서비스 제공자의 안내에 따라 도메인 DNS 담당자가 넣습니다.";
+  else if (direct) lead = "받는 쪽 메일 서버가 이 서버를 믿는 데 필요한 SPF, DKIM, 역방향 이름(PTR), 메일 서버 이름(HELO)을 점검합니다.";
+  else lead = "상위 SMTP 서버로 메일을 넘기는 데 필요한 것을 점검합니다. DNS 인증은 상위 SMTP 서버의 설정을 따릅니다.";
+  return (
+    <FormSection titleAs="h2" title={<SectionTitleText id={SECTION_IDS.diagnosis}>DNS 인증 진단</SectionTitleText>} action={action}>
+      <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>{lead}</Typography>
+      {children}
+    </FormSection>
+  );
 }
 
 function EditableSettings({ status, verify, onDirtyChange, checks }) {
@@ -396,15 +453,13 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
   const off = !values.enabled;
   const savedLocal = base.mode === "local_relay";
   const relay = relayQuery.data || null;
-  const relaySummary = local ? readinessSummary(relay && relay.readiness) : null;
-  let advancedSummary;
-  if (check.running) advancedSummary = "외부 발송 준비 상태를 점검하는 중입니다.";
-  else if (local && relaySummary) advancedSummary = <span data-testid="relay-summary">{relaySummary}</span>;
-  else if (local && relay) advancedSummary = "아직 외부 발송 준비 상태를 점검하지 않았습니다.";
-  else if (local) advancedSummary = null;
-  else advancedSummary = hasIconHelp(status.help)
-    ? "받은 편지함 아이콘 조건을 보고 사설 CA 인증서와 응답 대기 시간을 정합니다."
-    : "사설 CA 인증서와 응답 대기 시간을 정합니다.";
+  const direct = local && values.relay.delivery === "direct";
+  const checkBlocked = !savedLocal || dirty;
+  const advancedSummary = local
+    ? "담당자에게 보낼 요청 내용과 복사할 DNS 레코드, 고급 설정을 봅니다."
+    : (hasIconHelp(status.help)
+      ? "받은 편지함 아이콘 조건을 보고 사설 CA 인증서와 응답 대기 시간을 정합니다."
+      : "사설 CA 인증서와 응답 대기 시간을 정합니다.");
 
   return (
     <RelayVerifyContext.Provider value={verify}>
@@ -417,10 +472,11 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
       {/* 발이 긴 폼에서 창 아래에 따라오도록(`ActionFooter sticky`) 판은 넘침을 자르지 않는다 - MUI Card 뿌리의 `overflow: hidden`
           이 판을 스크롤 창으로 만들면 발이 판 안에서만 움직이고 끝까지 굴렸을 때 마지막 단추를 덮었다(P12 실측 4px). */}
       <Card stack data-testid="mail-settings-form" sx={{ overflow: "visible" }}>
-        <FormSection titleAs="h2" title={<SectionTitleText id={SECTION_IDS.basics}>기본 설정</SectionTitleText>}>
-          <SettingRows>
+        <FormSection titleAs="h2" title={<SectionTitleText id={SECTION_IDS.basics}>발신 정보</SectionTitleText>} description={ADDRESS_NOTE}>
+          <SettingRows width="form">
+            {/* 한 줄 말줄임(`compact`)이 아니다 — 설명이 저장 시점과 보안 경고를 나르므로 좁은 폭에서도 끝까지 읽혀야 한다(390 캡처). */}
             <SettingRow
-              compact label="메일 발송 사용" controlId="mail-enabled"
+              last label="메일 발송 사용" controlId="mail-enabled"
               description="비활성화하면 ClovirAssist가 메일을 보내지 않습니다. 저장해야 적용됩니다."
               action={(
                 <Checkbox id="mail-enabled" checked={Boolean(values.enabled)} onChange={(e) => set({ enabled: e.target.checked })}
@@ -428,6 +484,27 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
               )}
             />
           </SettingRows>
+          <FieldRow>
+            <Field span={FIELD_SPAN.half} label="보내는 주소" htmlFor="mail-from" required={!off}
+              help={presetInfo && presetInfo.from_note && !local ? presetInfo.from_note : "받는 사람이 메일 앱에서 보는 주소입니다."}>
+              <TextField id="mail-from" size="small" fullWidth value={values.from_address}
+                onChange={(e) => set({ from_address: e.target.value })} placeholder="noreply@example.com"
+                inputProps={{ spellCheck: false, autoComplete: "off" }} />
+            </Field>
+            <Field span={FIELD_SPAN.half} label="보내는 이름" htmlFor="mail-from-name" help="비우면 주소만 보입니다.">
+              <TextField id="mail-from-name" size="small" fullWidth value={values.from_name}
+                onChange={(e) => set({ from_name: e.target.value })} placeholder="ClovirAssist" />
+            </Field>
+          </FieldRow>
+          <WebAddressRow baseUrl={status.base_url} />
+        </FormSection>
+
+        <FormSection
+          titleAs="h2" title={<SectionTitleText id={SECTION_IDS.method}>전달 방식과 서버 이름</SectionTitleText>}
+          description={local
+            ? "발송 방식과 로컬 릴레이가 메일을 넘길 곳을 정합니다."
+            : "발송 방식과 메일 서버를 정합니다. 메일 서비스를 고르면 서버 값이 채워지고, 계정과 비밀번호만 넣으면 됩니다."}
+        >
           {/* 로컬 릴레이가 먼저다(D-560) - 설치에 포함된 구성 요소라 계정이 필요 없다. */}
           <Field label="발송 방식" labelId="mail-mode-label"
             help="메일 계정이 없어도 로컬 릴레이로 보낼 수 있습니다. 회사 계정이나 Gmail 같은 외부 계정이 있으면 외부 SMTP를 고릅니다.">
@@ -442,26 +519,6 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
               ]}
             />
           </Field>
-          <FieldRow>
-            <Field span={FIELD_SPAN.half} label="보내는 주소" htmlFor="mail-from" required={!off}
-              help={presetInfo && presetInfo.from_note && !local ? presetInfo.from_note : "받는 사람이 보는 주소입니다."}>
-              <TextField id="mail-from" size="small" fullWidth value={values.from_address}
-                onChange={(e) => set({ from_address: e.target.value })} placeholder="noreply@example.com"
-                inputProps={{ spellCheck: false, autoComplete: "off" }} />
-            </Field>
-            <Field span={FIELD_SPAN.half} label="보내는 이름" htmlFor="mail-from-name" help="비우면 주소만 보입니다.">
-              <TextField id="mail-from-name" size="small" fullWidth value={values.from_name}
-                onChange={(e) => set({ from_name: e.target.value })} placeholder="ClovirAssist" />
-            </Field>
-          </FieldRow>
-        </FormSection>
-
-        <FormSection
-          titleAs="h2" title={<SectionTitleText id={SECTION_IDS.method}>전달 방법 설정</SectionTitleText>}
-          description={local
-            ? "로컬 릴레이가 메일을 어디로 넘길지 정합니다."
-            : "메일 서비스를 고르면 서버 값이 채워집니다. 계정과 비밀번호만 넣으면 됩니다."}
-        >
           {local ? (
             <>
               <RelayFields
@@ -532,12 +589,12 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
                     inputProps={{ autoComplete: "new-password" }} />
                 </Field>
               </FieldRow>
-              <SettingRows>
+              <SettingRows width="form">
                 <SettingRow
-                  compact label="서버 인증서 확인" controlId="mail-tls-verify"
+                  last label="서버 인증서 확인" controlId="mail-tls-verify"
                   description={values.security === "none"
                     ? "보안 연결을 쓰지 않아 인증서를 확인하지 않습니다."
-                    : "비활성화하면 중간에서 메일과 로그인 비밀번호를 가로챌 수 있습니다. 사설 인증서라면 ‘문제 해결과 고급’에 CA 인증서를 넣으세요."}
+                    : "비활성화하면 중간에서 메일과 로그인 비밀번호를 가로챌 수 있습니다. 사설 인증서라면 ‘요청 내용과 기술 상세’의 고급 설정에 CA 인증서를 넣으세요."}
                   action={(
                     <Checkbox id="mail-tls-verify" checked={values.tls_verify !== false} disabled={values.security === "none"}
                       onChange={(e) => set({ tls_verify: e.target.checked })}
@@ -547,15 +604,25 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
               </SettingRows>
             </>
           )}
+          {direct ? null : <HeloRow helo={values.relay.helo_name} upstream={local ? "상위 SMTP 서버" : "외부 SMTP 서버"} />}
         </FormSection>
 
         <MailChecks
           status={status} checks={checks} verify={verify} dirty={dirty} relayLocal={local && savedLocal}
-          onOpenAdvanced={() => jump({ anchor: "section:advanced" })}
+          onOpenDiagnosis={() => jump({ anchor: "section:diagnosis" })}
         />
 
+        <DiagnosisSection
+          local={local} direct={direct}
+          action={local ? (
+            <Button loading={check.running} disabled={checkBlocked} onClick={() => check.start.mutate()}>점검 다시 하기</Button>
+          ) : null}
+        >
+          {local ? <RelayDiagnosis relay={relay} blocked={checkBlocked} check={check} /> : null}
+        </DiagnosisSection>
+
         <AdvancedSection open={advancedOpen} onToggle={setAdvancedOpen} summary={advancedSummary}>
-          {local ? <RelayReadiness relay={relay} savedLocal={savedLocal} dirty={dirty} check={check} /> : null}
+          {local ? <RelayRequests relay={relay} /> : null}
           <InboxIconHelp help={status.help} />
           <Box component="section" aria-labelledby="mail-advanced-fields-title" sx={{ display: "grid", gap: 2, minWidth: 0 }}>
             <SubHeading id="mail-advanced-fields-title">고급 설정</SubHeading>
@@ -612,12 +679,13 @@ function ReadOnlySettings({ status, verify, checks }) {
   const relay = s.relay || {};
   const sh = relay.smarthost || {};
   const local = s.mode === "local_relay";
-  const direct = relay.delivery === "direct";
+  const direct = local && relay.delivery === "direct";
   const securityLabel = Object.fromEntries(SECURITY)[s.security] || s.security;
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const openAdvanced = React.useCallback(() => setAdvancedOpen(true), []);
   const jump = useSectionJump(openAdvanced);
   const overrides = relay.transport_overrides || [];
+  const brief = status.relay ? status.relay.readiness : null;
   return (
     <>
       <MailStatusCard
@@ -626,17 +694,16 @@ function ReadOnlySettings({ status, verify, checks }) {
       />
       <Card stack data-testid="mail-settings-readonly">
         <Callout tone="info" compact>메일 서버 설정은 시스템 관리자만 바꿀 수 있습니다.</Callout>
-        <FormSection titleAs="h2" title={<SectionTitleText id={SECTION_IDS.basics}>기본 설정</SectionTitleText>}>
+        <FormSection titleAs="h2" title={<SectionTitleText id={SECTION_IDS.basics}>발신 정보</SectionTitleText>} description={ADDRESS_NOTE}>
           <FieldRow>
-            <ReadOnlyValue span={FIELD_SPAN.half} label="메일 발송" value={s.enabled ? "사용" : "사용 안 함"} />
-            <ReadOnlyValue span={FIELD_SPAN.half} label="발송 방식" value={local ? "ClovirAssist 로컬 릴레이" : "외부 SMTP 사용"} />
+            <ReadOnlyValue span={FIELD_SPAN.third} label="메일 발송" value={s.enabled ? "사용" : "사용 안 함"} />
+            <ReadOnlyValue span={FIELD_SPAN.third} label="보내는 주소" value={s.from_address} />
+            <ReadOnlyValue span={FIELD_SPAN.third} label="보내는 이름" value={s.from_name} />
           </FieldRow>
-          <FieldRow>
-            <ReadOnlyValue span={FIELD_SPAN.half} label="보내는 주소" value={s.from_address} />
-            <ReadOnlyValue span={FIELD_SPAN.half} label="보내는 이름" value={s.from_name} />
-          </FieldRow>
+          <WebAddressRow baseUrl={status.base_url} />
         </FormSection>
-        <FormSection titleAs="h2" title={<SectionTitleText id={SECTION_IDS.method}>전달 방법 설정</SectionTitleText>}>
+        <FormSection titleAs="h2" title={<SectionTitleText id={SECTION_IDS.method}>전달 방식과 서버 이름</SectionTitleText>}>
+          <ReadOnlyValue label="발송 방식" value={local ? "ClovirAssist 로컬 릴레이" : "외부 SMTP 사용"} />
           {local ? (
             <>
               <RelayReadOnly summary={s} />
@@ -666,8 +733,12 @@ function ReadOnlySettings({ status, verify, checks }) {
               <ReadOnlyValue label="서버 인증서 확인" value={s.security === "none" ? "보안 연결 없음" : (s.tls_verify === false ? "확인 안 함" : "확인함")} />
             </>
           )}
+          {direct ? null : <HeloRow helo={relay.helo_name} upstream={local ? "상위 SMTP 서버" : "외부 SMTP 서버"} />}
         </FormSection>
         <MailChecks status={status} checks={checks} verify={verify} dirty={false} relayLocal={false} />
+        <DiagnosisSection local={local} direct={direct}>
+          {local ? <RelayBriefChecks brief={brief} /> : null}
+        </DiagnosisSection>
         <AdvancedSection
           open={advancedOpen} onToggle={setAdvancedOpen}
           summary={local ? "비교할 공개 DNS와 받는 도메인별 전달 서버를 봅니다." : "사설 CA 인증서와 응답 대기 시간을 봅니다."}

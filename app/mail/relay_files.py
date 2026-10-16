@@ -96,12 +96,12 @@ def normalize_params(raw: Mapping) -> dict:
         raise RelayParamsError("보내는 주소의 도메인이 올바르지 않습니다.")
     helo = _text(raw.get("helo_name")).lower()
     if helo and not DOMAIN_RE.match(helo):
-        raise RelayParamsError("서버 이름(HELO)은 mail.example.com 같은 이름이어야 합니다.")
+        raise RelayParamsError("메일 서버 이름(HELO)은 mail.example.com 같은 이름이어야 합니다.")
     if delivery == DELIVERY_DIRECT and not helo:
         raise RelayParamsError("인터넷으로 직접 전달하려면 서버 이름(HELO)이 필요합니다.")
     ipv4_only = raw.get("ipv4_only", False)
     if not isinstance(ipv4_only, bool):
-        raise RelayParamsError("IPv4 만 쓰기는 켬 또는 끔이어야 합니다.")
+        raise RelayParamsError("IPv4만 쓰기 값이 올바르지 않습니다.")
     out: dict = {"delivery": delivery, "sender_domain": sender_domain, "helo_name": helo, "ipv4_only": ipv4_only,
                  "smarthost": None, "dkim": None, "transport_overrides": []}
     if delivery == DELIVERY_SMARTHOST:
@@ -120,7 +120,7 @@ def _normalize_smarthost(raw: object) -> dict:
         raise RelayParamsError("상위 SMTP 서버 설정에 알 수 없는 항목이 있습니다.")
     host = _text(raw.get("host")).lower()
     if not (HOST_RE.match(host) or IPV4_RE.match(host)):
-        raise RelayParamsError("상위 SMTP 서버 주소는 smtp.example.com 처럼 이름이나 IP 만 적습니다.")
+        raise RelayParamsError("상위 SMTP 서버 주소는 smtp.example.com처럼 이름이나 IP만 적습니다.")
     port = raw.get("port")
     if not isinstance(port, int) or isinstance(port, bool) or not (0 < port < 65536):
         raise RelayParamsError("상위 SMTP 서버 포트는 1~65535 사이의 정수여야 합니다.")
@@ -160,7 +160,7 @@ def normalize_overrides(raw: Iterable) -> list[dict]:
         if not DOMAIN_RE.match(domain):
             raise RelayParamsError("받는 도메인은 example.com 같은 이름이어야 합니다.")
         if not (HOST_RE.match(host) or IPV4_RE.match(host)):
-            raise RelayParamsError("전달 서버는 mx.example.com 처럼 이름이나 IP 만 적습니다.")
+            raise RelayParamsError("전달 서버는 mx.example.com처럼 이름이나 IP만 적습니다.")
         if domain in seen:
             raise RelayParamsError("같은 받는 도메인을 두 번 넣었습니다.")
         seen.add(domain)
@@ -305,7 +305,7 @@ def render_client_certs(fingerprints: Iterable[str]) -> str:
 def render_sasl_passwd(smarthost: Mapping, password: str) -> str:
     """상위 SMTP 로그인 한 줄. 값은 이 파일(root 0600)에만 산다 - 반환값을 로그 · 응답에 싣지 않는다."""
     if not password or "\n" in password or "\r" in password or "\x00" in password:
-        raise RelayParamsError("상위 SMTP 비밀번호를 쓸 수 없습니다.")
+        raise RelayParamsError("상위 SMTP 비밀번호가 비어 있거나 쓸 수 없는 문자가 들어 있습니다. 비밀번호를 다시 입력하세요.")
     return f"[{smarthost['host']}]:{smarthost['port']} {smarthost['username']}:{password}\n"
 
 

@@ -90,6 +90,13 @@ LIST = ("table, [data-table-cards], "
         "main .MuiStack-root > .MuiPaper-outlined:has(.MuiTypography-caption)")
 LIST_E = LIST + ", .k-empty"
 
+# 메일 · 로컬 릴레이(직접 전달) 상태를 세우는 응답 바꾸기 셋(D-592) — 상태 · 설정 · 릴레이 보기.
+MAIL_RELAY_ROUTES = (
+    ("**/api/admin/mail/status*", "mail_relay_status"),
+    ("**/api/admin/mail/settings", "mail_relay_settings"),
+    ("**/api/admin/mail/relay", "mail_relay_view"),
+)
+
 # ── 지시서 69 화면 ─────────────────────────────────────────────────────────────
 C69: list[Case] = [
     Case("01", "홈", "/me", check="[aria-label='내 티켓']"),
@@ -161,6 +168,10 @@ C69 += [
     Case("41", "백업", "/backup", console="admin", check=LIST_E),
     Case("42", "백업 · 상세 창", "/backup", console="admin", act="open_first_row", check=DLG),
     Case("43", "메일 · 설정", "/mail?tab=settings", console="admin", check="[data-testid=mail-settings-form], main"),
+    Case("43-relay", "메일 · 설정 · 로컬 릴레이 직접 전달", "/mail?tab=settings", console="admin", routes=MAIL_RELAY_ROUTES,
+         check="[data-testid=relay-component]", note="이 PC 에는 릴레이가 없어 고정 응답(fixtures/relay_view.json)으로 세운다"),
+    Case("43-relay-ro", "메일 · 설정 · 로컬 릴레이 읽기 전용(관리자)", "/mail?tab=settings", console="admin", role="admin",
+         routes=MAIL_RELAY_ROUTES, check="[data-testid=mail-settings-readonly]"),
     Case("44", "메일 · 발송 기록", "/mail?tab=deliveries", console="admin", check=LIST_E),
     Case("45", "메일 · 알림 메일", "/mail?tab=notifications", console="admin", check="main"),
     Case("46", "설정 · 시스템 정책", "/settings", console="admin"),
@@ -459,10 +470,42 @@ def _empty_trash_docs(data):
     return out
 
 
+def _mail_relay(kind: str):
+    """메일 · 로컬 릴레이(직접 전달) 상태(D-592) — 이 PC 에는 특권 헬퍼와 릴레이가 없어 고정 응답(`fixtures/relay_view.json`)으로
+    세운다. 상태 응답의 릴레이 줄 · 준비 점검 요약 · 건강 · 요약을 고정 응답과 맞춘다 — 한 상태 면이 「켜지지 않았습니다」와
+    「동작 중」을 함께 보이지 않게(P17V). 설정 GET 은 방식만 로컬 릴레이로 바꾼다(저장은 하지 않는다 — 다른 줄을 건드리지 않는다)."""
+    from scripts.ui_qa.state_capture import _fixed, _rewrite
+
+    fx = json.loads((ROOT / "scripts" / "ui_qa" / "fixtures" / "relay_view.json").read_text(encoding="utf-8"))
+    if kind == "mail_relay_view":
+        return _fixed(fx["view"])
+    if kind == "mail_relay_settings":
+        def settings(data):
+            data = dict(data)
+            data["settings"] = {**(data.get("settings") or {}), "mode": "local_relay", "relay": fx["config"]}
+            return data
+        return _rewrite(settings)
+    readiness = fx["view"]["readiness"]
+    brief = {"checked_at": readiness.get("checked_at"), "delivery": readiness.get("delivery"), "stale": False,
+             "checks": [{"key": c["key"], "label": c["label"], "state": c["state"]} for c in readiness.get("checks") or []]}
+
+    def status(data):
+        data = dict(data)
+        data["relay"] = {**fx["status_relay"], "readiness": brief}
+        data["summary"] = {**(data.get("summary") or {}), "mode": "local_relay", "relay": fx["config"]}
+        data["health"] = {**(data.get("health") or {}), "state": "ok", "label": "정상", "kind": "ok",
+                          "message": "메일 발송을 사용할 수 있습니다.", "stage": None, "failure_kind": None, "stages": []}
+        data["problems"] = []
+        return data
+    return _rewrite(status)
+
+
 def _handler(kind: str):
     """`routes` 의 종류 → Playwright 처리기. 실제 응답을 받아 값만 고친다(모양이 서버와 어긋나지 않는다)."""
     from scripts.ui_qa.state_capture import _empty_lists, _rewrite
 
+    if kind.startswith("mail_relay_"):
+        return _mail_relay(kind)
     if kind == "empty":
         return _rewrite(_empty_lists)
     if kind == "empty_buckets":

@@ -85,9 +85,9 @@ describe("heading 순서 — 건너뛰지 않는다(PA-RC-0012)", () => {
     });
     const { MailScreen } = await import("./screens/mail/MailScreen.jsx");
     const { container } = qcRender(<MailScreen />);
-    // qa-contract-change: 설정 탭이 다섯 구획(상태 요약 · 기본 설정 · 전달 방법 설정 · 연결과 발송 확인 · 문제 해결과 고급)이 됐다(D-574).
-    // 「보내는 사람」 구획은 「기본 설정」 안으로 들어갔다 - 기준점을 그 구획 제목으로 옮긴다.
-    await screen.findByText("기본 설정");
+    // qa-contract-change: 설정 탭이 여섯 구획(발송 상태 · 발신 정보 · 전달 방식과 서버 이름 · 연결과 시험 발송 · DNS 인증 진단 ·
+    // 요청 내용과 기술 상세)이 됐다(D-592). 「보내는 사람」 칸은 「발신 정보」 안이다 - 기준점을 그 구획 제목으로 옮긴다.
+    await screen.findByText("발신 정보");
     assertSequentialHeadings(container, "MailScreen");
   });
 

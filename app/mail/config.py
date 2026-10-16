@@ -329,7 +329,7 @@ def configuration_problems(config: MailConfig, secret_provider=None) -> list[str
     """
     problems: list[str] = []
     if not config.enabled:
-        problems.append("메일 발송이 꺼져 있습니다. 메일 설정에서 발송을 켜세요.")
+        problems.append("메일 발송이 비활성화되어 있습니다. 메일 설정에서 발송을 활성화하세요.")
     if config.local_relay:
         return problems + _relay_problems(config, secret_provider)
     if not config.host:
@@ -369,7 +369,7 @@ def _relay_problems(config: MailConfig, secret_provider) -> list[str]:
     if secret_provider is not None and (
         secret_provider.status(SLOT_SMTP_RELAY_CLIENT) != STATUS_CONFIGURED or relay_server_cert() is None
     ):
-        problems.append("로컬 릴레이가 아직 켜지지 않았습니다. 메일 설정에서 로컬 릴레이를 켜세요.")
+        problems.append("로컬 릴레이가 아직 활성화되지 않았습니다. 메일 설정에서 로컬 릴레이를 활성화하세요.")
     return problems
 
 

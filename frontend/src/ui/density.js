@@ -422,7 +422,17 @@ export function gameRoomColumns() {
    천장은 창이 아니라 이 값이 정한다. */
 export const GAME_RAIL_BUDGET = { members: "13rem", flowChat: "22rem", flowBoardMax: "60vh", flowBoardMin: "22rem" };
 
-/* 설정 줄 묶음의 폭(D-590) — 이름 · 설명 · 컨트롤이 **한 묶음으로 보이는** 폭이다. 판이 1,400px 이어도 스위치가 이름에서
-   1,500px 떨어지지 않게 줄 자체를 묶는다(페이지 폭은 묶지 않는다 — D-520). `form` 은 폼 판 안의 켜고 끄는 줄 · 확인 줄이다.
-   값은 AI 연결 · 메일 · OS 화면의 실제 캡처를 견줘 정했다. 안 주면(기본) 지금처럼 판 폭을 다 쓴다. */
-export const SETTING_ROW_WIDTH = { form: "48rem" };
+/* 폼 판 안 설정 줄 묶음의 폭(D-590, `SettingRows width="form"`) — 이름 · 설명 · 컨트롤이 **한 묶음으로 보이는** 폭이다. 판이
+   1,400px 이어도 체크박스 · 단추가 이름에서 1,500px 떨어지지 않게 줄 자체를 묶는다(페이지 폭은 묶지 않는다 — D-520).
+   폭은 고정 rem 이 아니라 **같은 판의 반 칸 입력과 같은 세로선**이다: 위 폼 격자의 반 칸(12칸 중 6 · 2칸 중 1)과 같은 셈 —
+   (칸 폭 − 칸 사이 간격) ÷ 2 — 이라 줄 끝의 컨트롤이 「보내는 주소」 같은 반 칸 입력의 오른쪽 끝과 한 줄에 선다. 처음 값 48rem 은
+   1920 에서 반 칸과 14px 어긋났고 1366 에서는 「보내는 이름」 칸 한가운데에 섰다(캡처 r23-mail-1). 폼 격자가 한 열로 접히는
+   폭(두 칸 문턱 미만)에서는 줄도 판 폭을 다 쓴다. 묶음이 컨테이너라 판 폭이 아니라 묶음이 받은 폭으로 잰다. */
+export const SETTING_ROWS_FORM = {
+  containerType: "inline-size",
+  containerName: "setting-rows",
+  [`@container setting-rows (min-width: ${2 * FORM_FIELD_MIN_REM + FORM_FIELD_GAP_REM}rem)`]: {
+    /* 묶음의 바로 아래 자식마다 — 설정 줄이든, 줄을 감싼 상자(메일의 확인 줄)든, 동작이 선 상태 줄(로컬 릴레이 구성 요소)이든. */
+    "& > *": { maxWidth: `calc((100cqi - ${FORM_FIELD_GAP_REM}rem) / 2)` },
+  },
+};

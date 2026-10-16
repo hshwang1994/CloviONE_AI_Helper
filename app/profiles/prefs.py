@@ -57,15 +57,15 @@ NOTIFICATION_TYPES: dict[str, tuple[str, str]] = {
     # ── 승인 ────────────────────────────────────────────────────────────────
     # NOTI-03 재조사가 찾은 여섯 유형(승인 권한 위임 · 승인 기한 초과 · 티켓 댓글 · 문서 댓글 · 게시글 댓글 · 제안 상태 변경)은
     # 영역마다 흩어져 있다. 실제로 발신되는데 이 레지스트리에 없으면 parse_muted 가 「모르는 키」로 조용히 버려서 사용자가 끌 수 없다.
-    "approval_requested": ("승인 요청", "내가 승인해야 할 건이 생겼을 때"),
-    "approval_decided": ("승인 결과", "내가 올린 건이 승인/반려되었을 때"),
+    "approval_requested": ("승인 요청", "내가 처리할 승인 요청이 생겼을 때"),
+    "approval_decided": ("승인 결과", "내가 올린 승인 요청이 승인되거나 거절되었을 때"),
     "approval_overdue": ("승인 기한 초과", "내가 처리해야 할 승인 요청이 기한을 넘겼을 때"),
-    "approval_expired": ("승인 만료", "승인 대기 건이 기한을 넘겼을 때"),
-    "approval_cancelled": ("승인 취소", "내가 올린 요청이 다른 사람에 의해 취소되었을 때"),
-    "approval_delegated": ("승인 권한 위임받음", "다른 사람의 승인 권한을 대신 위임받았을 때"),
+    "approval_expired": ("승인 만료", "내가 올린 승인 요청이 기한을 넘겨 만료되었을 때"),
+    "approval_cancelled": ("승인 취소", "내가 올린 승인 요청을 다른 사람이 취소했을 때"),
+    "approval_delegated": ("승인 권한 위임받음", "다른 사람의 승인 권한을 위임받았을 때"),
     # ── 채팅 ────────────────────────────────────────────────────────────────
     "chat_invited": ("채팅방 초대", "누군가 나를 채팅방에 초대했을 때"),
-    "chat_mentioned": ("@멘션", "채팅에서 누군가 나를 불렀을 때"),
+    "chat_mentioned": ("@멘션", "채팅에서 누군가 나를 언급했을 때"),
     # ── 문서 · 게시판 · 제안 ──────────────────────────────────────────────────
     "document_comment": ("문서 댓글", "내가 관련된 문서에 댓글이 달렸을 때"),
     "board_comment": ("게시글 댓글", "내가 쓴 게시글에 댓글이 달렸을 때"),
@@ -74,7 +74,7 @@ NOTIFICATION_TYPES: dict[str, tuple[str, str]] = {
     "job_failed": ("작업 실패", "자동화 작업이 실패했을 때"),
     "schedule_failed": ("일정 실행 실패", "예약된 실행이 실패했을 때"),
     "backup_failed": ("백업 실패", "예약 또는 수동 백업이 실패했을 때"),
-    "maintenance_announcement": ("유지보수 공지", "점검 예정, 완료 공지"),
+    "maintenance_announcement": ("유지보수 공지", "점검 예정이나 완료를 알리는 공지가 올라왔을 때"),
     # ── AI ──────────────────────────────────────────────────────────────────
     "ai_quota_exhausted": ("AI 사용 한도 도달", "이번 기간의 AI 사용 한도를 다 썼을 때"),
     # D-515. AI 제공자 연결이 막히거나(키 거부, 재로그인 필요), 일시 장애가 이어지거나, 복구되었을 때 관리자에게 한 번.
@@ -99,6 +99,20 @@ TYPE_RECEIVER_ROLES: dict[str, frozenset[str]] = {
     "backup_failed": frozenset(CONSOLE_WRITE_ROLES),
     "ai_provider_state": frozenset(SYSTEM_ADMIN_ONLY),
 }
+
+
+# 유형의 묶음(D-592) — 관리 화면 「메일 알림 종류」가 범주별로 세운다. 위 표(`NOTIFICATION_TYPES`)의 머리 주석과 같은 묶음 · 같은
+# 순서다. 표에 새 유형을 더하면 여기에도 더한다(시험 `test_every_notification_type_has_one_group_in_table_order`).
+NOTIFICATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("티켓", ("ticket_assigned", "ticket_status_changed", "ticket_resolved", "ticket_comment", "offboarding_handover")),
+    ("승인", ("approval_requested", "approval_decided", "approval_overdue", "approval_expired", "approval_cancelled",
+             "approval_delegated")),
+    ("채팅", ("chat_invited", "chat_mentioned")),
+    ("문서와 게시판", ("document_comment", "board_comment", "idea_status_changed")),
+    ("운영", ("job_failed", "schedule_failed", "backup_failed", "maintenance_announcement")),
+    ("AI", ("ai_quota_exhausted", "ai_provider_state")),
+)
+NOTIFICATION_GROUP_OF: dict[str, str] = {key: group for group, keys in NOTIFICATION_GROUPS for key in keys}
 
 
 def receives(type_: str, role: str | None) -> bool:

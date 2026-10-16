@@ -41,20 +41,20 @@ QUAL = {"+": "pass", "-": "fail", "~": "softfail", "?": "neutral"}
 LABELS = {
     "relay_installed": "메일 발송 구성 요소",
     "relay_running": "로컬 릴레이 동작",
-    "relay_managed": "받는 문",
-    "app_to_relay": "앱에서 릴레이로",
+    "relay_managed": "수신 포트",
+    "app_to_relay": "앱과 로컬 릴레이 연결",
     "smarthost_connect": "상위 SMTP 서버",
-    "egress_ip": "바깥 IP",
-    "outbound_25": "바깥 25번 연결",
+    "egress_ip": "발신 IP",
+    "outbound_25": "외부 25번 포트 연결",
     "recipient_mx": "받는 쪽 메일 서버(MX)",
     "sender_domain_public": "보내는 도메인",
     "spf": "SPF",
     "dkim": "DKIM",
     "dmarc": "DMARC",
     "ptr_fcrdns": "역방향 이름(PTR)",
-    "helo_dns": "서버 이름(HELO)",
+    "helo_dns": "메일 서버 이름(HELO)",
     "egress_vs_web": "웹 주소와 발신 IP",
-    "sender_alignment": "보내는 주소 정렬",
+    "sender_alignment": "보내는 주소 도메인 일치",
 }
 
 OWNER_DNS = "도메인 DNS 담당자"
@@ -63,7 +63,7 @@ OWNER_MAILBOX = "받는 쪽 메일 관리자"
 M365_MX_SUFFIX = "mail.protection.outlook.com"
 NO_ALLOWLIST = "스팸 필터 예외나 IP 허용 목록은 요청하지 않습니다. 인증(SPF와 DKIM)이 통과하면 필요 없습니다."
 DMARC_KEEP = "DMARC 레코드는 이미 있으므로 새로 넣지 않습니다. 하나 더 넣으면 둘 다 무효가 됩니다."
-DMARC_NONE_ADVICE = "지금 DMARC 정책은 none 입니다. SPF와 DKIM이 통과한 뒤 quarantine 으로 올리는 것을 권합니다."
+DMARC_NONE_ADVICE = "지금 DMARC 정책은 none입니다. SPF와 DKIM이 통과한 뒤 quarantine으로 올리는 것을 권합니다."
 
 
 def row(key: str, state: str, message: str, *, need: str | None = None, where: str | None = None,
@@ -85,7 +85,7 @@ def component_rows(status: dict | None, *, dkim: bool) -> list[dict]:
     if component == "not_installed":
         out.append(row("relay_installed", FAIL, "이 서버에는 로컬 릴레이 구성 요소가 설치되지 않았습니다.",
                        need="구성 요소를 설치하거나 외부 SMTP 사용을 고르세요.",
-                       where="서버에서 clovirassist mail-relay install"))
+                       where="서버에서 sudo clovirassist mail-relay"))
     elif component == "foreign":
         out.append(row("relay_installed", FAIL, "이 서버에는 기존 메일 발송 구성이 있습니다.",
                        need="그 구성을 쓰려면 외부 SMTP 사용에서 그 서버를 지정하세요.", where="메일 설정"))
@@ -95,20 +95,20 @@ def component_rows(status: dict | None, *, dkim: bool) -> list[dict]:
         out.append(row("relay_running", OK, "로컬 릴레이가 동작하고 있습니다."))
     elif component in ("ready", "stopped"):
         out.append(row("relay_running", FAIL, "메일 발송 구성 요소가 동작하지 않습니다." if component == "stopped"
-                       else "로컬 릴레이가 꺼져 있습니다.", need="로컬 릴레이를 켜세요.", where="메일 설정의 로컬 릴레이"))
+                       else "로컬 릴레이가 비활성화되어 있습니다.", need="로컬 릴레이를 활성화하세요.", where="메일 설정의 로컬 릴레이"))
     else:
         out.append(row("relay_running", UNKNOWN, "구성 요소가 없어 동작을 확인하지 않았습니다."))
     heard = list(status.get("listeners") or [])
     expected = {f"{rf.RELAY_HOST}:{rf.RELAY_PORT}"} | ({f"127.0.0.1:{rf.MILTER_PORT}"} if dkim else set())
     if component != "running":
         state = OK if not heard else WARN
-        out.append(row("relay_managed", state, "아무 받는 문도 열려 있지 않습니다." if not heard
-                       else "꺼져 있는데 듣는 소켓이 있습니다.", technical=", ".join(heard)))
+        out.append(row("relay_managed", state, "열려 있는 수신 포트가 없습니다." if not heard
+                       else "로컬 릴레이가 동작하지 않는데 열려 있는 수신 포트가 있습니다.", technical=", ".join(heard)))
     elif set(heard) == expected:
-        out.append(row("relay_managed", OK, "받는 문은 이 서버 안(127.0.0.1:2525) 하나이고 25번은 닫혀 있습니다.",
+        out.append(row("relay_managed", OK, "수신 포트는 이 서버 안의 127.0.0.1:2525 하나이고 25번 포트는 닫혀 있습니다.",
                        technical=", ".join(heard)))
     else:
-        out.append(row("relay_managed", FAIL, "받는 문이 예상과 다릅니다.", need="로컬 릴레이를 다시 적용하세요.",
+        out.append(row("relay_managed", FAIL, "수신 포트가 예상과 다릅니다.", need="로컬 릴레이를 다시 적용하세요.",
                        where="메일 설정의 로컬 릴레이", technical=", ".join(heard)))
     return out
 
@@ -119,14 +119,14 @@ def app_to_relay_row(result: dict | None, error: str | None) -> dict:
                    where="메일 설정의 로컬 릴레이", technical=error)
     if result is None:
         return row("app_to_relay", UNKNOWN, "로컬 릴레이가 동작하지 않아 시험하지 않았습니다.")
-    return row("app_to_relay", OK, "앱이 인증서로 로컬 릴레이에 붙어 받는 사람까지 확인했습니다.")
+    return row("app_to_relay", OK, "앱이 인증서로 로컬 릴레이에 연결해 받는 사람까지 확인했습니다.")
 
 
 def smarthost_row(result: dict | None, error: str | None) -> dict:
     if error:
         return row("smarthost_connect", FAIL, "상위 SMTP 서버에 연결하거나 로그인하지 못했습니다.",
                    need="서버 주소, 보안 연결, 계정, 비밀번호를 확인하세요.", where="메일 설정의 상위 SMTP 이용", technical=error)
-    return row("smarthost_connect", OK, "상위 SMTP 서버에 연결해 로그인과 봉투 시험을 지났습니다.")
+    return row("smarthost_connect", OK, "상위 SMTP 서버에 연결해 로그인하고 보내는 사람과 받는 사람까지 확인했습니다.")
 
 
 # ── 인터넷으로 직접 전달 ─────────────────────────────────────────────────────
@@ -159,7 +159,7 @@ def spf_check(lookup, domain: str, ip: str) -> tuple[str, str]:
 
     def evaluate(dom: str, depth: int) -> str:
         if depth > SPF_LOOKUP_LIMIT:
-            raise SpfPermError("SPF 가 너무 깊이 이어집니다.")
+            raise SpfPermError("SPF가 너무 깊이 이어집니다.")
         got = lookup.txt(dom)
         if not got.ok and got.error not in ("nxdomain", "noanswer"):
             return "temperror"
@@ -167,7 +167,7 @@ def spf_check(lookup, domain: str, ip: str) -> tuple[str, str]:
         if not records:
             return "none"
         if len(records) > 1:
-            raise SpfPermError(f"{dom} 에 SPF 레코드가 둘 이상 있습니다.")
+            raise SpfPermError(f"{dom}에 SPF 레코드가 둘 이상 있습니다.")
         redirect = None
         for term in records[0].split()[1:]:
             qualifier = term[0] if term[0] in "+-~?" else "+"
@@ -211,7 +211,7 @@ def spf_check(lookup, domain: str, ip: str) -> tuple[str, str]:
                 if sub == "pass":
                     return QUAL[qualifier]
                 if sub == "none":
-                    raise SpfPermError(f"include 대상 {arg} 에 SPF 레코드가 없습니다.")
+                    raise SpfPermError(f"include 대상 {arg}에 SPF 레코드가 없습니다.")
                 if sub in ("permerror", "temperror"):
                     return sub
                 continue
@@ -223,14 +223,14 @@ def spf_check(lookup, domain: str, ip: str) -> tuple[str, str]:
             if name == "ptr":
                 lookup_count()
                 continue
-            raise SpfPermError(f"모르는 SPF 항목입니다: {term}")
+            raise SpfPermError(f"알 수 없는 SPF 항목입니다: {term}")
         if redirect:
             lookup_count()
             if not _SPF_DOMAIN.match(redirect):
                 raise SpfPermError(f"redirect 대상이 도메인이 아닙니다: {redirect}")
             sub = evaluate(redirect.rstrip("."), depth + 1)
             if sub == "none":
-                raise SpfPermError(f"redirect 대상 {redirect} 에 SPF 레코드가 없습니다.")
+                raise SpfPermError(f"redirect 대상 {redirect}에 SPF 레코드가 없습니다.")
             return sub
         return "neutral"
 
@@ -265,39 +265,39 @@ def spf_row(lookup, domain: str, ip: str | None) -> tuple[dict, str | None]:
     """SPF 한 줄과 지금 레코드(없으면 None). IP 를 모르면 모름이다."""
     current = next((v for v in lookup.txt(domain).values if v.lower().startswith("v=spf1")), None)
     if not ip:
-        return row("spf", UNKNOWN, "바깥 IP 를 몰라 SPF 를 판정하지 않았습니다."), current
+        return row("spf", UNKNOWN, "발신 IP를 몰라 SPF를 판정하지 않았습니다."), current
     result, why = spf_check(lookup, domain, ip)
     if result == "pass":
-        return row("spf", OK, f"보내는 도메인의 SPF 가 이 서버 IP({ip})를 허가합니다."), current
+        return row("spf", OK, f"보내는 도메인의 SPF가 이 서버 IP({ip})를 허가합니다."), current
     if result == "none":
-        return row("spf", WARN, "보내는 도메인에 SPF 레코드가 없습니다.", need="아래 SPF 레코드를 도메인 DNS 에 넣으세요.",
+        return row("spf", WARN, "보내는 도메인에 SPF 레코드가 없습니다.", need="아래 SPF 레코드를 도메인 DNS에 넣으세요.",
                    where="도메인 DNS(아래 레코드 복사)"), current
     if result == "permerror":
         need = ("도메인이 아닌 항목을 빼세요. 아래 레코드는 그 항목을 뺀 제안입니다." if current and _broken_spf_terms(current)
-                else "SPF 레코드를 고치세요.")
+                else "SPF 레코드를 수정하세요.")
         return row("spf", FAIL, "보내는 도메인의 SPF 레코드에 오류가 있습니다.", need=need,
                    where="도메인 DNS(아래 레코드 복사)", technical=why), current
     if result == "temperror":
-        return row("spf", UNKNOWN, "SPF 를 조회하지 못했습니다."), current
-    return row("spf", FAIL, f"보내는 도메인의 SPF 에 이 서버 IP({ip})가 없습니다.", need="SPF 에 이 서버 IP 를 더하세요.",
+        return row("spf", UNKNOWN, "SPF를 조회하지 못했습니다."), current
+    return row("spf", FAIL, f"보내는 도메인의 SPF에 이 서버 IP({ip})가 없습니다.", need="SPF에 이 서버 IP를 추가하세요.",
                where="도메인 DNS(아래 레코드 복사)", technical=f"result={result}"), current
 
 
 def dkim_row(lookup, domain: str, selector: str, public: str, enabled: bool) -> dict:
     if not enabled:
-        return row("dkim", WARN, "DKIM 서명을 쓰지 않습니다.", need="받는 쪽이 정크로 분류할 수 있어 서명을 켜는 것이 좋습니다.",
+        return row("dkim", WARN, "DKIM 서명을 쓰지 않습니다.", need="받는 쪽이 정크로 분류할 수 있어 DKIM 서명을 사용하는 것이 좋습니다.",
                    where="메일 설정의 DKIM 서명")
     if not public:
-        return row("dkim", FAIL, "DKIM 키가 아직 없습니다.", need="키를 만드세요.", where="메일 설정의 DKIM 서명")
+        return row("dkim", FAIL, "DKIM 키가 아직 없습니다.", need="DKIM 키를 추가하세요.", where="메일 설정의 DKIM 서명")
     name = rf.dkim_record_name(domain, selector)
     got = lookup.txt(name)
     values = [v.replace(" ", "") for v in got.values]
     if not values:
-        return row("dkim", FAIL, "DKIM 레코드가 DNS 에 없습니다.", need=f"{name} 에 아래 DKIM 레코드를 넣으세요.",
+        return row("dkim", FAIL, "DKIM 레코드가 DNS에 없습니다.", need=f"{name}에 아래 DKIM 레코드를 넣으세요.",
                    where="도메인 DNS(아래 레코드 복사)")
     if any(f"p={public}" in v for v in values):
-        return row("dkim", OK, "DNS 의 DKIM 공개키가 이 서버의 키와 같습니다.")
-    return row("dkim", FAIL, "DNS 의 DKIM 공개키가 이 서버의 키와 다릅니다.", need="아래 DKIM 레코드로 바꾸세요.",
+        return row("dkim", OK, "DNS의 DKIM 공개키가 이 서버의 키와 같습니다.")
+    return row("dkim", FAIL, "DNS의 DKIM 공개키가 이 서버의 키와 다릅니다.", need="아래 DKIM 레코드로 바꾸세요.",
                where="도메인 DNS(아래 레코드 복사)")
 
 
@@ -348,44 +348,44 @@ def helo_suggestion(domain: str, helo: str | None, egress_ip: str | None, web_ho
     if not helo:
         reason, lead = "empty", ""
     elif not _under(helo, domain):
-        reason, lead = "private", f"지금 서버 이름({helo})은 {domain} 아래 이름이 아니어서 받는 쪽이 확인하지 못합니다. "
+        reason, lead = "private", f"지금 메일 서버 이름({helo})은 {domain} 아래 이름이 아니어서 받는 쪽이 확인하지 못합니다. "
     elif web_ip and web_ip in addrs:
-        reason, lead = "web_ip", f"지금 서버 이름({helo})은 웹 주소의 IP({web_ip})로 풀립니다. "
+        reason, lead = "web_ip", f"지금 메일 서버 이름({helo})은 웹 주소의 IP({web_ip})로 풀립니다. "
     else:
-        reason, lead = "other_ip", f"지금 서버 이름({helo})은 발신 IP 가 아닌 다른 IP 로 풀립니다. "
+        reason, lead = "other_ip", f"지금 메일 서버 이름({helo})은 발신 IP가 아닌 다른 IP로 풀립니다. "
     if _under(web_host, domain) and web_ip and egress_ip and web_ip == egress_ip:
         name = web_host
-        note = lead + f"웹 주소({web_host})가 메일과 같은 IP({egress_ip})로 나가므로 서버 이름을 웹 주소로 바꾸면 됩니다."
+        note = lead + f"웹 주소({web_host})가 메일과 같은 IP({egress_ip})로 나가므로 메일 서버 이름을 웹 주소로 바꾸면 됩니다."
     elif _under(web_host, domain):
         name = f"{web_host.split('.')[0]}-mail.{domain}"
         if web_ip and egress_ip and web_ip != egress_ip:
-            note = lead + (f"웹 주소({web_host})의 IP 는 {web_ip} 이고 메일은 {egress_ip} 에서 나가므로 메일 전용 이름이 필요합니다. "
-                           "메일이 웹 주소와 같은 IP 로 나가도록 NAT 를 바꾸면 메일 전용 이름 대신 웹 주소를 쓸 수 있습니다.")
+            note = lead + (f"웹 주소({web_host})의 IP는 {web_ip}이고 메일은 {egress_ip}에서 나가므로 메일 전용 이름이 필요합니다. "
+                           "메일이 웹 주소와 같은 IP로 나가도록 NAT를 바꾸면 메일 전용 이름 대신 웹 주소를 쓸 수 있습니다.")
         else:
-            note = lead + "서버 이름은 메일이 나가는 IP 로 풀리는 이름이어야 해서 메일 전용 이름을 제안합니다."
+            note = lead + "메일 서버 이름은 메일이 나가는 IP로 풀리는 이름이어야 해서 메일 전용 이름을 제안합니다."
     else:
         name = f"mail-clovirassist.{domain}" if domain else ""
-        note = lead + "서버 이름은 메일이 나가는 IP 로 풀리는 보내는 도메인 아래 이름이어야 해서 메일 전용 이름을 제안합니다."
+        note = lead + "메일 서버 이름은 메일이 나가는 IP로 풀리는 보내는 도메인 아래 이름이어야 해서 메일 전용 이름을 제안합니다."
     return {"name": name, "keep": name == helo, "reason": reason, "note": note.strip() or None}
 
 
 def ptr_row(lookup, ip: str | None, helo: str, *, target: str | None = None) -> dict:
     """역방향 이름 한 줄. ``target`` 은 등록을 요청할 이름이다(제안한 서버 이름 - 없으면 지금 HELO)."""
     if not ip:
-        return row("ptr_fcrdns", UNKNOWN, "바깥 IP 를 몰라 역방향 이름을 확인하지 않았습니다.")
+        return row("ptr_fcrdns", UNKNOWN, "발신 IP를 몰라 역방향 이름을 확인하지 않았습니다.")
     want = target or helo
     names = lookup.ptr(ip).values
     if not names:
-        return row("ptr_fcrdns", FAIL, "공인 IP 의 역방향 이름(PTR)이 없습니다.",
-                   need=f"{ip} 의 역방향 이름을 서버 이름({want or '보내는 도메인 아래 이름'})으로 등록해 달라고 요청하세요.",
+        return row("ptr_fcrdns", FAIL, "공인 IP의 역방향 이름(PTR)이 없습니다.",
+                   need=f"{ip}의 역방향 이름을 메일 서버 이름({want or '보내는 도메인 아래 이름'})으로 등록해 달라고 요청하세요.",
                    where="회선이나 클라우드 업체")
     for name in names:
         if ip in lookup.a(name).values:
             if helo and name != helo:
-                return row("ptr_fcrdns", WARN, f"역방향 이름({name})이 서버 이름(HELO)과 다릅니다.",
-                           need="역방향 이름과 서버 이름을 같게 맞추는 것이 좋습니다.", where="회선이나 클라우드 업체")
-            return row("ptr_fcrdns", OK, f"역방향 이름({name})이 이 IP 로 다시 풀립니다.")
-    return row("ptr_fcrdns", FAIL, "역방향 이름이 이 IP 로 다시 풀리지 않습니다.", need="역방향 이름의 A 레코드를 이 IP 로 맞추세요.",
+                return row("ptr_fcrdns", WARN, f"역방향 이름({name})이 메일 서버 이름(HELO)과 다릅니다.",
+                           need="역방향 이름과 메일 서버 이름을 같게 맞추는 것이 좋습니다.", where="회선이나 클라우드 업체")
+            return row("ptr_fcrdns", OK, f"역방향 이름({name})이 이 IP로 다시 풀립니다.")
+    return row("ptr_fcrdns", FAIL, "역방향 이름이 이 IP로 다시 풀리지 않습니다.", need="역방향 이름의 A 레코드를 이 IP로 맞추세요.",
                where="도메인 DNS", technical=", ".join(names))
 
 
@@ -395,8 +395,8 @@ def _helo_need(suggestion: dict | None, fallback: str) -> tuple[str, str]:
         return fallback, "도메인 DNS(아래 레코드 복사)"
     name = suggestion["name"]
     if suggestion.get("ready"):
-        return f"새 이름({name})이 이미 발신 IP 로 풀립니다. 메일 설정의 서버 이름(HELO)을 그 이름으로 바꾸세요.", "메일 설정"
-    return (f"메일 전용 이름({name})을 발신 IP 로 등록하고, 등록이 끝나면 메일 설정의 서버 이름(HELO)을 그 이름으로 바꾸세요.",
+        return f"새 이름({name})이 이미 발신 IP로 풀립니다. 메일 설정의 메일 서버 이름(HELO)을 그 이름으로 바꾸세요.", "메일 설정"
+    return (f"메일 전용 이름({name})을 발신 IP로 등록하고, 등록이 끝나면 메일 설정의 메일 서버 이름(HELO)을 그 이름으로 바꾸세요.",
             "도메인 DNS(아래 레코드 복사)")
 
 
@@ -404,15 +404,15 @@ def helo_row(lookup, helo: str, ip: str | None, *, web_ip: str | None = None, su
     addrs = lookup.a(helo).values if helo else []
     if not addrs:
         need, where = _helo_need(suggestion, "아래 A 레코드를 넣으세요.")
-        return row("helo_dns", FAIL, f"서버 이름({helo})이 DNS 에 없습니다.", need=need, where=where)
+        return row("helo_dns", FAIL, f"메일 서버 이름({helo})이 DNS에 없습니다.", need=need, where=where)
     if ip and ip not in addrs:
         if web_ip and web_ip in addrs:
-            message = f"서버 이름({helo})이 발신 IP({ip})가 아닌 웹 주소의 IP({web_ip})로 풀립니다."
+            message = f"메일 서버 이름({helo})이 발신 IP({ip})가 아닌 웹 주소의 IP({web_ip})로 풀립니다."
         else:
-            message = f"서버 이름({helo})이 발신 IP({ip})가 아닌 다른 IP 로 풀립니다."
-        need, where = _helo_need(suggestion, "A 레코드를 발신 IP 로 맞추세요.")
+            message = f"메일 서버 이름({helo})이 발신 IP({ip})가 아닌 다른 IP로 풀립니다."
+        need, where = _helo_need(suggestion, "A 레코드를 발신 IP로 맞추세요.")
         return row("helo_dns", WARN, message, need=need, where=where, technical=", ".join(addrs))
-    return row("helo_dns", OK, f"서버 이름({helo})이 DNS 에 있습니다.")
+    return row("helo_dns", OK, f"메일 서버 이름({helo})이 DNS에 있습니다.")
 
 
 def recipient_mx_row(system, compare, probe_domain: str, overrides: dict[str, str]) -> tuple[dict, str | None, str | None]:
@@ -423,7 +423,7 @@ def recipient_mx_row(system, compare, probe_domain: str, overrides: dict[str, st
     mine = system.mx(probe_domain).values
     if mine:
         host = mine[0].split()[1]
-        return row("recipient_mx", OK, f"{probe_domain} 의 메일 서버를 찾았습니다({host}).", technical="; ".join(mine)), host, None
+        return row("recipient_mx", OK, f"{probe_domain}의 메일 서버를 찾았습니다({host}).", technical="; ".join(mine)), host, None
     public = []
     for resolver in compare:
         public = resolver.mx(probe_domain).values
@@ -431,11 +431,11 @@ def recipient_mx_row(system, compare, probe_domain: str, overrides: dict[str, st
             break
     if public:
         host = public[0].split()[1]
-        return row("recipient_mx", FAIL, f"이 서버의 DNS 는 {probe_domain} 의 메일 서버를 모르지만 공개 DNS 는 압니다(분리 DNS).",
-                   need=f"받는 도메인별 전달 서버에 {probe_domain} → {host} 를 넣으세요.", where="메일 설정의 받는 도메인별 전달 서버",
+        return row("recipient_mx", FAIL, f"이 서버의 DNS는 {probe_domain}의 메일 서버를 모르지만 공개 DNS는 압니다(분리 DNS).",
+                   need=f"받는 도메인별 전달 서버에 {probe_domain} → {host}를 넣으세요.", where="메일 설정의 받는 도메인별 전달 서버",
                    technical="; ".join(public)), None, host
-    return row("recipient_mx", FAIL, f"{probe_domain} 의 메일 서버(MX)를 찾지 못했습니다.",
-               need="받는 도메인별 전달 서버를 넣거나 이 서버의 DNS 를 고치세요.", where="메일 설정 또는 서버 DNS"), None, None
+    return row("recipient_mx", FAIL, f"{probe_domain}의 메일 서버(MX)를 찾지 못했습니다.",
+               need="받는 도메인별 전달 서버를 넣거나 이 서버의 DNS 설정을 수정하세요.", where="메일 설정 또는 서버 DNS"), None, None
 
 
 def _knows(lookup, domain: str) -> bool:
@@ -458,9 +458,9 @@ def sender_view(system_dns, compare_dns: list, domain: str) -> tuple[object | No
 
 
 _BLIND = {
-    "spf": "이 서버의 DNS 로는 보내는 도메인의 SPF 를 볼 수 없어 판정하지 않았습니다.",
-    "dkim": "이 서버의 DNS 로는 보내는 도메인의 DKIM 레코드를 볼 수 없어 판정하지 않았습니다.",
-    "dmarc": "이 서버의 DNS 로는 보내는 도메인의 DMARC 를 볼 수 없어 판정하지 않았습니다.",
+    "spf": "이 서버의 DNS로는 보내는 도메인의 SPF를 볼 수 없어 판정하지 않았습니다.",
+    "dkim": "이 서버의 DNS로는 보내는 도메인의 DKIM 레코드를 볼 수 없어 판정하지 않았습니다.",
+    "dmarc": "이 서버의 DNS로는 보내는 도메인의 DMARC를 볼 수 없어 판정하지 않았습니다.",
 }
 
 
@@ -499,13 +499,13 @@ def sender_rows(system_dns, compare_dns: list, *, domain: str, egress_ip: str | 
     rows: list[dict] = []
     if kind == "public" and not _knows(system_dns, domain):
         rows.append(row("sender_domain_public", OK,
-                        f"보내는 도메인({domain})을 공개 DNS 에서 찾았습니다. 이 서버의 DNS 는 이 도메인을 모릅니다(분리 DNS)."))
+                        f"보내는 도메인({domain})을 공개 DNS에서 찾았습니다. 이 서버의 DNS는 이 도메인을 모릅니다(분리 DNS)."))
     elif kind is not None:
-        rows.append(row("sender_domain_public", OK, f"보내는 도메인({domain})을 DNS 에서 찾았습니다."))
+        rows.append(row("sender_domain_public", OK, f"보내는 도메인({domain})을 DNS에서 찾았습니다."))
     else:
-        rows.append(row("sender_domain_public", WARN, f"보내는 도메인({domain})을 이 서버의 DNS 에서 찾지 못했습니다.",
-                        need=("받는 쪽이 보는 공개 DNS 에 이 도메인이 있어야 합니다." if compare_dns
-                              else "이 서버의 DNS 가 공개 레코드를 모르면 비교할 공개 DNS 서버를 넣으세요."),
+        rows.append(row("sender_domain_public", WARN, f"보내는 도메인({domain})을 이 서버의 DNS에서 찾지 못했습니다.",
+                        need=("받는 쪽이 보는 공개 DNS에 이 도메인이 있어야 합니다." if compare_dns
+                              else "이 서버의 DNS가 공개 레코드를 모르면 비교할 공개 DNS 서버를 넣으세요."),
                         where="도메인 DNS" if compare_dns else "메일 설정의 비교할 공개 DNS 서버"))
     current_spf = None
     current_dmarc = None
@@ -540,8 +540,8 @@ def egress_vs_web_row(web_host: str, web_ip: str, egress_ip: str) -> dict:
     """정보 줄(D-572) - 웹 주소와 메일이 같은 IP 로 나가는가. 다르면 서버 이름 · 역방향 이름은 메일 IP 쪽 이름이어야 한다."""
     if web_ip == egress_ip:
         return row("egress_vs_web", OK, f"웹 주소({web_host})와 메일이 같은 IP({egress_ip})로 나갑니다.")
-    return row("egress_vs_web", OK, f"웹 주소({web_host})의 IP 는 {web_ip} 이고 메일은 {egress_ip} 에서 나갑니다. "
-                                    "서버 이름(HELO)과 역방향 이름은 메일이 나가는 IP 를 가리켜야 합니다.",
+    return row("egress_vs_web", OK, f"웹 주소({web_host})의 IP는 {web_ip}이고 메일은 {egress_ip}에서 나갑니다. "
+                                    "메일 서버 이름(HELO)과 역방향 이름은 메일이 나가는 IP를 가리켜야 합니다.",
                technical=f"web={web_ip} egress={egress_ip}")
 
 
@@ -551,22 +551,22 @@ def alignment_row(config: MailConfig) -> dict:
     envelope = config.from_address.rsplit("@", 1)[-1].lower() if "@" in config.from_address else ""
     signing = domain if config.relay.dkim_enabled and config.relay.dkim_selector else None
     if domain and envelope == domain and signing == domain:
-        return row("sender_alignment", OK, f"보내는 주소, 봉투 주소, DKIM 서명이 모두 같은 도메인({domain})이라 정렬됐습니다.")
+        return row("sender_alignment", OK, f"보내는 주소, 봉투 주소, DKIM 서명이 모두 같은 도메인({domain})을 씁니다.")
     if domain and envelope == domain:
-        return row("sender_alignment", OK, f"보내는 주소와 봉투 주소가 같은 도메인({domain})이라 정렬됐습니다. "
-                                           "DKIM 서명은 꺼져 있어 정렬에 들지 않습니다.")
+        return row("sender_alignment", OK, f"보내는 주소와 봉투 주소가 같은 도메인({domain})을 씁니다. "
+                                           "DKIM 서명을 쓰지 않아 비교하지 않았습니다.")
     return row("sender_alignment", FAIL, "보내는 주소와 봉투 주소의 도메인이 다릅니다.", need="보내는 사람 주소를 확인하세요.",
                where="메일 설정")
 
 
 def outbound_row(probe: dict | None) -> dict:
     if probe is None:
-        return row("outbound_25", UNKNOWN, "받는 쪽 메일 서버를 몰라 25번 연결을 시험하지 않았습니다.")
+        return row("outbound_25", UNKNOWN, "받는 쪽 메일 서버를 몰라 25번 포트 연결을 시험하지 않았습니다.")
     if probe.get("connected"):
-        return row("outbound_25", OK, f"받는 쪽 메일 서버({probe.get('host')})의 25번에 연결할 수 있습니다.",
+        return row("outbound_25", OK, f"받는 쪽 메일 서버({probe.get('host')})의 25번 포트에 연결할 수 있습니다.",
                    technical=probe.get("ehlo") or probe.get("banner"))
-    return row("outbound_25", FAIL, f"받는 쪽 메일 서버({probe.get('host')})의 25번에 연결하지 못했습니다.",
-               need="방화벽이나 회선이 바깥 25번을 막고 있는지 확인하세요. 막혀 있으면 상위 SMTP 이용을 고르세요.",
+    return row("outbound_25", FAIL, f"받는 쪽 메일 서버({probe.get('host')})의 25번 포트에 연결하지 못했습니다.",
+               need="방화벽이나 회선이 외부 25번 포트를 막고 있는지 확인하세요. 막혀 있으면 상위 SMTP 이용을 고르세요.",
                where="방화벽이나 회선 업체", technical=probe.get("error"))
 
 
@@ -599,7 +599,7 @@ def records_for(*, domain: str, egress_ip: str | None, current_spf: str | None, 
             rest = [t for t in terms if t not in all_terms and t not in broken and t.lower() != f"ip4:{egress_ip}"]
             value = " ".join(["v=spf1", f"ip4:{egress_ip}", *rest, *(all_terms or ["~all"])])
             if broken:
-                note = ("기존 SPF 에서 도메인이 아닌 항목(" + ", ".join(t if len(t) <= 60 else t[:57] + "..." for t in broken)
+                note = ("기존 SPF에서 도메인이 아닌 항목(" + ", ".join(t if len(t) <= 60 else t[:57] + "..." for t in broken)
                         + ")을 뺐습니다. 이 항목이 레코드 오류의 원인입니다.")
                 # 사이트 소유 확인 값(google-site-verification= 등)은 SPF 의 include 가 아니라 따로 선 TXT 레코드여야 확인이 된다.
                 # 빼라고만 하면 담당자가 그 값을 지워 버려 다른 서비스의 소유 확인이 깨진다 — 남겨 둘 자리를 함께 말한다.
@@ -631,7 +631,7 @@ def records_for(*, domain: str, egress_ip: str | None, current_spf: str | None, 
             out.append(a_record)
         if _needs(states, "ptr_fcrdns"):
             out.append({"key": "ptr", "name": egress_ip, "type": "PTR", "value": target,
-                        "request": f"공인 IP {egress_ip} 의 역방향 이름(PTR)을 {target} 로 등록해 주세요."})
+                        "request": f"공인 IP {egress_ip}의 역방향 이름(PTR)을 {target}로 등록해 주세요."})
     return out
 
 
@@ -653,7 +653,7 @@ def requests_for(records: list[dict], *, domain: str, egress_ip: str | None, hel
     ip_text = egress_ip or "이 서버의 공인 IP"
     if dns:
         lines = [
-            f"{domain} 도메인의 DNS 에 아래 레코드를 넣어 주세요.",
+            f"{domain} 도메인의 DNS에 아래 레코드를 넣어 주세요.",
             f"ClovirAssist 서버({ip_text})가 {domain} 주소로 보내는 메일을 받는 쪽 메일 서버가 정상으로 판정하는 데 필요합니다.",
             "",
         ]
@@ -667,28 +667,28 @@ def requests_for(records: list[dict], *, domain: str, egress_ip: str | None, hel
             lines.append(f"참고: {sentence}")
         if advice:
             lines.append("")
-        lines.append("등록이 끝나면 알려 주세요. ClovirAssist 의 메일 설정에서 점검을 다시 하면 결과가 보입니다.")
+        lines.append("등록이 끝나면 알려 주세요. ClovirAssist의 메일 설정에서 점검을 다시 하면 결과가 보입니다.")
         out.append({
             "owner": OWNER_DNS, "title": "DNS 레코드 등록 요청",
-            "why": "받는 쪽 메일 서버는 SPF, DKIM, 서버 이름으로 이 서버가 보낸 메일인지 확인합니다. 레코드가 없으면 정크로 가거나 거부됩니다.",
+            "why": "받는 쪽 메일 서버는 SPF, DKIM, 메일 서버 이름으로 이 서버가 보낸 메일인지 확인합니다. 레코드가 없으면 정크로 가거나 거부됩니다.",
             "records": dns, "text": "\n".join(lines).rstrip() + "\n",
         })
     ptr = next((r for r in records if r.get("key") == "ptr"), None)
     if ptr is not None and egress_ip:
         target = ptr["value"]
         lines = [
-            f"공인 IP {egress_ip} 의 역방향 이름(PTR 레코드)을 {target} 로 등록해 주세요.",
-            "이 IP 로 메일을 보내는 서버(ClovirAssist)가 있는데, 역방향 이름이 없으면 받는 쪽 메일 서버(Gmail 등)가 연결 단계에서 거부합니다.",
+            f"공인 IP {egress_ip}의 역방향 이름(PTR 레코드)을 {target}로 등록해 주세요.",
+            "이 IP로 메일을 보내는 서버(ClovirAssist)가 있는데, 역방향 이름이 없으면 받는 쪽 메일 서버(Gmail 등)가 연결 단계에서 거부합니다.",
             "",
             f"[PTR] {egress_ip}",
             f"값: {target}",
         ]
         if web_ip and product_host and web_ip != egress_ip:
-            lines += ["", f"다른 방법도 있습니다. 메일이 웹 주소와 같은 IP({web_ip})로 나가도록 NAT 를 바꾸면, 이 요청 대신 {web_ip} 의 "
-                          f"역방향 이름을 {product_host} 로 등록하면 됩니다."]
+            lines += ["", f"다른 방법도 있습니다. 메일이 웹 주소와 같은 IP({web_ip})로 나가도록 NAT를 바꾸면, 이 요청 대신 {web_ip}의 "
+                          f"역방향 이름을 {product_host}로 등록하면 됩니다."]
         out.append({
             "owner": OWNER_NETWORK, "title": "PTR 등록 요청",
-            "why": "역방향 이름은 IP 를 준 쪽(회선 또는 클라우드 업체)만 등록할 수 있습니다. 도메인 DNS 에서는 할 수 없습니다.",
+            "why": "역방향 이름은 IP를 준 쪽(회선 또는 클라우드 업체)만 등록할 수 있습니다. 도메인 DNS에서는 할 수 없습니다.",
             "records": [ptr], "text": "\n".join(lines) + "\n",
         })
     mx = (recipient_mx_host or "").strip().lower().rstrip(".")
@@ -702,25 +702,25 @@ def requests_for(records: list[dict], *, domain: str, egress_ip: str | None, hel
 def _mailbox_request(*, domain: str, mx: str, ip_text: str, product_host: str | None, sender: str, display_name: str) -> dict:
     """받는 쪽 메일 관리자에게 보내는 「발신자 표시 요청」(D-572). Microsoft 365 면 그 이름과 메시지 추적 · compauth 로 말한다."""
     m365 = mx.endswith(M365_MX_SUFFIX)
-    admin = f"{domain} 의 Microsoft 365 관리자님" if m365 else f"{domain} 메일 관리자님"
+    admin = f"{domain}의 Microsoft 365 관리자님" if m365 else f"{domain} 메일 관리자님"
     where = f", 웹 주소 {product_host}" if product_host else ""
-    check = ("3. 레코드가 통과한 뒤 ClovirAssist 가 보낸 시험 메일의 Message-ID 로 메시지 추적을 열어 인증 결과가 compauth=pass 인지 확인해 "
+    check = ("3. 레코드가 통과한 뒤 ClovirAssist가 보낸 시험 메일의 Message-ID로 메시지 추적을 열어 인증 결과가 compauth=pass인지 확인해 "
              "주세요." if m365 else
-             "3. 레코드가 통과한 뒤 ClovirAssist 가 보낸 시험 메일의 머리(Authentication-Results)에서 spf=pass, dkim=pass 인지 확인해 주세요.")
+             "3. 레코드가 통과한 뒤 ClovirAssist가 보낸 시험 메일의 헤더(Authentication-Results)에서 spf=pass, dkim=pass인지 확인해 주세요.")
     lines = [
         f"{admin}께 요청드립니다.",
         f"ClovirAssist 서버({ip_text}{where})가 {sender} 주소로 보내는 알림 메일이 사내 받은 편지함에 정상 메일로 들어오도록 확인해 주세요.",
         "",
-        "1. 도메인 DNS 담당자에게 요청한 레코드(SPF, DKIM, 서버 이름)가 등록됐는지 확인해 주세요.",
+        "1. 도메인 DNS 담당자에게 요청한 레코드(SPF, DKIM, 메일 서버 이름)가 등록됐는지 확인해 주세요.",
         f"2. (선택) {sender} 주소로 공유 사서함이나 메일 연락처를 만들어 표시 이름을 「{display_name}」로, 사진을 ClovirAssist 표식으로 "
-        "넣어 주세요. Outlook 이 보낸 사람 사진으로 그 그림을 보여 줍니다.",
+        "넣어 주세요. Outlook이 보낸 사람 사진으로 그 그림을 보여 줍니다.",
         check,
         "",
         NO_ALLOWLIST,
     ]
     return {
         "owner": OWNER_MAILBOX, "title": "발신자 표시 요청", "provider": "Microsoft 365" if m365 else None,
-        "why": ("Outlook 은 보낸 사람 인증(SPF, DKIM)이 통과해야 발신자를 확인된 것으로 표시하고 사서함이나 연락처의 사진을 보여 줍니다. "
+        "why": ("Outlook은 보낸 사람 인증(SPF, DKIM)이 통과해야 발신자를 확인된 것으로 표시하고 사서함이나 연락처의 사진을 보여 줍니다. "
                 "인증이 실패하면 「보낸 사람의 ID를 확인할 수 없습니다」와 물음표 아이콘이 붙습니다."),
         "records": [], "text": "\n".join(lines) + "\n",
     }
@@ -764,7 +764,7 @@ def run_checks(
         if probe and probe.get("egress_ip"):
             egress_ip = probe["egress_ip"]
         checks.append(row("egress_ip", OK if egress_ip else WARN,
-                          f"받는 쪽은 이 서버를 {egress_ip} 로 봅니다." if egress_ip else "바깥 IP 를 알지 못했습니다.",
+                          f"받는 쪽은 이 서버를 {egress_ip}로 봅니다." if egress_ip else "발신 IP를 알지 못했습니다.",
                           need=None if egress_ip else "메일 설정의 공인 IP 칸에 넣으세요.",
                           where=None if egress_ip else "메일 설정"))
         checks.append(outbound_row(probe))
@@ -818,6 +818,17 @@ def save(db: Session, result: dict, *, now: datetime) -> None:
     db.flush()
 
 
+def relabel(result: dict) -> dict:
+    """저장된 점검 결과의 줄 이름을 지금 이름표(`LABELS`)로 읽는다(D-597). 줄 이름은 열쇠(`key`)가 정하는 값이라 이름표를 고친 뒤
+    다시 점검하기 전까지 옛 이름(「받는 문」 같은)이 화면에 남지 않게 한다. 문장(`message` · `need`)은 그 점검이 지은 그대로다."""
+    checks = result.get("checks")
+    if not isinstance(checks, list):
+        return result
+    return {**result, "checks": [
+        {**c, "label": LABELS.get(c.get("key"), c.get("label"))} if isinstance(c, dict) else c for c in checks
+    ]}
+
+
 def load(db: Session) -> dict | None:
     from app.observability.models import SyncStatus
 
@@ -828,4 +839,4 @@ def load(db: Session) -> dict | None:
         value = json.loads(record.detail_json)
     except ValueError:
         return None
-    return value if isinstance(value, dict) else None
+    return relabel(value) if isinstance(value, dict) else None

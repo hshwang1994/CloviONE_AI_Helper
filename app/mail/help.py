@@ -12,14 +12,14 @@ from __future__ import annotations
 INBOX_ICON_HELP: list[dict] = [
     {
         "provider": "Outlook(Microsoft 365)",
-        "what": "같은 회사 Outlook 은 보낸 사람 주소에 연결된 공유 사서함이나 메일 연락처의 사진을 보여 줍니다.",
+        "what": "같은 회사 Outlook은 보낸 사람 주소에 연결된 공유 사서함이나 메일 연락처의 사진을 보여 줍니다.",
         "who": "Microsoft 365 관리자",
         "external": True,
         "note": "SPF와 DKIM 인증이 통과해야 사진이 보입니다. 인증이 실패하면 물음표 아이콘과 「보낸 사람의 ID를 확인할 수 없습니다」 표시가 붙습니다.",
     },
     {
         "provider": "Gmail, Apple 메일, Yahoo",
-        "what": "BIMI 로 보낸 사람 자리에 회사 로고를 보여 줍니다. Outlook 은 BIMI 를 그리지 않습니다.",
+        "what": "BIMI로 보낸 사람 자리에 회사 로고를 보여 줍니다. Outlook은 BIMI를 그리지 않습니다.",
         "who": "도메인 DNS 담당자와 인증서 발급 기관",
         "external": True,
         "note": "DMARC 정책이 quarantine 이나 reject 여야 하고, SVG Tiny PS 형식의 로고와 유료 VMC 인증서가 필요합니다.",

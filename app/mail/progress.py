@@ -42,8 +42,8 @@ STEP_TEST_SENT = "test_sent"
 STEP_INBOX = "inbox_confirmed"
 
 STEPS: tuple[tuple[str, str], ...] = (
-    (STEP_ENABLE, "메일 발송 켜기"),
-    (STEP_METHOD, "보내는 방법 고르기"),
+    (STEP_ENABLE, "메일 발송 활성화"),
+    (STEP_METHOD, "발송 방식 선택"),
     (STEP_INPUTS, "보내는 사람과 방식별 정보 입력"),
     (STEP_APPLIED, "저장과 적용"),
     (STEP_VERIFIED, "연결 확인"),
@@ -57,19 +57,19 @@ ANCHORS = {
     STEP_INBOX: "action:inbox",
 }
 #: 「발송이 꺼져 있다」 · 「로컬 릴레이가 아직 켜지지 않았다」 는 입력 문제가 아니라 1단계 · 4단계의 일이다.
-_ENABLE_MARK = "메일 발송이 꺼져"
-_RELAY_OFF_MARK = "로컬 릴레이가 아직 켜지지"
+_ENABLE_MARK = "메일 발송이 비활성화"
+_RELAY_OFF_MARK = "로컬 릴레이가 아직 활성화되지"
 
 HINTS = {
-    STEP_ENABLE: "메일 발송을 켜고 저장하세요.",
-    STEP_METHOD: "보내는 방법을 고르세요. 메일 계정이 없으면 로컬 릴레이가 기본입니다.",
+    STEP_ENABLE: "메일 발송을 활성화하고 저장하세요.",
+    STEP_METHOD: "발송 방식을 선택하세요. 메일 계정이 없으면 로컬 릴레이가 기본입니다.",
     STEP_APPLIED: "로컬 릴레이를 활성화하세요.",
     "applied_stale": "저장한 설정을 로컬 릴레이에 다시 적용하세요.",
     STEP_VERIFIED: "연결 확인을 누르세요. 메일은 보내지 않습니다.",
     STEP_TEST_SENT: "시험 메일을 보내세요.",
     "test_sending": "시험 메일을 보내는 중입니다.",
-    STEP_INBOX: "받은 편지함에서 시험 메일을 확인한 뒤 「받았습니다」를 누르세요.",
-    "inbox_bounced": "수신측이 거부했습니다. 진단의 요청문을 담당자에게 보낸 뒤 시험 메일을 다시 보내세요.",
+    STEP_INBOX: "받은 편지함에서 시험 메일을 확인한 뒤 「받은 편지함에서 확인함」 또는 「받은 편지함에 없음」을 누르세요.",
+    "inbox_bounced": "수신측에 시험 메일을 전달하지 못했습니다. ‘요청 내용과 기술 상세’의 요청 내용을 담당자에게 보낸 뒤 시험 메일을 다시 보내세요.",
     "inbox_missing": "받은 편지함에 없다고 기록했습니다. 정크함과 격리함을 본 뒤 진단을 확인하세요.",
 }
 

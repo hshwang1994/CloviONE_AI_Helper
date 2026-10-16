@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { Badge, FlatBadgeSurface, SectionTitle } from "./kit.jsx";
-import { SECTION_GAP, SETTING_ROW_WIDTH } from "./density.js";
+import { SECTION_GAP, SETTING_ROWS_FORM } from "./density.js";
 import { CONTROL, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, LINE_HEIGHT, MOTION } from "./theme.js";
 import { centerPad } from "./layout.jsx";
 
@@ -71,9 +71,8 @@ const SETTING_STATE_KIND = {
  * 것만으로 그 단추가 눌려 버린다. 접근 가능한 이름은 컨트롤의 aria-label 이 계속 정한다. */
 const LABEL_FOR = { display: "block", cursor: "pointer" };
 
-/* `width` — 줄 묶음의 폭(D-590, `density.js::SETTING_ROW_WIDTH`). 줄 하나에 주거나, 묶음(`SettingRows width`)이 CSS 변수로
-   안의 줄 전부에 준다. 안 주면 지금처럼 담는 판의 폭을 다 쓴다. */
-export function SettingRow({ label, value, description, tone, action, state, last, compact, controlId, width, children }) {
+/* 줄의 폭은 줄이 아니라 묶음이 정한다 — `SettingRows width="form"`(D-590). 안 주면 지금처럼 담는 판의 폭을 다 쓴다. */
+export function SettingRow({ label, value, description, tone, action, state, last, compact, controlId, children }) {
   const oneLine = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   return (
     /* 설정 줄도 목록 행이다 — 상태 배지는 면 없이 점 + 낱말로 선다(RULES §2). */
@@ -83,7 +82,6 @@ export function SettingRow({ label, value, description, tone, action, state, las
          올라가는 식으로 찾으면 안쪽 배치를 조금만 바꿔도 시험이 깨진다. */
       className={compact ? "k-settingrow k-settingrow--compact" : "k-settingrow"}
       sx={{
-        maxWidth: width ? SETTING_ROW_WIDTH[width] || width : "var(--k-setting-row-max, none)",
         ...(compact ? {
           display: "flex", alignItems: "center", gap: 1.5,
           py: 1.25, borderTop: 1, borderColor: (t) => t.palette.rule,
@@ -170,14 +168,17 @@ export function SettingList({ title, action, children, sx }) {
 }
 
 /* 설정 줄 묶음의 그릇 — 첫 줄의 위 괘선과 위 여백을 지운다(구획 제목 바로 아래 줄이 선 하나를 더 그리지 않게).
- * 전에는 메일 · AI · 프로필 화면이 같은 `sx` 한 줄을 다섯 번 복사했다. 줄 사이 선은 `SettingRow` 가 그대로 그린다. */
+ * 전에는 메일 · AI · 프로필 화면이 같은 `sx` 한 줄을 다섯 번 복사했다. 줄 사이 선은 `SettingRow` 가 그대로 그린다.
+ * `width="form"` — 폼 판 안의 켜고 끄는 줄 · 확인 줄이다. 안의 줄이 같은 판의 반 칸 입력과 같은 폭으로 서서 줄 끝의 체크박스 ·
+ * 단추가 반 칸 입력의 오른쪽 끝과 한 세로선에 선다(D-590, `density.js::SETTING_ROWS_FORM`). */
 export function SettingRows({ children, className, width, sx }) {
+  const classes = ["k-settingrows", width === "form" ? "k-settingrows--form" : null, className].filter(Boolean).join(" ");
   return (
     <Box
-      className={className ? `k-settingrows ${className}` : "k-settingrows"}
+      className={classes}
       sx={{
         minWidth: 0, "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 },
-        ...(width ? { "--k-setting-row-max": SETTING_ROW_WIDTH[width] || width } : null),
+        ...(width === "form" ? SETTING_ROWS_FORM : null),
         ...sx,
       }}
     >

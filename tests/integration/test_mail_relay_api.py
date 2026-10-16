@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """ClovirAssist 로컬 릴레이 — 메일 API · 발송 · 추적 · 준비 점검 (계획 M7, D-551 · D-555).
 
 못박는 것:
@@ -112,6 +113,40 @@ def test_external_mode_cannot_drive_the_relay(client, login_as, helper):
     assert not [c for c in helper.calls if c[0] in ("mailrelay.apply", "mailrelay.dkim_generate")]
 
 
+def test_the_status_carries_a_readiness_brief_that_every_console_reader_sees(client, login_as, helper, fake_clock):
+    """상태 면의 「DNS 인증」 줄(D-592) — 준비 점검의 줄 이름과 상태만 상태 응답에 실린다. 설정 권한이 없는 관리자도 보고,
+    문장 · 레코드 · 요청 내용은 싣지 않는다. 점검한 뒤 설정이 바뀌면 옛 결과라고 말한다."""
+    from app.mail import relay_readiness
+    from app.mail.config import config_from_db
+
+    h = _h(login_as)
+    assert _save(client, h, relay={"delivery": "direct", "helo_name": "mail.goodmit.co.kr"}).status_code == 200
+    with client.app.state.session_factory() as s:
+        config = config_from_db(s)
+        relay_readiness.save(s, {"state": "fail", "delivery": "direct", "fingerprint": config.relay_fingerprint, "checks": [
+            {"key": "spf", "label": "SPF", "state": "fail", "message": "SPF 레코드가 없습니다.", "need": "레코드를 넣으세요."},
+            {"key": "dkim", "label": "DKIM", "state": "ok", "message": "DKIM 레코드가 있습니다."},
+            # 이름표를 고치기 전에 저장된 줄 — 읽을 때 지금 이름표로 바뀐다(다시 점검하기 전에도 옛 이름이 보이지 않는다).
+            {"key": "relay_managed", "label": "받는 문", "state": "ok", "message": "수신 포트는 이 서버 안에서만 엽니다."}],
+            "records": [{"key": "spf", "name": "goodmit.co.kr", "type": "TXT", "value": "v=spf1 -all"}]}, now=fake_clock.now())
+        s.commit()
+    brief = client.get("/api/admin/mail/status", headers=h).json()["relay"]["readiness"]
+    assert brief["stale"] is False and brief["delivery"] == "direct" and brief["checked_at"]
+    assert brief["checks"] == [{"key": "spf", "label": "SPF", "state": "fail"}, {"key": "dkim", "label": "DKIM", "state": "ok"},
+                               {"key": "relay_managed", "label": relay_readiness.LABELS["relay_managed"], "state": "ok"}]
+    assert relay_readiness.LABELS["relay_managed"] != "받는 문"
+    full = client.get("/api/admin/mail/relay", headers=h).json()["readiness"]
+    assert [c["label"] for c in full["checks"]][-1] == relay_readiness.LABELS["relay_managed"]
+    assert "records" not in brief and "requests" not in brief
+    assert _save(client, h, relay={"delivery": "direct", "helo_name": "mail2.goodmit.co.kr"}).status_code == 200
+    assert client.get("/api/admin/mail/status", headers=h).json()["relay"]["readiness"]["stale"] is True
+    # 설정 권한이 없는 관리자도 같은 요약을 본다(릴레이 API 는 403 이다).
+    admin = _h(login_as, "admin")
+    assert client.get("/api/admin/mail/relay", headers=admin).status_code == 403
+    seen = client.get("/api/admin/mail/status", headers=admin).json()["relay"]["readiness"]
+    assert [c["key"] for c in seen["checks"]] == ["spf", "dkim", "relay_managed"]
+
+
 def test_saving_the_relay_writes_the_password_slot_without_echoing_it(client, db, login_as, helper, settings):
     h = _h(login_as)
     r = _save(client, h, relay_password=RELAY_PW)
@@ -132,7 +167,7 @@ def test_apply_builds_the_arguments_from_saved_settings(client, login_as, helper
     assert _save(client, h, relay={"delivery": "direct", "helo_name": "mail.goodmit.co.kr",
                                    "transport_overrides": [{"domain": "goodmit.co.kr",
                                                             "host": "goodmit-co-kr.mail.protection.outlook.com"}]}).status_code == 200
-    helper.set("mailrelay.apply", detail="로컬 릴레이를 켰습니다.")
+    helper.set("mailrelay.apply", detail="로컬 릴레이를 활성화했습니다.")
     r = client.post("/api/admin/mail/relay/apply", json={}, headers=h)
     assert r.status_code == 200, r.text
     action, params = [c for c in helper.calls if c[0] == "mailrelay.apply"][-1]
@@ -337,7 +372,7 @@ def test_the_from_domain_must_match_the_dkim_key_domain_in_local_relay(client, l
     signed = {**direct, "dkim_selector": "ca1", "dkim_enabled": True}
     assert _save(client, h, relay=signed).status_code == 200
     r = _save(client, h, relay=signed, from_address="noreply@other.example")
-    assert r.status_code == 422 and "DKIM 키를 만든 도메인(goodmit.co.kr)" in r.text, r.text
+    assert r.status_code == 422 and "DKIM 키를 추가한 도메인(goodmit.co.kr)" in r.text, r.text
     assert client.get("/api/admin/mail/settings", headers=h).json()["settings"]["from_address"] == "noreply@goodmit.co.kr"
     r = _save(client, h, relay={**signed, "dkim_enabled": False}, from_address="noreply@other.example")
     assert r.status_code == 200 and r.json()["settings"]["relay"]["dkim_public"] == ""

@@ -495,7 +495,7 @@ _ERROR_SUMMARIES: tuple[tuple[tuple[str, ...], str], ...] = (
     ),
     (
         ("SSLError", "SMTPNotSupportedError", "STARTTLS", "wrong version number"),
-        "보안 연결 방식이 서버와 맞지 않습니다. 보안 방식(STARTTLS/SSL)과 포트를 확인하세요.",
+        "보안 연결 방식이 서버와 맞지 않습니다. 보안 방식(STARTTLS 또는 SSL)과 포트를 확인하세요.",
     ),
     (
         ("timed out", "TimeoutError", "timeout"),
@@ -522,7 +522,7 @@ _ERROR_SUMMARIES: tuple[tuple[tuple[str, ...], str], ...] = (
     ),
     (
         ("CERTIFICATE_VERIFY_FAILED", "certificate verify failed", "SSLCertVerificationError"),
-        "메일 서버의 인증서를 확인하지 못했습니다. 사설 인증서라면 CA 인증서를 등록하세요.",
+        "메일 서버의 인증서를 확인하지 못했습니다. 사설 인증서라면 CA 인증서를 넣으세요.",
     ),
 )
 

@@ -50,8 +50,8 @@ export const SETTING_LABELS = {
   game_ai_enabled: "게임 퀴즈 AI",
   assistant_narrative_enabled: "홈 문장 요약",
   // 알림을 메일로도 보내기(계획 3.4). 메일 발송 화면에서 다룬다(MAIL_SCREEN_KEYS). 라벨은 감사와 버전 기록에 쓰인다.
-  mail_notification_types: "메일로 보내는 알림",
-  mail_notification_max_age_days: "오래된 메일 기준(일)",
+  mail_notification_types: "메일 알림 종류",
+  mail_notification_max_age_days: "오래된 알림 발송 제한 기간(일)",
 };
 export const settingLabel = (k) => SETTING_LABELS[k] || k;
 
@@ -95,7 +95,7 @@ export const DEDICATED_SCREEN_KEYS = [
   "ai_timeout_seconds", "ai_max_concurrency",
   "ai_openai_access_ttl_fallback_seconds", "ai_openai_refresh_ttl_fallback_days", "ai_token_refresh_lead_seconds",
 ];
-// 알림을 메일로도 보내기(계획 3.4)의 두 값은 메일 발송 화면의 「메일로 보내는 알림」이 다룬다. 같은 이유로 이 표에서 숨긴다.
+// 알림을 메일로도 보내기(계획 3.4)의 두 값은 메일 화면의 「메일 알림 종류」 · 「오래된 알림 발송 제한」이 다룬다. 같은 이유로 이 표에서 숨긴다.
 // 메일 서버 설정(`smtp`)도 메일 화면(`#/mail?tab=settings`)이 전용 API 로 다룬다(D-548). 범용 API 는 그 키를 거절한다.
 export const MAIL_SCREEN_KEYS = ["smtp", "mail_notification_types", "mail_notification_max_age_days"];
 // 초기 설정 화면이 고치는 값(계획 3.5, D-520). 메일과 AI 를 쓰는지 고르는 자리는 그 화면의 항목 옆이다.

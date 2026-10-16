@@ -17,11 +17,13 @@ import "@testing-library/jest-dom/vitest";
  *      있고 까닭을 한 줄로 말한다. 거절되면 서버의 문장을 보인다.
  *   4) 「인터넷으로 직접 전달」을 고를 때만 서버 이름 · DKIM · 받는 도메인별 전달 서버가 보이고, 「상위 SMTP 이용」이면 상위 서버 칸이 보인다.
  *   5) 저장 본문에 로컬 릴레이 칸이 실리고 서버가 적는 칸(DKIM 공개키)은 실리지 않으며, 상위 SMTP 비밀번호는 같은 저장에 실린다.
- *   6) 준비 점검의 줄은 상태 · 지금 상태 · 할 일 · 고칠 곳을 말한다. 점검 결과 · 요청문 · 복사할 DNS 레코드는 「문제 해결과 고급」을
- *      열어야 보이고(처음에는 닫힘), 그 안에서는 펼치기 단추 없이 소제목으로만 나뉜다. 접기 머리의 요약이 준비 점검 한 문장이다.
- *   7) 상태 면은 「로컬 릴레이」 · 「바깥 전달」 두 줄을 더하고, 접수와 전달을 섞지 않는다.
+ *   6) 준비 점검의 줄은 상태 · 지금 상태 · 할 일 · 고칠 곳을 말하고, 「DNS 인증 진단」 구획에 펼친 채 선다. 그 첫 줄이 준비 점검 한
+ *      문장이다. 요청 내용 · 복사할 DNS 레코드는 닫힌 「요청 내용과 기술 상세」를 열어야 보이고, 그 안에서는 소제목으로만 나뉜다(D-592).
+ *   7) 상태 면은 「로컬 릴레이」 · 「최근 바깥 전달」 두 줄을 더하고, 접수와 전달을 섞지 않는다. 「DNS 인증」 줄은 상태 응답의 점검
+ *      요약에서 DNS 쪽 항목만 센다(D-592).
 
  * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ * qa-contract-change: 여섯 구획 개편(D-592)으로 준비 점검 줄과 서버 이름 제안은 펼친 「DNS 인증 진단」에, 요청 내용과 레코드는 닫힌 「요청 내용과 기술 상세」에 선다. 레코드 복사 단추는 「DNS 레코드 복사」다. 같은 성질을 새 자리에서 잰다.
  */
 
 const apiMock = vi.fn();
@@ -84,6 +86,8 @@ function status() {
     relay: savedMode === "local_relay" ? {
       delivery: "direct", component: { state: "running", label: "동작 중", message: "", help: null, stale: false },
       outer: { status: "delivered", label: "수신측 메일 서버로 전달함", sentence: null, at: "2026-10-02T01:00:00" },
+      readiness: { checked_at: "2026-10-02T01:00:00", delivery: "direct", stale: false,
+        checks: RELAY_VIEW.readiness.checks.map(({ key, label, state }) => ({ key, label, state })) },
     } : null,
     capabilities: { can_configure: true, can_operate: true },
     notification_mail: { allowed: [], max_age_days: 7, catalog: [] },
@@ -145,7 +149,7 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
     savedMode = "external";
     renderScreen();
     const form = await screen.findByTestId("mail-settings-form");
-    const method = () => within(form).getByRole("heading", { name: "전달 방법 설정" }).closest("section");
+    const method = () => within(form).getByRole("heading", { name: "전달 방식과 서버 이름" }).closest("section");
     expect(within(method()).getByRole("radiogroup", { name: "메일 서비스" })).toBeInTheDocument();
     expect(within(method()).getByRole("checkbox", { name: "서버 인증서 확인" })).toBeInTheDocument();
     const relayCard = within(form).getByRole("radio", { name: /ClovirAssist 로컬 릴레이/ });
@@ -183,9 +187,9 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
     const form = await screen.findByTestId("mail-settings-form");
     expect(await within(form).findByLabelText(/서버 이름\(HELO\)/)).toHaveValue("mail.goodmit.co.kr");
     expect(within(form).getByLabelText("선택자")).toHaveValue("ca1");
-    // 받는 도메인별 전달 서버는 「문제 해결과 고급」 안이다 - 닫힌 동안에는 그려지지 않는다.
+    // 받는 도메인별 전달 서버는 「요청 내용과 기술 상세」 안이다 - 닫힌 동안에는 그려지지 않는다.
     expect(within(form).queryByTestId("relay-overrides")).toBeNull();
-    await userEvent.click(within(form).getByRole("button", { name: "문제 해결과 고급" }));
+    await userEvent.click(within(form).getByRole("button", { name: "요청 내용과 기술 상세" }));
     expect(within(form).getByTestId("relay-overrides")).toBeInTheDocument();
     expect(within(form).getByRole("heading", { name: "받는 도메인별 전달 서버" })).toBeInTheDocument();
     expect(within(form).getByLabelText("비교할 공개 DNS 서버")).toBeInTheDocument();
@@ -217,7 +221,7 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
     expect(opts.body.password).toBeUndefined();
   });
 
-  it("조건 상자가 고르기 전부터 서고, 접기 머리가 준비 한 문장을 말하며, 요청문은 담당자별로 복사할 수 있다", async () => {
+  it("조건 상자가 고르기 전부터 서고, 진단 구획이 준비 한 문장을 말하며, 요청 내용은 담당자별로 복사할 수 있다", async () => {
     const user = userEvent.setup();
     renderScreen();
     expect(await screen.findByTestId("relay-direct-conditions")).toHaveTextContent("담당자가 없다면 상위 SMTP 이용을 고르세요.");
@@ -225,10 +229,11 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
     expect(summary).toHaveTextContent(
       "준비 2개 중 1개를 통과했습니다. 지금 막는 것은 역방향 이름(PTR)입니다. 담당은 회선 또는 클라우드 업체입니다.",
     );
-    // 요약은 닫힌 접기의 머리에 선다 - 요청문은 열어야 보인다.
-    expect(summary.closest(".k-disclosure-head")).not.toBeNull();
+    // 한 문장은 펼친 「DNS 인증 진단」의 첫 줄이다 - 요청 내용은 닫힌 「요청 내용과 기술 상세」를 열어야 보인다.
+    expect(summary.closest(".k-disclosure-head")).toBeNull();
+    expect(screen.getByRole("heading", { level: 2, name: "DNS 인증 진단" }).closest("section").contains(summary)).toBe(true);
     expect(screen.queryByTestId("relay-requests")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "문제 해결과 고급" }));
+    await user.click(screen.getByRole("button", { name: "요청 내용과 기술 상세" }));
     const requests = screen.getByTestId("relay-requests");
     expect(within(requests).getByText("PTR 등록 요청")).toBeInTheDocument();
     expect(requests).toHaveTextContent("mail.goodmit.co.kr 로 등록해 주세요.");
@@ -238,19 +243,20 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
     await waitFor(() => expect(write).toHaveBeenCalledWith(expect.stringContaining("역방향 이름(PTR 레코드)")));
   });
 
-  it("준비 점검의 줄이 상태 · 할 일 · 고칠 곳을 말하고, 표와 레코드는 닫힌 「문제 해결과 고급」을 열면 소제목 아래 함께 선다", async () => {
+  it("준비 점검의 줄은 펼친 「DNS 인증 진단」에 상태 · 할 일 · 고칠 곳을 말하고, 레코드는 닫힌 「요청 내용과 기술 상세」를 열면 선다", async () => {
     renderScreen();
     await screen.findByTestId("relay-summary");
-    expect(screen.queryByTestId("relay-checks")).toBeNull();
-    const toggle = screen.getByRole("button", { name: "문제 해결과 고급" });
+    // 항목별 상태와 고칠 곳은 처음부터 보인다 - 무엇이 막혔고 누가 고치는지가 먼저다.
+    const checks = await screen.findByTestId("relay-checks");
+    expect(screen.getByRole("heading", { name: "점검 결과" })).toBeInTheDocument();
+    expect(screen.queryByTestId("relay-records")).toBeNull();
+    const toggle = screen.getByRole("button", { name: "요청 내용과 기술 상세" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    const checks = await screen.findByTestId("relay-checks");
     // 접기 안의 접기가 없다 - 펼치기 단추 대신 소제목이다.
     expect(screen.queryByRole("button", { name: "진단 펼치기" })).toBeNull();
     expect(screen.queryByRole("button", { name: "복사할 DNS 레코드 펼치기" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "점검 결과" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "복사할 DNS 레코드" })).toBeInTheDocument();
     const ptr = checks.querySelector('[data-check="ptr_fcrdns"]');
     expect(ptr).toHaveAttribute("data-check-state", "fail");
@@ -261,18 +267,29 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
     expect(within(records).getByText("v=spf1 ip4:221.147.80.10 ~all")).toBeInTheDocument();
     // 합친 제안에서 뺀 항목과 그 까닭이 레코드 아래 한 줄로 선다(P18 랩: 도메인이 아닌 include).
     expect(within(records).getByText(/도메인이 아닌 항목\(include:google-site-verification=QY1D\)을 뺐습니다\./)).toBeInTheDocument();
-    expect(within(records).getByRole("button", { name: "goodmit.co.kr 값 복사" })).toBeInTheDocument();
+    const copy = within(records).getByRole("button", { name: "goodmit.co.kr TXT 레코드 복사" });
+    expect(copy).toHaveTextContent("DNS 레코드 복사");
   });
 
-  it("상태 면은 로컬 릴레이 · 바깥 전달 두 줄을 더하고 「도착」이라고 말하지 않는다", async () => {
+  it("상태 면은 로컬 릴레이 · 최근 바깥 전달 두 줄을 더하고 「도착」이라고 말하지 않는다", async () => {
     renderScreen();
-    const lines = await screen.findByTestId("relay-lines");
-    expect(within(lines).getByText("동작 중")).toBeInTheDocument();
+    const lines = await screen.findByTestId("mail-status-lines");
+    expect([...lines.querySelectorAll("dt")].map((dt) => dt.textContent))
+      .toEqual(["메일 발송 가능", "로컬 릴레이", "SMTP 수락", "최근 바깥 전달", "DNS 인증", "받은 편지함 확인"]);
+    expect(within(lines).getByTestId("relay-component-line")).toHaveTextContent("동작 중");
     expect(within(lines).getByTestId("relay-outer")).toHaveTextContent("수신측 메일 서버로 전달함");
     expect(screen.getByTestId("mail-state").textContent).not.toMatch(/도착|받았습니다/);
   });
 
-  it("서버 이름(HELO) 제안과 참고 문장은 서버가 지은 그대로 「문제 해결과 고급」 안에 선다(D-572)", async () => {
+  it("「DNS 인증」 줄은 점검 요약의 DNS 쪽 항목만 세고, 막힌 항목을 이름으로 말한다(D-592)", async () => {
+    renderScreen();
+    const dns = await screen.findByTestId("mail-dns-line");
+    // 로컬 릴레이 동작(구성 요소 점검)은 세지 않는다 - DNS 쪽 항목은 역방향 이름(PTR) 하나다.
+    expect(dns).toHaveTextContent("조치 필요");
+    expect(dns).toHaveTextContent("1개 중 0개 통과, 확인할 항목: 역방향 이름(PTR)");
+  });
+
+  it("서버 이름(HELO) 제안과 참고 문장은 서버가 지은 그대로 펼친 「DNS 인증 진단」에 선다(D-572 · D-592)", async () => {
     relayView = {
       ...RELAY_VIEW,
       readiness: {
@@ -283,12 +300,10 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
         advice: ["DMARC 레코드는 이미 있으므로 새로 넣지 않습니다. 하나 더 넣으면 둘 다 무효가 됩니다."],
       },
     };
-    const user = userEvent.setup();
     renderScreen();
     await screen.findByTestId("mail-settings-form");
-    expect(screen.queryByTestId("relay-helo-suggestion")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "문제 해결과 고급" }));
     const suggestion = await screen.findByTestId("relay-helo-suggestion");
+    expect(screen.getByRole("heading", { level: 2, name: "DNS 인증 진단" }).closest("section").contains(suggestion)).toBe(true);
     expect(suggestion).toHaveTextContent("제안하는 메일 서버 이름(HELO)은 clovirassist-mail.goodmit.co.kr입니다. 메일 전용 이름이 필요합니다.");
     expect(within(screen.getByTestId("relay-advice")).getByText(/DMARC 레코드는 이미 있으므로 새로 넣지 않습니다/)).toBeInTheDocument();
   });
@@ -296,10 +311,8 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
   it("지금 서버 이름을 그대로 쓰면 제안 상자가 없다", async () => {
     relayView = { ...RELAY_VIEW, readiness: { ...RELAY_VIEW.readiness,
       helo_suggestion: { name: "mail.goodmit.co.kr", keep: true, reason: "ok", note: null }, advice: [] } };
-    const user = userEvent.setup();
     renderScreen();
     await screen.findByTestId("mail-settings-form");
-    await user.click(screen.getByRole("button", { name: "문제 해결과 고급" }));
     await screen.findByTestId("relay-checks");
     expect(screen.queryByTestId("relay-helo-suggestion")).toBeNull();
     expect(screen.queryByTestId("relay-advice")).toBeNull();

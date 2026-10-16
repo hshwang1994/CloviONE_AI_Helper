@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """메일 틀 — HTML · 평문, 이스케이프, 링크, 금지 내용, 제목 (계획 M3, D-549).
 
 못박는 것:
@@ -267,7 +268,7 @@ def test_the_logo_is_one_36px_image_from_a_72px_png():
 
 def test_the_eyebrow_names_the_kind_in_both_parts():
     expected = {"ticket_assigned": "티켓 배정 알림", "invite": "계정 초대", "password_reset": "비밀번호 재설정",
-                "account_locked": "계정 보안", "approval_requested": "결재 요청", "backup_failed": "운영 알림",
+                "account_locked": "계정 보안", "approval_requested": "승인 요청", "backup_failed": "운영 알림",
                 "test": "시험 메일", "notify_email_verification": "주소 확인"}
     previews = _all_previews()
     for key, mail in previews.items():
@@ -340,9 +341,9 @@ def test_footer_is_three_lines_and_says_no_reply():
     mail = samples.preview("ticket_assigned", product="ClovirAssist", base_url=BASE, support="help@example.com")
     footer = mail.html[mail.html.rindex('class="ca-rule"'):]
     assert footer.count("<p ") == 3
-    assert "이 주소로는 답장할 수 없습니다." in footer and "알림 메일 설정 바꾸기</a>" in footer and "문의: help@example.com" in footer
+    assert "이 주소로는 답장할 수 없습니다." in footer and "알림 메일 설정 열기</a>" in footer and "문의: help@example.com" in footer
     assert 'class="ca-sep"' in footer and "·" not in footer
-    assert "알림 메일 설정 바꾸기: " + BASE + "/#/profile | 문의: help@example.com" in mail.text
+    assert "알림 메일 설정 열기: " + BASE + "/#/profile | 문의: help@example.com" in mail.text
     assert mail.text.rstrip().endswith("이 주소로는 답장할 수 없습니다.")
 
 

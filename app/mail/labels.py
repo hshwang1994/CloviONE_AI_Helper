@@ -48,7 +48,7 @@ STATUS_WORDS: dict[str, str] = {
     MAIL_CANCELLED: "취소됨",
     # 보내기 직전에 다시 보니 의미가 없어졌다 - 더 새 알림이 있거나, 너무 오래됐거나, 초대받은 사람이 이미 로그인했다. 낱말은
     # 셋을 함께 덮고 정확한 까닭은 행의 `skip_reason_label` 이 말한다(계획 표의 「더 새 알림이 있음」은 그중 하나라 쓰지 않는다).
-    MAIL_SUPERSEDED: "보내지 않음(의미가 없어짐)",
+    MAIL_SUPERSEDED: "보내지 않음(필요 없어짐)",
 }
 #: 상태 조건(필터)의 낱말. 접수는 보내는 방식마다 낱말이 달라 조건에서는 「서버가 접수함」 하나로 묶는다.
 STATUS_FILTER_WORDS: dict[str, str] = {
@@ -58,7 +58,7 @@ STATUS_FILTER_WORDS: dict[str, str] = {
     MAIL_FAILED: STATUS_WORDS[MAIL_FAILED],
     MAIL_UNCONFIGURED: STATUS_WORDS[MAIL_UNCONFIGURED],
     MAIL_CANCELLED: STATUS_WORDS[MAIL_CANCELLED],
-    MAIL_SUPERSEDED: "보내지 않음(의미가 없어짐)",
+    MAIL_SUPERSEDED: "보내지 않음(필요 없어짐)",
 }
 SENDING_WORD = "보내는 중"
 ACCEPTED_EXTERNAL = "메일 서버가 접수함"
@@ -85,7 +85,7 @@ REMOTE_LABELS: dict[tuple[str, str], str] = {
 #: 바깥 전달이 막힌 단계(`app/mail/relay_log.py`)의 짧은 이름.
 REMOTE_STAGE_LABELS: dict[str, str] = {
     "dns": "DNS 조회",
-    "connect": "바깥 25번 연결",
+    "connect": "외부 25번 포트 연결",
     "tls": "보안 연결",
     "rejected": "수신측 거부",
     "temporary": "일시 거절",
@@ -115,9 +115,9 @@ VERIFY_STAGES = ("dns", "connect", "tls", "auth", "sender", "recipient")
 
 #: 연결 확인 · 발송 실패의 **흔한 원인**(P4 ③) — 실패 종류마다 사람이 먼저 볼 곳 한 문장. 서버 응답 원문은 기술 정보 안이다.
 FAILURE_HINTS: dict[str, str] = {
-    "auth": "비밀번호가 틀렸거나 앱 비밀번호가 필요합니다. Microsoft 365 라면 조직이 SMTP 인증을 막았을 수 있습니다(535 5.7.139).",
+    "auth": "비밀번호가 틀렸거나 앱 비밀번호가 필요합니다. Microsoft 365라면 조직이 SMTP 인증을 막았을 수 있습니다(535 5.7.139).",
     "sender": "보내는 주소가 로그인 계정과 다르면 메일 서버가 거부합니다(550, 553). 계정 주소를 보내는 주소로 쓰세요.",
-    "connect": "서버 주소와 포트를 확인하세요. 587 이나 465 가 방화벽에 막혀 있으면 연결이 시간 안에 끝나지 않습니다.",
+    "connect": "서버 주소와 포트를 확인하세요. 587이나 465가 방화벽에 막혀 있으면 연결이 시간 안에 끝나지 않습니다.",
     "tls": "서버 인증서를 확인하지 못했습니다. 사설 인증서라면 CA 인증서를 넣고, 보안 연결 방식과 포트가 짝이 맞는지 보세요.",
     "temporary": "메일 서버가 잠시 거절했습니다. 잠시 뒤 다시 확인하세요.",
     "rejected": "메일 서버가 거절했습니다. 기술 정보의 응답 코드를 보고 계정과 보내는 주소를 확인하세요.",

@@ -23,7 +23,7 @@ export const MAIL_STATUS_LABEL = {
   failed: "보내지 못함",
   unconfigured: "설정이 끝나지 않아 보내지 못함",
   cancelled: "취소됨",
-  superseded: "보내지 않음(의미가 없어짐)",
+  superseded: "보내지 않음(필요 없어짐)",
 };
 
 const STATUS_KIND = {

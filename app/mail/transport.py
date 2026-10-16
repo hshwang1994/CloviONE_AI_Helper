@@ -443,7 +443,7 @@ class SmtpTransport:
                 options: list[str] = []
                 if international:
                     if not server.has_extn("smtputf8"):
-                        raise smtplib.SMTPNotSupportedError("이 서버는 ASCII 가 아닌 주소를 받지 않습니다.")
+                        raise smtplib.SMTPNotSupportedError("이 서버는 ASCII가 아닌 주소를 받지 않습니다.")
                     options += ["SMTPUTF8", "BODY=8BITMIME"]
                 if getattr(server, "does_esmtp", False) and server.has_extn("size"):
                     options.append(f"size={len(flat)}")

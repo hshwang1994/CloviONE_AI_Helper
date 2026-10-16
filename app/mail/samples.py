@@ -70,7 +70,7 @@ def _ticket_comment(product: str, base: str):
 def _invite(product: str, base: str):
     link = f"{base}/reset-password?token={SAMPLE_TOKEN}"
     return c.invite_content(
-        product=product, base_url=base, subject=_subject(product, "계정이 만들어졌습니다"), name=SAMPLE_NAME,
+        product=product, base_url=base, subject=_subject(product, "계정이 준비되었습니다"), name=SAMPLE_NAME,
         email=SAMPLE_EMAIL, link=link, days=7,
     )
 
@@ -125,9 +125,9 @@ _NOTIFICATION_SAMPLES: dict[str, tuple[str, str, str, str]] = {
     "approval_overdue": ("승인 기한 초과", "승인 기한 초과: AI 문서 만들기", f"{SAMPLE_REQUESTER} 님이 올린 요청이 기한을 넘겼습니다.", "/admin#/approvals"),
     "approval_expired": ("승인 만료", "승인 만료: AI 문서 만들기", "기한이 지나 자동으로 만료됐습니다.", "/#/approvals"),
     "approval_cancelled": ("승인 취소", "승인 취소: AI 문서 만들기", f"{SAMPLE_REQUESTER} 님이 요청을 취소했습니다.", "/#/approvals"),
-    "approval_delegated": ("승인 권한 위임받음", f"{SAMPLE_REQUESTER} 님의 승인 권한 위임", "10월 1일부터 10월 7일까지 대신 결재합니다.", "/admin#/approvals"),
+    "approval_delegated": ("승인 권한 위임받음", f"{SAMPLE_REQUESTER} 님의 승인 권한 위임", "10월 1일부터 10월 7일까지 대신 승인합니다.", "/admin#/approvals"),
     "chat_invited": ("채팅방 초대", "채팅방 초대: 플랫폼개발팀", f"{SAMPLE_REQUESTER} 님이 초대했습니다.", "/#/chat-rooms"),
-    "chat_mentioned": ("@멘션", f"{SAMPLE_REQUESTER} 님이 채팅에서 불렀습니다", "회의 자료 확인 부탁드립니다.", "/#/chat-rooms"),
+    "chat_mentioned": ("@멘션", f"{SAMPLE_REQUESTER} 님이 채팅에서 나를 언급했습니다", "회의 자료 확인 부탁드립니다.", "/#/chat-rooms"),
     "document_comment": ("문서 댓글", f"문서에 새 댓글: {SAMPLE_REQUESTER}", "연차 규정 3절을 고쳤습니다. 확인 부탁드립니다.", "/#/knowledge"),
     "board_comment": ("게시글 댓글", f"게시글에 새 댓글: {SAMPLE_REQUESTER}", "좋은 제안 감사합니다. 다음 주에 반영하겠습니다.", "/#/board"),
     "idea_status_changed": ("제안 상태 변경", "제안 상태 변경: 검토 중", "메일 알림 유형 확대 제안이 검토 중으로 바뀌었습니다.", "/#/ideas"),
@@ -184,7 +184,7 @@ PREVIEW_KINDS: tuple[tuple[str, str, object], ...] = (
     ("idea_status_changed", "제안 상태 변경", _notification_sample("idea_status_changed")),
     ("ai_quota_exhausted", "AI 사용 한도", _notification_sample("ai_quota_exhausted")),
     ("ai_provider_state", "AI 연결 상태", _notification_sample("ai_provider_state")),
-    ("invite", "초대", _invite),
+    ("invite", "계정 초대", _invite),
     ("password_reset", "비밀번호 재설정", _password_reset),
     ("account_locked", "계정 잠금 안내", _account_locked),
     ("password_change_required", "비밀번호 변경 안내", _password_change_required),

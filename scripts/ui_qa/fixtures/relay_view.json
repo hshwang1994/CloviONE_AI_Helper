@@ -100,33 +100,33 @@
     },
     {
      "key": "relay_managed",
-     "label": "받는 문",
+     "label": "수신 포트",
      "state": "ok",
-     "message": "받는 문은 이 서버 안(127.0.0.1:2525) 하나이고 25번은 닫혀 있습니다."
+     "message": "수신 포트는 이 서버 안의 127.0.0.1:2525 하나이고 25번 포트는 닫혀 있습니다."
     },
     {
      "key": "app_to_relay",
-     "label": "앱에서 릴레이로",
+     "label": "앱과 로컬 릴레이 연결",
      "state": "ok",
-     "message": "앱이 인증서로 로컬 릴레이에 붙어 받는 사람까지 확인했습니다."
+     "message": "앱이 인증서로 로컬 릴레이에 연결해 받는 사람까지 확인했습니다."
     },
     {
      "key": "egress_ip",
-     "label": "바깥 IP",
+     "label": "발신 IP",
      "state": "ok",
-     "message": "받는 쪽은 이 서버를 221.147.80.10 로 봅니다."
+     "message": "받는 쪽은 이 서버를 221.147.80.10로 봅니다."
     },
     {
      "key": "outbound_25",
-     "label": "바깥 25번 연결",
+     "label": "외부 25번 포트 연결",
      "state": "ok",
-     "message": "받는 쪽 메일 서버(goodmit-co-kr.mail.protection.outlook.com)의 25번에 연결할 수 있습니다."
+     "message": "받는 쪽 메일 서버(goodmit-co-kr.mail.protection.outlook.com)의 25번 포트에 연결할 수 있습니다."
     },
     {
      "key": "recipient_mx",
      "label": "받는 쪽 메일 서버(MX)",
      "state": "ok",
-     "message": "goodmit.co.kr 은(는) 받는 도메인별 전달 서버(goodmit-co-kr.mail.protection.outlook.com)로 보냅니다."
+     "message": "goodmit.co.kr는 받는 도메인별 전달 서버(goodmit-co-kr.mail.protection.outlook.com)로 보냅니다."
     },
     {
      "key": "spf",
@@ -141,8 +141,8 @@
      "key": "dkim",
      "label": "DKIM",
      "state": "fail",
-     "message": "DKIM 레코드가 DNS 에 없습니다.",
-     "need": "ca1._domainkey.goodmit.co.kr 에 아래 DKIM 레코드를 넣으세요.",
+     "message": "DKIM 레코드가 DNS에 없습니다.",
+     "need": "ca1._domainkey.goodmit.co.kr에 아래 DKIM 레코드를 넣으세요.",
      "where": "도메인 DNS(아래 레코드 복사)"
     },
     {
@@ -155,15 +155,15 @@
      "key": "ptr_fcrdns",
      "label": "역방향 이름(PTR)",
      "state": "fail",
-     "message": "공인 IP 의 역방향 이름(PTR)이 없습니다.",
-     "need": "221.147.80.10 의 역방향 이름을 mail.goodmit.co.kr(으)로 등록해 달라고 요청하세요.",
+     "message": "공인 IP의 역방향 이름(PTR)이 없습니다.",
+     "need": "221.147.80.10의 역방향 이름을 메일 서버 이름(mail.goodmit.co.kr)으로 등록해 달라고 요청하세요.",
      "where": "회선이나 클라우드 업체"
     },
     {
      "key": "helo_dns",
-     "label": "서버 이름(HELO)",
+     "label": "메일 서버 이름(HELO)",
      "state": "fail",
-     "message": "서버 이름(mail.goodmit.co.kr)이 DNS 에 없습니다.",
+     "message": "메일 서버 이름(mail.goodmit.co.kr)이 DNS에 없습니다.",
      "need": "아래 A 레코드를 넣으세요.",
      "where": "도메인 DNS(아래 레코드 복사)"
     }
@@ -198,7 +198,7 @@
      "name": "221.147.80.10",
      "type": "PTR",
      "value": "mail.goodmit.co.kr",
-     "request": "공인 IP 221.147.80.10 의 역방향 이름(PTR)을 mail.goodmit.co.kr 로 등록해 주세요."
+     "request": "공인 IP 221.147.80.10의 역방향 이름(PTR)을 mail.goodmit.co.kr로 등록해 주세요."
     }
    ]
   },

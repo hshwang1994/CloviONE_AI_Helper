@@ -66,7 +66,7 @@ RECIPIENT_CHECK_LABELS: dict[str, str] = {
     REASON_NO_LONGER_ADMIN: "받는 사람이 더 이상 관리자가 아니라 보내지 않았습니다.",
     REASON_SENDER_NOT_ALLOWED: "시험 메일을 보낸 사람에게 더 이상 메일 설정 권한이 없어 보내지 않았습니다.",
     REASON_VERIFICATION_CLOSED: "주소 확인이 이미 끝났거나 취소돼 보내지 않았습니다.",
-    REASON_NO_LONGER_DECIDER: "받는 사람이 더 이상 이 승인을 결재할 수 없어 보내지 않았습니다.",
+    REASON_NO_LONGER_DECIDER: "받는 사람이 더 이상 이 승인 요청을 처리할 수 없어 보내지 않았습니다.",
     REASON_CHECK_FAILED: "받는 사람을 확인하지 못해 보내지 않았습니다.",
 }
 

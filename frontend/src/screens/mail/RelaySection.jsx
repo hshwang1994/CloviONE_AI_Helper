@@ -15,15 +15,15 @@ import { SettingRow, SettingRows } from "../../ui/adminKit.jsx";
 import { ChoiceCards } from "../../ui/ChoiceCards.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js";
 
-/* 메일 · 설정 탭의 「ClovirAssist 로컬 릴레이」 부품 (계획 M7 · M4, D-551 · D-574).
+/* 메일 · 설정 탭의 「ClovirAssist 로컬 릴레이」 부품 (계획 M7 · M4, D-551 · D-574 · D-592).
  *
- * 다섯 구획(상태 요약 · 기본 설정 · 전달 방법 설정 · 연결과 발송 확인 · 문제 해결과 고급) 가운데 두 자리에 들어간다.
- *  - 「전달 방법 설정」(`RelayFields`): 구성 요소의 상태 한 줄과 활성화 · 다시 적용 · 비활성화, 전달 방식(상위 SMTP 이용 · 인터넷으로
- *    직접 전달), 고른 방식의 칸만. 고르지 않은 방식의 칸은 그리지 않는다.
- *  - 「문제 해결과 고급」(`RelayReadiness` · `RelayAdvancedFields`): 바깥으로 보내기 준비 점검(담당자별 요청문 · 점검 결과 · 복사할
- *    DNS 레코드)과 받는 도메인별 전달 서버 · 비교할 공개 DNS. 예전에는 이 셋이 각자 손으로 짠 접기 단추(「진단 펼치기」 · 「복사할
- *    DNS 레코드 펼치기」 · 「받는 도메인별 전달 서버 펼치기」) 안에 있었다. 이제 바깥 접기 하나(`Disclosure`)가 열고 닫고, 그 안에서는
- *    소제목으로만 나뉜다 — 접기 안의 접기는 무엇이 어디 숨었는지 찾게 만든다.
+ * 여섯 구획(발송 상태 · 발신 정보 · 전달 방식과 서버 이름 · 연결과 시험 발송 · DNS 인증 진단 · 요청 내용과 기술 상세) 가운데 세 자리에
+ * 들어간다.
+ *  - 「전달 방식과 서버 이름」(`RelayFields`): 구성 요소의 상태 한 줄과 활성화 · 다시 적용 · 비활성화, 전달 방식(상위 SMTP 이용 ·
+ *    인터넷으로 직접 전달), 고른 방식의 칸만. 직접 전달이면 「메일 서버 식별 정보」(서버 이름(HELO) · 공인 IP · DKIM)가 선다.
+ *  - 「DNS 인증 진단」(`RelayDiagnosis`): 펼친 채 서는 점검 한 문장 · 항목별 상태와 고칠 곳 · 서버 이름 제안 · 참고 문장.
+ *  - 「요청 내용과 기술 상세」(`RelayRequests` · `RelayAdvancedFields`): 닫힌 접기 안의 담당자별 요청 내용 · 복사할 DNS 레코드와
+ *    받는 도메인별 전달 서버 · 비교할 공개 DNS. 원문이 길어 처음에는 닫혀 있고, 안에서는 소제목으로만 나뉜다.
  *
  * 일반 화면에는 구성 요소의 제품 이름을 쓰지 않는다 - 꾸러미 · 서비스 · 듣는 소켓은 「기술 정보」 안에만 있다.
  * 칸 값은 메일 설정 폼의 한 번의 「저장」에 실린다(비밀번호 포함). 활성화 · 다시 적용 · 비활성화 · 키 추가 · 점검은 저장한 설정으로만
@@ -142,12 +142,11 @@ function RelayComponent({ relay, savedLocal, dirty, verify }) {
   );
   return (
     <Box sx={{ display: "grid", gap: 1.25, minWidth: 0 }} data-testid="relay-component" data-relay-state={component.state}>
+      {/* 상태 낱말과 동작이 한 줄, 문장은 그 아래 줄이다 — 문장을 낱말 옆에 두면 좁은 폭에서 단추 옆 좁은 칸에 세 줄로 접혔다(390 캡처). */}
       <HeadRow action={actions}>
-        <Box sx={{ display: "flex", alignItems: "baseline", gap: 1.25, flexWrap: "wrap", minWidth: 0 }}>
-          <DotLabel label={component.label || "확인할 수 없음"} tone={COMPONENT_TONE[component.state] || "neutral"} strong />
-          <Line>{component.message}</Line>
-        </Box>
+        <DotLabel label={component.label || "확인할 수 없음"} tone={COMPONENT_TONE[component.state] || "neutral"} strong />
       </HeadRow>
+      {component.message ? <Line>{component.message}</Line> : null}
       {component.help ? <Line>{component.help}</Line> : null}
       {blockedWhy && canStart ? <Typography id="relay-blocked" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{blockedWhy}</Typography> : null}
       {component.stale && !dirty ? (
@@ -188,7 +187,7 @@ function OverrideRows({ rows, onChange }) {
   );
 }
 
-/* 「전달 방법 설정」 구획의 로컬 릴레이 몫 — 메일 설정 폼의 값(`values.relay`)을 고친다. 고른 전달 방식의 칸만 그린다. */
+/* 「전달 방식과 서버 이름」 구획의 로컬 릴레이 몫 — 메일 설정 폼의 값(`values.relay`)을 고친다. 고른 전달 방식의 칸만 그린다. */
 export function RelayFields({ values, setRelay, relayPassword, setRelayPassword, clearRelayPassword, setClearRelayPassword,
   relayPasswordStored, relay, savedLocal, dirty }) {
   const qc = useQueryClient();
@@ -215,7 +214,13 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
   }
   return (
     <>
-      {relay ? <RelayComponentSlot relay={relay} savedLocal={savedLocal} dirty={dirty} /> : null}
+      {/* 구성 요소 상태 줄과 그 동작(활성화 · 다시 적용 · 비활성화)은 설정 줄과 같은 묶음 폭이다(D-590) — 판 끝까지 늘면 1920 에서
+          단추가 상태 낱말에서 1,400px 떨어졌다(캡처 r23-mail-2). */}
+      {relay ? (
+        <SettingRows width="form">
+          <RelayComponentSlot relay={relay} savedLocal={savedLocal} dirty={dirty} />
+        </SettingRows>
+      ) : null}
       <Field label="전달 방식" labelId="relay-delivery-label">
         <ChoiceCards
           name="relay-delivery" ariaLabel="전달 방식" value={r.delivery}
@@ -234,7 +239,7 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
       <Box data-testid="relay-direct-conditions">
         <Callout tone="info" compact>
           인터넷으로 직접 전달하려면 도메인 DNS 담당자가 필요합니다(SPF, DKIM, 공개 서버 이름). 역방향 이름(PTR)은 회선이나 클라우드 업체가
-          넣습니다. 담당자가 없다면 상위 SMTP 이용을 고르세요. 필요한 레코드와 요청 내용은 아래 ‘문제 해결과 고급’의 준비 점검이 채워 줍니다.
+          넣습니다. 담당자가 없다면 상위 SMTP 이용을 고르세요. 아래 ‘DNS 인증 진단’에서 점검하면 필요한 레코드와 요청 내용이 만들어집니다.
         </Callout>
       </Box>
 
@@ -281,7 +286,7 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
       ) : (
         <Box component="section" aria-labelledby="relay-direct-title" sx={{ display: "grid", gap: 2, minWidth: 0 }}>
           <Box sx={{ display: "grid", gap: 0.5, minWidth: 0 }}>
-            <SubHeading id="relay-direct-title">보내는 도메인과 메일 서버 이름</SubHeading>
+            <SubHeading id="relay-direct-title">메일 서버 식별 정보</SubHeading>
             <Line>받는 쪽 메일 서버가 이 이름과 주소로 이 서버를 확인합니다.</Line>
           </Box>
           <FieldRow>
@@ -295,9 +300,9 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
                 onChange={(e) => setRelay({ public_ip: e.target.value })} inputProps={{ spellCheck: false }} />
             </Field>
           </FieldRow>
-          <SettingRows>
+          <SettingRows width="form">
             <SettingRow
-              compact label="IPv4만 쓰기" controlId="relay-ipv4"
+              label="IPv4만 쓰기" controlId="relay-ipv4"
               description="이 서버에서 외부로 나가는 IPv6가 없으면 선택합니다."
               action={(
                 <Checkbox id="relay-ipv4" checked={Boolean(r.ipv4_only)} onChange={(e) => setRelay({ ipv4_only: e.target.checked })}
@@ -305,7 +310,7 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
               )}
             />
             <SettingRow
-              compact label="DKIM 서명" controlId="relay-dkim"
+              last label="DKIM 서명" controlId="relay-dkim"
               description="보내는 메일에 이 서버의 서명을 붙입니다. 받는 쪽이 정크로 분류하지 않게 돕습니다."
               action={(
                 <Checkbox id="relay-dkim" checked={Boolean(r.dkim_enabled)} onChange={(e) => setRelay({ dkim_enabled: e.target.checked })}
@@ -316,7 +321,7 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
           {r.dkim_enabled ? (
             <FieldRow columns={["min(100%, 20rem)"]}>
               <Field label="선택자" htmlFor="relay-dkim-selector"
-                help={publicKey ? "키가 있습니다. ‘문제 해결과 고급’의 준비 점검에 있는 DKIM 레코드를 도메인 DNS에 넣으세요."
+                help={publicKey ? "키가 있습니다. ‘요청 내용과 기술 상세’의 DKIM 레코드를 도메인 DNS에 넣으세요."
                   : keyBlocked ? "저장한 뒤에 키를 추가할 수 있습니다." : "키를 추가하면 DNS에 넣을 레코드가 생깁니다."}
                 action={(
                   <Button loading={dkim.isPending} disabled={keyBlocked} onClick={() => dkim.mutate()}>
@@ -335,7 +340,7 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
   );
 }
 
-/* 「문제 해결과 고급」의 로컬 릴레이 고급 칸 — 받는 도메인별 전달 서버(직접 전달일 때만 뜻이 있다)와 비교할 공개 DNS. 값은 같은 폼의
+/* 「요청 내용과 기술 상세」의 로컬 릴레이 고급 칸 — 받는 도메인별 전달 서버(직접 전달일 때만 뜻이 있다)와 비교할 공개 DNS. 값은 같은 폼의
    「저장」에 실린다. */
 export function RelayAdvancedFields({ values, setRelay }) {
   const r = values.relay;
@@ -370,7 +375,7 @@ function RelayComponentSlot(props) {
   return <RelayComponent {...props} verify={verify} />;
 }
 
-/* 준비 점검의 한 문장 — 「몇 개 중 몇 개 통과 · 지금 막는 것 · 누가」(D-560). 접기 머리의 요약이 이 문장이다. 점검 결과가 없으면 null. */
+/* 준비 점검의 한 문장 — 「몇 개 중 몇 개 통과 · 지금 막는 것 · 누가」(D-560). ⑤ 「DNS 인증 진단」의 첫 줄이 이 문장이다. 점검 결과가 없으면 null. */
 export function readinessSummary(readiness) {
   const checks = (readiness && readiness.checks) || [];
   if (!checks.length) return null;
@@ -426,38 +431,35 @@ export function useReadinessCheck() {
   };
 }
 
-/* 바깥으로 보내기 준비 — 담당자별 요청문 · 점검 결과 · 복사할 DNS 레코드. 「문제 해결과 고급」 접기 안에 서고, 안에서는 소제목으로만
-   나뉜다. 요약 한 문장(`readinessSummary`)은 접기 머리가 말한다 - 여기서 다시 쓰지 않는다. */
-export function RelayReadiness({ relay, savedLocal, dirty, check }) {
+/* 클립보드 복사 — 실패하면 직접 고르라고 말한다(값은 화면에 그대로 있다). */
+function useCopy() {
   const toast = useToast();
-  const readiness = relay && relay.readiness;
-  const checks = (readiness && readiness.checks) || [];
-  const records = (readiness && readiness.records) || [];
-  const requests = (readiness && readiness.requests) || [];
-  /* 서버가 지은 참고 문장(있는 DMARC 를 두라는 말 · `p=none` 권고)과 서버 이름(HELO) 제안(D-572). 화면은 문장을 짓지 않는다. */
-  const advice = ((readiness && readiness.advice) || []).filter(Boolean);
-  const helo = readiness && readiness.helo_suggestion;
-  const heloChange = helo && helo.name && !helo.keep ? helo : null;
-  const blocked = !savedLocal || dirty;
-  async function copy(value, what = "복사했습니다.") {
+  return React.useCallback(async (value, what) => {
     try {
       await navigator.clipboard.writeText(value);
       toast(what, "success");
     } catch {
       toast("복사하지 못했습니다. 값을 직접 선택해 복사하세요.", "error");
     }
-  }
+  }, [toast]);
+}
+
+/* ⑤ 「DNS 인증 진단」의 로컬 릴레이 몫(D-592) — 점검 한 문장(`readinessSummary`) · 최근 점검 · 서버 이름(HELO) 제안 · 항목별 상태와
+   고칠 곳 · 참고 문장. 펼친 채 선다: 무엇이 막혔고 누가 고치는지가 먼저 보여야 한다. 「점검 다시 하기」는 구획 머리의 단추이고,
+   요청 내용 원문과 복사할 DNS 레코드는 ⑥ 「요청 내용과 기술 상세」 접기 안이다(`RelayRequests`). 서버가 지은 문장을 그대로 쓴다. */
+export function RelayDiagnosis({ relay, blocked, check }) {
+  const readiness = relay && relay.readiness;
+  const checks = (readiness && readiness.checks) || [];
+  /* 서버가 지은 참고 문장(있는 DMARC 를 두라는 말 · `p=none` 권고)과 서버 이름(HELO) 제안(D-572). 화면은 문장을 짓지 않는다. */
+  const advice = ((readiness && readiness.advice) || []).filter(Boolean);
+  const helo = readiness && readiness.helo_suggestion;
+  const heloChange = helo && helo.name && !helo.keep ? helo : null;
+  const summary = readinessSummary(readiness);
   return (
-    <Box component="section" aria-labelledby="relay-readiness-title" data-testid="relay-readiness" sx={{ display: "grid", gap: 1.5, minWidth: 0 }}>
-      <SubHeading
-        id="relay-readiness-title"
-        action={(
-          <Button loading={check.running} disabled={blocked} onClick={() => check.start.mutate()}>점검 다시 하기</Button>
-        )}
-      >
-        외부 발송 준비 상태
-      </SubHeading>
+    <Box data-testid="relay-readiness" sx={{ display: "grid", gap: 1.5, minWidth: 0 }}>
+      {summary ? <Typography variant="body2" sx={KO_WORD_BREAK} data-testid="relay-summary">{summary}</Typography> : null}
       <Line>{readiness && readiness.checked_at ? `최근 점검 ${fmtDateTime(readiness.checked_at)}` : "아직 점검하지 않았습니다."}</Line>
+      {check.running ? <Line>외부 발송 준비 상태를 점검하는 중입니다.</Line> : null}
       {readiness && readiness.stale ? <Callout tone="info" compact>점검한 뒤 설정이 바뀌었습니다. 다시 점검하세요.</Callout> : null}
       {check.timedOut ? <Callout tone="info" compact>점검이 시간 안에 끝나지 않았습니다. 잠시 뒤 다시 점검하세요.</Callout> : null}
       {check.error ? <Callout tone="danger" compact>{check.error}</Callout> : null}
@@ -465,41 +467,13 @@ export function RelayReadiness({ relay, savedLocal, dirty, check }) {
         <Box data-testid="relay-helo-suggestion">
           <Callout tone="info" compact>
             {[`제안하는 메일 서버 이름(HELO)은 ${heloChange.name}입니다.`, heloChange.note,
-              "담당자가 이 이름을 DNS에 넣은 뒤 ‘전달 방법 설정’의 메일 서버 이름(HELO) 칸을 바꾸세요."].filter(Boolean).join(" ")}
+              "담당자가 이 이름을 DNS에 넣은 뒤 ‘전달 방식과 서버 이름’의 메일 서버 이름(HELO) 칸을 바꾸세요."].filter(Boolean).join(" ")}
           </Callout>
-        </Box>
-      ) : null}
-      {advice.length ? (
-        <Box data-testid="relay-advice" sx={{ display: "grid", gap: 0.5, minWidth: 0 }}>
-          <SubHeading level={4}>참고</SubHeading>
-          {advice.map((line) => <Line key={line}>{line}</Line>)}
-        </Box>
-      ) : null}
-      {requests.length ? (
-        <Box data-testid="relay-requests" sx={{ display: "grid", gap: 1.5, minWidth: 0 }}>
-          <SubHeading level={4}>담당자에게 요청하기</SubHeading>
-          <Line>서버가 할 수 없는 일입니다. 담당자별 요청 내용을 그대로 복사해 보내고, 담당자가 넣은 뒤 점검을 다시 하세요.</Line>
-          {requests.map((req) => (
-            <Box key={req.owner + req.title} data-request-owner={req.owner}
-              sx={{ display: "grid", gap: 0.75, p: 1.5, bgcolor: "background.inset", borderRadius: `${RADIUS.sm}px`, minWidth: 0 }}>
-              <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
-                <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, fontSize: FONT_SIZE.bodySm }}>{req.owner}</Typography>
-                <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{req.title}</Typography>
-                <Box sx={{ flex: 1 }} />
-                <Button size="sm" onClick={() => copy(req.text, "요청 내용을 복사했습니다.")} aria-label={`${req.owner} 요청 내용 복사`}>요청 내용 복사</Button>
-              </Box>
-              <Line>{req.why}</Line>
-              <Box component="pre" sx={{ m: 0, p: 1.25, bgcolor: "background.paper", borderRadius: `${RADIUS.sm}px`, fontSize: FONT_SIZE.caption,
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 220, overflow: "auto" }}>
-                {req.text}
-              </Box>
-            </Box>
-          ))}
         </Box>
       ) : null}
       {checks.length ? (
         <Box sx={{ display: "grid", gap: 1, minWidth: 0 }}>
-          <SubHeading level={4}>점검 결과</SubHeading>
+          <SubHeading>점검 결과</SubHeading>
           <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid" }} data-testid="relay-checks">
             {checks.map((c) => {
               const meta = CHECK_STATE[c.state] || CHECK_STATE.unknown;
@@ -523,9 +497,55 @@ export function RelayReadiness({ relay, savedLocal, dirty, check }) {
           </Box>
         </Box>
       ) : null}
+      {advice.length ? (
+        <Box data-testid="relay-advice" sx={{ display: "grid", gap: 0.5, minWidth: 0 }}>
+          <SubHeading>참고</SubHeading>
+          {advice.map((line) => <Line key={line}>{line}</Line>)}
+        </Box>
+      ) : null}
+      {!checks.length ? (
+        <Line>{blocked ? "로컬 릴레이 설정을 저장한 뒤에 점검할 수 있습니다." : "점검하면 바깥으로 보내는 데 필요한 것을 한 줄씩 확인합니다."}</Line>
+      ) : null}
+    </Box>
+  );
+}
+
+/* ⑥ 「요청 내용과 기술 상세」의 로컬 릴레이 몫(D-592) — 담당자별 요청 내용 · 복사할 DNS 레코드 · 점검의 기술 정보. 원문이 길어 처음에는
+   닫힌 접기 안에 있고, 안에서는 소제목으로만 나뉜다. 요청 내용은 「요청 내용 복사」, 레코드 값은 「DNS 레코드 복사」로 가져간다. */
+export function RelayRequests({ relay }) {
+  const copy = useCopy();
+  const readiness = relay && relay.readiness;
+  if (!readiness) return null;
+  const records = readiness.records || [];
+  const requests = readiness.requests || [];
+  const helo = readiness.helo_suggestion;
+  return (
+    <>
+      {requests.length ? (
+        <Box component="section" aria-labelledby="relay-requests-title" data-testid="relay-requests" sx={{ display: "grid", gap: 1.5, minWidth: 0 }}>
+          <SubHeading id="relay-requests-title">담당자에게 요청하기</SubHeading>
+          <Line>서버가 할 수 없는 일입니다. 담당자별 요청 내용을 그대로 복사해 보내고, 담당자가 넣은 뒤 점검을 다시 하세요.</Line>
+          {requests.map((req) => (
+            <Box key={req.owner + req.title} data-request-owner={req.owner}
+              sx={{ display: "grid", gap: 0.75, p: 1.5, bgcolor: "background.inset", borderRadius: `${RADIUS.sm}px`, minWidth: 0 }}>
+              <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
+                <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, fontSize: FONT_SIZE.bodySm }}>{req.owner}</Typography>
+                <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{req.title}</Typography>
+                <Box sx={{ flex: 1 }} />
+                <Button size="sm" onClick={() => copy(req.text, "요청 내용을 복사했습니다.")} aria-label={`${req.owner} 요청 내용 복사`}>요청 내용 복사</Button>
+              </Box>
+              <Line>{req.why}</Line>
+              <Box component="pre" sx={{ m: 0, p: 1.25, bgcolor: "background.paper", borderRadius: `${RADIUS.sm}px`, fontSize: FONT_SIZE.caption,
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 220, overflow: "auto" }}>
+                {req.text}
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      ) : null}
       {records.length ? (
-        <Box sx={{ display: "grid", gap: 1, minWidth: 0 }}>
-          <SubHeading level={4}>복사할 DNS 레코드</SubHeading>
+        <Box component="section" aria-labelledby="relay-records-title" sx={{ display: "grid", gap: 1, minWidth: 0 }}>
+          <SubHeading id="relay-records-title">복사할 DNS 레코드</SubHeading>
           <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1.5 }} data-testid="relay-records">
             {records.map((rec) => (
               <Box component="li" key={rec.key + rec.name}
@@ -543,26 +563,49 @@ export function RelayReadiness({ relay, savedLocal, dirty, check }) {
                   {rec.request ? <Line>{rec.request}</Line> : null}
                   {rec.note ? <Line>{rec.note}</Line> : null}
                 </Box>
-                <Button size="sm" onClick={() => copy(rec.value)} aria-label={`${rec.name} 값 복사`}>복사</Button>
+                <Button size="sm" onClick={() => copy(rec.value, "DNS 레코드를 복사했습니다.")} aria-label={`${rec.name} ${rec.type} 레코드 복사`}>
+                  DNS 레코드 복사
+                </Button>
               </Box>
             ))}
           </Box>
         </Box>
       ) : null}
-      {!checks.length ? (
-        <Line>{blocked ? "로컬 릴레이 설정을 저장한 뒤에 점검할 수 있습니다." : "점검하면 바깥으로 보내는 데 필요한 것을 한 줄씩 확인합니다."}</Line>
-      ) : null}
-      {readiness ? (
-        <TechDetail>
-          <TechRows rows={[
-            ["발신 IP", readiness.egress_ip],
-            ["웹 주소", readiness.web_host],
-            ["웹 주소 IP", readiness.web_ip],
-            ["메일 서버 이름 판정", helo ? `${helo.name || "-"} (${helo.reason}${helo.keep ? ", keep" : ""})` : null],
-            ["점검한 받는 도메인", readiness.probe_domain],
-          ]} />
-        </TechDetail>
-      ) : null}
+      <TechDetail>
+        <TechRows rows={[
+          ["발신 IP", readiness.egress_ip],
+          ["웹 주소", readiness.web_host],
+          ["웹 주소 IP", readiness.web_ip],
+          ["메일 서버 이름 판정", helo ? `${helo.name || "-"} (${helo.reason}${helo.keep ? ", keep" : ""})` : null],
+          ["점검한 받는 도메인", readiness.probe_domain],
+        ]} />
+      </TechDetail>
+    </>
+  );
+}
+
+/* 설정 권한이 없는 역할의 ⑤ — 상태 응답에 실린 준비 점검 요약(줄 이름과 상태)만 있다(D-592). 문장 · 레코드 · 요청 내용은 메일 설정
+   권한의 화면에 있다. */
+export function RelayBriefChecks({ brief }) {
+  const checks = (brief && brief.checks) || [];
+  if (!checks.length) return <Line>아직 점검하지 않았습니다.</Line>;
+  return (
+    <Box sx={{ display: "grid", gap: 1, minWidth: 0 }} data-testid="relay-brief">
+      {brief.checked_at ? <Line>{`최근 점검 ${fmtDateTime(brief.checked_at)}`}</Line> : null}
+      {brief.stale ? <Callout tone="info" compact>점검한 뒤 설정이 바뀌었습니다. 다시 점검해야 결과가 맞습니다.</Callout> : null}
+      <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", rowGap: 0.5 }}>
+        {checks.map((c) => {
+          const meta = CHECK_STATE[c.state] || CHECK_STATE.unknown;
+          return (
+            <Box component="li" key={c.key} data-check={c.key} data-check-state={c.state}
+              sx={{ display: "grid", gridTemplateColumns: "5rem minmax(0,1fr)", columnGap: 1.5, alignItems: "baseline" }}>
+              <DotLabel label={meta.label} tone={meta.tone} />
+              <Typography sx={{ fontSize: FONT_SIZE.bodySm, ...KO_WORD_BREAK }}>{c.label}</Typography>
+            </Box>
+          );
+        })}
+      </Box>
+      <Line>점검 문장과 담당자에게 보낼 요청 내용은 메일 설정 권한이 있는 사람이 볼 수 있습니다.</Line>
     </Box>
   );
 }

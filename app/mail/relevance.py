@@ -72,7 +72,7 @@ REASON_AI_STATE_MOVED_ON = "ai_state_moved_on"
 # 화면이 보여 줄 까닭 문장. 목록 칸과 상세가 같은 문장을 쓴다.
 REASON_LABELS: dict[str, str] = {
     REASON_AI_STATE_MOVED_ON: "AI 연결 상태가 그 뒤 바뀌어 보내지 않았습니다.",
-    REASON_TOO_OLD: "이벤트가 너무 오래되어 보내지 않았습니다.",
+    REASON_TOO_OLD: "발송 요청이 너무 오래되어 보내지 않았습니다.",
     REASON_ACCOUNT_GONE: "받을 계정이 없어져 보내지 않았습니다.",
     REASON_ARCHIVED: "받을 계정이 보관되어 보내지 않았습니다.",
     REASON_ALREADY_ACTIVE: "이미 로그인한 계정이라 초대를 보내지 않았습니다.",
@@ -86,7 +86,7 @@ REASON_LABELS: dict[str, str] = {
     REASON_REQUESTER_CHANGED: "받는 사람이 더 이상 요청자가 아니라 보내지 않았습니다.",
     REASON_NO_LONGER_ASSIGNEE: "받는 사람이 더 이상 담당자가 아니라 보내지 않았습니다.",
     REASON_TICKET_CLOSED: "티켓이 이미 끝나 배정 알림을 보내지 않았습니다.",
-    REASON_SOURCE_DELETED: "원래 글이 지워져 보내지 않았습니다.",
+    REASON_SOURCE_DELETED: "원래 글이 삭제되어 보내지 않았습니다.",
     REASON_NO_ACCESS: "받는 사람이 더 이상 볼 수 없는 내용이라 보내지 않았습니다.",
     "cancelled_by_operator": "관리자가 취소했습니다.",
     # 받는 사람 쪽 사정(`cancelled`) - 판정은 `app/notifications/mail.py` 와 `app/mail/recipients.py` 에 있고 문장만

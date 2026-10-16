@@ -1,16 +1,16 @@
 ClovirAssist
 
 @멘션 알림
-채팅에서 나를 불렀습니다.
+채팅에서 언급됐습니다.
 
-김하나 님을 채팅에서 불렀습니다.
+김하나 님을 채팅에서 언급했습니다.
 내용은 ClovirAssist에서 확인하세요.
 
-알림: 이두리 님이 채팅에서 불렀습니다
+알림: 이두리 님이 채팅에서 나를 언급했습니다
 
 ClovirAssist에서 보기: https://clovirassist.gooddi.lab/#/chat-rooms
 
 --
 이 메일은 ClovirAssist의 @멘션 알림 설정에 따라 보냈습니다.
-알림 메일 설정 바꾸기: https://clovirassist.gooddi.lab/#/profile
+알림 메일 설정 열기: https://clovirassist.gooddi.lab/#/profile
 이 주소로는 답장할 수 없습니다.
