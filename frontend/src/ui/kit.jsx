@@ -2517,7 +2517,9 @@ export function columnCellHint(col, row, ctx, { truncate, raw, plain } = {}) {
   if (typeof c.hint === "function") {
     try { const v = c.hint(row, ctx); return v != null && v !== "" ? String(v) : undefined; } catch (e) { /* ignore */ }
   }
-  if (plain) return plain;
+  /* 상태 열은 배지가 그린 이름(`statusText`)이 hover 글자다 — 손으로 적은 상태 열(기능 개선 제안 「검토 중」)이 저장값 「검토중」을
+     hover 로 띄웠다(r23 #55). registry 의 `badgeCol` 은 `hint` 로 이미 같은 일을 한다. */
+  if (plain) return c.type === "status" ? statusText(plain) : plain;
   if (c.key === "assignee_names" && row) {
     const names = (row.assignee_names || []).join(", ");
     return names || undefined;

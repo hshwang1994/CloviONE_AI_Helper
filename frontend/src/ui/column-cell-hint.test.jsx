@@ -34,6 +34,13 @@ describe("잘린 칸의 hover 글자", () => {
     expect(columnCellHint(col, { kind: "etc" }, null, { ...TRUNC, plain: "etc" })).toBe("etc");
   });
 
+  it("🔴 hint 없이 손으로 적은 상태 열도 배지 이름을 hover 로 준다 — 저장값 「검토중」이 아니라 「검토 중」(r23 #55)", () => {
+    const col = { key: "status", label: "상태", type: "status", render: () => null };
+    expect(columnCellHint(col, { status: "검토중" }, null, { ...TRUNC, plain: "검토중" })).toBe("검토 중");
+    // 상태가 아닌 열은 원래 값 그대로다.
+    expect(columnCellHint({ key: "x", type: "text" }, { x: "검토중" }, null, { ...TRUNC, plain: "검토중" })).toBe("검토중");
+  });
+
   it("잘리지 않는 칸에는 hover 글자가 없다", () => {
     const col = badgeCol("state", "상태");
     expect(columnCellHint(col, { state: "running" }, null, { truncate: false })).toBeUndefined();
