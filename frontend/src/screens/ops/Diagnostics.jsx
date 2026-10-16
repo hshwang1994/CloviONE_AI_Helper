@@ -342,7 +342,7 @@ export function Diagnostics() {
         ) : q.isFetched ? (
           // 자동 수집 전 첫 프레임에 이 안내가 번쩍이던 문제, 아직 fetch 전이면(아래 폴백) 스켈레톤을 보여
           // '수집을 눌러라'는 안내가 앱이 이미 자동으로 하는 일을 지시하지 않게 한다.
-          <EmptyState layout="page" art="settings" title="아직 수집한 진단이 없습니다."
+          <EmptyState layout="page" art="wait" title="아직 수집한 진단이 없습니다."
             help="‘진단 수집’을 눌러 현재 시스템 상태(서비스 상태, 디스크, 메모리, 인증서, 작업 오류)를 확인하세요." />
         ) : <Skeleton kind="page" lines={4} />}
     </Box>

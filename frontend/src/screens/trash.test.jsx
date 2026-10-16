@@ -16,6 +16,8 @@ import "@testing-library/jest-dom/vitest";
  * 조용히 성립한다 — 그래서 '어떤 URL로 갔는지'까지 본다.
 
  * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+
+ * qa-contract-change: 정말 0건인 휴지통은 표를 그리지 않던 계약을 걷었다 — 목록의 0건은 다건과 같은 셸(표 머리 아래 띠)에 선다(D-588 · 계획 §4 22). 탭 줄을 그리지 않는다는 단언은 그대로다.
  */
 
 const apiMock = vi.fn();
@@ -133,14 +135,15 @@ describe("권한과 빈 상태", () => {
     expect(screen.queryByRole("button", { name: "영구 삭제" })).toBeNull();
   });
 
-  it("비어 있으면 표 대신 빈 화면 안내를 보여준다", async () => {
+  it("비어 있으면 탭 줄 없이 목록 판(표 머리 아래 띠)에 안내가 선다", async () => {
     mockList([]);
     renderTrash();
-    expect(await screen.findByRole("heading", { name: "휴지통이 비어 있습니다." })).toBeInTheDocument();
-    // 표도 조작기도 그리지 않는다 — 「전체 0 / 티켓 0 / 문서 0」은 정보가 아니라 소음이다.
+    const heading = await screen.findByRole("heading", { name: "휴지통이 비어 있습니다." });
+    // 탭 줄은 그리지 않는다 — 「전체 0 / 티켓 0 / 문서 0」은 정보가 아니라 소음이다.
     // (조건이 걸려 0건인 경우는 **다른 사실**이라 탭 줄이 남는다 — trash-tabs.test.jsx.)
     expect(screen.queryByRole("tab")).toBeNull();
-    expect(screen.queryByRole("table")).toBeNull();
+    // 목록의 0건은 다건과 같은 셸이다(D-588) — 판 없이 화면 가운데 큰 그림이 아니다.
+    expect(heading.closest("[data-empty-layout='band']")).not.toBeNull();
   });
 
   /* WF1 R5 — 빈 상태 안내가 바로 위 상시 안내문("삭제한 티켓과 문서를 7일 동안 보관합니다...")

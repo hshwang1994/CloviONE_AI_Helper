@@ -276,9 +276,9 @@ export function StorageProviders({ embedded = false }) {
           {rows.length === 0 ? (
             /* 탭 전체가 빈 상태다 — 화면 가운데 구성(C1 · `EmptyState layout`). 예전에는 왼쪽 위에
                붙는 `region` 이라 큰 흰 면 구석에 두 줄만 놓였다. */
+            /* `art="settings"` 는 그림 표에 없는 이름이라 조용히 빠지고 있었다 — 그림 없이 둔다(D-588, 클로비를 늘리지 않는다). */
             <EmptyState
               layout="page"
-              art="settings"
               title="등록된 파일 저장소가 없습니다."
               help="파일 저장소를 추가하면 업로드한 파일과 백업이 쌓이는 자리를 여기서 관리할 수 있습니다."
               situation="설치기가 기본 저장소를 만들어 둡니다. 하나도 없다면 설치가 끝나지 않았거나 저장소 설정이 삭제된 것입니다."

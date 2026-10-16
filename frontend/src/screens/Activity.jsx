@@ -134,8 +134,9 @@ export function Activity() {
         <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
       ) : items.length === 0 ? (
         <Card>
+          {/* 판 안의 빈 상태는 작은 아이콘이다(D-588) — 화면 전체용 클로비 그림은 판 안에서 크기만 차지했다(r23 화면 대장 30). */}
           <EmptyState
-            layout="page"
+            layout="region"
             art="notify"
             title={kind ? "이 종류의 활동이 없습니다." : "활동 기록이 없습니다."}
             situation={kind

@@ -233,7 +233,7 @@ export function SetupWizard() {
         {header(null)}
         <EmptyState
           layout="page"
-          title="권한이 없습니다"
+          title="권한이 없습니다."
           help="이 화면은 시스템 관리자만 사용할 수 있습니다. 여기 담긴 것은 조직 단위가 아니라 서버 한 대 전체의 상태입니다."
           art="noPermission"
           action={<Button variant="primary" onClick={() => { window.location.hash = "#/dashboard"; }}>대시보드로 이동</Button>}

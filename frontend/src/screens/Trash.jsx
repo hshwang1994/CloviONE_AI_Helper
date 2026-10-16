@@ -473,15 +473,18 @@ export function Trash() {
       {q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
         : q.isPending ? <DataTable placement="surface" columns={columns} rows={[]} loading />
         : empty && !filtered ? (
-          /* 자산(empty-trash.png)이 처음부터 있었는데 어디에도 연결돼 있지 않았다.
-             정말 0건이면 탭 줄도 안 그린다 — 「전체 0 / 티켓 0 / 문서 0」은 소음이다. */
-          <EmptyState
-            layout="page"
-            art="trash"
-            title="휴지통이 비어 있습니다."
-            // WF1 R5 — 예전엔 여기서 "{days}일 동안 여기 보관됩니다"를 또 말했다, 바로 위
-            // 상시 안내문(항상 보임, 빈 상태여도 사라지지 않는다)이 이미 같은 사실을 말한다.
-            help="삭제한 티켓이나 문서가 없습니다. 실수로 삭제했다면 이 화면에서 복원할 수 있습니다."
+          /* 정말 0건이면 탭 줄은 안 그린다 — 「전체 0 / 티켓 0 / 문서 0」은 소음이다. 목록 판(표 머리 아래 띠)은 다건과 같은
+             셸이다(D-588) — 예전에는 판 없이 화면 가운데 큰 그림이었다(r23 화면 대장 22).
+             WF1 R5 — 예전엔 여기서 "{days}일 동안 여기 보관됩니다"를 또 말했다, 바로 위 상시 안내문이 이미 같은 사실을 말한다. */
+          <DataTable
+            placement="surface" columns={columns} rows={[]}
+            emptyState={(
+              <EmptyState
+                art="trash"
+                title="휴지통이 비어 있습니다."
+                help="삭제한 티켓이나 문서가 없습니다. 실수로 삭제했다면 이 화면에서 복원할 수 있습니다."
+              />
+            )}
           />
         ) : (
           <>
