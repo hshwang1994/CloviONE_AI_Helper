@@ -41,13 +41,13 @@ const HIDE_BELOW = `@media (max-width:${NAV_BREAKPOINT}px)`;
  * 타협 없이** 뺀다(1:1 DM이 공용 검색 인덱스에 들어가는 순간 방 멤버십 확인 코드 한 줄만
  * 틀려도 남의 DM이 유출된다 — tests/security/test_search_no_chat.py가 그 경계를 못박는다).
  * 검색되지 않는 것을 검색된다고 광고하고 있었다. 실제 4종(KIND_LABELS와 맞춘다) + 메뉴로 교체. */
-export default function TopSearch({ onOpen, placeholder = "티켓, 문서, 게시판, 사용자, 메뉴 검색" }) {
+export default function TopSearch({ onOpen, placeholder = "티켓, 문서, 게시판, 메뉴 검색" }) {
   return (
     <Box
       component="button"
       type="button"
       onClick={onOpen}
-      aria-label="통합 검색과 명령 열기"
+      aria-label="통합 검색 열기"
       sx={(t) => ({
         position: "relative",
         display: "flex", alignItems: "center",

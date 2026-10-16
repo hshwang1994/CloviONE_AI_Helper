@@ -64,7 +64,7 @@ function RequireRole({ roles, children, help }) {
   if (!role || !roles.includes(role)) {
     return (
       <EmptyState
-        title="권한이 없습니다"
+        title="권한이 없습니다."
         help={help || "이 화면은 관리자, 시스템 관리자만 사용할 수 있습니다."}
         art="noPermission"
         /* 🔴 `#/` 였다. 두 라우트 표 어디에도 `path="/"` 가 없어서(AdminRoutes 는 아래
@@ -112,7 +112,7 @@ function RouteNotFound() {
    화면 설명은 제목 옆 `?` 가 든다(D-453). 문구는 그대로다. */
 const CALENDAR_HELP = (
   <>
-    예약된 실행을 달력으로 봅니다. <strong>채워진 점</strong>은 실제로 돈 실행,{" "}
+    예약된 실행을 달력으로 봅니다. <strong>채워진 점</strong>은 실제 실행 기록이고,{" "}
     <strong>점선 테두리</strong>는 아직 오지 않은 예정입니다. 시각은 모두 한국 시간입니다.
     예정은 Cron 식을 펼쳐 계산한 값이라, 일정을 비활성화했다 활성화하면 다시 계산됩니다.
   </>
@@ -261,7 +261,7 @@ function AdminRoutes() {
         <Route path="/maintenance" element={<Navigate to="/settings?tab=policy" replace />} />
         {/* FN-01: GET /status는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor) —
             navConfig.js의 /mail 항목과 같은 role 집합. */}
-        <Route path="/mail" element={<RequireRole roles={["operator", "admin", "system_admin", "auditor"]} help="이 화면은 운영자 이상만 사용할 수 있습니다."><MailScreen /></RequireRole>} />
+        <Route path="/mail" element={<RequireRole roles={["operator", "admin", "system_admin", "auditor"]} help="이 화면은 운영자, 관리자, 시스템 관리자, 감사자만 사용할 수 있습니다."><MailScreen /></RequireRole>} />
         {/* PA-RC-0026: GET /api/admin/diagnostics/bundle은 CONSOLE_OPS_ROLES(operator/admin/
             system_admin) — /jobs와 같은 role 집합("헬스체크"는 authz.py의 console.ops가
             명시한다). 예전엔 CONSOLE_WRITE_ROLES(admin+)라 발표된 권한표보다 더 좁았다. */}

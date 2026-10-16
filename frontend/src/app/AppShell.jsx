@@ -494,7 +494,7 @@ function SidebarNav({ groups, activePath, onNavigate, userId, showFilter, groups
       ) : null}
       {filtering && visibleGroups.length === 0 ? (
         <Typography variant="body2" sx={{ px: 3, py: 2, color: "sidebar.muted" }}>
-          '{filterQuery}'와 맞는 메뉴가 없습니다.
+          '{filterQuery}'에 맞는 메뉴가 없습니다.
         </Typography>
       ) : null}
       <List
@@ -687,7 +687,7 @@ function ThemeToggle({ userId }) {
   const dark = mode === "dark";
   const next = dark ? "light" : "dark";
   return (
-    <Tooltip title={dark ? "라이트 모드로" : "다크 모드로"}>
+    <Tooltip title={dark ? "라이트 모드로 전환" : "다크 모드로 전환"}>
       <IconButton
         onClick={() => { storeTheme(next, userId); applyTheme(next); }}
         aria-label={dark ? "라이트 모드로 전환" : "다크 모드로 전환"}
@@ -970,7 +970,7 @@ export function AppShell({
               접힘)에서는 그 열 자체가 없으므로 폭을 풀어 준다. */}
           <TopBrand
             onClick={() => { if (minimal) { redirectToLogin(); } else { enter(homeUser ? "/me" : "/dashboard"); } }}
-            label={minimal ? "로그인 화면으로" : "홈으로"}
+            label={minimal ? "로그인 화면으로 이동" : "홈으로 이동"}
             width={isNarrow ? undefined : DRAWER_WIDTH}
           />
 
@@ -1237,7 +1237,7 @@ export function ShellErrorFallback({ error, componentStack, onReset }) {
   return (
     <Box data-error-boundary="render">
       <ErrorState
-        error={{ kind: "render", message: "다시 시도해도 같으면 새로고침해 주세요.", detail }}
+        error={{ kind: "render", message: "다시 시도해도 화면이 열리지 않으면 새로고침해 주세요.", detail }}
         onRetry={onReset || reload}
         retryLabel={onReset ? "다시 시도" : "새로고침"}
         secondaryAction={onReset ? <KitButton size="sm" onClick={reload}>새로고침</KitButton> : null}

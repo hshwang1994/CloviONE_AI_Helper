@@ -18,7 +18,7 @@ export const NOTICES = [
     name: "Marble Roulette (lazygyu)",
     license: "MIT",
     url: "https://github.com/lazygyu/roulette",
-    text: "구슬 레이스는 lazygyu 의 Marble Roulette 의 물리 규칙, 경주 판 자료, 순위 계산을 바탕으로 만들었습니다. 「Marble Roulette」와 「마블 룰렛」은 lazygyu 의 상표이고, 이 제품은 그 이름을 쓰지 않고 「구슬 레이스」라고 부릅니다.",
+    text: "구슬 레이스는 lazygyu의 Marble Roulette의 물리 규칙, 맵 자료, 순위 계산을 바탕으로 만들었습니다. 「Marble Roulette」와 「마블 룰렛」은 lazygyu의 상표이고, 이 제품은 그 이름을 쓰지 않고 「구슬 레이스」라고 부릅니다.",
   },
   {
     key: "planck",
@@ -26,7 +26,7 @@ export const NOTICES = [
     name: "planck",
     license: "MIT",
     url: "https://github.com/piqnt/planck.js",
-    text: "구슬 레이스의 물리 엔진은 Box2D 를 JavaScript 로 옮긴 planck 입니다.",
+    text: "구슬 레이스의 물리 엔진은 Box2D를 JavaScript로 옮긴 planck입니다.",
   },
   {
     key: "fdlibm",
@@ -34,7 +34,7 @@ export const NOTICES = [
     name: "fdlibm (Sun Microsystems)",
     license: "자유 배포 고지",
     url: "https://www.netlib.org/fdlibm/",
-    text: "구슬 레이스가 모든 브라우저에서 같은 경주를 계산하도록 sin, cos, atan2 를 fdlibm 알고리즘으로 옮겨 씁니다.",
+    text: "구슬 레이스가 모든 브라우저에서 같은 경주를 계산하도록 sin, cos, atan2를 fdlibm 알고리즘으로 옮겨 씁니다.",
   },
   {
     key: "dicebear",
@@ -42,7 +42,7 @@ export const NOTICES = [
     name: "DiceBear",
     license: "CC0 1.0",
     url: "https://www.dicebear.com",
-    text: "사진이 없는 사람의 기본 얼굴은 DiceBear 의 CC0 스타일로 브라우저 안에서 그립니다.",
+    text: "사진이 없는 사람의 기본 얼굴은 DiceBear의 CC0 스타일로 브라우저 안에서 그립니다.",
   },
 ];
 
@@ -51,7 +51,7 @@ export function OpenSourceNoticesModal({ open, onClose }) {
     <Modal open={open} onClose={onClose} title="오픈소스 고지" size="md" footer={<ModalFooter onCancel={onClose} cancelLabel="닫기" />}>
       <Box sx={{ display: "grid", gap: 2 }}>
         <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-          이 제품에 들어간 바깥 코드와 자료의 출처입니다. 라이선스 전문은 설치본의 문서에 함께 들어 있습니다.
+          이 제품에 포함된 외부 코드와 자료의 출처입니다. 라이선스 전문은 설치본의 문서에 함께 들어 있습니다.
         </Typography>
         <Box component="ul" data-oss-notices="" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1.75 }}>
           {NOTICES.map((n) => (

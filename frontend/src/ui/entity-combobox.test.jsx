@@ -19,6 +19,8 @@ import { createClovirTheme } from "./theme.js";
  *     되돌릴 수 없는 필터는 함정이다(C2).
  *  4. **주소에서 복원한 값이 사라지지 않는다.** 후보에 없는 값이면 그 값을 후보로 끼운다.
  *  5. **고른 값을 끝까지 알 수 있다.** 잘려도 `title` 로 전체 값이 나온다(C2 «값 식별성»).
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 function renderBox(props) {
@@ -109,7 +111,7 @@ describe("EntityCombobox", () => {
     // 이름과 보조 글자를 이어 붙인 자리는 걸리지 않는다 — 칸마다 따로 본다.
     await user.clear(input);
     await user.type(input, "2.0제품팀");
-    expect(await screen.findByText("일치하는 항목이 없습니다")).toBeTruthy();
+    expect(await screen.findByText("일치하는 항목이 없습니다.")).toBeTruthy();
   });
 
   it("다중 선택도 같은 규칙으로 거른다", async () => {
@@ -187,12 +189,12 @@ describe("EntityCombobox", () => {
 
   it("후보가 없을 때 «없다» 고 말한다 — 빈 목록은 고장으로 읽힌다", async () => {
     const user = userEvent.setup();
-    renderBox({ options: [], noOptionsText: "일치하는 프로젝트가 없습니다" });
+    renderBox({ options: [], noOptionsText: "일치하는 프로젝트가 없습니다." });
     const input = screen.getByRole("combobox", { name: "프로젝트" });
     await user.click(input);
     await user.clear(input);
     await user.type(input, "없는것");
-    expect(await screen.findByText("일치하는 프로젝트가 없습니다")).toBeTruthy();
+    expect(await screen.findByText("일치하는 프로젝트가 없습니다.")).toBeTruthy();
   });
 
   it("다중 선택 칩은 입력 상자 세로 가운데에 선다", () => {

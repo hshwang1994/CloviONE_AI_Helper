@@ -87,7 +87,7 @@ export function BarSeries({
   /* 기준을 안 주면 «가장 큰 값 = 꽉 찬 막대» 다. 그 사실을 화면에 적지 않으면 82% 와 8% 가
      둘 다 꽉 찬 막대로 보이는 것을 읽는 사람이 알 방법이 없다. */
   const scaleNote = relative && rows.length > 1 && peak > 0
-    ? (relativeNote || `가장 큰 값 ${fmt(peak)}${unit}을 100%로 본 상대 비교입니다.`)
+    ? (relativeNote || `가장 큰 값(${fmt(peak)}${unit})을 100%로 본 상대 비교입니다.`)
     : null;
 
   const grid = (

@@ -19,6 +19,8 @@ import "@testing-library/jest-dom/vitest";
  *   - 임퍼소네이션이 아니면 아무 띠도 뜨지 않는다(장애가 있어도).
  *   - 임퍼소네이션 중이면 닫을 수 없는 띠가 뜨고, 종료가 실제 API를 부른다.
  *   - 임퍼소네이션 API가 죽어도 화면에 오류가 뜨지 않는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -90,7 +92,7 @@ describe("화면 위쪽 띠", () => {
     const banner = await screen.findByRole("status");
     expect(banner).toHaveTextContent("홍길동");
     expect(banner).toHaveTextContent("읽기 전용");
-    expect(banner).toHaveTextContent("차단된 변경 시도 2건");
+    expect(banner).toHaveTextContent("차단된 변경 시도는 2건입니다.");
     // 닫기(X)가 없어야 한다 — 임퍼소네이션 배너는 끌 수 없다.
     expect(screen.queryByRole("button", { name: /^닫기$/ })).not.toBeInTheDocument();
 

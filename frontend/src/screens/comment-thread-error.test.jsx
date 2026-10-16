@@ -10,6 +10,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
  * 준다. 이 부품만 맨 `Callout` 한 줄로 실패를 말하면, 같은 화면(티켓 상세) 안에서 본문은
  * "다시 시도" 버튼이 있는데 바로 아래 댓글은 그 버튼이 없는 — 나란히 놓인 두 실패가
  * 다르게 생기는 화면이 된다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -57,7 +59,7 @@ describe("댓글 타래 — 로딩·오류", () => {
     renderThread();
 
     // ErrorState의 표준 제목 — 화면 전역에서 실패를 말하는 한 가지 방식이다.
-    expect(await screen.findByText("불러오지 못했습니다")).toBeInTheDocument();
+    expect(await screen.findByText("불러오지 못했습니다.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
   });
 });

@@ -48,7 +48,7 @@ from scripts.ui_qa import tls  # noqa: E402
 OUT_DEFAULT = REPO_ROOT / "dist" / "ui-qa" / "w2-shell-e2e"
 VIEWPORT = Viewport("1920x1080", 1920, 1080)
 
-SEARCH_BUTTON = '[aria-label="통합 검색과 명령 열기"]'
+SEARCH_BUTTON = '[aria-label="통합 검색 열기"]'
 # Dialog 루트도 같은 aria-label 을 갖는다(접근 가능한 이름) — 입력만 겨눈다.
 PALETTE_INPUT = 'input[aria-label="통합 검색"]'
 BELL = '[aria-label^="알림"]'

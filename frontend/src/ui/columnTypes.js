@@ -391,7 +391,7 @@ export function planColumnCollapse(columns, rows, resultScope) {
   const caption = removed.length
     ? removed.map((r) => (r.value == null || r.value === ""
         ? `${r.label} 열은 이 목록에서 전부 비어 있어 숨겼습니다.`
-        : `${r.label}${topicParticle(r.label)} 이 목록에서 전부 '${String(r.value)}'이라 열을 숨겼습니다.`)).join(" ")
+        : `${r.label}${topicParticle(r.label)} 이 목록에서 모두 같은 값(‘${String(r.value)}’)이라 열을 숨겼습니다.`)).join(" ")
     : "";
   return { removed, shrink, caption };
 }

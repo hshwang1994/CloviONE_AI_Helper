@@ -671,7 +671,7 @@ const ENTITY_FILTER = foldedFilterOptions({ stringify: (o) => [optionLabelOf(o),
  */
 export function EntityCombobox({
   label, value, onChange, options, loading, disabled, sx, kind = "entity", id,
-  placeholder, allLabel, noOptionsText = "일치하는 항목이 없습니다", required, helperText,
+  placeholder, allLabel, noOptionsText = "일치하는 항목이 없습니다.", required, helperText,
   ariaLabelledBy, ariaDescribedBy, hideLabel, multiple = false, renderOption, noAllOption = false, layout, myId,
   open, disablePortal, size,
 }) {

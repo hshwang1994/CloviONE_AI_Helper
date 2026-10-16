@@ -35,7 +35,7 @@ export function TicketPeople({ card, size = "inline" }) {
     const unresolved = card.assignee_tokens > 0;
     return (
       <Typography variant="caption" color="text.secondary">
-        {unresolved ? "담당자를 읽지 못했습니다." : "담당자 없음"}
+        {unresolved ? "담당자를 확인하지 못했습니다." : "담당자 없음"}
       </Typography>
     );
   }
@@ -65,7 +65,7 @@ export function TicketFace({ card, signals, showProject = true, compact = false,
   const dueLine = [
     card.due ? `마감 ${card.due}` : null,
     card.est_wd != null ? `예상 ${card.est_wd}WD` : null,
-    card.direction === "added" ? "들어옴" : card.direction === "removed" ? "빠짐" : null,
+    card.direction === "added" ? "추가됨" : card.direction === "removed" ? "제외됨" : null,
   ].filter(Boolean).join("  ");
 
   const priorityTone = card.priority ? priorityKind(card.priority) : null;

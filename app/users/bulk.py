@@ -81,7 +81,7 @@ IMPORT_ALIASES: dict[str, str] = {
 }
 
 _TRUE = {"true", "1", "y", "yes", "예", "활성", "o", "on"}
-_FALSE = {"false", "0", "n", "no", "아니오", "비활성", "x", "off"}
+_FALSE = {"false", "0", "n", "no", "아니요", "아니오", "비활성", "x", "off"}
 
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
@@ -97,7 +97,8 @@ def csv_safe(value) -> str:
 
 
 def _yn(value: bool) -> str:
-    return "예" if value else "아니오"
+    # 대답하는 말의 표준어는 「아니요」다(화면의 예/아니요 표시와 같은 말). 가져오기는 옛 파일의 「아니오」도 읽는다.
+    return "예" if value else "아니요"
 
 
 def _iso(value: datetime | None) -> str:

@@ -55,7 +55,7 @@ export function UserPicker({
       required={required}
       placeholder={placeholder}
       allLabel={allLabel}
-      noOptionsText="일치하는 사람이 없습니다"
+      noOptionsText="일치하는 사람이 없습니다."
       myId={myId}
       renderOption={(props, o, state) => (
         /* 한 줄 32 — 아바타 22 + 이름 + 소속 muted, 고른 사람에 체크(검색 팝오버 계약).

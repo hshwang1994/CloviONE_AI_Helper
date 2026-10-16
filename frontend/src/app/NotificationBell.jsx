@@ -475,8 +475,8 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
   const badge = rawBadge + sysCount;
   const quiet = sysCount === 0 && (!!(unread.data && unread.data.quiet) || (badge === 0 && count > 0));
   const quietTitle = count > 0
-    ? `방해금지, 알림 끔 설정 때문에 조용합니다 (안 읽음 ${count}건)`
-    : "방해금지 중입니다";
+    ? `방해금지 또는 알림 배지 설정 때문에 숫자를 숨겼습니다. 안 읽은 알림은 ${count}건입니다.`
+    : "방해금지 중입니다.";
 
   /* 「모두 읽음」은 **앞에 선 묶음 하나만** 처리한다(D-386). 두 묶음이 함께 서 있으면
      단추와 확인 문구가 그 범위를 밝힌다 — 화면에 뜬 적 없는 알림까지 지웠다고 읽히면
@@ -528,10 +528,10 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
           .noti-quiet / .noti-err / .noti-pending)를 IconButton + Badge 하나로 모았다.
           상태가 넷이라는 사실과 각 상태의 의미(아래 주석)는 그대로 남긴다 — 바뀐 것은
           '어떻게 그리는가'뿐이고, 무엇을 말하는지는 하나도 줄이지 않았다. */}
-      <Tooltip title={badge ? (countWarn ? "표시된 숫자가 최신이 아닐 수 있습니다" : "알림")
+      <Tooltip title={badge ? (countWarn ? "표시된 숫자가 최신이 아닐 수 있습니다." : "알림")
         : quiet ? quietTitle
-        : countError ? "알림 개수를 불러오지 못했습니다"
-        : countPartial ? audienceLabel(otherAudience) + " 알림 개수를 불러오지 못해 합계가 모자랄 수 있습니다"
+        : countError ? "알림 개수를 불러오지 못했습니다."
+        : countPartial ? audienceLabel(otherAudience) + " 알림 개수를 불러오지 못해 합계가 실제보다 적을 수 있습니다."
         : countPending ? "알림 개수를 불러오는 중" : "알림"}>
         <Badge
           // 숫자 배지 / 조용(중립 점) / 오류(경고 점) / 로딩(정보 점). 넷 다 아무 표시도 없는
@@ -556,7 +556,7 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
           <IconButton
             ref={bellRef}
             color="inherit"
-            aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (quiet ? " (방해금지 중: 배지만 조용함)" : "") + (countError ? " (개수를 불러오지 못함)" : countPartial ? " (" + audienceLabel(otherAudience) + " 알림 개수를 불러오지 못함)" : "")}
+            aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (quiet ? " (방해금지 중, 배지 숫자 숨김)" : "") + (countError ? " (개수를 불러오지 못함)" : countPartial ? " (" + audienceLabel(otherAudience) + " 알림 개수를 불러오지 못함)" : "")}
             aria-haspopup="dialog" aria-expanded={open} aria-controls="noti-pop"
             onClick={() => { if (!open && unread.isError) unread.refetch(); setOpen((v) => !v); }}
           >
@@ -625,7 +625,7 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
               무엇이 더 있는지 명시적으로 알려준다(product-quality-audit AREA=D). */}
           {!listPending && !listError && groupedItems.length > 0 && groupedItems.length < count ? (
             <Note sx={{ mt: 0, px: 2, py: 0.75, fontSize: FONT_SIZE.caption, flexShrink: 0 }}>
-              {groupedItems.length}건 표시 중, 전체 보기에서 나머지 확인
+              {groupedItems.length}건만 표시합니다. 나머지는 전체 알림 보기에서 확인할 수 있습니다.
             </Note>
           ) : null}
           {/* 상대 묶음만 실패했을 때의 자리. 이 한 줄이 없으면 그 묶음이 **조용히 빠진 채**
@@ -669,7 +669,7 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
                       <circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.5 2.5L16 9.5" />
                     </svg>
                   }
-                  title="새 알림이 없습니다"
+                  title="받은 알림이 없습니다."
                   // 일반 사용자에겐 승인, 작업 실패 알림이 거의 오지 않으므로(notify_admins는 관리자 대상)
                   // 관리자 중심 예시 대신 중립적 문구를 쓴다.
                   help={isUser ? "나에게 온 알림이 여기에 표시됩니다." : "승인, 작업 실패 등 나에게 온 알림이 여기에 표시됩니다."}

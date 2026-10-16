@@ -128,7 +128,7 @@ export function InlineEdit({ value, render, options, canEdit, deniedReason, labe
       setState("done");
     } catch (err) {
       setShown(before);                             // 롤백 — 이전 값으로 안전 복구
-      setReason((err && (err.userMessage || err.message)) || "저장하지 못했습니다.");
+      setReason((err && (err.userMessage || err.message)) || "저장하지 못했습니다. 다시 시도해 주세요.");
       setState("error");
     } finally {
       busy.current = false;
@@ -154,7 +154,7 @@ export function InlineEdit({ value, render, options, canEdit, deniedReason, labe
         data-inline-edit={state}
         aria-haspopup="listbox"
         aria-expanded={state === "open"}
-        aria-label={name + " 바꾸기"}
+        aria-label={name + " 수정"}
         aria-busy={state === "saving" ? "true" : undefined}
         disabled={!openable || state === "saving"}
         onClick={open}

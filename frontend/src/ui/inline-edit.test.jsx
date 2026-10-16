@@ -12,6 +12,8 @@ import userEvent from "@testing-library/user-event";
  * C8 이 「전부 구현해야 완료」라고 적은 것 아홉을 그대로 훑는다:
  *   현재 값 · 권한 확인 · 변경 가능한 값 제시 · 선택 · Saving(중복 차단) · 성공 ·
  *   실패 · 실패 시 Rollback · 재조회로 실제 값 반영
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 import { InlineEdit, canStartSave, inlineEditNext } from "./InlineEdit.jsx";
@@ -59,7 +61,7 @@ describe("아홉 가지 상태가 화면에 실재한다", () => {
     // 값이 그대로 보이고, 「바꿀 수 있다」는 것은 이름으로만 드러난다(select 상자가 아니다).
     expect(screen.getByText("진행")).toBeTruthy();
     expect(screen.queryByRole("listbox")).toBeNull();
-    expect(screen.getByRole("button", { name: "업무 01 상태 바꾸기" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "업무 01 상태 수정" })).toBeTruthy();
   });
 
   it("② 권한이 없으면 **편집 진입 자체가 없다**", () => {
@@ -71,7 +73,7 @@ describe("아홉 가지 상태가 화면에 실재한다", () => {
   it("③④ 열면 바꿀 수 있는 값이 나오고 고를 수 있다", async () => {
     const onSave = vi.fn().mockResolvedValue("완료");
     draw({ value: "진행", onSave });
-    await userEvent.click(screen.getByRole("button", { name: /상태 바꾸기/ }));
+    await userEvent.click(screen.getByRole("button", { name: /상태 수정/ }));
     expect(screen.getByRole("listbox")).toBeTruthy();
     await userEvent.click(screen.getByRole("option", { name: "완료" }));
     expect(onSave).toHaveBeenCalledWith("완료");
@@ -81,9 +83,9 @@ describe("아홉 가지 상태가 화면에 실재한다", () => {
     let release;
     const onSave = vi.fn(() => new Promise((r) => { release = r; }));
     draw({ value: "진행", onSave });
-    await userEvent.click(screen.getByRole("button", { name: /상태 바꾸기/ }));
+    await userEvent.click(screen.getByRole("button", { name: /상태 수정/ }));
     await userEvent.click(screen.getByRole("option", { name: "완료" }));
-    const trigger = screen.getByRole("button", { name: /상태 바꾸기/ });
+    const trigger = screen.getByRole("button", { name: /상태 수정/ });
     expect(trigger.getAttribute("data-inline-edit")).toBe("saving");
     expect(trigger).toBeDisabled();
     // 저장 중에 다시 눌러도 목록이 열리지 않고, 저장은 한 번뿐이다.
@@ -98,7 +100,7 @@ describe("아홉 가지 상태가 화면에 실재한다", () => {
     // 상태를 '완료'로 옮겼는데 서버가 워크플로 규칙으로 '검증'에 두는 경우가 실재한다.
     const onSave = vi.fn().mockResolvedValue("검증");
     draw({ value: "진행", onSave });
-    await userEvent.click(screen.getByRole("button", { name: /상태 바꾸기/ }));
+    await userEvent.click(screen.getByRole("button", { name: /상태 수정/ }));
     await userEvent.click(screen.getByRole("option", { name: "완료" }));
     await waitFor(() => expect(screen.getByText("검증")).toBeTruthy());
     expect(screen.queryByText("완료")).toBeNull();
@@ -107,7 +109,7 @@ describe("아홉 가지 상태가 화면에 실재한다", () => {
   it("⑦⑧ 🔴 실패하면 **이전 값으로 되돌아가고** 사유가 값 옆에 남는다", async () => {
     const onSave = vi.fn().mockRejectedValue(Object.assign(new Error("x"), { userMessage: "권한이 없습니다." }));
     draw({ value: "진행", onSave });
-    await userEvent.click(screen.getByRole("button", { name: /상태 바꾸기/ }));
+    await userEvent.click(screen.getByRole("button", { name: /상태 수정/ }));
     await userEvent.click(screen.getByRole("option", { name: "완료" }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("권한이 없습니다."));
     expect(screen.getByText("진행")).toBeTruthy();       // 롤백
@@ -126,6 +128,6 @@ describe("아홉 가지 상태가 화면에 실재한다", () => {
 
   it("바꿀 값이 하나도 없으면 열리지 않는다", () => {
     draw({ value: "진행", options: [], onSave: vi.fn() });
-    expect(screen.getByRole("button", { name: /상태 바꾸기/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /상태 수정/ })).toBeDisabled();
   });
 });

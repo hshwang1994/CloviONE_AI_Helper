@@ -33,7 +33,7 @@ import { centerPad } from "./layout.jsx";
  */
 export const SETTING_STATE_LABELS = {
   dirty: "수정됨",
-  saved: "저장됨, 다음 주기부터",
+  saved: "저장됨, 다음 주기부터 반영",
   applied: "즉시 적용됨",
   restart: "재시작 필요",
   failed: "적용 실패",

@@ -17,6 +17,8 @@ import { MemoryRouter } from "react-router-dom";
  *   2) '다른 기기 모두 로그아웃'은 **확인을 받고** 나서 실행된다(되돌릴 수 없는 보안 동작).
  *   3) 방해금지 안내가 "알림은 그대로 쌓인다"를 실제로 말한다 — 무엇을 포기하는지 모르는 채
  *      켜게 두면 놓친 다음 날 이 기능을 영영 안 쓴다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -248,7 +250,7 @@ describe("내 프로필", () => {
       return route(path);
     });
     renderProfile();
-    expect(await screen.findByText("불러오지 못했습니다")).toBeInTheDocument();
+    expect(await screen.findByText("불러오지 못했습니다.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /다시 시도/ })).toBeInTheDocument();
   });
 

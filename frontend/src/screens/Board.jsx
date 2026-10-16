@@ -10,7 +10,7 @@ import { api } from "../lib/api.js";
 import { useListMemory } from "../lib/listReturn.js";
 import { failureText } from "../lib/failure.js";
 import {
-  Badge,
+  Badge, statusText,
   Button,
   Callout,
   DataTable,
@@ -567,7 +567,7 @@ function BoardScreen({ kind = "free" }) {
           chips: [
             q ? { key: "q", label: `검색: ${q}`, onDelete: () => setQuery({ q: "" }) } : null,
             category ? { key: "category", label: `카테고리: ${category}`, onDelete: () => setQuery({ category: "" }) } : null,
-            status ? { key: "status", label: `상태: ${status}`, onDelete: () => setQuery({ status: "" }) } : null,
+            status ? { key: "status", label: `상태: ${statusText(status)}`, onDelete: () => setQuery({ status: "" }) } : null,
           ].filter(Boolean),
           total: list.first ? (list.total != null ? list.total : items.length) : null,
           onClearAll: [q, category, status].filter(Boolean).length > 1 ? clearFilters : null,
@@ -583,7 +583,7 @@ function BoardScreen({ kind = "free" }) {
           <FilterSelect
             label="상태" value={status} allLabel="전체 상태"
             onChange={(v) => setQuery({ status: v })}
-            options={statuses}
+            options={statuses.map((s) => ({ value: s, label: statusText(s) }))}
           />
         ) : null}
       </FilterBar>

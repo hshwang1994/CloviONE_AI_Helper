@@ -15,6 +15,8 @@ import { MemoryRouter } from "react-router-dom";
  * 그래서 여기서 확인하는 것은 계산이 아니라 '전달'과 '빈/장애 상태의 구분'이다:
  *   1) 티켓이 0건인 것과 티켓을 못 읽은 것은 **다른 화면**이다.
  *   2) 없어진 안내(«Notion 연결»)가 되살아나지 않는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -173,7 +175,7 @@ describe("내 업무량 · 완료 통계", () => {
   it("조회 자체가 실패하면 다시 시도할 길을 준다", async () => {
     apiMock.mockRejectedValue(Object.assign(new Error("서버 오류"), { status: 500 }));
     renderStats();
-    expect(await screen.findByText("불러오지 못했습니다")).toBeInTheDocument();
+    expect(await screen.findByText("불러오지 못했습니다.")).toBeInTheDocument();
   });
 
   it("기간을 바꾸면 그 값으로 다시 조회한다", async () => {

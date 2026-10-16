@@ -8,6 +8,7 @@ import { baseOption, useEChart } from "./useEChart.js";
 import { useRevealOnce } from "../motion.js";
 import { rootFontPx } from "../columnTypes.js";
 import { FONT_SIZE, FONT_WEIGHT } from "../theme.js";
+import { subjectParticle } from "../../lib/format.js";
 
 /* 날짜별 건수 — **세로 막대**, 그리고 **자기 안에서만 굴러간다** (지시 16 · REAUDIT §15.2).
  *
@@ -129,7 +130,7 @@ export function dateHistogramOption({
   };
 }
 
-export function DateHistogram({ days, question, color, emptyLabel = "만든 티켓이 없습니다", unit = "건", revealKey }) {
+export function DateHistogram({ days, question, color, emptyLabel = "추가된 티켓이 없습니다.", unit = "건", revealKey }) {
   const theme = useTheme();
   const track = useTrackColor();
   const drawn = useRevealOnce(revealKey);
@@ -163,7 +164,7 @@ export function DateHistogram({ days, question, color, emptyLabel = "만든 티�
       <ChartQuestion>{question}</ChartQuestion>
       <Box
         role="group"
-        aria-label={question || "날짜별 생성량"}
+        aria-label={question || "날짜별 추가 건수"}
         sx={{ minWidth: 0 }}
       >
         {/* 날짜 눈금은 이 상자 **안**에 있다(위 문서 «날짜 눈금만은 ECharts 가 그린다»). */}
@@ -175,7 +176,8 @@ export function DateHistogram({ days, question, color, emptyLabel = "만든 티�
         <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, color: "text.primary" }}>
           {`${total}${unit}`}
         </Box>
-        {`을 만들었습니다. 가장 많았던 날은 ${busiest.date}(${busiest.count}${unit})입니다.`}
+        {/* 조사는 단위의 받침을 따른다(건이 · 개가). */}
+        {`${subjectParticle(unit)} 추가되었습니다. 가장 많았던 날은 ${busiest.date}(${busiest.count}${unit})입니다.`}
       </Typography>
     </Box>
   );

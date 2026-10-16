@@ -81,7 +81,7 @@ function ImpersonationBanner({ data }) {
   return (
     <Callout
       tone="warn"
-      title={`${data.target_name || data.target_email}님의 화면을 보는 중입니다 (읽기 전용)`}
+      title={`${data.target_name || data.target_email}님의 화면을 읽기 전용으로 보는 중입니다.`}
       action={
         <Button variant="secondary" size="sm" onClick={stop} disabled={busy} loading={busy}>
           대리 보기 종료
@@ -90,7 +90,7 @@ function ImpersonationBanner({ data }) {
       variant="bleed"
     >
       {data.actor_name}(으)로 로그인한 상태이며, 이 화면에서는 어떤 변경도 저장되지 않습니다.
-      {data.blocked_write_count ? ` 지금까지 차단된 변경 시도 ${data.blocked_write_count}건.` : ""}
+      {data.blocked_write_count ? ` 지금까지 차단된 변경 시도는 ${data.blocked_write_count}건입니다.` : ""}
       {stopFailure ? <Callout tone="danger" compact>{stopFailure}</Callout> : null}
     </Callout>
   );

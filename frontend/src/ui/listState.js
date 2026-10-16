@@ -31,7 +31,7 @@ const UNREACHABLE_STATUS = new Set([502, 503, 504]);
    서버가 사유 문장을 주면 기능 꺼짐의 제목은 그 문장이 이긴다(「문서 기능이 비활성화되어 있습니다.」처럼 어느 기능인지 말한다). */
 export const LIST_STATE_COPY = Object.freeze({
   forbidden: { title: "이 목록을 볼 권한이 없습니다.", help: "권한이 필요하면 관리자에게 요청하세요." },
-  disabled: { title: "이 기능이 꺼져 있습니다.", help: "관리자가 기능을 켜면 목록을 볼 수 있습니다." },
+  disabled: { title: "이 기능이 비활성화되어 있습니다.", help: "관리자가 기능을 활성화하면 목록을 볼 수 있습니다." },
   unreachable: { title: "서버에 연결하지 못했습니다.", help: "잠시 뒤 다시 시도하세요." },
   error: { title: "목록을 불러오지 못했습니다.", help: "잠시 뒤 다시 시도하세요." },
   "filtered-empty": { title: "검색 조건에 맞는 항목이 없습니다.", help: "" },

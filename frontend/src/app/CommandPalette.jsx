@@ -271,7 +271,7 @@ export function CommandPalette({ open, onClose, groups }) {
            목록과 가른다. 손으로 칠하던 붉은 면 대신 다른 실패 줄과 같은 1a 얼굴을 쓴다. */
         /* clovi-allow-geometry: 팔레트 폭 띠의 글 시작점을 결과 행(좌우 20)에 맞춘다. */
         <Callout tone="danger" compact variant="bleed" sx={{ px: 2.5 }}>
-          티켓, 문서, 게시판 검색을 불러오지 못했습니다. 아래는 메뉴 결과만 있습니다.
+          티켓, 문서, 게시판 검색 결과를 불러오지 못했습니다. 아래 목록에는 메뉴 결과만 표시됩니다.
         </Callout>
       ) : null}
       <DialogContent sx={{ p: 0, maxHeight: "62vh" }}>
@@ -352,11 +352,11 @@ const MESSAGE_FACE = {
      그건 화면이 거짓말하는 것이고, 이 저장소가 곳곳에서 잡아낸 그 부류다. */
   error: {
     Icon: ErrorOutlineRoundedIcon,
-    title: "검색하지 못했습니다",
+    title: "검색하지 못했습니다.",
     hint: "일시적인 문제일 수 있습니다. 잠시 후 다시 시도해 주세요.",
     tone: "error.main",
   },
-  empty: { Icon: SearchOffRoundedIcon, title: "검색 결과 없음", hint: "다른 낱말이나 더 짧은 낱말로 찾아 보세요." },
+  empty: { Icon: SearchOffRoundedIcon, title: "검색 결과 없음", hint: "다른 낱말이나 더 짧은 낱말로 다시 검색하세요." },
 };
 
 function PaletteMessage({ state }) {

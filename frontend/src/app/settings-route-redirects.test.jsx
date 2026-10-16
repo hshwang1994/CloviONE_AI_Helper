@@ -17,6 +17,8 @@ import "@testing-library/jest-dom/vitest";
  * 없는 탭으로 보내면 사용자는 엉뚱한 화면(시스템 정책)을 보면서 왜 그런지 듣지 못한다 —
  * 뭉뚱그린 대시보드 튕김이 나쁜 것과 정확히 같은 이유다. 아래 마지막 테스트가 그 갈래를
  * 못박는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -81,10 +83,10 @@ describe("옛 설정류 주소 → /settings 탭 리다이렉트", () => {
   // 주소(?tab=os)와 화면(시스템 정책)이 어긋나는데 거부 안내가 없었다. 이제 라우트 게이트
   // (RequireRole)와 같은 EmptyState로 명시한다(settings-shell.test.jsx가 이 배선을 상세히
   // 고정한다 — 여기서는 옛 주소 리다이렉트를 거쳐도 그 배선까지 정상적으로 닿는지만 본다).
-  it("system_admin이 아니면 /system은 '시스템 정책'으로 조용히 안 떨어지고 '권한이 없습니다'를 명시한다", async () => {
+  it("system_admin이 아니면 /system은 '시스템 정책'으로 조용히 안 떨어지고 '권한이 없습니다.'를 명시한다", async () => {
     currentRole = "operator";
     renderRoute("/system");
-    expect(await screen.findByText("권한이 없습니다", {}, WAIT)).toBeInTheDocument();
+    expect(await screen.findByText("권한이 없습니다.", {}, WAIT)).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "시스템 정책" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "OS와 서비스 동작" })).not.toBeInTheDocument();
     // 🔴 그 안내의 단추도 실제로 대시보드를 가리켜야 한다 — `#/` 는 어느 라우트 표에도
@@ -97,7 +99,7 @@ describe("옛 설정류 주소 → /settings 탭 리다이렉트", () => {
   // 없어진 주소라고 말한다. 여기서 '연동' 탭이 다시 보이면 화면이 되살아난 것이다.
   it("/notion-console 은 없어진 주소라고 말한다 — 설정 탭으로 몰래 보내지 않는다", async () => {
     renderRoute("/notion-console");
-    expect(await screen.findByText("찾을 수 없습니다", {}, WAIT)).toBeInTheDocument();
+    expect(await screen.findByText("찾을 수 없습니다.", {}, WAIT)).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "연동" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "대시보드" })).not.toBeInTheDocument();
   });

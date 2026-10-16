@@ -10,6 +10,8 @@ import "@testing-library/jest-dom/vitest";
  * 서버와 무관한 화면 예외가 사용자에게 서버 오류로 보였다(2026-09-21 더블클릭 조사). 지금은
  * 다시 시도(경계를 되감는다) · 새로고침 · 옮겨 적을 기술 정보이고, 화면 파일을 못 받은 것(새 버전
  * 배포)은 새로고침만 준다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 vi.mock("./auth.jsx", () => ({ useAuth: () => ({ data: null, isLoading: false }), AuthProvider: ({ children }) => children }));
@@ -36,7 +38,7 @@ describe("본문 경계", () => {
   it("예외를 남기고, 다시 시도하면 같은 화면을 다시 그린다", async () => {
     const user = userEvent.setup();
     render(<ThemeModeProvider><ErrorBoundary resettable><Flaky /></ErrorBoundary></ThemeModeProvider>);
-    expect(screen.getByRole("heading", { name: "화면을 표시하지 못했습니다" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "화면을 표시하지 못했습니다." })).toBeInTheDocument();
     expect(document.querySelector("[data-error-boundary='render']")).not.toBeNull();
     // 원인은 콘솔과 화면의 기술 정보 둘 다에 남는다 — 사용자가 옮겨 적어 줄 수 있어야 한다.
     expect(errorSpy.mock.calls.some((args) => args[0] === "[ErrorBoundary]")).toBe(true);

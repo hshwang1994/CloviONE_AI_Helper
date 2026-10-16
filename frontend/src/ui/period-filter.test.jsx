@@ -9,7 +9,9 @@ import { addDays, forgetPresets, kstToday, matchPreset, periodLabel, periodProbl
 import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
 
 /* 「기간」 칸 (F4 · D-530). 예전에는 날짜 칸 둘(라벨 위 + 36)이 필터 줄에 섰고 칩도 둘이었다 — 하나만 지우면 반쪽 기간이 남았다.
- * 이 파일이 지키는 것: 프리셋 → 키 쌍(KST 달력일 경계), 키 쌍 → 이름, 서버 기본값의 이름, 칸 하나가 두 키를 함께 바꾸는 것. */
+ * 이 파일이 지키는 것: 프리셋 → 키 쌍(KST 달력일 경계), 키 쌍 → 이름, 서버 기본값의 이름, 칸 하나가 두 키를 함께 바꾸는 것.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 /* 2026-10-01 15:30 UTC = KST 2026-10-02 00:30 — 자정 근처라 UTC 날짜로 계산하면 하루가 밀리는 시각이다. */
 const NOW = new Date("2026-10-01T15:30:00Z");
@@ -86,7 +88,7 @@ describe("키 쌍 → 이름", () => {
   });
 
   it("시작이 끝보다 늦으면 문장으로 막는다", () => {
-    expect(periodProblem({ from: "2026-10-02", to: "2026-10-01" })).toBe("시작이 끝보다 늦습니다.");
+    expect(periodProblem({ from: "2026-10-02", to: "2026-10-01" })).toBe("시작이 종료보다 늦습니다. 기간을 다시 선택하세요.");
     expect(periodProblem({ from: "2026-10-01", to: "2026-10-01" })).toBe("");
     expect(periodProblem({ from: "2026-10-01", to: "" })).toBe("");
   });
@@ -129,7 +131,7 @@ describe("PeriodFilter — 칸 하나, 키 둘", () => {
     ui(<PeriodFilter mode="datetime" from="2026-10-01T10:00" to="2026-10-01T09:00" onChange={onChange} now={NOW} />);
     await user.click(screen.getByRole("combobox", { name: "기간" }));
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("alert")).toHaveTextContent("시작이 끝보다 늦습니다.");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("시작이 종료보다 늦습니다. 기간을 다시 선택하세요.");
     expect(within(dialog).getByRole("button", { name: "적용" })).toBeDisabled();
     expect(onChange).not.toHaveBeenCalled();
   });

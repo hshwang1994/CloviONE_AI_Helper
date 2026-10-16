@@ -35,7 +35,7 @@ import { NAV_BREAKPOINT_PX } from "./navConfig.js";
 const WIDE = `@media (min-width:${NAV_BREAKPOINT_PX + 1}px)`;
 
 
-export default function TopBrand({ onClick, label = "홈으로", width }) {
+export default function TopBrand({ onClick, label = "홈으로 이동", width }) {
   return (
     <Button
       onClick={onClick}

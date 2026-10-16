@@ -160,10 +160,10 @@ export function LoginHandoff({ ready = true }) {
             하나 끼워 넣으면 그 아래 첫 화면의 h1 이 h6 다음에 오는 꼴이 된다. 낭독은 이
             상자의 `role="status"` 가 이미 맡는다. */}
         <Typography variant="h6" component="p" fontWeight={800}>
-          로그인되었습니다
+          로그인되었습니다.
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          업무 공간을 준비하고 있습니다
+          업무 공간을 준비하고 있습니다.
         </Typography>
         <LinearProgress aria-label="첫 화면을 준비하는 중" sx={{ width: 180, height: 4, borderRadius: 2, mt: 0.5 }} />
       </Box>

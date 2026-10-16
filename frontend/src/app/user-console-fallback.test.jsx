@@ -15,7 +15,9 @@ import "@testing-library/jest-dom/vitest";
  * 전혀 없었다(Handoff PA-F-072).
  *
  * 이제 두 경우를 가른다: navConfig.js의 관리자 NAV에 있는 주소(존재는 하지만 이 역할이
- * 못 쓰는 화면)면 "권한이 없습니다", 정말 모르는 주소(오타 등)면 "찾을 수 없습니다".
+ * 못 쓰는 화면)면 "권한이 없습니다.", 정말 모르는 주소(오타 등)면 "찾을 수 없습니다.".
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -47,23 +49,23 @@ function renderAt(path) {
 }
 
 describe("사용자 콘솔 — 모르는 경로 (PA-RC-0024)", () => {
-  it("관리자 전용 주소(/rbac)는 '권한이 없습니다'를 보여준다(홈으로 조용히 안 튕김)", async () => {
+  it("관리자 전용 주소(/rbac)는 '권한이 없습니다.'를 보여준다(홈으로 조용히 안 튕김)", async () => {
     renderAt("/rbac");
-    expect(await screen.findByText("권한이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("권한이 없습니다.")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "오늘" })).not.toBeInTheDocument();
   });
 
   it("관리자 전용 주소(/users, /backup, /impersonation)도 같은 안내를 보여준다", async () => {
     for (const path of ["/users", "/backup", "/impersonation"]) {
       const { unmount } = renderAt(path);
-      expect(await screen.findByText("권한이 없습니다")).toBeInTheDocument();
+      expect(await screen.findByText("권한이 없습니다.")).toBeInTheDocument();
       unmount();
     }
   });
 
-  it("정말 모르는 주소(오타)는 '찾을 수 없습니다'를 보여준다", async () => {
+  it("정말 모르는 주소(오타)는 '찾을 수 없습니다.'를 보여준다", async () => {
     renderAt("/totally-made-up-path-xyz");
-    expect(await screen.findByText("찾을 수 없습니다")).toBeInTheDocument();
-    expect(screen.queryByText("권한이 없습니다")).not.toBeInTheDocument();
+    expect(await screen.findByText("찾을 수 없습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("권한이 없습니다.")).not.toBeInTheDocument();
   });
 });

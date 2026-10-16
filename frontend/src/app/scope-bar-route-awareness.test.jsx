@@ -5,6 +5,8 @@
  * `/board` 를 열면 그 자리에서 거짓말이 됐다. 배지(관리 범위: OO팀) 자체는 로그인 사실이라
  * 어느 화면에서나 유효해 계속 뜨지만, 뒤의 캐비어트 문장은 범위가 실제로 걸리는 화면
  * (navConfig.js::SCOPE_ENFORCED_PATHS)에서만 떠야 한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -53,12 +55,12 @@ describe("ScopeBar 라우트 인지", () => {
   it("범위가 실제로 걸리는 화면(/team-tickets)에서는 캐비어트 문장이 뜬다", async () => {
     renderAt("/team-tickets");
     await waitFor(() => expect(screen.getByText("브로드컴사업본부")).toBeTruthy());
-    expect(screen.queryByText("상위 부서와 하위 부서 밖의 항목은 목록에 나오지 않습니다.")).toBeTruthy();
+    expect(screen.queryByText("내 부서와 상위 부서, 하위 부서 밖의 항목은 목록에 나오지 않습니다.")).toBeTruthy();
   });
 
   it("범위를 안 거는 화면(/board)에서는 캐비어트 문장이 없다 — 배지는 그대로 뜬다", async () => {
     renderAt("/board");
     await waitFor(() => expect(screen.getByText("브로드컴사업본부")).toBeTruthy());
-    expect(screen.queryByText("상위 부서와 하위 부서 밖의 항목은 목록에 나오지 않습니다.")).toBeNull();
+    expect(screen.queryByText("내 부서와 상위 부서, 하위 부서 밖의 항목은 목록에 나오지 않습니다.")).toBeNull();
   });
 });

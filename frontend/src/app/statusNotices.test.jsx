@@ -16,6 +16,8 @@ import "@testing-library/jest-dom/vitest";
  *   - 공지류 닫기는 서버로 실제 dismiss 요청을 보낸다(브라우저에만 숨기면 다른 기기에서
  *     다시 뜬다 — 기존 계약 그대로 유지).
  *   - CRITICAL 항목이 있을 때만 상시 노출 한 줄이 뜬다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -281,6 +283,6 @@ describe("StatusNoticeButton / CriticalStatusLine", () => {
     renderHarness();
     const line = await screen.findByRole("status");
     expect(line).toHaveTextContent("장애 A");
-    expect(line).toHaveTextContent("그 외 장애 1건");
+    expect(line).toHaveTextContent("그 밖의 장애 1건");
   });
 });

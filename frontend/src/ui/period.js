@@ -156,6 +156,6 @@ export function periodLabel({ from = "", to = "" } = {}, opts = {}) {
 
 /** 직접 고른 두 값이 기간으로 맞는가 — 시작이 끝보다 늦으면 문장을, 맞으면 빈 문자열을 돌려준다. */
 export function periodProblem({ from = "", to = "" } = {}) {
-  if (from && to && from > to) return "시작이 끝보다 늦습니다.";
+  if (from && to && from > to) return "시작이 종료보다 늦습니다. 기간을 다시 선택하세요.";
   return "";
 }

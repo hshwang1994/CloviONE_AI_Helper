@@ -110,7 +110,7 @@ export function scopeSummary(me, pathname = "") {
 export function caveatFor(pathname) {
   return isManagementRoute(pathname)
     ? "이 부서와 하위 부서 밖의 항목은 목록에 나오지 않습니다."
-    : "상위 부서와 하위 부서 밖의 항목은 목록에 나오지 않습니다.";
+    : "내 부서와 상위 부서, 하위 부서 밖의 항목은 목록에 나오지 않습니다.";
 }
 
 

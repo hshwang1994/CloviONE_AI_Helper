@@ -37,6 +37,8 @@ vi.mock("./auth.jsx", () => ({ useAuth: () => ({ data: { role: "user", id: "u1" 
  * 강조색 프리셋 전체 × 두 모드로 강제하고, `scripts/ui_qa` 하네스가 실제 브라우저에서 잰다.
  * 이 파일이 지키는 것은 **셸이 그 토큰을 실제로 읽는가**다(W1 이 토큰만 만들고 소비처가
  * 0이었던 F-W1R-39 가 정확히 그 구멍이다).
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const APPBAR_MIN_HEIGHT_PX = 52; // AppShell.APPBAR_HEIGHT.xs
@@ -117,7 +119,7 @@ describe("상단 검색", () => {
 
   it("상단바 안에 들어가고 누를 만한 크기다", () => {
     render(withProviders(<TopSearch onOpen={() => {}} />));
-    const button = screen.getByLabelText("통합 검색과 명령 열기");
+    const button = screen.getByLabelText("통합 검색 열기");
     const h = cssPx(getComputedStyle(button).height);
     expect(h).toBeGreaterThanOrEqual(28);
     expect(h).toBeLessThan(APPBAR_MIN_HEIGHT_PX);
@@ -125,7 +127,7 @@ describe("상단 검색", () => {
 
   it("입력처럼 보이지만 실제로는 버튼이다 (결과가 뜰 자리가 상단바에 없다)", () => {
     render(withProviders(<TopSearch onOpen={() => {}} />));
-    const button = screen.getByLabelText("통합 검색과 명령 열기");
+    const button = screen.getByLabelText("통합 검색 열기");
     expect(button.tagName).toBe("BUTTON");
   });
 
@@ -134,14 +136,14 @@ describe("상단 검색", () => {
   it("검색 면이 chrome 반전 트랙이다 — 캔버스 판(순백)이 아니다", () => {
     render(withProviders(<TopSearch onOpen={() => {}} />));
     const p = createClovirTheme("light").palette;
-    const bg = getComputedStyle(screen.getByLabelText("통합 검색과 명령 열기")).backgroundColor;
+    const bg = getComputedStyle(screen.getByLabelText("통합 검색 열기")).backgroundColor;
     expect(nums(bg)).toEqual(nums(p.chrome.track));
     expect(bg).not.toBe(toRgb(p.background.plate));
   });
 
   it("폭과 높이가 rem 이다 — 4K 루트 폰트사이즈 레버를 함께 탄다 (R-6: 해상도 전용 px 금지)", () => {
     render(withProviders(<TopSearch onOpen={() => {}} />));
-    const cs = getComputedStyle(screen.getByLabelText("통합 검색과 명령 열기"));
+    const cs = getComputedStyle(screen.getByLabelText("통합 검색 열기"));
     expect(cs.flex).toMatch(/rem/);
     expect(cs.flex).not.toMatch(/\d+px/);
     /* 셸의 **틀**은 브레이크포인트로 커지는데(상단바 52→68, 사이드바 248→320) 컨트롤만
@@ -274,7 +276,7 @@ describe("셸의 상단바", () => {
   it("브랜드 자리에 자기 배경(판)이 없다 — 로고가 상단바 위에 그대로 얹힌다", async () => {
     renderShell();
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
-    const brand = screen.getByLabelText("홈으로");
+    const brand = screen.getByLabelText("홈으로 이동");
     /* MUI v7 은 text variant 배경을 `var(--variant-textBg)`(런타임 투명)로 낸다. jsdom 은
        그 변수를 풀지 못하므로 색 문자열 대신 **variant 자체**를 본다 — 판이 깔리는 것은
        contained/outlined 이고, 그 둘이 아니면 자기 배경이 없다는 뜻이다. */
@@ -308,13 +310,13 @@ describe("셸의 상단바", () => {
     renderShell();
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
     const bar = document.querySelector(".MuiAppBar-root");
-    expect(bar.querySelector('[aria-label="통합 검색과 명령 열기"]')).toBeTruthy();
+    expect(bar.querySelector('[aria-label="통합 검색 열기"]')).toBeTruthy();
   });
 
   it("검색이 브랜드 칸과 AI 앵커 사이 가운데에 선다 — 양옆에 신축 스페이서가 있다", async () => {
     renderShell();
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
-    const search = screen.getByLabelText("통합 검색과 명령 열기");
+    const search = screen.getByLabelText("통합 검색 열기");
     const row = search.parentElement;
     const kids = [...row.children];
     const i = kids.indexOf(search);
@@ -350,7 +352,7 @@ describe("셸의 상단바", () => {
     renderShell();
     await waitFor(() => expect(screen.getByText("본문")).toBeInTheDocument());
     const bar = document.querySelector(".MuiAppBar-root");
-    expect(bar.querySelector('[aria-label="통합 검색과 명령 열기"]')).toBeTruthy();
+    expect(bar.querySelector('[aria-label="통합 검색 열기"]')).toBeTruthy();
     // 벨은 알림 개수에 따라 aria-label 이 바뀌므로 접두사로 찾는다.
     expect(bar.querySelector('[aria-label^="알림"]')).toBeTruthy();
   });
@@ -376,7 +378,7 @@ describe("셸의 상단바", () => {
     const track = nums(p.chrome.track);
     const plate = toRgb(p.background.plate);
     const targets = [
-      ["상단바 검색", screen.getByLabelText("통합 검색과 명령 열기")],
+      ["상단바 검색", screen.getByLabelText("통합 검색 열기")],
       ["사이드바 메뉴 찾기", document.querySelector("#app-sidebar .MuiOutlinedInput-root")],
       ["클로비 알약", document.querySelector('.MuiAppBar-root [aria-label="클로비 AI 도우미 열기"]')],
     ];

@@ -9,7 +9,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
 import {
-  Badge,
+  Badge, statusText,
   Button,
   Callout,
   Card,
@@ -325,7 +325,7 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
 function IdeaStatusBadge({ post, onChanged }) {
   const toast = useToast();
   const qc = useQueryClient();
-  const options = (post.next_statuses || []).map((s) => ({ value: s, label: s }));
+  const options = (post.next_statuses || []).map((s) => ({ value: s, label: statusText(s) }));
 
   async function save(next) {
     await api("/api/board/posts/" + post.id + "/status", {

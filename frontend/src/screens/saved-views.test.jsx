@@ -1,4 +1,6 @@
-/* qa-contract-change: UI 3차 조합 계약 C-1 — 필터 바가 한 줄 조합 부품이 되어 저장된 뷰가 검색창 유무와 무관하게 줄 오른쪽 끝 묶음에 선다. 두 갈래 자리 단언을 한 자리 단언으로 옮기고 한 줄임을 더 단언한다. */
+/* qa-contract-change: UI 3차 조합 계약 C-1 — 필터 바가 한 줄 조합 부품이 되어 저장된 뷰가 검색창 유무와 무관하게 줄 오른쪽 끝 묶음에 선다. 두 갈래 자리 단언을 한 자리 단언으로 옮기고 한 줄임을 더 단언한다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -155,7 +157,7 @@ describe("저장된 뷰", () => {
     await screen.findByText("감사 로그");
 
     await user.click(await screen.findByRole("button", { name: /저장된 뷰/ }));
-    await user.click(await screen.findByText("지금 필터를 뷰로 저장…"));
+    await user.click(await screen.findByText("현재 필터를 뷰로 저장…"));
     await user.type(screen.getByLabelText("뷰 이름"), "실패만");
     await user.click(screen.getByRole("button", { name: "저장" }));
 
@@ -179,7 +181,7 @@ describe("저장된 뷰", () => {
     await screen.findByText("감사 로그");
 
     await user.click(await screen.findByRole("button", { name: /저장된 뷰/ }));
-    await user.click(await screen.findByText("지금 필터를 뷰로 저장…"));
+    await user.click(await screen.findByText("현재 필터를 뷰로 저장…"));
     await user.type(screen.getByLabelText("뷰 이름"), "중복");
     await user.click(screen.getByRole("button", { name: "저장" }));
 

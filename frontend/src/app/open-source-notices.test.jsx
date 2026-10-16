@@ -15,7 +15,9 @@ import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
 /* 오픈소스 고지 (D-579) — 사용자 메뉴의 한 항목이 고지 목록을 연다. 정본 문서(`docs/THIRD_PARTY_NOTICES.md`)의 `## ` 머리마다 화면에
- * 항목이 하나 있어야 한다 — 문서에 고지를 더하고 화면을 잊으면(또는 그 반대) 이 시험이 잡는다. */
+ * 항목이 하나 있어야 한다 — 문서에 고지를 더하고 화면을 잊으면(또는 그 반대) 이 시험이 잡는다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DOC = path.resolve(HERE, "../../../docs/THIRD_PARTY_NOTICES.md");
@@ -36,7 +38,7 @@ describe("사용자 메뉴 → 오픈소스 고지", () => {
       expect(within(dialog).getByText(n.name)).toBeInTheDocument();
       expect(within(dialog).getByRole("link", { name: n.url })).toHaveAttribute("href", n.url);
     }
-    expect(within(dialog).getByText(/「마블 룰렛」은 lazygyu 의 상표이고/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/「마블 룰렛」은 lazygyu의 상표이고/)).toBeInTheDocument();
   });
 });
 

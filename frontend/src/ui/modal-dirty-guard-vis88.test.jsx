@@ -1,4 +1,6 @@
 /* qa-contract-change: 옛 문서 화면의 「새 문서」 모달이 S14 에서 사라져 그 사례 하나를 걷었다. 없어진 컴포넌트를 계속 import 하면 이 파일 전체가 수집 단계에서 죽는다. 지금 그 자리의 더티 가드는 공용 FormModal 사례가 이미 고정하고 남은 다섯 화면 사례는 그대로다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 /**
  * VIS-88 — 저수준 `Modal`의 미저장 보호(`dirty` prop)는 opt-in인데, 실제 폼을 담은
@@ -144,7 +146,7 @@ describe("SavedViews — 뷰 저장 모달", () => {
       String(path).startsWith("/api/me/views") ? Promise.resolve({ items: [] }) : Promise.resolve({}));
     render(<Providers><SavedViews screenKey="tickets" query="" onApply={() => {}} /></Providers>);
     await userEvent.click(await screen.findByRole("button", { name: /저장된 뷰/ }));
-    await userEvent.click(await screen.findByText("지금 필터를 뷰로 저장…"));
+    await userEvent.click(await screen.findByText("현재 필터를 뷰로 저장…"));
     const nameInput = await screen.findByLabelText("뷰 이름");
     await userEvent.type(nameInput, "내 뷰");
     const dialog = await screen.findByRole("dialog", { name: "현재 필터를 뷰로 저장" });

@@ -57,12 +57,12 @@ export function ColumnFilterPopover({
           {kind === "date" ? (
             <Stack direction="row" gap={1}>
               <DebouncedTextField
-                kind="date" label="시작" value={(value && value.from) || ""}
+                kind="date" label="시작일" value={(value && value.from) || ""}
                 onCommit={(from) => set({ ...(value || {}), from })}
                 inputProps={{ type: "date" }}
               />
               <DebouncedTextField
-                kind="date" label="끝" value={(value && value.to) || ""}
+                kind="date" label="종료일" value={(value && value.to) || ""}
                 onCommit={(to) => set({ ...(value || {}), to })}
                 inputProps={{ type: "date" }}
               />

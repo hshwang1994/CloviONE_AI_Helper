@@ -121,7 +121,7 @@ function DefaultAvatarDialog({ open, onClose, seed, value, busy, onPick }) {
             size="sm"
             disabled={busy}
             onClick={() => setStaged("")}
-            title="고른 얼굴을 지우고 이 계정에 자동으로 정해진 얼굴을 씁니다"
+            title="고른 얼굴을 지우고 이 계정에 자동으로 정해진 얼굴을 씁니다."
           >
             선택 해제
           </Button>

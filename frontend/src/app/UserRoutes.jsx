@@ -86,7 +86,7 @@ function UserConsoleFallback() {
     return (
       <EmptyState
         layout="page"
-        title="권한이 없습니다"
+        title="권한이 없습니다."
         help="이 화면은 관리자 콘솔 전용입니다. 관리자 권한이 필요하면 관리자에게 문의하세요."
         art="noPermission"
         action={<Button variant="primary" href="#/me">홈으로 이동</Button>}

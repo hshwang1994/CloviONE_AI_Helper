@@ -47,7 +47,7 @@ export function ProjectPicker({
       placeholder={placeholder}
       helperText={helperText}
       required={required}
-      noOptionsText="일치하는 프로젝트가 없습니다"
+      noOptionsText="일치하는 프로젝트가 없습니다."
     />
   );
 }

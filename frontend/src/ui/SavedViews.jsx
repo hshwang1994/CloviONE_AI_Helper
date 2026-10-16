@@ -71,7 +71,7 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
     mutationFn: (id) => api("/api/me/views/" + id, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["saved-views", screenKey] });
-      toast("뷰를 지웠습니다.", "success");
+      toast("뷰를 삭제했습니다.", "success");
     },
   });
   /* 저장 실패(409 는 질문이라 뺀다)는 저장 창 안, 지우기 실패는 뷰 목록 안에 남는다. 다시 누르면 걷힌다. */
@@ -84,7 +84,7 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
    * 눌렀을 때 **어느 뷰가 사라지는지**가 사용자가 알아챌 수 있는 유일한 단서다. */
   async function removeView(view) {
     const ok = await confirm(
-      `‘${view.name}’ 뷰를 지울까요? 되돌릴 수 없습니다.`,
+      `‘${view.name}’ 뷰를 삭제할까요? 되돌릴 수 없습니다.`,
       { danger: true, title: "저장된 뷰 삭제", confirmLabel: "삭제" },
     );
     if (ok) remove.mutate(view.id);
@@ -148,7 +148,7 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
         {views.length === 0 ? (
           <Box sx={{ px: 2, py: 1.5 }}>
             <Typography variant="body2" color="text.secondary">
-              저장된 뷰가 없습니다. 지금 걸어 둔 필터를 이름 붙여 저장해 보세요.
+              저장된 뷰가 없습니다. 지금 걸어 둔 필터에 이름을 붙여 저장할 수 있습니다.
             </Typography>
           </Box>
         ) : null}
@@ -161,7 +161,7 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
             <BookmarkRoundedIcon fontSize="small" color="primary" aria-hidden="true" sx={{ mt: 0.25 }} />
             <ListItemText
               primary={v.name}
-              secondary={describe ? describe(v.query) || "조건 없음(전체)" : null}
+              secondary={describe ? describe(v.query) || "조건 없음(전체 목록)" : null}
               secondaryTypographyProps={{ sx: { whiteSpace: "normal" } }}
             />
             <IconButton
@@ -177,7 +177,7 @@ export function SavedViews({ screenKey, query, describe, onApply }) {
         {/* 뷰 행(이름 · 조건 요약 · 지우기 단추)은 한 항목에 단추가 함께 서서 라벨만 받는 항목 정본으로
             설 수 없다(대장 예외). 저장 항목은 팝오버 항목 정본이다. */}
         {overflowMenuItems([
-          { key: "save", label: "지금 필터를 뷰로 저장…", onClick: () => { setConflict(false); setSaving(true); } },
+          { key: "save", label: "현재 필터를 뷰로 저장…", onClick: () => { setConflict(false); setSaving(true); } },
         ], () => setAnchor(null))}
       </Menu>
 

@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: AI 사용 통계 그릇의 짝을 「프롬프트 사용 탭」에서 「호출 기록 탭」으로 옮겼다 — 프롬프트 · 정책 사용 탭을 걷었다(D-543, 옛 주소는 그 목록 화면으로 넘긴다). 옛 주소가 살아 있다 · 탭 순서가 들어온 길과 무관하다 · 그릇과 탭의 역할이 같다는 성질은 그대로 잰다. */
+/* qa-contract-change: AI 사용 통계 그릇의 짝을 「프롬프트 사용 탭」에서 「호출 기록 탭」으로 옮겼다 — 프롬프트 · 정책 사용 탭을 걷었다(D-543, 옛 주소는 그 목록 화면으로 넘긴다). 옛 주소가 살아 있다 · 탭 순서가 들어온 길과 무관하다 · 그릇과 탭의 역할이 같다는 성질은 그대로 잰다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 /* 관리자 IA 재구성 — 짝을 이루던 화면이 한 화면의 탭이 됐다 (지시 30 · 41 · 51).
  *
  * 여기서 지키는 것은 "합쳤다"가 아니라 **합치면서 잃지 않았다**이다.
@@ -158,7 +160,7 @@ describe("권한이 그릇과 안쪽 탭에서 같다", () => {
   it("역할이 모자라면 그릇 자체가 권한 안내를 보여 준다", async () => {
     mockRole = "user";
     renderAt("/audit");
-    expect(await screen.findByText("권한이 없습니다", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText("권한이 없습니다.", {}, { timeout: 5000 })).toBeInTheDocument();
   });
 
   /* 🔴 **막다른 길에서 막다른 길로 보내지 않는다.**
@@ -169,7 +171,7 @@ describe("권한이 그릇과 안쪽 탭에서 같다", () => {
   it("🔴 그 안내의 단추가 실제로 대시보드를 가리킨다", async () => {
     mockRole = "user";
     renderAt("/audit");
-    await screen.findByText("권한이 없습니다", {}, { timeout: 5000 });
+    await screen.findByText("권한이 없습니다.", {}, { timeout: 5000 });
     const go = screen.getByRole("link", { name: "대시보드로 이동" });
     expect(go.getAttribute("href")).toBe("#/dashboard");
   });

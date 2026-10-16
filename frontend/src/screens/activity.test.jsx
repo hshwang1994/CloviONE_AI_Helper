@@ -17,6 +17,8 @@ import { MemoryRouter } from "react-router-dom";
  * qa-contract-change: 날짜 머리는 서버 시각 글자의 앞 열 자(UTC 날짜)가 아니라 한국 시간 달력일이고, 오늘 · 어제가 아니면
  * 「2026년 8월 3일 월」처럼 채팅 날짜 구분선과 같은 말로 쓴다(r23 화면 대장 30). 한국 시간 0 ~ 9시의 일이 전날 묶음에 서던
  * 결함을 아래 시험이 잡는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -147,7 +149,7 @@ describe("내 활동", () => {
   it("조회가 실패하면 다시 시도할 길을 준다", async () => {
     apiMock.mockRejectedValue(Object.assign(new Error("서버 오류"), { status: 500 }));
     renderActivity();
-    expect(await screen.findByText("불러오지 못했습니다")).toBeInTheDocument();
+    expect(await screen.findByText("불러오지 못했습니다.")).toBeInTheDocument();
   });
 
   // /api/me/activity는 total을 안 준다(app/profiles/activity.py) — Pager가 공용 컴포넌트로

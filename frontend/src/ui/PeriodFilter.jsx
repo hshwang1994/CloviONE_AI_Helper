@@ -147,7 +147,7 @@ export function PeriodFilter({
                 InputLabelProps={{ shrink: true }} sx={fieldSx}
               />
               <TextField
-                type="datetime-local" size="small" label="끝 시각" value={draft.to}
+                type="datetime-local" size="small" label="종료 시각" value={draft.to}
                 onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
                 InputLabelProps={{ shrink: true }} sx={fieldSx}
               />

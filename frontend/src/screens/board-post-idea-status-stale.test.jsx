@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: 「고르고 나서 적용을 누른다」는 두 단계 손짓을 걷었다(2026-09-03 사용자 결정) — 상태는 이제 티켓처럼 배지를 눌러 그 자리에서 고르면 바로 저장된다. 그래서 「적용 전에 다른 글로 넘어가면 고른 값이 따라온다」는 결함 자체가 존재할 수 없다: 아직 적용 안 한 선택이라는 상태가 없기 때문이다. 대신 남는 성질을 잰다 — 다른 제안으로 넘어가면 배지가 그 글의 상태를 말한다. */
+/* qa-contract-change: 「고르고 나서 적용을 누른다」는 두 단계 손짓을 걷었다(2026-09-03 사용자 결정) — 상태는 이제 티켓처럼 배지를 눌러 그 자리에서 고르면 바로 저장된다. 그래서 「적용 전에 다른 글로 넘어가면 고른 값이 따라온다」는 결함 자체가 존재할 수 없다: 아직 적용 안 한 선택이라는 상태가 없기 때문이다. 대신 남는 성질을 잰다 — 다른 제안으로 넘어가면 배지가 그 글의 상태를 말한다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 
 /* 제안(아이디어) 상세의 "다음 상태" 선택도 댓글 초안과 같은 버그를 갖고 있었다
@@ -92,12 +94,12 @@ describe("다른 제안으로 넘어가면 배지가 그 글의 상태를 말한
 
     wrap(["/board/i1"], qc);
     expect(await screen.findByText("제안 A")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /제안 상태 바꾸기/ })).toHaveTextContent("제안");
+    expect(screen.getByRole("button", { name: /제안 상태 수정/ })).toHaveTextContent("제안");
 
     await user.click(screen.getByRole("button", { name: "다른 제안으로 이동" }));
     expect(await screen.findByText("제안 B")).toBeInTheDocument();
 
     // B 의 배지는 B 의 상태다 — A 의 값이 따라오지 않는다.
-    expect(screen.getByRole("button", { name: /제안 상태 바꾸기/ })).toHaveTextContent("검토중");
+    expect(screen.getByRole("button", { name: /제안 상태 수정/ })).toHaveTextContent("검토 중");
   });
 });

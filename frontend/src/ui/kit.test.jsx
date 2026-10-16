@@ -12,7 +12,9 @@ import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
 import { StatusKpiTile } from "./StatusKpi.jsx";
 import { createClovirTheme } from "./theme.js";
 
-/* qa-contract-change: 판독 줄(MetricStrip)이 핸드오프 RULES §6(「판독 줄은 쓰지 않는다」)에 따라 걷히고 측정값 타일(StatusKpiTile)이 그 자리를 이어, 판독 칸이 지키던 세 계약(신호를 색만으로 말하지 않는다 · 누를 수 있는 칸만 버튼이고 눌림을 알린다 · 선택은 면이 아니라 선이 말한다)을 타일로 옮긴다. */
+/* qa-contract-change: 판독 줄(MetricStrip)이 핸드오프 RULES §6(「판독 줄은 쓰지 않는다」)에 따라 걷히고 측정값 타일(StatusKpiTile)이 그 자리를 이어, 판독 칸이 지키던 세 계약(신호를 색만으로 말하지 않는다 · 누를 수 있는 칸만 버튼이고 눌림을 알린다 · 선택은 면이 아니라 선이 말한다)을 타일로 옮긴다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 /* qa-contract-change: 표 발 줄을 표 안 `tfoot` 행(`footer` prop, 화면 소비처 0)에서 목록 판 안 마지막 줄(`DataTable placement · list · selection`, UI 3차 조합 계약 C-3)로 옮긴다. 「몇 건 중 몇 건 + 오른쪽 일괄 동작」은 선택 묶음(role=toolbar)과 받은 건수 문장으로, 「total 을 모르면 숫자를 지어내지 않는다」는 받은 건수만 말하는 문장으로 옮기고 발이 표 상자 밖 · 판 안인지를 더 잰다. */
 /* qa-contract-change: 보조 · 파괴 단추의 테두리 하한(비텍스트 3:1, R-11)을 핸드오프 README §2 · 다크 모드 절 · ACCEPTANCE K3 의 값(라이트 흰 면 + #DCDFEC · #E6B0AC, 다크 투명 면 + #333B5E · #5F3330)으로 옮긴다. 글자 라벨이 컨트롤을 알리므로 테두리는 1.4.11 대상이 아니고, R-11 이 막던 두 역전(보조가 본문 잉크로 주 행동을 이김 · 파괴가 중립보다 흐림)은 두 테마 계산값으로 계속 막는다. */
 
@@ -286,7 +288,7 @@ describe("빈 화면 / 오류 상태", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
     /* 되돌아올 곳을 싣는다(지시 19) — 예전에는 맨 `/login` 이라 재로그인 뒤 서버가 `/` 로
        떨어뜨렸고, 사용자는 보던 화면을 손으로 다시 찾아가야 했다. */
-    const loginLink = screen.getByRole("link", { name: "로그인 화면으로" });
+    const loginLink = screen.getByRole("link", { name: "로그인 화면으로 이동" });
     const href = loginLink.getAttribute("href");
     expect(href.startsWith("/login")).toBe(true);
     expect(new URL(href, "https://example.test").searchParams.get("next")).toBeTruthy();
@@ -294,13 +296,13 @@ describe("빈 화면 / 오류 상태", () => {
     unmount();
 
     ui(<ErrorState error={{ status: 403, message: "금지" }} onRetry={onRetry} />);
-    expect(screen.getByRole("link", { name: "홈으로" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "홈으로 이동" })).toBeInTheDocument();
   });
 
   it("비밀번호 변경 필요(403)는 권한 부족과 다른 안내를 준다", () => {
     ui(<ErrorState error={{ status: 403, message: "비밀번호를 바꿔야 합니다", body: { error: { code: "password_change_required" } } }} />);
-    expect(screen.getByRole("heading", { name: "비밀번호 변경이 필요합니다" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "비밀번호 변경하기" })).toHaveAttribute("href", "/change-password");
+    expect(screen.getByRole("heading", { name: "비밀번호 변경이 필요합니다." })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "비밀번호 변경" })).toHaveAttribute("href", "/change-password");
   });
 
   it("일시적 오류에만 재시도를 준다", async () => {
@@ -318,7 +320,7 @@ describe("빈 화면 / 오류 상태", () => {
     try {
       const onRetry = vi.fn();
       ui(<ErrorState error={{ status: 429, message: "요청이 너무 잦습니다.", retryAfterSeconds: 8 }} onRetry={onRetry} />);
-      expect(screen.getByRole("heading", { name: "요청이 너무 잦습니다" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "요청이 너무 잦습니다." })).toBeInTheDocument();
       expect(screen.getByText("약 8초 뒤에 다시 시도할 수 있습니다.")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "다시 시도" })).toBeDisabled();
       act(() => { vi.advanceTimersByTime(8000); });
@@ -331,7 +333,7 @@ describe("빈 화면 / 오류 상태", () => {
   it("대기 시간을 모르는 429(프록시 층)는 바로 다시 시도할 수 있다", async () => {
     const onRetry = vi.fn();
     ui(<ErrorState error={{ status: 429, message: "요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요." }} onRetry={onRetry} />);
-    expect(screen.getByRole("heading", { name: "요청이 너무 잦습니다" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "요청이 너무 잦습니다." })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(onRetry).toHaveBeenCalled();
   });
@@ -355,9 +357,9 @@ describe("빈 화면 / 오류 상태", () => {
   // 옆의 손으로 맞춘 크기보다 크게 떴다(NotificationBell.jsx 등). size="compact"는 일러스트를
   // 빼고 텍스트/여백을 줄인다 — 내용(제목·안내)은 그대로 낭독돼야 한다.
   it("EmptyState는 size=\"compact\"에서 일러스트를 빼고 내용은 그대로 낭독한다", () => {
-    ui(<EmptyState size="compact" title="새 알림이 없습니다" help="여기에 표시됩니다" art="tickets" />);
+    ui(<EmptyState size="compact" title="받은 알림이 없습니다." help="여기에 표시됩니다" art="tickets" />);
     const region = screen.getByRole("status");
-    expect(within(region).getByRole("heading", { name: "새 알림이 없습니다" })).toBeInTheDocument();
+    expect(within(region).getByRole("heading", { name: "받은 알림이 없습니다." })).toBeInTheDocument();
     expect(screen.getByText("여기에 표시됩니다")).toBeInTheDocument();
     expect(screen.queryByRole("img")).toBeNull(); // art는 <img aria-hidden>이라 role은 없지만, 있다면 alt=""로도 쿼리되지 않는다
     expect(region.querySelector("img")).toBeNull();

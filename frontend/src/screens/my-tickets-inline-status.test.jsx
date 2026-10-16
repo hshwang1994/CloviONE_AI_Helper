@@ -15,6 +15,8 @@ import "@testing-library/jest-dom/vitest";
  * 3. **서버가 돌려준 값**이 화면의 새 값이다 — 넘긴 값이 아니라.
  * 4. 실패하면 **이전 값으로 되돌아가고** 사유가 그 자리에 붙는다. 토스트로만 말하면
  *    어느 행이 실패했는지가 사라진다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -55,11 +57,11 @@ function draw(statusEdit) {
 
 beforeEach(() => { apiMock.mockReset(); });
 
-describe("내 티켓 — 그 자리에서 상태 바꾸기", () => {
+describe("내 티켓 — 그 자리에서 상태 수정", () => {
   it("🔴 상태 칸이 눌리고, 열리는 목록이 서버 어휘다", async () => {
     const user = userEvent.setup();
     draw({ options: STATUS_OPTIONS, save: vi.fn() });
-    await user.click(screen.getByRole("button", { name: /상태 바꾸기/ }));
+    await user.click(screen.getByRole("button", { name: /상태 수정/ }));
     // 「진행 중」은 서버가 준 라벨이다. 화면이 상태 이름을 적으면 어휘가 바뀐 날 여기만 남는다.
     expect(await screen.findByRole("option", { name: "진행 중" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "완료" })).toBeInTheDocument();
@@ -69,7 +71,7 @@ describe("내 티켓 — 그 자리에서 상태 바꾸기", () => {
     const user = userEvent.setup();
     const save = vi.fn().mockResolvedValue("진행");
     draw({ options: STATUS_OPTIONS, save });
-    await user.click(screen.getByRole("button", { name: /상태 바꾸기/ }));
+    await user.click(screen.getByRole("button", { name: /상태 수정/ }));
     await user.click(await screen.findByRole("option", { name: "진행 중" }));
     await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: "t-1" }), "진행"));
     // 저장값 `진행` 이 표시값 `진행 중` 으로 그려진다.
@@ -80,7 +82,7 @@ describe("내 티켓 — 그 자리에서 상태 바꾸기", () => {
     const user = userEvent.setup();
     const save = vi.fn().mockRejectedValue(new Error("이 티켓을 편집할 권한이 없습니다."));
     draw({ options: STATUS_OPTIONS, save });
-    await user.click(screen.getByRole("button", { name: /상태 바꾸기/ }));
+    await user.click(screen.getByRole("button", { name: /상태 수정/ }));
     await user.click(await screen.findByRole("option", { name: "완료" }));
     expect(await screen.findByText(/편집할 권한이 없습니다/)).toBeInTheDocument();
     // 값은 그대로다 — 실패한 저장이 화면에 남으면 사용자는 바뀐 줄 안다.
@@ -90,7 +92,7 @@ describe("내 티켓 — 그 자리에서 상태 바꾸기", () => {
   it("바꿀 수 없는 표에는 **눌리는 컨트롤을 두지 않는다**", () => {
     // 열 수 없는 것을 눌러 보게 하지 않는다(`ui/InlineEdit.jsx` 의 `locked` 규칙).
     draw(undefined);
-    expect(screen.queryByRole("button", { name: /상태 바꾸기/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /상태 수정/ })).toBeNull();
     expect(screen.getByText("계획")).toBeInTheDocument();
   });
 });

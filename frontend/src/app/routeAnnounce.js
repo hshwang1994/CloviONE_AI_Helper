@@ -42,7 +42,7 @@ export function useRouteAnnounce(pathname, screenKey = pathname) {
     const main = typeof document === "undefined" ? null : document.getElementById("main-content");
     if (main && typeof main.focus === "function") main.focus();
     const label = labelForPath(pathname);
-    setMessage(label ? `${label} 화면으로 이동했습니다.` : "화면을 이동했습니다.");
+    setMessage(label ? `${label} 화면으로 이동했습니다.` : "다른 화면으로 이동했습니다.");
   }, [screenKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return message;

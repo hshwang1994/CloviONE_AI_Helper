@@ -21,6 +21,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { KO_WORD_BREAK, RADIUS } from "./theme.js";
 import { LANE_SURFACE, TILE_PADDING } from "./density.js";
 import { VirtualRows } from "./VirtualRows.jsx";
+import { objectParticle } from "../lib/format.js";
 
 /* 끌어 놓기 공통 부품 (S6). **저장소에서 DnD 를 쓰는 자리는 전부 여기를 지난다.**
  *
@@ -62,13 +63,15 @@ function useDragSensors() {
  * 사람에게는 아무 일도 안 일어난 것과 같다. */
 function announcements(labelOf) {
   const name = (id) => labelOf(id) || "항목";
+  /* 조사는 이름의 받침을 따른다 — 「을」로 박아 두면 받침 없는 이름(「회의 자료」)이 「자료을」로 읽혔다. */
+  const obj = (id) => name(id) + objectParticle(name(id));
   return {
-    onDragStart: ({ active }) => `${name(active.id)}을 집었습니다.`,
+    onDragStart: ({ active }) => `${obj(active.id)} 집었습니다.`,
     onDragOver: ({ active, over }) =>
-      over ? `${name(active.id)}을 ${name(over.id)} 위치로 옮기는 중입니다.` : "",
+      over ? `${obj(active.id)} ${name(over.id)} 위치로 옮기는 중입니다.` : "",
     onDragEnd: ({ active, over }) =>
       over
-        ? `${name(active.id)}을 ${name(over.id)} 위치에 놓았습니다.`
+        ? `${obj(active.id)} ${name(over.id)} 위치에 놓았습니다.`
         : `${name(active.id)} 옮기기를 취소했습니다.`,
     onDragCancel: ({ active }) => `${name(active.id)} 옮기기를 취소했습니다.`,
   };

@@ -22,6 +22,8 @@ import { fileURLToPath } from "node:url";
  *
  * 1층은 파일을 읽어 jsdom 에 그대로 올린다. 문자열 grep 이 아니라 **실제 동작**을 본다 —
  * 이 저장소는 "테스트가 헛것이었다" 를 여섯 번 겪었다(불변 규칙 4).
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -453,8 +455,8 @@ describe("SPA 인계 연출", () => {
 
     renderHandoff({ ready: false });
 
-    expect(screen.getByText("로그인되었습니다")).toBeInTheDocument();
-    expect(screen.getByText("업무 공간을 준비하고 있습니다")).toBeInTheDocument();
+    expect(screen.getByText("로그인되었습니다.")).toBeInTheDocument();
+    expect(screen.getByText("업무 공간을 준비하고 있습니다.")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "클로비가 인사합니다" })).toBeInTheDocument();
     // 폭죽 라이브러리는 **쏘는 순간에** 받는다(초기 번들에서 뺐다) — 정적 import 였을 때처럼
     // 같은 틱에 불리지 않는다. 연출 자체는 그대로 있다.
@@ -507,7 +509,7 @@ describe("SPA 인계 연출", () => {
     renderHandoff({ ready: true });
     await act(async () => { await tick(10); });
 
-    expect(screen.queryByText("로그인되었습니다")).not.toBeInTheDocument();
+    expect(screen.queryByText("로그인되었습니다.")).not.toBeInTheDocument();
     expect(confettiMock).not.toHaveBeenCalled();
   });
 
@@ -518,7 +520,7 @@ describe("SPA 인계 연출", () => {
     renderHandoff({ ready: true });
     await act(async () => { await tick(10); });
 
-    expect(screen.queryByText("로그인되었습니다")).not.toBeInTheDocument();
+    expect(screen.queryByText("로그인되었습니다.")).not.toBeInTheDocument();
     expect(confettiMock).not.toHaveBeenCalled();
   });
 
@@ -527,7 +529,7 @@ describe("SPA 인계 연출", () => {
     markHandoff();
 
     const { rerender } = renderHandoff({ ready: false });
-    expect(screen.getByText("로그인되었습니다")).toBeInTheDocument();
+    expect(screen.getByText("로그인되었습니다.")).toBeInTheDocument();
 
     await act(async () => {
       rerender(
@@ -538,7 +540,7 @@ describe("SPA 인계 연출", () => {
       await tick(900);
     });
 
-    expect(screen.queryByText("로그인되었습니다")).not.toBeInTheDocument();
+    expect(screen.queryByText("로그인되었습니다.")).not.toBeInTheDocument();
   });
 
   it("첫 화면이 끝내 안 와도 상한에서 스스로 걷힌다", async () => {
@@ -546,11 +548,11 @@ describe("SPA 인계 연출", () => {
     markHandoff();
 
     renderHandoff({ ready: false });
-    expect(screen.getByText("로그인되었습니다")).toBeInTheDocument();
+    expect(screen.getByText("로그인되었습니다.")).toBeInTheDocument();
 
     await act(async () => { await tick(3200); });
 
-    expect(screen.queryByText("로그인되었습니다")).not.toBeInTheDocument();
+    expect(screen.queryByText("로그인되었습니다.")).not.toBeInTheDocument();
   });
 });
 
@@ -564,8 +566,8 @@ describe("동작 줄이기 설정과 무관한 SPA 인계 연출", () => {
     renderHandoff({ ready: false });
     await act(async () => { await tick(10); });
 
-    expect(screen.getByText("로그인되었습니다")).toBeInTheDocument();
-    expect(screen.getByText("업무 공간을 준비하고 있습니다")).toBeInTheDocument();
+    expect(screen.getByText("로그인되었습니다.")).toBeInTheDocument();
+    expect(screen.getByText("업무 공간을 준비하고 있습니다.")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "클로비가 인사합니다" })).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
     await waitFor(() => expect(confettiMock).toHaveBeenCalled());
@@ -586,6 +588,6 @@ describe("동작 줄이기 설정과 무관한 SPA 인계 연출", () => {
 
     renderHandoff({ ready: false });
 
-    expect(screen.getByText("로그인되었습니다")).toBeInTheDocument();
+    expect(screen.getByText("로그인되었습니다.")).toBeInTheDocument();
   });
 });

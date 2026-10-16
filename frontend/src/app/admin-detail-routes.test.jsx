@@ -1,4 +1,6 @@
-/* qa-contract-change: 조직 콘솔 재설계로 /departments/:id 가 DataScreen 공용 모달이 아니라 오른쪽 상세 판을 연다 — 부서 두 케이스의 단언을 모달에서 판(testid org-console-panel)으로 옮겨 적었다. */
+/* qa-contract-change: 조직 콘솔 재설계로 /departments/:id 가 DataScreen 공용 모달이 아니라 오른쪽 상세 판을 연다 — 부서 두 케이스의 단언을 모달에서 판(testid org-console-panel)으로 옮겨 적었다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
@@ -16,7 +18,7 @@ import "@testing-library/jest-dom/vitest";
  *   1) /users/:id 로 직접 들어가면 그 사용자 상세가 열린다(단건 GET).
  *   2) 행을 클릭하면 주소가 /users/:id 로 바뀐다(뒤로가기·새로고침의 전제).
  *   3) /departments/:id 도 같은 원리로 열린다(DataScreen 공용 배선, config.hasIdRoute).
- *   4) 모르는 관리자 경로는 대시보드로 안 튕기고 "찾을 수 없습니다"를 보여준다.
+ *   4) 모르는 관리자 경로는 대시보드로 안 튕기고 "찾을 수 없습니다."를 보여준다.
  */
 
 const apiMock = vi.fn();
@@ -158,7 +160,7 @@ describe("관리자 상세 딥링크", () => {
     renderRoute("/users/does-not-exist");
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument(), WAIT);
     // 사용자 콘솔 5개 라우트·RouteNotFound와 같은 컴포넌트·같은 문구(ErrorState, kit.jsx).
-    expect(within(screen.getByRole("dialog")).getByText("찾을 수 없습니다")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("찾을 수 없습니다.")).toBeInTheDocument();
     expect(screen.getByText("상세대상")).toBeInTheDocument();
   });
 
@@ -211,16 +213,16 @@ describe("관리자 상세 딥링크", () => {
     }));
     renderRoute("/audit/does-not-exist");
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument(), WAIT);
-    expect(within(screen.getByRole("dialog")).getByText("찾을 수 없습니다")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("찾을 수 없습니다.")).toBeInTheDocument();
   });
 });
 
 describe("모르는 관리자 경로 — 대시보드로 조용히 튕기지 않는다", () => {
   beforeEach(() => { apiMock.mockReset(); apiMock.mockImplementation(commonApi()); });
 
-  it("등록되지 않은 경로는 '찾을 수 없습니다'를 보여준다(리다이렉트 아님)", async () => {
+  it("등록되지 않은 경로는 '찾을 수 없습니다.'를 보여준다(리다이렉트 아님)", async () => {
     renderRoute("/this-path-does-not-exist-anywhere");
-    expect(await screen.findByText("찾을 수 없습니다", {}, WAIT)).toBeInTheDocument();
+    expect(await screen.findByText("찾을 수 없습니다.", {}, WAIT)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "대시보드" })).not.toBeInTheDocument();
   });
 });

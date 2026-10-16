@@ -12,7 +12,7 @@ function fallbackMessage(status) {
   if (status === 403) return "권한이 없습니다.";
   if (status === 404) return "요청한 항목을 찾을 수 없습니다.";
   if (status === 409) return "다른 곳에서 먼저 바뀌었습니다. 새로고침한 뒤 다시 시도해 주세요.";
-  if (status === 413) return "보내려는 내용이 너무 큽니다.";
+  if (status === 413) return "보내려는 내용이 너무 큽니다. 크기를 줄여 다시 시도해 주세요.";
   if (status === 429) return "요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.";
   if (status >= 500) return "서버에서 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.";
   // PA-RC-0002: 그 외(알 수 없는 상태 코드)는 원인을 모르니 가장 일반적인 회복 절을

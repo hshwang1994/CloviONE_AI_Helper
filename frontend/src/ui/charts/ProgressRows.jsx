@@ -41,7 +41,7 @@ import { FONT_WEIGHT, MOTION } from "../theme.js";
 export function ProgressRows({
   items, color, question, unit = "", revealKey,
   emptyLabel = "데이터 없음",
-  emptyRowLabel = "해당 없음",
+  emptyRowLabel = "대상 없음",
   formatRow,
 }) {
   const theme = useTheme();

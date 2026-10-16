@@ -88,7 +88,7 @@ export function TagPicker({
       }}
       getOptionLabel={(o) => (typeof o === "string" ? o : o.name)}
       isOptionEqualToValue={(a, b) => a.name === b.name}
-      noOptionsText="일치하는 태그가 없습니다"
+      noOptionsText="일치하는 태그가 없습니다."
       loadingText="불러오는 중…"
       data-filter-kind="entity"
       sx={kindSx("entity", sx, layout, row)}

@@ -15,7 +15,9 @@ import "@testing-library/jest-dom/vitest";
  * 그런데 상세 페이지의 PageHeader area는 세 상태 모두 "자유게시판"으로 박혀 있었다 —
  * 제안 게시판(/ideas)에서 들어온 글을 열면, "목록"은 종류를 알고 제자리로 돌려보내는데
  * 화면 맨 위 빵부스러기는 "팀 공간 › 자유게시판"이라고 말해 같은 화면 안에서
- * 두 신호가 어긋났다. area는 post.kind를 따라야 한다. */
+ * 두 신호가 어긋났다. area는 post.kind를 따라야 한다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({
@@ -193,9 +195,10 @@ describe("게시글 상세의 빵부스러기는 글의 종류를 따른다", ()
     expect(screen.queryByRole("button", { name: "적용" })).toBeNull();
     expect(screen.queryByLabelText("다음 상태")).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: /제안 상태 바꾸기/ }));
+    await user.click(screen.getByRole("button", { name: /제안 상태 수정/ }));
     // 전이 사슬을 걷었으므로 어휘 전부가 보인다 — 「진행중에서 완료로만」 같은 제한이 없다.
-    for (const s of ["제안", "검토중", "진행", "완료", "보류"]) {
+    // 고르는 목록은 저장값이 아니라 화면 이름이다 — 저장값 `검토중` · `진행` 은 「검토 중」 · 「진행 중」으로 보인다.
+    for (const s of ["제안", "검토 중", "진행 중", "완료", "보류"]) {
       expect(await screen.findByRole("option", { name: s })).toBeInTheDocument();
     }
     // 티켓 프로젝트 칸은 어디에도 없다.

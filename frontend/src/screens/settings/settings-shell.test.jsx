@@ -27,6 +27,8 @@ import { MemoryRouter, useLocation } from "react-router-dom";
  * qa-contract-change: 「시스템 정책 탭이 그려졌다」를 잡던 표식이 유지보수 판의 「현재 상태」 줄에서 「유지보수 모드」 설정 줄로 옮긴다 —
  * 유지보수 판 둘이 한 판의 설정 줄 둘이 되면서(D-501) 「현재 상태」 낱말이 없어졌다. 판정(그 탭이 그려졌는가 · 권한 없는 역할에게는
  * 안 그려졌는가)은 그대로이고, 기술 정보 토글이 그릇 머리에 서는지 재는 시험 둘을 더한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -117,13 +119,13 @@ describe("설정 탭 — role별 가시성", () => {
   // 없음, 주소·화면 불일치) — 이제 라우트 게이트(RequireRole)와 같은 EmptyState로 명시하고
   // 주소는 요청한 그대로 둔다(PA-RC-0024 딥링크 계약).
   it.each(["user", "operator", "auditor"])(
-    "%s가 주소를 손으로 ?tab=os/ai로 바꾸면 '권한이 없습니다'를 명시한다(조용히 시스템 정책으로 안 떨어진다)",
+    "%s가 주소를 손으로 ?tab=os/ai로 바꾸면 '권한이 없습니다.'를 명시한다(조용히 시스템 정책으로 안 떨어진다)",
     async (role) => {
       currentRole = role;
       renderShell("/settings?tab=os");
       // SystemOps.jsx만 그리는 "시스템 정보" 카드 제목이 없어야 한다 — 있다면 role 게이트가
       // 뚫려 이 역할이 OS 특권 동작(서비스 재시작 등)에 닿은 것이다.
-      expect(await screen.findByText("권한이 없습니다")).toBeInTheDocument();
+      expect(await screen.findByText("권한이 없습니다.")).toBeInTheDocument();
       expect(screen.queryByText("시스템 정보")).not.toBeInTheDocument();
       // 설정 표(시스템 정책 탭의 내용)로 조용히 안 떨어졌다 — 거부 화면만 있다.
       expect(screen.queryByText("유지보수 모드")).not.toBeInTheDocument();
@@ -133,7 +135,7 @@ describe("설정 탭 — role별 가시성", () => {
   it("역할 때문에 못 보는 탭을 요청해도 주소는 그대로 남는다(PA-RC-0024 딥링크 계약)", async () => {
     currentRole = "operator";
     renderShell("/settings?tab=os");
-    await screen.findByText("권한이 없습니다");
+    await screen.findByText("권한이 없습니다.");
     expect(currentPath()).toContain("tab=os");
   });
 
@@ -141,7 +143,7 @@ describe("설정 탭 — role별 가시성", () => {
     currentRole = "operator";
     renderShell("/settings?tab=does-not-exist");
     await screen.findByText("유지보수 모드");
-    expect(screen.queryByText("권한이 없습니다")).not.toBeInTheDocument();
+    expect(screen.queryByText("권한이 없습니다.")).not.toBeInTheDocument();
     await waitFor(() => expect(currentPath()).not.toContain("tab=does-not-exist"));
   });
 });

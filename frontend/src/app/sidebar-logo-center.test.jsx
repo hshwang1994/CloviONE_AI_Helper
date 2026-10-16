@@ -8,7 +8,9 @@ import "@testing-library/jest-dom/vitest";
 /* 사이드바 상단 로고 묶음(마크+브랜드명)이 가운데 정렬돼야 한다 (사용자 지적).
  *
  * 예전에는 헤더 Toolbar에 justifyContent가 없어 flex 기본값(flex-start)대로
- * 로고 묶음이 왼쪽에 붙었다. */
+ * 로고 묶음이 왼쪽에 붙었다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
@@ -106,7 +108,7 @@ describe("상단바 브랜드 버튼도 사이드바와 같은 정렬", () => {
         <TopBrand onClick={() => {}} width={280} />
       </ThemeModeProvider>,
     );
-    const btn = screen.getByRole("button", { name: "홈으로" });
+    const btn = screen.getByRole("button", { name: "홈으로 이동" });
 
     expect(getComputedStyle(btn).justifyContent).toBe("center");
   });

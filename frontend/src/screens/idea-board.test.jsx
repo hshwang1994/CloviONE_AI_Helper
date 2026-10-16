@@ -21,6 +21,8 @@ import "@testing-library/jest-dom/vitest";
  *
  * qa-contract-change: 상태 칩 토글 줄을 칸 안에 이름이 선 선택(FilterSelect)으로 옮겼다(핸드오프 B-4, 계획 P-20).
  * 칩 버튼을 누르던 단언은 「상태」 칸에서 고르는 단언으로 옮기고, 걸린 조건 칩이 서는지를 더 단언한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -93,12 +95,13 @@ describe("상태 필터는 주소에 남는다", () => {
     const user = userEvent.setup();
     renderScreen(<IdeaBoard />);
 
-    await pickOption(user, "상태", "검토중");
+    // 고르는 이름은 화면 이름(「검토 중」), 주소에 실리는 값은 저장값(`검토중`)이다.
+    await pickOption(user, "상태", "검토 중");
 
     await waitFor(() => {
       expect(decodeURIComponent(lastSearch)).toContain("status=검토중");
     });
-    expect(screen.getByText("상태: 검토중")).toBeInTheDocument();
+    expect(screen.getByText("상태: 검토 중")).toBeInTheDocument();
   });
 
   it("주소에 실린 상태로 목록을 부른다(새로고침, 링크 공유가 이 위에 선다)", async () => {
@@ -106,7 +109,7 @@ describe("상태 필터는 주소에 남는다", () => {
     const user = userEvent.setup();
     renderScreen(<IdeaBoard />);
 
-    await pickOption(user, "상태", "진행");
+    await pickOption(user, "상태", "진행 중");
 
     await waitFor(() => {
       const urls = apiMock.mock.calls.map((c) => decodeURIComponent(String(c[0])));
@@ -147,7 +150,7 @@ describe("상태 배지는 아이디어에만 뜬다", () => {
     /* '검토중' 은 화면에 둘 있다: 위쪽 **필터 칩**(누르는 것)과 행의 **배지**(읽는 것).
        칩만 보고 통과하면 목록에 상태가 안 붙어도 초록불이 된다 - 버튼이 아닌 쪽,
        즉 배지가 실제로 그려졌는지를 본다. */
-    const badge = screen.getAllByText("검토중").filter((el) => !el.closest("button"));
+    const badge = screen.getAllByText("검토 중").filter((el) => !el.closest("button"));
     expect(badge.length).toBeGreaterThan(0);
     expect(screen.getByText("👍 4")).toBeInTheDocument();
   });
@@ -166,6 +169,8 @@ describe("상태 배지는 아이디어에만 뜬다", () => {
     renderScreen(<Board />);
 
     expect(await screen.findByText("점심 뭐 먹지")).toBeInTheDocument();
+    // 배지는 저장값(`검토중`)이 아니라 화면 이름(「검토 중」)으로 그려진다 — 그 이름이 없어야 배지가 없는 것이다.
+    expect(screen.queryByText("검토 중")).toBeNull();
     expect(screen.queryByText("검토중")).toBeNull();
   });
 

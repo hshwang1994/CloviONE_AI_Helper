@@ -140,7 +140,7 @@ function mergeSyncNotices(notices) {
     merged.push({
       id: `sync.merged.${level}`,
       level,
-      message: `지금 ${group.length}개 항목의 동기화가 ${word} 최근 변경이 아직 안 보일 수 있습니다.`,
+      message: `지금 ${group.length}개 항목의 동기화가 ${word}. 최근 변경이 아직 안 보일 수 있습니다.`,
       since,
       kind: "sync",
       _mergedCount: group.length,
@@ -257,7 +257,7 @@ export function NoticeRow({ notice, onDismiss }) {
         {notice.body ? <Box component="span">{notice.body}</Box> : null}
         {notice.since ? (
           <Box component="span" sx={{ fontSize: FONT_SIZE.caption }}>
-            마지막 정상: {fmtDateTime(notice.since)}
+            마지막 정상 시각: {fmtDateTime(notice.since)}
           </Box>
         ) : null}
         {notice.href ? (
@@ -325,7 +325,7 @@ export function StatusNoticeButton({ notices }) {
         </Box>
         <Box role="list" sx={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
           {visible.length === 0 ? (
-            <EmptyState size="compact" title="표시할 항목이 없습니다" />
+            <EmptyState size="compact" title="표시할 항목이 없습니다." />
           ) : (
             visible.map((n) => <NoticeRow key={n.id} notice={n} onDismiss={dismiss} />)
           )}
@@ -356,7 +356,7 @@ export function CriticalStatusLine({ notices }) {
         <KitButton size="sm" onClick={() => dismiss(first)}>닫기</KitButton>
       ) : null}
     >
-      {first.message}{extra > 0 ? ` (그 외 장애 ${extra}건, 우측 상단 칩에서 확인)` : ""}
+      {first.message}{extra > 0 ? ` 그 밖의 장애 ${extra}건은 오른쪽 위 시스템 상태 단추에서 확인할 수 있습니다.` : ""}
     </Callout>
   );
 }

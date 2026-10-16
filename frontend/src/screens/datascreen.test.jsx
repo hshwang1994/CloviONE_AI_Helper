@@ -27,6 +27,8 @@ import "@testing-library/jest-dom/vitest";
  *
  * qa-contract-change: 조건 때문에 0건은 판 안 「검색 결과가 없습니다」 + 「검색, 필터 지우기」가 아니라 표 머리 아래 한 줄 띠 「조건에 맞는 항목이
  * 없습니다.」 + 30 「필터 지우기」다(D-530 목록 상태 일곱 갈래). 띠가 표의 줄이라는 사실과 단추 이름을 단언한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -86,11 +88,11 @@ describe("필터가 서버로 가는 형태", () => {
     const user = userEvent.setup();
     renderScreen({
       ...BASE_CONFIG,
-      filters: [{ key: "from", label: "시작", type: "datetime-local" }],
+      filters: [{ key: "from", label: "시작일", type: "datetime-local" }],
     });
     await waitFor(() => expect(apiMock).toHaveBeenCalled());
 
-    const input = screen.getByLabelText("시작");
+    const input = screen.getByLabelText("시작일");
     await user.type(input, "2026-08-03T09:30");
 
     await waitFor(() => {
@@ -141,7 +143,7 @@ describe("필터가 서버로 가는 형태", () => {
     expect(apiMock.mock.calls.length).toBe(callsBefore);
     // S16 이 더한 것: 사용자가 그 축을 직접 걸어 값이 전부 같아진 열은 사라지고, 사라졌다는
     // 사실과 그 값을 표가 한 번 말한다(R-91). 조건을 풀면 열이 돌아온다.
-    expect(screen.getByText(/동작은 이 목록에서 전부 'login'/)).toBeInTheDocument();
+    expect(screen.getByText(/동작은 이 목록에서 모두 같은 값\(‘login’\)/)).toBeInTheDocument();
   });
 });
 

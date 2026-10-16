@@ -105,7 +105,7 @@ const STATUS_TEXT = {
   // 워크플로 테스트 도달성 — reachable/unreachable가 매핑되지 않으면 영어 그대로 회색으로 뜬다.
   reachable: "연결됨", unreachable: "연결 안 됨",
   // secret_ref 상태(연동·러너 배지) — 매핑 없으면 영어 'configured'/'missing'이 회색으로 샌다.
-  configured: "등록됨", missing: "없음",
+  configured: "설정됨", missing: "없음",
   // Notion 티켓 워크플로 상태(채팅 결과 카드) — 관리자 상태 어휘엔 없어 영어/무채색으로 뜨던 값들.
   "Not started": "시작 전", "In progress": "진행 중", "Done": "완료", "Todo": "할 일",
   "시작 전": "시작 전", "진행 중": "진행 중", "할 일": "할 일",
@@ -113,6 +113,9 @@ const STATUS_TEXT = {
   // 쓰는 'In Review'/'Blocked' 등이 여전히 원시 영어로 새어 나온다.
   "In Review": "검토 중", "Blocked": "막힘", "Cancelled": "취소됨", "On Hold": "보류",
   "Backlog": "백로그", "검토 중": "검토 중", "막힘": "막힘", "백로그": "백로그",
+  // 기능 개선 제안의 상태 저장값은 붙여 쓴 `검토중` 이다(app/board/models.py IDEA_REVIEWING · 주소의 status 값). 저장값은 그대로 두고
+  // 화면에서만 띄어 쓴다 — 같은 목록의 「진행 중」과 말투가 갈렸다(r23 화면 대장 25).
+  "검토중": "검토 중",
   // 이 제품의 Workflow Status 여섯. **저장값과 표시값이 다른 것이 하나 있다** —
   // `진행` 은 화면에서 `진행 중` 이다(app/work/workflow.py::STATUSES 의 label).
   // 저장값을 옮기면 옛 링크·옛 필터·옛 감사 기록이 함께 갈리므로 표시만 바꾼다.
@@ -148,7 +151,7 @@ const STATUS_KIND = {
   "보류": "purple", "취소": "teal",
 };
 export function statusText(v) {
-  if (v === true) return "예"; if (v === false) return "아니오";
+  if (v === true) return "예"; if (v === false) return "아니요";
   // 빈 문자열도 null/undefined와 같이 취급한다 — 안 그러면 배지가 텍스트 없이(스크린리더도
   // 낭독할 게 없이) 빈 채로 그려진다(product-quality-audit AREA=D).
   const s = String(v == null || v === "" ? "unknown" : v);
@@ -1754,7 +1757,7 @@ const EMPTY_STATE_PROPS = [
 
 export function EmptyState(props) {
   const {
-    icon = null, title = "표시할 항목이 없습니다", help, situation, prerequisite,
+    icon = null, title = "표시할 항목이 없습니다.", help, situation, prerequisite,
     steps, expected, action, relatedLink, art, size, layout = "region",
     ...rest
   } = props;
@@ -1914,7 +1917,7 @@ export function EmptyState(props) {
             {action}
             {relatedLink && relatedLink.href ? (
               <Link href={relatedLink.href} underline="hover" sx={{ fontSize: compact ? FONT_SIZE.bodySm : FONT_SIZE.body }}>
-                {relatedLink.label || "관련 화면으로"}
+                {relatedLink.label || "관련 화면으로 이동"}
               </Link>
             ) : null}
           </Box>
@@ -1961,7 +1964,7 @@ function EmptyBand({ title, help, action, relatedLink, icon, inset }) {
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexShrink: 0 }}>
           {action}
           {relatedLink && relatedLink.href ? (
-            <Link href={relatedLink.href} underline="hover" sx={{ fontSize: FONT_SIZE.bodySm }}>{relatedLink.label || "관련 화면으로"}</Link>
+            <Link href={relatedLink.href} underline="hover" sx={{ fontSize: FONT_SIZE.bodySm }}>{relatedLink.label || "관련 화면으로 이동"}</Link>
           ) : null}
         </Box>
       ) : null}
@@ -2051,15 +2054,15 @@ export function ErrorState({
   }, [waitSeconds, error]);
   // 401/403/404는 재시도해도 같은 실패가 반복된다 — '다시 시도'는 일시적 오류에만 준다.
   const noRetry = isAuth || isForbidden || isGone || isQuota;
-  const title = titleProp != null ? titleProp : isAuth ? "로그인이 필요합니다"
-    : isPwChange ? "비밀번호 변경이 필요합니다"
-    : isForbidden ? "권한이 없습니다"
-    : isGone ? "찾을 수 없습니다"
-    : isOffline ? "서버에 연결하지 못했습니다"
-    : isRateLimited ? "요청이 너무 잦습니다"
-    : isChunk ? "새 버전이 배포됐습니다"
-    : isRender ? "화면을 표시하지 못했습니다"
-    : "불러오지 못했습니다";
+  const title = titleProp != null ? titleProp : isAuth ? "로그인이 필요합니다."
+    : isPwChange ? "비밀번호 변경이 필요합니다."
+    : isForbidden ? "권한이 없습니다."
+    : isGone ? "찾을 수 없습니다."
+    : isOffline ? "서버에 연결하지 못했습니다."
+    : isRateLimited ? "요청이 너무 잦습니다."
+    : isChunk ? "새 버전이 배포됐습니다."
+    : isRender ? "화면을 표시하지 못했습니다."
+    : "불러오지 못했습니다.";
   const help = helpProp != null ? helpProp : isPwChange ? msg
     : isForbidden ? "이 항목에 접근할 권한이 없습니다. 관리자에게 문의하세요."
     : isGone ? "요청한 항목을 찾을 수 없습니다. 이미 삭제되었거나 이동했을 수 있습니다."
@@ -2117,11 +2120,11 @@ export function ErrorState({
   const actionVariant = layout === "page" ? "primary" : "default";
   const action = actionProp !== undefined ? actionProp : isAuth
     /* 되돌아올 곳을 실어 보낸다 — 재로그인 뒤 보던 화면으로 돌아온다(지시 19). */
-    ? <Button variant={actionVariant} size="sm" href={loginUrl()}>로그인 화면으로</Button>
+    ? <Button variant={actionVariant} size="sm" href={loginUrl()}>로그인 화면으로 이동</Button>
     // "홈으로"(#/)는 이 SPA 안이라 다시 같은 403을 부른다 — 실제 페이지 이동이 필요하다.
-    : isPwChange ? <Button variant={actionVariant} size="sm" href="/change-password">비밀번호 변경하기</Button>
+    : isPwChange ? <Button variant={actionVariant} size="sm" href="/change-password">비밀번호 변경</Button>
     // 403/404는 재시도해도 소용없지만 아무 동작도 없으면 막다른 길이다.
-    : (isForbidden || isGone) ? <Button variant={actionVariant} size="sm" href="#/">홈으로</Button>
+    : (isForbidden || isGone) ? <Button variant={actionVariant} size="sm" href="#/">홈으로 이동</Button>
     // 새 버전이 배포된 것은 다시 시도로 안 풀린다 — 새 파일을 받는 새로고침이 그 자리의 동작이다.
     : isChunk ? (onRetry ? <Button variant={actionVariant} size="sm" onClick={onRetry}>새로고침</Button> : null)
     // 429 대기 중에는 버튼을 잠근다 — 눌리는 「다시 시도」는 제한을 스스로 연장시킨다.
@@ -2698,7 +2701,7 @@ function GroupHeaderMeta({ group }) {
  *
  * 이 묶음은 밀집 줄(30)이다(D-526) — 안에 선 고르개 · 입력도 컨트롤 높이 변수(`densityVars("dense")`)를 받아 30 단추와 같은
  * 높이 · 같은 윗선에 선다. 예전에는 「일괄 지정」 칸이 34 로 서서 옆 30 단추와 2px 씩 어긋났다. */
-export function SelectionBar({ count, unit = "개", clearLabel = "해제", onClear, children, sx }) {
+export function SelectionBar({ count, unit = "개", clearLabel = "선택 해제", onClear, children, sx }) {
   if (!count) return null;
   return (
     <Box
@@ -4237,7 +4240,7 @@ export function FormField({ field: f, value, onChange, invalid, maxLength, error
       >
         {selNeedEmpty ? (
           <MenuItem value="" disabled={required}>
-            {hasOptions ? "선택 안 함" : "선택할 항목이 없습니다"}
+            {hasOptions ? "선택 안 함" : "선택할 항목이 없습니다."}
           </MenuItem>
         ) : null}
         {(f.options || []).map((o) => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
@@ -4394,14 +4397,14 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
       let val = chosen(f);
       if (f.type === "number") {
         if (val === "" || val == null) { if (f.required) { fail(f.name, f.label + objectParticle(f.label) + " 입력하세요."); return; } if (hadValue) body[f.name] = null; continue; }
-        val = Number(val); if (Number.isNaN(val)) { fail(f.name, f.label + ": 숫자를 입력하세요."); return; }
+        val = Number(val); if (Number.isNaN(val)) { fail(f.name, f.label + "에 숫자를 입력하세요."); return; }
         body[f.name] = val; continue;
       }
       else if (f.type === "checkbox") { const checkName = f.checkLabel || f.label; if (f.required && !val) { fail(f.name, checkName + objectParticle(checkName) + " 선택해야 합니다."); return; } body[f.name] = !!val; continue; }
       else if (f.type === "json") {
         if (!val || !String(val).trim()) { if (f.required) { fail(f.name, f.label + objectParticle(f.label) + " 입력하세요."); return; } if (hadValue) body[f.name] = null; continue; }
         let parsed;
-        try { parsed = JSON.parse(val); } catch (e) { fail(f.name, f.label + ": JSON 형식이 올바르지 않습니다."); return; }
+        try { parsed = JSON.parse(val); } catch (e) { fail(f.name, f.label + "의 JSON 형식이 올바르지 않습니다."); return; }
         // 일부 필드(예: 정책 content)는 백엔드가 JSON 객체만 허용한다 — 서버와 같은 문구로 먼저 막는다.
         if (f.jsonObject && (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))) {
           fail(f.name, f.label + topicParticle(f.label) + " JSON 객체여야 합니다."); return;
@@ -4413,7 +4416,7 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
         val = val == null ? "" : String(val);
         if (f.required && !val.trim()) {
           // 옵션 자체가 없으면 '선택하세요'는 헛도는 무한 루프다 — 원인이 다른 문구를 준다.
-          if (!(f.options || []).length) { fail(f.name, f.label + ": 선택할 수 있는 항목이 없습니다. 다시 시도하거나 취소하세요."); return; }
+          if (!(f.options || []).length) { fail(f.name, f.label + "의 선택지가 없습니다. 다시 시도하거나 취소하세요."); return; }
           fail(f.name, f.label + objectParticle(f.label) + " 선택하세요."); return;
         }
         body[f.name] = val === "" ? null : val; continue;

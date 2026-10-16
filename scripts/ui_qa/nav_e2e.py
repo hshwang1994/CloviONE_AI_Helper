@@ -454,7 +454,7 @@ def measure_palette(page, out: Path, theme: str, base: str) -> dict:
     for path in ("/my-tickets", "/projects", "/chat-rooms", "/profile"):
         _goto(page, base, path)
     _goto(page, base, "/me")
-    page.locator('[aria-label="통합 검색과 명령 열기"]').first.click()
+    page.locator('[aria-label="통합 검색 열기"]').first.click()
     page.wait_for_selector('input[aria-label="통합 검색"]', timeout=15_000)
     page.wait_for_timeout(800)
     got["recent"] = page.evaluate(PALETTE_JS)

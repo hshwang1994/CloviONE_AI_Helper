@@ -13,6 +13,8 @@ import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
  * 그 경로의 5xx 는 한 건도 없었다. 화면의 「500」은 `ErrorState` 의 그림이었다 — 401 · 403 · 404 ·
  * 연결 끊김이 아닌 실패가 **전부** 이 그림이라, 화면 코드의 예외 · 요청 제한(429) · 프록시의 이상한
  * 응답까지 「서버 오류 500」으로 보였다. 그림이 거짓말을 하면 사용자는 고장 난 곳을 잘못 짚는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 function ui(node) {
@@ -61,12 +63,12 @@ describe("화면 실패 두 갈래 — 렌더 예외 · 새 버전 배포", () =
     const retry = vi.fn();
     const { container } = ui(
       <ErrorState
-        error={{ kind: "render", message: "다시 시도해도 같으면 새로고침해 주세요.", detail: "TypeError: x is undefined\n    at Board (WorkBoard.jsx:12)" }}
+        error={{ kind: "render", message: "다시 시도해도 화면이 열리지 않으면 새로고침해 주세요.", detail: "TypeError: x is undefined\n    at Board (WorkBoard.jsx:12)" }}
         onRetry={retry}
         secondaryAction={<button type="button">새로고침</button>}
       />,
     );
-    expect(screen.getByRole("heading", { name: "화면을 표시하지 못했습니다" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "화면을 표시하지 못했습니다." })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "새로고침" })).toBeInTheDocument();
     const detail = container.querySelector("[data-error-detail]");
@@ -78,7 +80,7 @@ describe("화면 실패 두 갈래 — 렌더 예외 · 새 버전 배포", () =
   it("새 버전이 배포돼 화면 파일을 못 받은 것은 새로고침만 준다", () => {
     const reload = vi.fn();
     const { container } = ui(<ErrorState error={{ kind: "chunk", message: "x" }} onRetry={reload} />);
-    expect(screen.getByRole("heading", { name: "새 버전이 배포됐습니다" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "새 버전이 배포됐습니다." })).toBeInTheDocument();
     expect(screen.getByText("새로고침하면 새 버전의 화면이 열립니다.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "새로고침" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();

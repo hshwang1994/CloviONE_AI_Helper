@@ -16,6 +16,8 @@ import "@testing-library/jest-dom/vitest";
  *
  * 댓글 **수정**(saveEdit)은 대조군으로 남긴다 — 본문만 바뀌고 어떤 목록 집계도 안 바뀌므로
  * 의도적으로 폭넓은 무효화를 안 한다(코드 주석 참고).
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -173,7 +175,7 @@ describe("게시글 상세 — 댓글/반응/상태 변경이 목록·홈·내 �
     expect(await screen.findByText("제안 글")).toBeInTheDocument();
     // 티켓의 상태 열과 같은 손짓이다 — 배지를 눌러 그 자리에서 고르면 바로 저장된다
     // (`ui/InlineEdit.jsx`). 옛 「다음 상태 드롭다운 + 적용」은 걷었다.
-    await user.click(screen.getByRole("button", { name: /제안 상태 바꾸기/ }));
+    await user.click(screen.getByRole("button", { name: /제안 상태 수정/ }));
     await user.click(await screen.findByRole("option", { name: "반려" }));
 
     await waitFor(() => {

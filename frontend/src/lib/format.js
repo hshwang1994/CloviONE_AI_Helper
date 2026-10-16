@@ -228,7 +228,7 @@ export function shortUA(ua) {
 // 감사/승인 enum 한국어화 — "대상.동작" 꼴을 대상/동작으로 나눠 번역(감사 로그·대시보드·승인 공용).
 export const OBJECT_KO = {
   user: "사용자", integration: "외부 연동", runner: "러너", workflow: "워크플로", prompt: "프롬프트",
-  policy: "정책", template: "템플릿", schedule: "스케줄", approval: "승인", backup: "백업",
+  policy: "정책", template: "템플릿", schedule: "실행 일정", approval: "승인", backup: "백업",
   setting: "설정", conversation: "대화", user_notion_mapping: "Notion 연결", notion_mapping: "Notion 연결",
   notification: "알림", document: "문서", job: "작업", role: "역할", session: "세션", auth: "인증",
   department: "부서", job_title: "직책", "job-title": "직책", message: "메시지",
@@ -362,7 +362,7 @@ export const jobTypeKo = (t) => (t == null || t === "" ? "-" : (JOB_TYPE_KO[t] |
 // app/users/service.py:361. runner_unavailable 은 S11 이 러너와 함께 걷어냈다.)
 export const TYPE_KO = {
   account_locked: "계정 잠금", job_failed: "작업 실패", approval_requested: "승인 요청",
-  approval_decided: "승인 결정", approval_expired: "승인 만료", schedule_failed: "스케줄 실패",
+  approval_decided: "승인 결정", approval_expired: "승인 만료", schedule_failed: "일정 실행 실패",
   // 요청자 본인이 아니라 admin/system_admin이 남의 대기 요청을 대신 취소했을 때만 간다
   // (본인이 취소했으면 이미 알고 있어 안 보낸다, app/approvals/service.py::cancel).
   approval_cancelled: "승인 취소",
@@ -438,7 +438,7 @@ export const actionKo = (v) => {
 export const APPROVAL_TYPE_KO = {
   "user.role_change": "역할 변경",
   "integration.change_config": "연동 설정 변경",
-  "schedule.enable": "스케줄 활성화",
+  "schedule.enable": "실행 일정 활성화",
   "ai.document_create": "AI 문서 만들기",
 };
 export const approvalTypeKo = (v) => (v == null || v === "" ? "-" : (APPROVAL_TYPE_KO[v] || actionKo(v)));
@@ -475,7 +475,7 @@ export function bulkFailureNote(failed) {
   const list = failed || [];
   if (!list.length) return "";
   const reason = (list[0] && list[0].error) || "권한이 없습니다.";
-  return ` ${list.length}건은 건너뛰었습니다: ${reason}`;
+  return ` ${list.length}건은 건너뛰었습니다. 사유: ${reason}`;
 }
 
 /* 보관된(퇴사한) 계정임을 화면이 말한다 (N3). */

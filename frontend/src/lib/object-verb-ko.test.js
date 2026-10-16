@@ -6,6 +6,8 @@ import { objKo, actionKo, approvalTypeKo } from "./format.js";
  * (OBJECT_KO/VERB_KO)엔 한 번도 안 들어와 있었다 — 감사 로그의 '대상'/'작업' 칸에 영어 원문이
  * 샜다. ai_quota/approval_delegation/announcement/offboarding(.run/.undo)도 MEGA CYCLE G의
  * 크로스링크 조사에서 같은 결함 부류로 함께 발견했다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 describe("감사 로그 '대상' 칸 — 새로 채운 object_type 번역", () => {
   it.each([
@@ -32,7 +34,7 @@ describe("감사 로그 '작업' 칸 — offboarding.run/offboarding.undo", () =
   });
 
   it("두 낱말을 쉼표로 잇지 않는다 — 「스케줄 활성화」", () => {
-    expect(actionKo("schedule.enable")).toBe("스케줄 활성화");
+    expect(actionKo("schedule.enable")).toBe("실행 일정 활성화");
     expect(actionKo("schedule.enable")).not.toMatch(/,/);
   });
 });
@@ -41,7 +43,7 @@ describe("승인 요청 유형 — 서버와 같은 낱말", () => {
   it.each([
     ["user.role_change", "역할 변경"],
     ["integration.change_config", "연동 설정 변경"],
-    ["schedule.enable", "스케줄 활성화"],
+    ["schedule.enable", "실행 일정 활성화"],
     ["ai.document_create", "AI 문서 만들기"],
   ])("approvalTypeKo('%s') === '%s'", (raw, ko) => {
     expect(approvalTypeKo(raw)).toBe(ko);

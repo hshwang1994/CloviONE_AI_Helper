@@ -155,7 +155,7 @@ function TabShellBody({
 
       {roleDenied ? (
         <EmptyState
-          title="권한이 없습니다"
+          title="권한이 없습니다."
           help={deniedHelp || requested.deniedHelp || "이 탭을 볼 권한이 없습니다."}
           art="noPermission"
           action={<Button variant="primary" href="#/dashboard">대시보드로 이동</Button>}
