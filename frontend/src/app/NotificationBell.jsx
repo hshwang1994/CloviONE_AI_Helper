@@ -547,8 +547,11 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
              종에서 떨어져 상단바 위 가장자리에 **분리된 빨간 원반**으로 뜬다(52px 바에서 y=2,
              독립 검수자 실측). 종과 배지는 하나의 신호이므로 붙어 있어야 한다. 값이 px 인
              이유는 대상이 MUI 기본 치수(40 hit / 24 icon)이기 때문이다 — 그 둘이 바뀌면
-             여기도 함께 봐야 한다. */
-          sx={{ "& .MuiBadge-badge": { top: "9px", right: "9px" } }}
+             여기도 함께 봐야 한다.
+             🔴 당긴 배지는 종 단추의 가운데를 덮는다(34px 단추, 배지 20px). 배지가 누름을 받으면 숫자를 누른 사람의
+             클릭이 단추에 닿지 않아 알림 창이 안 열렸다(r23 화면 대장 EX-UI6, 실브라우저 클릭이 배지에 막힘). 배지는
+             표시일 뿐이라 누름을 단추로 흘려보낸다. */
+          sx={{ "& .MuiBadge-badge": { top: "9px", right: "9px", pointerEvents: "none" } }}
         >
           <IconButton
             ref={bellRef}

@@ -133,3 +133,16 @@ describe("알림 벨 — 읽음 처리는 서버를 기다리지 않고 배지�
     });
   });
 });
+
+/* r23 화면 대장 EX-UI6 — 숫자 배지는 종 단추 가운데를 덮는다(34px 단추, 20px 배지를 글리프 쪽으로 당겼다). 배지가 누름을 받으면
+   숫자를 누른 사람의 클릭이 단추에 닿지 않아 알림 창이 안 열렸다. 배지는 표시일 뿐이라 누름을 흘려보내야 한다. */
+describe("알림 벨 — 숫자 배지는 누름을 막지 않는다", () => {
+  it("배지는 pointer-events 를 받지 않는다", async () => {
+    mount();
+    const bell = await screen.findByRole("button", { name: /읽지 않음 3/ });
+    const badge = bell.parentElement.querySelector(".MuiBadge-badge");
+    expect(badge).not.toBeNull();
+    expect(badge).toHaveTextContent("3");
+    expect(getComputedStyle(badge).pointerEvents).toBe("none");
+  });
+});

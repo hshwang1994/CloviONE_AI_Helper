@@ -2,6 +2,7 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import Box from "@mui/material/Box";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../lib/api.js";
@@ -279,11 +280,14 @@ export function ChatRooms() {
    * ("기본으로 만들어진 방은 기본적으로 내 팀임"). 부서가 없으면 전체 채팅으로 떨어진다.
    * `replace` 로 바꾸는 이유: 뒤로가기를 눌렀을 때 빈 목록 화면으로 돌아가 다시 여기로
    * 튕기는 고리가 생기지 않게 한다. */
+  /* 🔴 **두 판이 나란히 설 때만** 연다. 좁은 화면은 한 판만 보이므로 `/chat-rooms` 가 곧 방 목록이다 — 여기서도 열면 방 머리의
+     「목록」(→ `/chat-rooms`)이 그 자리에서 다시 팀 방으로 튕겨, 휴대폰에서 방 목록에 닿을 길이 없었다(r23 화면 대장 EX-C2, 390). */
+  const twoPanels = useMediaQuery((t) => t.breakpoints.up("md"), { noSsr: true });
   React.useEffect(() => {
-    if (activeId) return;
+    if (activeId || !twoPanels) return;
     const fallback = (team && team.id) || (glob && glob.id);
     if (fallback) nav(`/chat-rooms/${fallback}`, { replace: true });
-  }, [activeId, team && team.id, glob && glob.id]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeId, twoPanels, team && team.id, glob && glob.id]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const listPanel = (
     // 헤더(제목줄) · 검색줄 · 목록, 자식 셋이 항상 그려지는데 트랙을 "auto 1fr" 둘만 주면
