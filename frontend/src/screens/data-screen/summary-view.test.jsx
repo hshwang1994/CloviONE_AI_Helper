@@ -98,3 +98,26 @@ describe("sentence — 지금 상태 한 문장(정책, D-542)", () => {
     expect(container.querySelector("[data-testid='summary-sentence']")).toBeNull();
   });
 });
+
+describe("status — 합계 줄의 이름과 단위는 registry 가 말한다 (D-587)", () => {
+  it("「전체 작업 26건」 — 낱말이 먼저이고 단위가 붙는다(작업 큐)", () => {
+    const { container } = draw({
+      kind: "status", totalLabel: "전체 작업", unit: "건",
+      total: () => 26,
+      cards: () => [{ key: "queued", label: "대기 중", value: 7 }, { key: "done", label: "완료", value: 19 }],
+    });
+    const total = container.querySelector("[data-summary-total]") || container;
+    expect(within(total).getByText("전체 작업")).toBeInTheDocument();
+    expect(within(total).getByText("26건")).toBeInTheDocument();
+  });
+
+  it("반례 — 이름과 단위를 안 주면 「전체」와 맨 숫자 그대로다", () => {
+    const { container } = draw({
+      kind: "status", total: () => 26,
+      cards: () => [{ key: "queued", label: "대기 중", value: 7 }, { key: "done", label: "완료", value: 19 }],
+    });
+    const total = container.querySelector("[data-summary-total]") || container;
+    expect(within(total).getByText("전체")).toBeInTheDocument();
+    expect(within(total).getByText("26")).toBeInTheDocument();
+  });
+});

@@ -64,6 +64,9 @@ export function SummaryView({ summary, data, ctx, sx }) {
         ariaLabel="요약"
         sx={sx}
         total={summary.total ? summary.total(data) : undefined}
+        /* 합계의 이름과 단위는 registry 가 말한다(D-587 「전체 작업 26건」) — 안 주면 「전체」 · 단위 없음 그대로다. */
+        totalLabel={summary.totalLabel}
+        unit={summary.unit}
         items={parts}
         risks={risks}
         notes={notes}

@@ -276,6 +276,8 @@ export const AUTOMATION_SCREENS = {
          신호이고, 평균 처리 시간이 구성에 들지 않는 측정값(카드 아래 한 줄)이다(계획 표 7 · D-501).
          전체를 안 주던 때는 카드 머리 줄이 비어 오른쪽 끝에 「실행 가능 7」만 떠 있었다. */
       kind: "status",
+      totalLabel: "전체 작업",
+      unit: "건",
       total: (s) => ["queued", "running", "failed", "succeeded", "cancelled"]
         .reduce((sum, k) => sum + (Number(s && s[k]) || 0), 0),
       // (s, {setFilter}) — Dashboard.jsx/Ops.jsx는 이미 이 화면 바깥에서 동일한 카운트 데이터로
