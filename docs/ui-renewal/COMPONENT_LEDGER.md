@@ -23,7 +23,7 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 |---|---|---|---|---|---|---|
 | 페이지 동작 34 · 인라인 30 | `Button` | `ui/kit.jsx` | variant default(=secondary) · primary · ghost · danger · dangerConfirm, `size sm`, 라벨 한 줄 · 안 줄어듦 · `truncate` 만 말줄임, 보조 = 라이트 흰 면 + 경계선 · 다크 투명 면 + 강한 경계선, 파괴 = `error.line` 테두리 + `error.main` 글자(§0-17) | 78 | 버튼 | `handoff-kit-contract`, `long-text-contract`, `kit.test` |
 | 알릴 사실(메시지 박스 1a) | `Callout` | `ui/kit.jsx` | 네 톤 같은 면 · 아이콘만 상태, 톤 이름 줄 없음, `compact` · `inline` · `bleed`, error=alert | 63 | 메시지 박스 | `kit.test`, `handoff-kit-contract` |
-| 빈 상태 | `EmptyState` | `ui/kit.jsx` | layout page/card/region/inline, 클로비 page 132/112 · 판 72 · inline 없음(D-485) | 58 | 빈 상태와 오류 | `list-empty-two-faces`, `mascot-size-contract` |
+| 빈 상태 | `EmptyState` | `ui/kit.jsx` | layout page/card/region/inline, 클로비 page 132/112 · inline 없음(D-485), card · region 의 `art` 는 외곽선 아이콘(`data-empty-icon`, D-588) | 58 | 빈 상태와 오류 | `list-empty-two-faces`, `mascot-size-contract` |
 | 조건 0건 / 자료 0건 | `ListEmptyState` | `ui/kit.jsx` | `filtered` 갈래 소유, 조건 지우기는 30 보조(§0-18 목록 판) | 7 | 이럴 때 이것 | `list-empty-two-faces` |
 | 오류 상태 | `ErrorState` | `ui/kit.jsx` | layout 별 클로비(errorPage/errorRegion), 아이콘, 판 안 동작 30, 모르는 size/layout DEV 중지. 그림은 실패의 종류다 — 「500」 팻말은 status ≥ 500 만, 429 · 새 버전 배포(청크)는 기다리는 그림, 그 밖은 오류 그림. `kind` render/chunk · 복사할 기술 정보 `detail` · `secondaryAction` · `retryLabel`(D-498) | 62 | 빈 상태와 오류 | `kit.test`, `handoff-kit-contract` |
 | 로딩 | `Skeleton` | `ui/kit.jsx` | kind section/table/chart/page | 60 | 빈 상태와 오류 | `skeleton-shapes` |
@@ -31,13 +31,13 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 사람이 붙인 낱말 | `Tag` | `ui/kit.jsx` | 22 · R6 · 400 · 흰 면 + 테두리, 한 줄 말줄임 | 7 | 배지와 태그와 점과 칩 | `badge-vs-tag`, `long-text-contract` |
 | 점 + 낱말(표 · 칸반 · 목록 행) | `DotLabel` | `ui/kit.jsx` | 7px 점 aria-hidden, 한 줄 · title, `size="caption"`(목록 행 · 카드 안 작은 글자 — 화면별 글자 덮어쓰기 대신) | 8 | 배지와 태그와 점과 칩 | `handoff-kit-contract` |
 | 건수 미니 칩 | `CountChip` | `ui/kit.jsx` | 20 한 값, `compact` 18, `unread` Primary | 6 | 배지와 태그와 점과 칩 | `handoff-kit-contract` |
-| 보기 전환 | `Segmented` | `ui/kit.jsx` | 34 = 28 + 3×2(선은 안쪽 그림자), roving tabindex + 화살표/Home/End | 8 | 세그먼티드 | `kit.test`, `handoff-kit-contract` |
-| 데이터 표 | `DataTable` | `ui/kit.jsx` | 머리 40 · 행 ≥48 · `rowHeight=tall` ≥76 · 묶음 36 · 발 44, 제목만 왼쪽(머리 = 행), 빈 표 = EmptyState region, `placement` surface/card/plain · `list` · `selection` · `note`(§0-18 목록 판) | 25 | 데이터 표, 목록 화면 조합 | `column-types`, `datatable-*`, `list-surface` |
+| 보기 전환 | `Segmented` | `ui/kit.jsx` | 34 = 28 + 3×2(선은 안쪽 그림자), roving tabindex + 화살표/Home/End, 자기 내용 폭(`alignSelf: flex-start`, r23 #25) | 8 | 세그먼티드 | `kit.test`, `handoff-kit-contract` |
+| 데이터 표 | `DataTable` | `ui/kit.jsx` | 머리 40 · 행 ≥48 · `rowHeight=tall` ≥76 · 묶음 36 · 발 44, 제목만 왼쪽(머리 = 행), 빈 표 = EmptyState region, `placement` surface/card/plain · `list` · `selection` · `note`(§0-18 목록 판). 조건 없는 0건도 같은 셸의 띠(D-588). 열 `opensRow` 면 숨긴 열 안내가 「행을 열면」(r23 #48). 그리는 함수만 있는 열은 `value` 를 함께 줘야 열 폭을 잰다(D-529). 카드 뷰(좁은 폭)의 `TitleCell` 은 두 줄까지(`CARD_TITLE_CLAMP`, r23 #9) | 25 | 데이터 표, 목록 화면 조합 | `column-types`, `datatable-*`, `list-surface` |
 | 격자 머리 칸 | `GridHeaderCell` | `ui/GridHeaderCell.jsx` | `role=columnheader` · `aria-sort`, 안쪽은 표 머리와 같은 `HeaderCellContent`(이름 · 정렬 단추 · 머리 필터, `TableHeaderCell.jsx`) — 새 UX 없음(D-497) | 1 | — | `grid-header-cell` |
 | 판 | `Card` | `ui/kit.jsx` | 여백 20, 판 안의 판은 여백까지 사라짐 | 49 | 모든 절 | `density-contract` |
 | 표가 아닌 목록의 판 | `ListCard` | `ui/kit.jsx` | 자기 안을 자르지 않음(판 안 고정 머리). 표를 담는 목록은 쓰지 않는다 — `DataTable placement="surface"` | 1 | — | `kit.test` |
 | 행 동작 | `RowActions` | `ui/kit.jsx` | ≤2 → 30 보조/파괴 단추(채움 없음), >2 → `OverflowMenu sm` 하나, `icon` 항목은 30 아이콘 단추, `data-row-actions` | 8 | 데이터 표, 목록 화면 조합 | `row-actions` |
-| 제목 칸 | `TitleCell` | `ui/kit.jsx` | 링크색 `primary.dark` 600 한 줄 · 말줄임 · title, `onOpen` 단추 · `href` 앵커 · `link` 색만 · 셋 다 없으면 잉크 | 6 | 목록 화면 조합 | `list-surface`, `theme-link-contrast` |
+| 제목 칸 | `TitleCell` | `ui/kit.jsx` | 링크색 `primary.dark` 600 한 줄 · 말줄임 · title(표 카드 뷰 안에서만 두 줄), `onOpen` 단추 · `href` 앵커 · `link` 색만 · 셋 다 없으면 잉크 | 6 | 목록 화면 조합 | `list-surface`, `theme-link-contrast` |
 | 게임방 껍데기 | `GameRoomLayout` | `screens/game-room/GameRoomLayout.jsx` | fill(판 \| 레일 20 · 22 · 26rem, 레일 바닥 = 판 바닥, 페이지 안 굴림) · flow(판 16:9 전폭 + 아래 참여자 \| 채팅) · mobile(판 4:3 + 탭), 루트 = 전체 화면 대상 · overlay 축포 캔버스(D-575) | 1 | — | `game-room-layout.test` · `games_e2e --layout` |
 | 판 틀 | `BoardFrame`(+`.Centered` · `.Notice` · `useBoardSize`) | `screens/game-room/BoardFrame.jsx` | Surface plate · 여백 0 · 모서리 8px · ResizeObserver 크기 문맥, 대기 · 진행 · 종료에서 판 사각 불변(D-575) | 1 | — | `game-room-layout.test` |
 | 방 레일 | `RoomRail` | `screens/game-room/RoomRail.jsx` | 위 판(참여자, 구슬 방은 참여자 \| 순위)은 내용만큼 · 천장 레일의 55% · 안쪽 굴림, 한 줄 줄(말줄임 + `title`) + 채팅은 남는 높이(바탕 0) · 바닥 18rem · 입력 고정, compact 여백, mobile 탭(D-575 · D-594) | 1 | — | `game-room-layout.test` · `members-list-one-line.test` · `games_e2e --rail` |
@@ -68,7 +68,7 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 토스트 | `useToast` | `ui/kit.jsx` | 성공 · 정보만, 잉크 면(다크 함몰면), 모서리 8 | 51 | 빈 상태와 오류 | `toast-announce` |
 | 팝오버 동작 목록 | `overflowMenuItems` | `ui/kit.jsx` | 32 항목, 파괴적만 error 글자 + 위 선 | 3 | 팝오버와 모달 | `kit.test` |
 | 폼 칸 | `FormFieldCell` | `ui/kit.jsx` | 라벨 20 · 필드 36(바닥 — 칩이 접히면 자란다) · 도움말 auto, 오류가 도움말 자리 | 1 | 폼 필드 | `handoff-kit-contract`, `new-ticket-layout` |
-| 속성 줄 | `MetaBar` | `ui/kit.jsx` | 키/값. `strip` — 모든 칸이 이름과 값이 한 줄에 붙는 띠 하나(짧은 상태 면, P17V) | 7 | — | `metabar-hierarchy` |
+| 속성 줄 | `MetaBar` | `ui/kit.jsx` | 키/값. 순위 칸(`rank: "primary"`)의 이름형도 내용 폭 · 상한 20rem(r23 #96 — 늘어나는 칸이면 마감이 빈 칸 뒤로 밀렸다). `strip` — 모든 칸이 이름과 값이 한 줄에 붙는 띠 하나(짧은 상태 면, P17V) | 7 | — | `metabar-hierarchy` |
 | 사실 줄 | `FACTS_ROW_SX` · `TechDetail trailing` | `ui/kit.jsx` | 상태 면의 단계 · 속성 띠 끝에 「기술 정보」가 접힌 채 오른쪽 끝에 붙고, 펼치면 제 줄로 내려간다(메일 · AI 연결 상태 면, P17V) | 2 | — | `tech-detail-trailing` |
 | 페이지 머리 | `PageHeader` | `ui/kit.jsx` | 제목 28/700 + 설명 + 동작 34 | 34 | 머리 | `page-header-*` |
 | 필터 바 그릇 | `FilterSurface` | `ui/FilterBar.jsx` | 판 없음 · 아래 실선 · 줄 칸 문맥 제공 · 이름 붙은 크기 컨테이너(wide 칸 계단의 기준 — 내용 폭으로 줄어드는 자리에 두지 않는다, D-496) | 2 | 검색과 필터 바 | `filter-row-width`, `handoff-kit-contract` |
@@ -77,7 +77,7 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 필터 바 오른쪽 묶음 | `ToolbarEnd` | `ui/FilterBar.jsx` | 통째로 줄바꿈(nowrap · 안 줄어듦) | 1 | 검색과 필터 바 | — |
 | 결과 수 | `ResultLine` | `ui/FilterBar.jsx` | 「전체 N건」(조건 없을 때) | 1 | 검색과 필터 바 | `filter-row-width` |
 | 조건 칩 줄 | `FilterChips` | `ui/FilterBar.jsx` | 26 · 알약 · 틴트 · X | 0 | 검색과 필터 바 | `filter-row-width` |
-| 조건 줄(둘째 줄) | `FilterConditionLine` | `ui/FilterBar.jsx` | 조건이 있을 때만 · 위 실선 · 「조건 N개에 맞는 결과가 M건입니다.」(D-506, `filterSummaryText`) | 0 | 검색과 필터 바 | `handoff-kit-contract` |
+| 조건 줄(둘째 줄) | `FilterConditionLine` | `ui/FilterBar.jsx` | 조건이 있을 때만 · 위 실선 · 「검색 결과 M건」(D-587, `filterSummaryText`) | 0 | 검색과 필터 바 | `handoff-kit-contract` |
 | 문맥 · 보기 줄 | `ContextBar` | `ui/ContextBar.jsx` | 「어느 판 · 어떻게 그리는가」 줄 — 문맥 칸(팀 · 회차 wide) · 보기 전환 · 「보기 옵션」 묶음(`role=group`), 줄 칸 문맥 · 크기 컨테이너, 검색 칸 · 조건 줄 없음, 필터 지우기가 안 건드린다(D-497) | 2 | — | `context-bar` |
 | 필터 켬/끔 · 패널 열기 | `FilterToggle` | `ui/FilterBar.jsx` | 34 버튼, aria-pressed / aria-expanded, 눌림만 함몰면 | 7 | 검색과 필터 바 | `handoff-kit-contract` |
 | 검색창 | `SearchBox` | `ui/filters.jsx` | 줄 칸 34, `layout=fill` 100% | 11 | 검색과 필터 바 | `handoff-kit-contract` |
@@ -90,7 +90,7 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 사람 고르기 | `UserPicker` | `ui/UserPicker.jsx` | 아바타 22 + 이름 + 소속, (나) 표시 | 2 | 팝오버와 모달 | `pickers.test` |
 | 프로젝트 고르기 | `ProjectPicker` | `ui/ProjectPicker.jsx` | 코드 보조 | 2 | — | `pickers.test` |
 | 태그 고르기 | `TagPicker` | `ui/TagPicker.jsx` | renderTags 칩(원재료 호스트) | 3 | — | `tag-picker*` |
-| 상태 요약 | `StatusSummaryCard` | `ui/StatusKpi.jsx` | 카드 하나 · 비율 바는 total 일 때만 · 값 하나 갈래. 제목 · 전체 · 도움말 · 동작이 없으면 머리 줄을 안 세우고, 전체 0 에 누를 칩 · 위험 · 동작이 없으면 안 선다. 위험 칩은 글자 값도 받는다(D-501) | 7 | 상태 요약 | `status-summary-card`, `handoff-kit-contract` |
+| 상태 요약 | `StatusSummaryCard` | `ui/StatusKpi.jsx` | 카드 하나 · 비율 바는 total 일 때만 · 값 하나 갈래. 제목 · 전체 · 도움말 · 동작이 없으면 머리 줄을 안 세우고, 전체 0 에 누를 칩 · 위험 · 동작이 없으면 안 선다. 위험 칩은 글자 값도 받는다(D-501). 합계 줄은 낱말이 먼저(「전체 99건」, D-587)이고 목록 요약은 registry `totalLabel` · `unit` 을 넘긴다(작업 큐 「전체 작업 26건」). 측정값 메모는 이름 위 · 글 아래의 격자(`notes`, r23 #36) | 7 | 상태 요약 | `status-summary-card`, `handoff-kit-contract` |
 | 독립 측정값 줄 | `StatusKpiStrip` | `ui/StatusKpi.jsx` | `note` 캡션 · 값이 null 인 항목은 빠진다(D-501) | 4 | 상태 요약 | `status-kpi-note` |
 | 칸반 카드 | `TicketFace` | `ui/TicketFace.jsx` | 12/14 · 줄 8 · 발 위 실선, 우선순위와 신호 점 + 낱말 | 2 | 칸반 카드 | `ticket-signals`, `handoff-kit-contract` |
 | 신호 표시 | `TicketSignals` | `ui/TicketSignals.jsx` | 기본 dot, 상세 머리 pill, 좁은 표 칸 mark | 4 | 칸반 카드 | `ticket-signals` |
@@ -98,7 +98,7 @@ UI 의미 → 정본 컴포넌트/파일 → API · 상태 계약 → 소비처 
 | 참여자 한 줄 | `MemberRow` | `screens/ChatRoomMembers.jsx` | 접속 점 · 사진 · 이름((나) · 보관됨) · 직급 · 부서 경로 · 방장 배지 · 접속 상태 한 벌 — 명단 팝오버(동작 없음)와 관리 창(동작 칸)이 같이 쓴다(D-502) | 0(같은 파일 둘) | — | `chatroom-members-popover` |
 | 사람 한 줄 | `PersonLine` | `ui/UserAvatar.jsx` | 얼굴 + 이름 말줄임 | 4 | — | — |
 | 페이지 탭 | `TabShell` | `ui/TabShell.jsx` | 라우트 탭 · 탭 순서는 정의 순서 그대로, 옛 주소는 열리는 탭만 바꾼다(`defaultTab`, D-501) | 3 | — | `settings-shell` |
-| 설정 줄 | `SettingRow` | `ui/adminKit.jsx` | `compact` 한 줄 | 4 | 조작기의 상태 | — |
+| 설정 줄 | `SettingRow` | `ui/adminKit.jsx` | `compact` 한 줄(개인 설정 훑기 목록만). 묶음 `SettingRows width="form"` 은 반 칸 폭(`density.js::SETTING_ROWS_FORM`, D-590) | 4 | 조작기의 상태 | — |
 | 상태 줄 목록 | `StatusList` | `ui/adminKit.jsx` | 이름 + 슬롯 | 4 | — | — |
 | 회의 갈래 칩 | `DiscussBucketRow` | `ui/DiscussBucket.jsx` | 알약 + StatusDot, tablist · roving tabindex | 1 | — | `sprint-meeting` |
 | 티켓 미리보기 | `TicketPeek` | `screens/TicketPeek.jsx` | Modal md, 발 → ActionFooter(B) | 2 | — | `ticket-peek` |
