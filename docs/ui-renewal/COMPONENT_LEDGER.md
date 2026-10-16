@@ -420,6 +420,10 @@ B 단계가 전수 흡수를 끝낸 뒤 남는 자리만 적는다. 형식은 �
   받지 않고 39 로 섰다(새 티켓 실측 — 같은 줄의 칸보다 3px 컸다). `theme.js` 가 높이 · 위아래 여백 · 모서리 · 면 · 포커스
   선을 윤곽 입력과 같은 값으로 준다(`theme-contract` 날짜 칸 단언). 소비처: `DateField`(새 티켓 · 티켓 수정 · 회의 결정 ·
   하위 목록 서랍 · 목록 날짜 필터)와 `FormField date`(프로젝트 · 회차 만들기와 고치기).
+- **조작 이름은 한국어다**(r23 조작 요소 대장). MUI 기본값이 접근 이름이 되어 「Choose date」 · 「Year / Month / Day」 · 「Open」으로
+  읽혔다. 날짜 칸은 `DateFieldInner` 의 `LocalizationProvider localeText`(MUI 한국어 로캘 + 고친 줄)가 달력 단추를 「날짜 선택(지금 …)」,
+  구간을 「연도 · 월 · 일」로 부르고, 고르개(`EntityCombobox` · `UserPicker` · `ProjectPicker` · `TagPicker`)의 화살표 · 지우기 단추는
+  테마 `MuiAutocomplete` 기본값(목록 열기 · 목록 닫기 · 선택 지우기)이다. 시험 `date-field-names` · `entity-combobox`.
 - **칸 이름은 칸 위 `FieldLabel`**(노치 라벨 0). select 는 `SelectProps.labelId`, 고르개(`EntityCombobox` · `UserPicker`)는
   `ariaLabelledBy` 로 이름을, 새 prop `ariaDescribedBy` 로 칸 밖 도움말 · 오류 줄을 가리킨다(가리킬 것이 없으면 키를 아예
   싣지 않는다 — `undefined` 를 실으면 MUI 가 도움말에서 이은 설명을 덮어 지운다). 날짜 칸은 라벨의 `for` 가 보이지 않는
