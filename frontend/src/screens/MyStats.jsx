@@ -156,7 +156,9 @@ function WeeklyLoad({ load }) {
   const noDue = (extra.no_due && extra.no_due.count) || 0;
   const soon = weeks.reduce((a, w) => a + (w.count || 0), 0);
   const peak = Math.max(1, ...weeks.map((w) => w.count || 0), later, overdue, noDue);
-  const span = weeks.length ? `${weeks[0].label}부터 ${weeks[weeks.length - 1].label}까지` : "앞으로";
+  /* 창은 이번 주를 포함한 주 수다(`app/profiles/stats.py` — 기본 넷). 「이번 주부터 3주 뒤까지」는 맞는 말이지만 「3주」로 읽혀 창이
+     하나 짧게 들렸다(r23 화면 대장 29). 주 수를 그대로 말한다. */
+  const span = weeks.length ? `이번 주부터 ${weeks.length}주 동안` : "앞으로";
 
   return (
     <Box sx={{ display: "grid", rowGap: 1.5, minWidth: 0 }}>
@@ -180,7 +182,7 @@ function WeeklyLoad({ load }) {
           />
           <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.375 }}>
             <Typography sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_WORD_BREAK }}>
-              {`${span} 마감인 티켓이 ${soon}건입니다.`}
+              {soon ? `${span} 마감 예정인 티켓이 ${soon}건입니다.` : `${span} 마감 예정인 티켓이 없습니다.`}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ ...KO_WORD_BREAK }}>
               {later ? `남은 ${later}건은 그 뒤에 마감입니다.` : "그 뒤에 마감인 티켓은 없습니다."}
@@ -201,7 +203,7 @@ function WeeklyLoad({ load }) {
             startIcon={<FoldMark open={open} />}
             sx={{ ml: "-11px" }}
           >
-            {open ? "주별로 접기" : "주별로 펴기"}
+            {open ? "주별 내역 접기" : "주별 내역 펼치기"}
           </Button>
         </Box>
       </Box>
@@ -416,8 +418,8 @@ export function MyStats() {
                 <Card>
                   <SectionTitle
                     component="h2"
-                    title="앞으로의 부하(주별)"
-                    help="아직 끝나지 않은 티켓만 셉니다. 끝난 일은 부하가 아닙니다."
+                    title="향후 업무량(주별)"
+                    help="아직 끝나지 않은 티켓만 셉니다."
                   />
                   <WeeklyLoad load={load} />
                 </Card>

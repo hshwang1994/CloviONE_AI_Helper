@@ -17,6 +17,8 @@ import { MemoryRouter } from "react-router-dom";
  *   2) 없어진 안내(«Notion 연결»)가 되살아나지 않는다.
 
  * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+
+ * qa-contract-change: 업무량 판의 이름과 문장을 계획 §6 대로 바꿨다 — 「앞으로의 부하(주별)」 → 「향후 업무량(주별)」, 요약은 창의 주 수로 말하고(「이번 주부터 4주 동안 마감 예정인 티켓이 N건입니다.」, 0건이면 「없습니다.」), 손잡이는 「주별 내역 펼치기 · 접기」다. 접힘 · 펼침 단언은 그대로다.
  */
 
 const apiMock = vi.fn();
@@ -106,7 +108,7 @@ describe("내 업무량 · 완료 통계", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "내 업무량과 완료 통계" })).toBeInTheDocument();
     const level2Names = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    for (const title of ["달별 배정과 완료", "앞으로의 부하(주별)", "상태 구성", "남은 일의 우선순위", "공수(WD)"]) {
+    for (const title of ["달별 배정과 완료", "향후 업무량(주별)", "상태 구성", "남은 일의 우선순위", "공수(WD)"]) {
       expect(level2Names).toContain(title);
     }
     expect(level2Names).toHaveLength(5);
@@ -265,10 +267,12 @@ describe("내 업무량 · 완료 통계", () => {
   it("주별 목록은 접혀 있고 요약 한 줄이 먼저 답한다", async () => {
     apiMock.mockResolvedValue(stats());
     renderStats();
-    expect(await screen.findByText(/마감인 티켓이 .*건입니다/)).toBeInTheDocument();
+    expect(await screen.findByText(/마감 예정인 티켓이 (.*건입니다|없습니다)/)).toBeInTheDocument();
     // 접혀 있으니 주 이름이 아직 없다.
     expect(screen.queryByText("이번 주")).toBeNull();
-    expect(screen.getByRole("button", { name: "주별로 펴기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "주별 내역 펼치기" })).toBeInTheDocument();
+    // 창은 이번 주를 포함한 주 수로 말한다 — 「이번 주부터 3주 뒤까지」가 창을 하나 짧게 들리게 했다(r23 화면 대장 29).
+    expect(screen.getByText(/^이번 주부터 \d+주 동안 마감 예정인 티켓이/)).toBeInTheDocument();
   });
 
   /* 손잡이가 요약에서 떨어져 카드 맨 아래 왼쪽에 글자만 남으면 무엇을 펴는 단추인지가
@@ -277,9 +281,9 @@ describe("내 업무량 · 완료 통계", () => {
   it("접기 손잡이는 삼각 표시를 달고 방향으로 지금 상태를 말한다", async () => {
     apiMock.mockResolvedValue(stats());
     renderStats();
-    await screen.findByText(/마감인 티켓이 .*건입니다/);
+    await screen.findByText(/마감 예정인 티켓이 (.*건입니다|없습니다)/);
 
-    const closed = screen.getByRole("button", { name: "주별로 펴기" });
+    const closed = screen.getByRole("button", { name: "주별 내역 펼치기" });
     const mark = closed.querySelector("[data-fold-mark]");
     expect(mark).not.toBeNull();
     // 같은 사실을 낭독기가 두 번 듣지 않는다 — `aria-expanded` 가 이미 말한다.
@@ -288,7 +292,7 @@ describe("내 업무량 · 완료 통계", () => {
     expect(getComputedStyle(mark).transform).toBe("none");
 
     await userEvent.click(closed);
-    const open = screen.getByRole("button", { name: "주별로 접기" });
+    const open = screen.getByRole("button", { name: "주별 내역 접기" });
     expect(open).toHaveAttribute("aria-expanded", "true");
     expect(getComputedStyle(open.querySelector("[data-fold-mark]")).transform).toBe("rotate(90deg)");
   });
@@ -326,8 +330,8 @@ describe("내 업무량 · 완료 통계", () => {
   it("펴면 주별 줄이 서고, 주가 아닌 둘은 구분선 아래로 내려간다", async () => {
     apiMock.mockResolvedValue(stats());
     renderStats();
-    await screen.findByText(/마감인 티켓이 .*건입니다/);
-    await userEvent.click(screen.getByRole("button", { name: "주별로 펴기" }));
+    await screen.findByText(/마감 예정인 티켓이 (.*건입니다|없습니다)/);
+    await userEvent.click(screen.getByRole("button", { name: "주별 내역 펼치기" }));
 
     expect(screen.getByText("이번 주")).toBeInTheDocument();
     /* 🔴 「지난 마감」은 이미 지난 일이고 「마감 없음」은 축 위에 자리가 없다 — 주와 나란히
@@ -336,7 +340,7 @@ describe("내 업무량 · 완료 통계", () => {
     expect(past).toContainElement(screen.getByText("마감 없음"));
     expect(past).not.toContainElement(screen.getByText("이번 주"));
     // 다시 누르면 접힌다.
-    await userEvent.click(screen.getByRole("button", { name: "주별로 접기" }));
+    await userEvent.click(screen.getByRole("button", { name: "주별 내역 접기" }));
     expect(screen.queryByText("이번 주")).toBeNull();
   });
 
@@ -345,8 +349,8 @@ describe("내 업무량 · 완료 통계", () => {
   it("주의 시작 날짜는 줄을 만들지 않고 툴팁으로 남는다", async () => {
     apiMock.mockResolvedValue(stats());
     renderStats();
-    await screen.findByText(/마감인 티켓이 .*건입니다/);
-    await userEvent.click(screen.getByRole("button", { name: "주별로 펴기" }));
+    await screen.findByText(/마감 예정인 티켓이 (.*건입니다|없습니다)/);
+    await userEvent.click(screen.getByRole("button", { name: "주별 내역 펼치기" }));
 
     const label = screen.getByText("이번 주");
     expect(label).toHaveAttribute("title");
