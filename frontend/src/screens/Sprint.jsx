@@ -568,6 +568,11 @@ export function Sprint() {
               }))}
               allLabel="회차 선택"
             />
+            {/* 회차를 고르기 전에는 「최근 회차 열기」가 회차 칸 바로 옆에 선다 — 고를 칸과 여는 단추가 한 묶음이다. 예전에는 화면
+                가운데 안내판 안에 있어 회차 칸에서 200px 아래로 떨어져 있었다(r23 화면 대장 19). */}
+            {sprintsReady && !sprintId && sprintRows.length > 0 ? (
+              <Button variant="primary" onClick={() => setState({ sprint: sprintRows[0].id })}>최근 회차 열기</Button>
+            ) : null}
           </>
         )}
       />
@@ -615,21 +620,15 @@ export function Sprint() {
         />
       ) : null}
       {sprintsReady && !sprintId && sprintRows.length > 0 ? (
-        <EmptyState
-          layout="page"
-          title="회의할 회차를 고르세요."
-          help="위 회차 칸에서 회차를 고르면 번다운과 남은 일을 보며 회의를 시작할 수 있습니다. 열려 있는 회차가 있으면 자동으로 고릅니다."
-          action={
-            <>
-              <Button variant="primary" onClick={() => setState({ sprint: sprintRows[0].id })}>
-                가장 최근 회차 열기
-              </Button>
-              {canPlan ? (
-                <Button variant="secondary" onClick={() => setSprintFormOpen(true)}>회차 추가</Button>
-              ) : null}
-            </>
-          }
-        />
+        /* 안내는 문맥 줄 바로 아래 판 안이다 — 여는 단추는 위 회차 칸 옆에 있다. */
+        <Card data-sprint-pick-hint="">
+          <EmptyState
+            layout="region"
+            title="회의 회차를 선택하세요."
+            help="회차를 선택하면 회의 내용을 확인할 수 있습니다. 열려 있는 회차가 있으면 자동으로 고릅니다."
+            action={canPlan ? <Button variant="secondary" onClick={() => setSprintFormOpen(true)}>회차 추가</Button> : null}
+          />
+        </Card>
       ) : null}
 
       {body ? (
@@ -781,9 +780,9 @@ export function Sprint() {
             </Box>
           </Section>
 
-          {/* 3 — 오늘 논의할 항목. 프로젝트 필터는 **여기만** 좁힌다. */}
+          {/* 3 — 이번 회차 논의 항목(회차의 지금 상태로 센다 — 「오늘」이 아니다). 프로젝트 필터는 **여기만** 좁힌다. */}
           <Section
-            title="오늘 논의할 항목"
+            title="이번 회차 논의 항목"
             help="항목을 누르면 그 티켓이 아래에 나옵니다. 줄을 누르면 미리보기가 열립니다."
             rule
           >

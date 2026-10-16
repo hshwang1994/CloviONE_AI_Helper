@@ -13,6 +13,8 @@ import { vi } from "vitest";
  * 못 박는다.
 
  * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+
+ * qa-contract-change: 회차를 고르기 전 상태를 계획 §6 · 화면 대장 19 대로 바꿨다 — 「최근 회차 열기」는 회차 칸 옆 문맥 줄에 서고(예전 「가장 최근 회차 열기」는 화면 가운데 안내판 안), 안내는 「회의 회차를 선택하세요.」다. 백지가 아니라는 단언과 회차 추가 단추 단언은 그대로다.
  */
 
 const apiMock = vi.fn();
@@ -111,8 +113,10 @@ describe("스프린트 회의 — 회차는 있는데 열린 것이 없다", () 
 
   it("🔴 자동 선택 대신 「회차를 고르세요」 안내가 선다 — 백지가 아니다", async () => {
     renderSprint();
-    await screen.findByText("회의할 회차를 고르세요.");
-    expect(screen.getByRole("button", { name: "가장 최근 회차 열기" })).toBeTruthy();
+    await screen.findByText("회의 회차를 선택하세요.");
+    // 여는 단추는 회차 칸이 있는 문맥 줄 안이다 — 고를 칸과 한 묶음(r23 화면 대장 19).
+    const open = screen.getByRole("button", { name: "최근 회차 열기" });
+    expect(open.closest("[data-context-bar]")).not.toBeNull();
     expect(screen.getByRole("button", { name: "회차 추가" })).toBeTruthy();
   });
 });
