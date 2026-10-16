@@ -254,8 +254,8 @@ describe("메일 화면 — 설정 탭", () => {
     const footer = failure.closest("[data-action-footer-sticky]");
     expect(footer, "실패 문장이 따라오는 발 밖에 섰다").not.toBeNull();
     expect(failure.closest("[role=alert]")).not.toBeNull();
-    // 실패가 서 있는 동안은 「저장하지 않은 수정 내용」 문장 대신 그 까닭이 선다(입력은 그대로).
-    expect(within(footer).queryByText("저장하지 않은 수정 내용이 있습니다.")).toBeNull();
+    // 실패의 까닭과 함께 「저장하지 않은 수정 내용」도 선다 — 입력은 그대로 남아 있고 아직 저장되지 않았다.
+    expect(within(footer).getByText("저장하지 않은 수정 내용이 있습니다.")).toBeInTheDocument();
     expect(from).toHaveValue("qa@example.com");
   });
 

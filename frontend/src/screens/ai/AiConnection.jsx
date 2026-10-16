@@ -109,6 +109,14 @@ export function AiConnection() {
   /* 실행 옵션 저장의 실패는 그 「저장」 곁에 선다(설정 저장 왕복 하네스, r23) — 같은 저장 요청을 쓰는 다른 구획의 실패는 「확인과 오류」에
      남고, 실행 옵션의 실패만 오른쪽 열 아래(1366 에서 화면 아래 82px)로 떨어지지 않게 따로 든다. */
   const [runError, setRunError] = React.useState("");
+  /* 실패 문장은 「저장」 바로 아래에 선다 — 그 단추가 화면 바닥에 있으면 문장이 화면 아래로 빠진다(1366 × 768 실측 62px). 문장이 서면
+     그 자리까지만 굴려 보인다(`nearest` — 이미 보이면 움직이지 않는다). */
+  const runErrorRef = React.useRef(null);
+  React.useEffect(() => {
+    if (runError && runErrorRef.current && typeof runErrorRef.current.scrollIntoView === "function") {
+      runErrorRef.current.scrollIntoView({ block: "nearest" });
+    }
+  }, [runError]);
   const [switchError, setSwitchError] = React.useState(null);
   const [switching, setSwitching] = React.useState(false);
   /* 「다음 할 일」이 가리키는 구획. 감싸는 상자는 `display: contents` 라 판의 줄 간격을 바꾸지 않는다. */
@@ -369,7 +377,7 @@ export function AiConnection() {
             </Field>
           </FieldRow>
           {runError ? (
-            <Box role="alert" data-run-save-error="" sx={{ minWidth: 0 }}>
+            <Box ref={runErrorRef} role="alert" data-run-save-error="" sx={{ minWidth: 0 }}>
               <Callout tone="danger" variant="inline">{runError}</Callout>
             </Box>
           ) : null}

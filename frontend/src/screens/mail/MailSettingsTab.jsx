@@ -645,17 +645,22 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
         </AdvancedSection>
 
         {/* 저장 실패는 저장 단추 곁(따라오는 발 안)에 선다 — 폼 끝의 상자는 긴 폼에서 발의 「저장」을 누른 사람의 화면 아래 582px 에
-            섰다(설정 저장 왕복 하네스, r23). 실패가 있으면 「저장하지 않은 수정 내용」 문장 대신 그 까닭이 선다(입력은 그대로 남는다). */}
+            섰다(설정 저장 왕복 하네스, r23). 실패의 까닭과 「저장하지 않은 수정 내용」이 함께 선다(입력은 그대로 남는다). */}
         <ActionFooter
           placement="card" sticky
-          extra={saveError ? (
-            <Box role="alert" data-save-error="" sx={{ minWidth: 0 }}>
-              <Callout tone="danger" variant="inline">{saveError}</Callout>
-            </Box>
-          ) : dirty ? (
-            <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}>
-              저장하지 않은 수정 내용이 있습니다.
-            </Typography>
+          extra={saveError || dirty ? (
+            <>
+              {saveError ? (
+                <Box role="alert" data-save-error="" sx={{ minWidth: 0 }}>
+                  <Callout tone="danger" variant="inline">{saveError}</Callout>
+                </Box>
+              ) : null}
+              {dirty ? (
+                <Typography component="span" sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary", ...KO_WORD_BREAK }}>
+                  저장하지 않은 수정 내용이 있습니다.
+                </Typography>
+              ) : null}
+            </>
           ) : null}
         >
           <Button disabled={!dirty || save.isPending}
