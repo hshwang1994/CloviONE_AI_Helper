@@ -1,11 +1,15 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
 /* 대시보드 판의 **높이 예산** — 자라는 것은 판이 아니라 판 안의 한 칸이다.
+ *
+ * qa-contract-change: D-589 가 업무 판의 32rem 계약(D-348)을 대체한다 — 판 높이는 다섯 칸 가운데 가장 긴 칸의 줄 수(여덟 줄 상한)로
+ * 정하고(표 머리 + 줄 수 × 줄 높이, 반쪽 줄 없음), 다섯 칸이 모두 비면 자연 높이다. 「칸을 옮겨도 같은 상자가 같은 높이」라는 계약은
+ * 그대로 단언하고, 그 높이 값이 데이터에서 온다는 단언과 0건이면 높이를 걸지 않는다는 단언으로 옮긴다.
  *
  * ## 이 시험이 막는 실패
  *
@@ -41,7 +45,8 @@ vi.mock("../app/auth.jsx", () => ({ useAuth: () => ({ data: { role: "user", id: 
 import { Home } from "./Home.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
-import { AI_DETAIL_MAX, PLATE_BUDGET, plateBudget } from "../ui/density.js";
+import { AI_DETAIL_MAX, PLATE_BUDGET, plateBudget, TODAY_LIST_MAX_ROWS } from "../ui/density.js";
+import { CONTROL, remPx } from "../ui/theme.js";
 
 const TODAY = "2026-08-26";
 
@@ -220,13 +225,9 @@ describe("높이 예산 — 값", () => {
 
   /* 이 시험이 지키는 것이 이번 계약의 전부다: 업무 판은 **범위가 아니라 한 높이**다.
      바닥만 남기면 30건에서 판이 자라고, 천장만 남기면 0건에서 판이 쪼그라든다. */
-  it("업무 판은 하나의 높이다 — 계약·바닥·천장이 같은 값이다", () => {
-    const h = PLATE_BUDGET.today.height;
-    expect(h, "업무 판에 계약이 없다").toBeTruthy();
-    const sx = plateBudget("today");
-    expect(sx.height).toEqual({ lg: h });
-    expect(sx.minHeight).toEqual({ lg: h });
-    expect(sx.maxHeight).toEqual({ lg: h });
+  it("업무 판에는 박아 둔 높이가 없다 — 높이는 데이터가 정하고(D-589) 상한은 여덟 줄이다", () => {
+    expect(PLATE_BUDGET.today, "업무 판의 고정 높이(32rem)가 되살아났다").toBeUndefined();
+    expect(TODAY_LIST_MAX_ROWS).toBe(8);
   });
 
   it("계약도 예산도 **넓은 화면에만** 건다 — 좁은 화면에서 판마다 상한을 주면 스크롤 축이 늘어난다", () => {
@@ -275,7 +276,7 @@ describe("높이 예산 — 무엇이 굴러가고 무엇이 안 굴러가는가
     // 「내 티켓 전체」는 판 안(구역 제목 옆)과 화면 머리 양쪽에 있다 — 여기서 재는 것은
     // 판 안의 그것이 굴러가는 칸 **밖**에 남는가다.
     expect(insideArea(inCardAllLink())).toBe(false);
-    const note = screen.getByText(/12건만 표시했습니다/);
+    const note = screen.getByText(/전체 30건 중 12건 표시/);
     expect(insideArea(note)).toBe(false);
   });
 
@@ -291,12 +292,13 @@ describe("높이 예산 — 무엇이 굴러가고 무엇이 안 굴러가는가
     };
     routeApi({ today: empty });
     renderHome();
-    await screen.findByText("담당한 티켓이 없습니다");
+    await screen.findByText("미할당 티켓에서 맡을 일을 고를 수 있습니다.");
 
     const card = plate("오늘 마감");
     expect(areasIn(card)).toHaveLength(0);
-    // 판 하나가 통째로 빈 자리라 «가운데» 구성이다 — 판의 높이를 채운다.
-    expect(card.querySelector(".k-empty").dataset.emptyLayout).toBe("card");
+    // 다섯 칸이 모두 비면 판은 자연 높이다(D-589) — 목록 칸이 높이 규칙을 안 받고, 빈 상태는 판을 채우지 않는다.
+    expect(heightsOf(lgRule(card.querySelector("[data-today-list]"))).height).toBeNull();
+    expect(card.querySelector(".k-empty").dataset.emptyLayout).toBe("region");
   });
 
   it("AI 도우미 — 결론 문장과 버튼 줄은 밖에, 목록·그림·문장 요약은 안에", async () => {
@@ -336,7 +338,7 @@ describe("높이 예산 — 무엇이 굴러가고 무엇이 안 굴러가는가
 
     const card = plate("이번 주");
     expect(areasIn(card)).toHaveLength(1);
-    expect(insideArea(screen.getByText(/내 티켓 50건 중 6건 완료/))).toBe(false);
+    expect(insideArea(screen.getByText("50건 중 6건 완료, 지연 4건"))).toBe(false);
     expect(insideArea(screen.getByText("프로젝트"))).toBe(true);
     expect(insideArea(screen.getByText("최근 완료 추이"))).toBe(true);
   });
@@ -356,7 +358,7 @@ describe("높이 예산 — 무엇이 굴러가고 무엇이 안 굴러가는가
      jsdom 은 픽셀을 못 재지만 그 실수는 잡을 수 있다 — 판이 칸마다 다른 모양이면 emotion 이
      다른 규칙을 내보내고, 판이 다시 그려지면 요소 자체가 바뀐다. 둘 다 아님을 잡는다.
      실제 픽셀(1366·1920·2560 에서 다섯 칸의 판 높이와 AI 도우미 시작 Y)은 실브라우저가 잰다. */
-  it("업무 판 — 다섯 칸을 오가도 같은 상자가 같은 높이 하나를 받는다", async () => {
+  it("업무 판 — 다섯 칸을 오가도 같은 상자가 같은 높이 하나를 받는다(높이는 가장 긴 칸이 정한다)", async () => {
     routeApi({ today: MIXED });
     renderHome();
     /* MIXED 는 「오늘 마감 0 · 지연 3」이라 화면이 **지연 칸으로 연다**(Home.jsx 의
@@ -365,32 +367,49 @@ describe("높이 예산 — 무엇이 굴러가고 무엇이 안 굴러가는가
     await screen.findByRole("heading", { level: 2, name: /지연 3건/ });
 
     const card = plate("지연");
-    const contract = heightsOf(lgRule(card));
-    // 계약은 «범위» 가 아니다 — 셋이 같은 값이라야 0건과 30건이 같은 자리에 선다.
-    expect(contract.height, "판이 데스크톱 높이 규칙을 안 받았다").toBeTruthy();
-    expect(contract.min).toBe(contract.height);
-    expect(contract.max).toBe(contract.height);
+    const list = card.querySelector("[data-today-list]");
+    // 가장 긴 칸은 미완료(12줄을 실었다) — 여덟 줄 상한이라 표 머리 + 여덟 줄이다. 줄 단위라 반쪽 줄이 없다.
+    const expected = remPx(CONTROL.tableHead + TODAY_LIST_MAX_ROWS * CONTROL.tableRow);
+    const contract = heightsOf(lgRule(list));
+    expect(contract.height, "목록 칸이 데스크톱 높이 규칙을 안 받았다").toBe(expected);
 
-    const cells = Array.from(document.querySelectorAll("button.k-status-chip"));
-    expect(cells).toHaveLength(5);
+    const tiles = within(screen.getByRole("group", { name: "상태별 보기" })).getAllByRole("button");
+    expect(tiles).toHaveLength(5);
 
-    for (const cell of cells) {
-      const label = cell.textContent;
-      await userEvent.click(cell);
+    for (const tile of tiles) {
+      const label = tile.getAttribute("aria-label");
+      await userEvent.click(tile);
       // 판을 제목이 아니라 **안에 있는 것으로** 다시 잡는다 — 제목은 칸마다 바뀐다.
       const after = inCardAllLink().closest('[data-surface="plate"]');
       expect(after, `${label}: 판이 다시 만들어졌다`).toBe(card);
-      expect(heightsOf(lgRule(after)), `${label}: 판의 높이 계약이 달라졌다`).toEqual(contract);
+      expect(heightsOf(lgRule(after.querySelector("[data-today-list]"))), `${label}: 목록 칸의 높이가 달라졌다`).toEqual(contract);
     }
 
     // 0건 칸에서는 굴릴 칸을 안 만들고, 30건 칸에서는 목록만 굴린다 — 판은 그대로다.
-    await userEvent.click(cells[0]);
-    await screen.findByText("오늘 마감에 해당하는 티켓이 없습니다");
+    await userEvent.click(tiles[0]);
+    await screen.findByText("오늘 마감인 티켓이 없습니다.");
     expect(areasIn(card)).toHaveLength(0);
-    await userEvent.click(cells[2]);
-    await screen.findByRole("heading", { level: 2, name: /진행 중 30건/ });
+    await userEvent.click(tiles[2]);
+    await screen.findByRole("heading", { level: 2, name: /미완료 30건/ });
     expect(areasIn(card)).toHaveLength(1);
     expect(insideArea(card.querySelector("table"))).toBe(true);
+  });
+
+  it("업무 판 — 칸이 짧으면 판도 그만큼만 선다(가장 긴 칸 세 줄 → 표 머리 + 세 줄)", async () => {
+    const SHORT = {
+      ...TODAY_MANY,
+      tickets: {
+        configured: true, ok: true, mapped: true,
+        due_today: { count: 2, items: MANY.slice(0, 2) }, overdue: { count: 1, items: MANY.slice(0, 1) },
+        in_progress: { count: 3, items: MANY.slice(0, 3) }, due_soon: { count: 0, items: [] },
+        blocked: { count: 0, items: [] }, done_total: 0,
+      },
+    };
+    routeApi({ today: SHORT });
+    renderHome();
+    await screen.findByRole("heading", { level: 2, name: /오늘 마감 2건/ });
+    const list = plate("오늘 마감").querySelector("[data-today-list]");
+    expect(heightsOf(lgRule(list)).height).toBe(remPx(CONTROL.tableHead + 3 * CONTROL.tableRow));
   });
 
   it("한 판에 스크롤 축이 둘이 되지 않는다", async () => {

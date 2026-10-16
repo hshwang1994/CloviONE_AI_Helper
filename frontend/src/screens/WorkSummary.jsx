@@ -155,15 +155,17 @@ export function WorkSection() {
           두면 몇 줄만 굴려도 경계가 스크롤 밖으로 사라진다. */}
       <SubGroup title="프로젝트" first>
         <StatusList ariaLabel="프로젝트">
+          {/* 누르면 그 조건이 걸린 프로젝트 목록으로 간다 — 예전에는 둘 다 조건 없는 `/projects` 였다(누른 수와 다른 목록).
+              이름은 목적지 화면의 위험 칩과 같은 낱말이다(같은 판정 `health.trouble_reasons` · 같은 필터 `trouble` · `overdue`). */}
           <StatRow
-            label="차질 프로젝트" value={fmtNum(troubled.count)}
+            label="건강도 낮은 프로젝트" value={fmtNum(troubled.count)}
             kind={troubled.count ? "danger" : undefined}
-            onClick={() => nav("/projects")} ariaLabel="차질 프로젝트 목록 열기"
+            onClick={() => nav("/projects?trouble=1")} ariaLabel="건강도가 낮은 프로젝트만 보기"
           />
           <StatRow
-            label="지연 마일스톤" value={fmtNum(overdueMs.count)}
+            label="지연된 마일스톤" value={fmtNum(overdueMs.count)}
             kind={overdueMs.count ? "warn" : undefined}
-            onClick={() => nav("/projects")} ariaLabel="지연 마일스톤이 있는 프로젝트 목록 열기"
+            onClick={() => nav("/projects?overdue=1")} ariaLabel="지연된 마일스톤이 있는 프로젝트만 보기"
           />
         </StatusList>
         {/* 빠진 것이 있으면 빠졌다고 말한다. 다만 그 이유를 화면 본문에 세 줄로 늘어놓지
@@ -192,10 +194,15 @@ export function WorkSection() {
       </SubGroup>
 
       <SubGroup title="최근 완료 추이">
-        {trend ? (
+        {trend && rows.length && rows.every((r) => !r.total) ? (
+          /* 네 주가 모두 「마감 없음」이면 빈 막대 넷을 그리지 않고 한 문장으로 말한다(r23 화면 대장 01). */
+          <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
+            최근 {rows.length}주 동안 마감인 티켓이 없습니다.
+          </Typography>
+        ) : trend ? (
           <>
             <ProgressRows
-              question="주마다 마감을 얼마나 지켰는지 봅니다."
+              question="주차별 마감 티켓의 완료 현황입니다."
               items={rows}
               revealKey={trendKey}
               emptyLabel="완료 추이를 만들 표본이 없습니다"

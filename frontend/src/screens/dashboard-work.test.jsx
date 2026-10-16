@@ -1,8 +1,9 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 /* 이번 주 업무 상태 묶음(`WorkSummary.jsx`).
  *
@@ -23,6 +24,8 @@ import { MemoryRouter } from "react-router-dom";
  *  4. **다른 질의가 죽어도 이 묶음은 뜬다.** 질의가 따로라 함께 죽을 이유가 없다.
  *
  * qa-contract-change: 프로젝트 축 줄을 손으로 그린 버튼 목록에서 대시보드와 같은 상태 줄 부품(StatusList, StatusTile — role=button 칸)으로 옮겼다(계획 B-6).
+ * qa-contract-change: 두 줄의 이름을 목적지 화면의 위험 칩과 같은 낱말로 바꾸고(「건강도 낮은 프로젝트」 · 「지연된 마일스톤」), 누르면 그 조건이
+ * 걸린 목록으로 간다(`/projects?trouble=1` · `?overdue=1`). 예전 시험은 접근 이름만 봤다 — 이제 실제 이동한 주소를 단언한다.
  * 네이티브 button 으로 찾던 단언을 role=button 칸으로 옮기고, 키보드로 닿는다(tabIndex 0)는 단언을 더한다.
  */
 
@@ -85,6 +88,12 @@ function route(path) {
   return Promise.resolve({});
 }
 
+/* 줄을 누르면 어디로 가는가 — 지금 주소를 그대로 보인다. */
+function LocationProbe() {
+  const loc = useLocation();
+  return <output data-testid="where">{loc.pathname + loc.search}</output>;
+}
+
 function renderDashboard() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -94,6 +103,7 @@ function renderDashboard() {
           <ConfirmProvider>
             <MemoryRouter>
               <WorkSection />
+              <LocationProbe />
             </MemoryRouter>
           </ConfirmProvider>
         </ToastProvider>
@@ -110,30 +120,35 @@ beforeEach(() => {
 describe("이번 주 업무 상태 묶음", () => {
   it("프로젝트 축 두 값을 서버가 센 그대로 그린다", async () => {
     renderDashboard();
-    expect(await screen.findByText("차질 프로젝트")).toBeInTheDocument();
+    expect(await screen.findByText("건강도 낮은 프로젝트")).toBeInTheDocument();
 
     const row = (label) => screen.getByText(label).closest('[role="button"], button');
-    expect(row("차질 프로젝트")).toHaveTextContent("2건");
-    expect(row("지연 마일스톤")).toHaveTextContent("1건");
+    expect(row("건강도 낮은 프로젝트")).toHaveTextContent("2건");
+    expect(row("지연된 마일스톤")).toHaveTextContent("1건");
     // 줄은 키보드로도 닿는다 — 누를 수 있는 칸이 탭 순서에 선다.
-    expect(row("차질 프로젝트")).toHaveAttribute("tabindex", "0");
+    expect(row("건강도 낮은 프로젝트")).toHaveAttribute("tabindex", "0");
   });
 
   /* 🔴 판독 줄이 이미 말하는 티켓 수를 여기서 되풀이하지 않는다. 세 라벨은 각각 홈 상단의
      「진행 중」·「지연」과 오른쪽 도넛의 모수와 같은 값이었다. */
   it("판독 줄과 같은 값을 다시 말하지 않는다", async () => {
     renderDashboard();
-    await screen.findByText("차질 프로젝트");
+    await screen.findByText("건강도 낮은 프로젝트");
     for (const gone of ["내 미완료", "지연 티켓", "이번 주 마감"]) {
       expect(screen.queryByText(gone), gone).toBeNull();
     }
   });
 
-  it("차질 프로젝트·지연 마일스톤 줄을 누르면 /projects로 간다(이름·사유 상세는 거기에 있다)", async () => {
+  it("두 줄을 누르면 그 조건이 걸린 프로젝트 목록으로 간다(이름 · 사유 상세는 거기에 있다)", async () => {
     renderDashboard();
-    const row = await screen.findByText("차질 프로젝트");
-    expect(row.closest('[role="button"], button')).toBeInTheDocument();
-    expect(row.closest('[role="button"], button')).toHaveAttribute("aria-label", "차질 프로젝트 목록 열기");
+    const trouble = (await screen.findByText("건강도 낮은 프로젝트")).closest('[role="button"], button');
+    expect(trouble).toHaveAttribute("aria-label", "건강도가 낮은 프로젝트만 보기");
+    await userEvent.click(trouble);
+    expect(screen.getByTestId("where")).toHaveTextContent("/projects?trouble=1");
+    const overdue = screen.getByText("지연된 마일스톤").closest('[role="button"], button');
+    expect(overdue).toHaveAttribute("aria-label", "지연된 마일스톤이 있는 프로젝트만 보기");
+    await userEvent.click(overdue);
+    expect(screen.getByTestId("where")).toHaveTextContent("/projects?overdue=1");
     expect(screen.queryByText("노션 차질")).not.toBeInTheDocument();
   });
 
@@ -195,7 +210,7 @@ describe("이번 주 업무 상태 묶음 - 0 과 없음", () => {
     // 못 세는 것을 0 으로 그리지 않는다 — 그림 자체가 없다.
     expect(screen.queryByText("7월 27일 주간")).not.toBeInTheDocument();
     // 프로젝트 쪽은 다른 소스다 - 티켓이 죽었다고 함께 사라지면 안 된다.
-    expect(screen.getByText("차질 프로젝트")).toBeInTheDocument();
+    expect(screen.getByText("건강도 낮은 프로젝트")).toBeInTheDocument();
   });
 
   it("다른 질의가 실패해도 이 묶음은 그대로 뜬다", async () => {
@@ -204,6 +219,6 @@ describe("이번 주 업무 상태 묶음 - 0 과 없음", () => {
       return Promise.reject(new Error("운영 지표 실패"));
     });
     renderDashboard();
-    expect(await screen.findByText("차질 프로젝트")).toBeInTheDocument();
+    expect(await screen.findByText("건강도 낮은 프로젝트")).toBeInTheDocument();
   });
 });

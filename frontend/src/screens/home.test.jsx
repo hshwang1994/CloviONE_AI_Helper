@@ -18,6 +18,11 @@ import { MemoryRouter } from "react-router-dom";
  * 지금은 첫 자식이 색을 나르는 점이라, 숫자를 이름으로 찾는다. 「지표가 카드 여섯 장이
  * 아니라 판 하나에 담긴다」도 재는 자리를 `.k-metrics` 에서 카드 자신으로 옮겼다 — 지금은
  * 문자 그대로 카드 하나다.
+ *
+ * qa-contract-change: D-589 — 상태 칩 카드가 같은 높이의 고르는 타일 줄(StatusKpiStrip)로 바뀌고, 「진행 중」 칸은 집계(미완료 전체)에 맞춰
+ * 「미완료」가 됐다. 빈 판 문장은 칸마다 완전한 문장이고(「7일 안에 마감인 티켓이 없습니다.」), 티켓이 하나도 없으면 판은 다음 행동을
+ * 말한다(그 사실은 위 요약이 말한다). 티켓을 못 읽으면 요약이 「없다」를 말하지 않는다는 단언을 더한다. 재는 것(다섯 칸 · 값 ·
+ * 누르면 아래가 바뀜 · 못 읽으면 «-»)은 그대로다.
  */
 
 const apiMock = vi.fn();
@@ -127,7 +132,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
 
     expect(await screen.findByText("오늘 마감")).toBeInTheDocument();
     // 판독 다섯: 오늘 마감 / 지연 / 진행 중 / 7일 내 마감 / 막힌 일.
-    for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감", "막힌 일"]) {
+    for (const label of ["오늘 마감", "지연", "미완료", "7일 내 마감", "막힌 일"]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
     // 값은 판독 칸 안에서 확인한다 — 같은 숫자가 화면 다른 곳(요약 문장 등)에도 나올 수 있다.
@@ -138,7 +143,8 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(screen.queryByText("안 읽은 알림")).toBeNull();
     expect(screen.queryByText("안 읽은 채팅")).toBeNull();
     // 스프린트 내 몫 — 도넛을 못 보는 사람도 같은 수치를 글자로 읽는다.
-    expect(screen.getByText(/내 티켓 5건 중 2건 완료/)).toBeInTheDocument();
+    // 분모는 가운데 완료율과 같다(취소를 뺀 수) — 이 픽스처는 취소가 0 이라 5건이다.
+    expect(screen.getByText(/5건 중 2건 완료/)).toBeInTheDocument();
     // 최근 문서 — 게시판 카드는 PA-RC-0018 direction 6으로 빠지고 사이드바 "자유게시판"으로
     // 돌아갔다(navConfig.js), 이 화면에는 더 이상 게시글 미리보기가 없다.
     expect(screen.getByText("회의록 초안")).toBeInTheDocument();
@@ -165,19 +171,23 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     await screen.findByText("오늘 마감");
 
     await userEvent.click(statCard("7일 내 마감"));
-    expect(await screen.findByText("7일 내 마감에 해당하는 티켓이 없습니다")).toBeInTheDocument();
-    expect(screen.getByText("다른 칸을 눌러 보거나 전체 목록에서 확인하세요.")).toBeInTheDocument();
-    // '담당한 티켓이 없습니다'(진짜 데이터 없음)와 절대 같은 문장을 쓰지 않는다.
-    expect(screen.queryByText("담당한 티켓이 없습니다")).toBeNull();
+    expect(await screen.findByText("7일 안에 마감인 티켓이 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("다른 상태를 선택하거나 내 티켓 전체에서 확인하세요.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "미완료 티켓 보기" })).toBeInTheDocument();
+    // 진짜 데이터 없음(티켓이 하나도 없음)의 문장과 절대 같은 문장을 쓰지 않는다.
+    expect(screen.queryByText("미할당 티켓에서 맡을 일을 고를 수 있습니다.")).toBeNull();
   });
 
   it("내 티켓이 하나도 없으면 '데이터 없음'과 복구 행동을 준다", async () => {
     routeApi({ today: { ...TODAY_OK, tickets: EMPTY_BUCKETS } });
     renderHome();
 
-    expect(await screen.findByText("담당한 티켓이 없습니다")).toBeInTheDocument();
+    // 사실은 요약이 한 번 말하고(「미완료 담당 티켓이 없습니다.」) 판은 다음 행동을 말한다 — 같은 문장을 두 번 쓰지 않는다.
+    expect(await screen.findByText("미완료 담당 티켓이 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("미할당 티켓에서 맡을 일을 고를 수 있습니다.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "미할당 티켓 보기" })).toBeInTheDocument();
-    expect(screen.queryByText(/해당하는 티켓이 없습니다/)).toBeNull();
+    // 「고른 칸만 비었다」의 문장(칸마다 다른 완전한 문장)은 서지 않는다.
+    expect(screen.queryByText("오늘 마감인 티켓이 없습니다.")).toBeNull();
   });
 
   // PA-RC-0027: 티켓을 못 읽으면(usable=false) 백엔드가 버킷 키를 아예 안 싣는다 —
@@ -197,11 +207,14 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     renderHome();
 
     await screen.findByText("오늘 마감");
-    for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감"]) {
+    for (const label of ["오늘 마감", "지연", "미완료", "7일 내 마감"]) {
       expect(cardValue(label)).toBe("-");
     }
     // 진짜 0건(EMPTY_BUCKETS)이 쓰는 문장과 섞이면 안 된다 — 이 화면은 "모른다" 쪽이다.
-    expect(screen.queryByText("담당한 티켓이 없습니다")).toBeNull();
+    expect(screen.queryByText("미할당 티켓에서 맡을 일을 고를 수 있습니다.")).toBeNull();
+    // 요약도 「없다」를 말하지 않는다(D-37 · D-589) — 못 읽은 것과 없는 것은 다른 사실이다.
+    expect(screen.queryByText("미완료 담당 티켓이 없습니다.")).toBeNull();
+    expect(screen.queryByText("급한 일은 없습니다.")).toBeNull();
   });
 
   /* 머리 오른쪽의 나가는 길 셋. 예전에는 「내 티켓 전체」가 업무 판 **안**에만 있어서
@@ -246,7 +259,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     renderHome();
 
     expect(await screen.findByText("급한 일은 없습니다.")).toBeInTheDocument();
-    expect(screen.getByText("진행 중인 2건을 이어서 하면 됩니다.")).toBeInTheDocument();
+    expect(screen.getByText("미완료 티켓 2건을 이어서 처리하면 됩니다.")).toBeInTheDocument();
   });
 
   it("급한 축에 값이 있으면 그 이름과 건수를 그대로 옮긴다", async () => {
@@ -331,15 +344,17 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     renderHome();
     await screen.findByText("오늘 마감");
 
-    const ticketPlate = document.querySelector('[aria-label="내 티켓"]');
-    expect(ticketPlate).toBeInTheDocument();
-    for (const label of ["오늘 마감", "지연", "진행 중", "7일 내 마감", "막힌 일"]) {
-      expect(within(ticketPlate).getByText(label), label).toBeInTheDocument();
+    // D-589: 다섯은 같은 높이의 타일 **한 줄**이다(격자 하나 · 다섯 칸). 넓은 판 왼쪽에 칩이 몰리던 모양이 아니다.
+    const strip = screen.getByRole("group", { name: "상태별 보기" });
+    for (const label of ["오늘 마감", "지연", "미완료", "7일 내 마감", "막힌 일"]) {
+      expect(within(strip).getByText(label), label).toBeInTheDocument();
     }
-    // 다섯이 **한 판 안에** 있다 — 칸마다 판을 두르지 않는다.
-    expect(document.querySelectorAll('[aria-label="내 티켓"]')).toHaveLength(1);
-    // 그리고 다섯 다 그 판 안에서 눌린다(누르면 아래 목록이 그 칸으로 바뀐다).
-    expect(within(ticketPlate).getAllByRole("button")).toHaveLength(5);
+    expect(screen.getAllByRole("group", { name: "상태별 보기" })).toHaveLength(1);
+    // 다섯 다 그 줄 안에서 눌리고, 지금 고른 칸을 말한다.
+    const tiles = within(strip).getAllByRole("button");
+    expect(tiles).toHaveLength(5);
+    expect(tiles.filter((b) => b.getAttribute("aria-pressed") === "true")).toHaveLength(1);
+    expect(screen.getByText("선택한 상태의 티켓만 아래 목록에 표시합니다.")).toBeInTheDocument();
   });
 
   it("티켓 소스가 죽어도 알림·최근 변경은 그대로 보인다", async () => {
@@ -456,7 +471,7 @@ describe("홈 — 처음 여는 칸", () => {
 
     expect(await screen.findByRole("heading", { level: 2, name: "지연 2건" })).toBeInTheDocument();
     // 빈 판으로 열지 않는다 — 그 문장이 화면 어디에도 없어야 한다.
-    expect(screen.queryByText("오늘 마감에 해당하는 티켓이 없습니다")).toBeNull();
+    expect(screen.queryByText("오늘 마감인 티켓이 없습니다.")).toBeNull();
     // 판독 줄의 선택 신호도 같은 칸에 있다(고른 칸과 그려진 칸이 어긋나면 안 된다).
     expect(statCard("지연")).toHaveAttribute("aria-pressed", "true");
     expect(statCard("오늘 마감")).toHaveAttribute("aria-pressed", "false");
@@ -472,7 +487,7 @@ describe("홈 — 처음 여는 칸", () => {
     routeApi({ today: { ...TODAY_OK, tickets: EMPTY_BUCKETS } });
     renderHome();
     expect(await screen.findByRole("heading", { level: 2, name: "오늘 마감 0건" })).toBeInTheDocument();
-    expect(screen.getByText("담당한 티켓이 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("미할당 티켓에서 맡을 일을 고를 수 있습니다.")).toBeInTheDocument();
   });
 
   it("사용자가 고른 칸은 데이터가 다시 와도 그 자리에 남는다", async () => {
@@ -481,7 +496,7 @@ describe("홈 — 처음 여는 칸", () => {
     await screen.findByRole("heading", { level: 2, name: "오늘 마감 2건" });
 
     await userEvent.click(statCard("7일 내 마감"));
-    expect(await screen.findByText("7일 내 마감에 해당하는 티켓이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("7일 안에 마감인 티켓이 없습니다.")).toBeInTheDocument();
     // 고른 칸이 비어 있다고 해서 화면이 자기 마음대로 다른 칸으로 옮겨 가지 않는다 —
     // 「비었으니 골라 준다」는 아직 아무것도 안 고른 첫 화면에서만이다.
     expect(screen.getByRole("heading", { level: 2, name: "7일 내 마감 0건" })).toBeInTheDocument();

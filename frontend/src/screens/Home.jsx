@@ -6,16 +6,17 @@ import Fade from "@mui/material/Fade";
 import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import { api } from "../lib/api.js";
 import { fmtDayKo, fmtDayLongKo, fmtRelative } from "../lib/format.js";
 import {
   Badge, Button, Callout, Card, DataTable, EmptyState, ErrorState, PageHeader, FlatBadgeSurface,
   ScrollArea, SectionTitle, Skeleton, SubGroup,
 } from "../ui/kit.jsx";
-import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
+import { StatusKpiStrip } from "../ui/StatusKpi.jsx";
 import { Donut } from "../ui/charts/Donut.jsx";
-import { BUDGET_BODY, BUDGET_SCROLL, GRID_GAP, plateBudget } from "../ui/density.js";
-import { KO_WORD_BREAK } from "../ui/theme.js";
+import { BUDGET_BODY, BUDGET_SCROLL, GRID_GAP, plateBudget, TODAY_LIST_MAX_ROWS, TODAY_NARROW_CARDS } from "../ui/density.js";
+import { CONTROL, KO_WORD_BREAK, remPx, TABLE_CARD_QUERY } from "../ui/theme.js";
 import { ticketColumns, ticketConnState, TicketEditModal, useInlineStatusEdit } from "./MyTickets.jsx";
 import { useTicketSignals } from "../lib/ticketSignals.js";
 import { AssistantPanel, mostUrgentBucket, URGENCY_ORDER } from "./AssistantPanel.jsx";
@@ -92,33 +93,26 @@ const BODY_GRID = {
   },
 };
 
-/* 업무 판의 **높이 계약**. 값과 근거는 `ui/density.js::PLATE_BUDGET.today` 한 곳에 있다.
+/* 업무 판의 높이 — D-589(D-348 대체). 근거는 `ui/density.js::TODAY_LIST_MAX_ROWS` 한 곳에 있다.
  *
- * 아래 `VIEWS` 다섯은 판 다섯이 아니라 **한 판의 다섯 칸**이다. 그래서 이 판은 예산
- * (범위)이 아니라 계약(하나의 높이)을 갖는다 — 데스크톱에서 어떤 칸을 누르든, 그 칸에
- * 0건이 있든 30건이 있든 판의 바깥 높이가 같다. 판이 칸마다 다른 높이로 서면 바로 아래에
- * 있는 AI 도우미가 누를 때마다 위아래로 뛴다(실측: 같은 판이 164~512px 사이를 오갔다).
- *
- * 안에서는 셋이 각자 자기 일을 한다:
- *   머리   제목과 「내 티켓 전체」 — 계약 높이 안에 고정이라 굴려도 안 사라진다
- *   몸     남는 높이를 받는 칸(`BUDGET_BODY`). 목록만 그 안에서 굴린다(`BUDGET_SCROLL`)
- *   꼬리   「N건만 표시했습니다」 — 몸 밖이라 언제나 보인다
- *
- * 0건은 몸 전체를 채우는 가운데 구성(`EmptyState layout="card"`)이라, 계약 높이가 곧
- * 클로비가 서는 자리가 된다. 소량일 때 목록 아래가 남는 것은 이 판이 받아들이는 값이다 —
- * 「칸마다 같은 높이」와 「빈 자리 없음」은 한 판에서 동시에 참일 수 없고, 사용자가 이
- * 판에서는 앞을 골랐다(D-348). 좁은 화면에는 계약이 없다 — 세로로 자연스럽게 흐른다. */
-const WORK_PANEL = plateBudget("today");
-const WORK_PANEL_BODY = BUDGET_BODY;
+ * 다섯 칸은 판 다섯이 아니라 **한 판의 다섯 칸**이라, 칸을 옮겨도 판 높이가 같아야 한다. 그 높이를 이제 박지 않고
+ * 데이터에서 정한다: 목록 칸 = 표 머리 + (다섯 칸 가운데 가장 긴 칸의 줄 수, 여덟 줄 상한) × 줄 높이. 줄 단위라
+ * 판 끝에서 반쪽 줄이 잘리지 않고, 티켓이 서너 건이면 판도 그만큼만 선다. 다섯 칸이 모두 비면 높이를 걸지 않는다. */
+function listHeightFor(rows) {
+  return remPx(CONTROL.tableHead + rows * CONTROL.tableRow);
+}
 
 const VIEWS = [
-  { key: "due_today", label: "오늘 마감", kind: "warn" },
-  { key: "overdue", label: "지연", kind: "danger" },
-  { key: "in_progress", label: "진행 중" },
-  { key: "due_soon", label: "7일 내 마감" },
+  { key: "due_today", label: "오늘 마감", kind: "warn", empty: "오늘 마감인 티켓이 없습니다." },
+  { key: "overdue", label: "지연", kind: "danger", empty: "지연된 티켓이 없습니다." },
+  /* 「진행 중」이었다. 이 칸이 세는 것은 **끝나지 않은 내 티켓 전체**다(`app/home/aggregate.py` 의
+     `in_progress = active` — 계획 · 검증 · 보류도 든다). 이름이 집계보다 좁으면 「진행 중 14」를 본 사람이 상태가
+     「진행 중」인 티켓만 14건이라고 읽는다(D-589). */
+  { key: "in_progress", label: "미완료", empty: "미완료 티켓이 없습니다." },
+  { key: "due_soon", label: "7일 내 마감", empty: "7일 안에 마감인 티켓이 없습니다." },
   // 「막힘(이슈)」였다. 괄호 안이 티켓 상태값 그대로라, 그 값을 모르는 사람에게는 설명이
   // 아니라 암호였다. 상태값은 아래 목록의 배지가 이미 보여 준다.
-  { key: "blocked", label: "막힌 일", kind: "danger" },
+  { key: "blocked", label: "막힌 일", kind: "danger", empty: "막힌 티켓이 없습니다." },
 ];
 
 /* 처음 열 칸을 정하는 순서.
@@ -182,9 +176,11 @@ function SprintProgress({ sprint }) {
   }
   if (!sprint.assigned) {
     return (
+      /* 이 칸은 **마감일**로 센다(이번 주 월요일부터 다음 월요일 전까지, `aggregate.py::sprint_progress`). 「맡은 일이
+         없다」고 쓰면 이번 주에 다른 일을 맡고 있는 사람에게 거짓이 된다. */
       <EmptyState
         art="tickets"
-        title="이번 주에 맡은 일이 없습니다"
+        title="이번 주 마감인 티켓이 없습니다."
         help={`${fmtDayKo(sprint.window.start)}부터 한 주 동안 마감인 내 티켓이 없습니다.`}
       />
     );
@@ -199,7 +195,7 @@ function SprintProgress({ sprint }) {
           「완료」·「취소」는 색이 곧 상태라 상태색을 유지한다. `total` 을 명시해 링의 모수가
           «그려진 조각의 합»이 아니라 **내 티켓 전체**가 되게 한다. */}
       <Donut
-        question="이번 주에 맡은 일 가운데 얼마나 끝냈는지 봅니다."
+        question="이번 주 마감 티켓의 완료 현황입니다."
         segments={[
           { label: "완료", value: sprint.done, color: "success" },
           { label: "남음", value: sprint.remaining },
@@ -212,9 +208,14 @@ function SprintProgress({ sprint }) {
         revealKey={`home-sprint:${sprint.window.start}:${sprint.done}:${sprint.remaining}:${sprint.cancelled}:${sprint.assigned}`}
       />
       <Box sx={{ display: "grid", gap: 0.5, justifyItems: { xs: "start", lg: "center" }, textAlign: { xs: "left", lg: "center" } }}>
+        {/* 분모는 가운데 완료율과 같다 — 취소는 못 한 일이 아니라서 빼고(`aggregate.py` 의 `net`), 취소 수는 따로 말한다.
+            예전에는 「내 티켓 5건 중 2건 완료」(취소 포함 5)와 가운데 「50%」(취소 뺀 4 기준)가 나란히 서서 두 수가 어긋났다. */}
         <Typography variant="body2" sx={KO_WORD_BREAK}>
-          내 티켓 {sprint.assigned}건 중 {sprint.done}건 완료
+          {sprint.cancelled
+            ? `취소를 뺀 ${sprint.assigned - sprint.cancelled}건 중 ${sprint.done}건 완료`
+            : `${sprint.assigned}건 중 ${sprint.done}건 완료`}
           {sprint.overdue ? `, 지연 ${sprint.overdue}건` : ""}
+          {sprint.cancelled ? `, 취소 ${sprint.cancelled}건` : ""}
         </Typography>
         {/* 「이번 주」가 어느 주인지 화면이 스스로 말한다. 끝을 **포함되는 날**로 적는다 —
             계약값(end_exclusive)을 그대로 보이면 그 날이 포함인지 매번 다시 생각해야 한다.
@@ -234,10 +235,15 @@ function SprintProgress({ sprint }) {
   );
 }
 
-function RecentDocuments({ items }) {
+/* 레일은 훑는 자리라 앞의 여섯 건만 세운다 — 서버는 열두 건까지 싣는데, 판 천장 안에서 굴리면 마지막 줄이 판 끝에서
+   반쯤 잘린 채 섰다(r23 화면 대장 01). 나머지는 머리의 「문서 전체」가 연다. */
+const RECENT_DOCS_SHOWN = 6;
+
+function RecentDocuments({ items: all }) {
+  const items = all.slice(0, RECENT_DOCS_SHOWN);
   if (!items.length) {
     return (
-      <EmptyState art="docs" title="최근 바뀐 문서가 없습니다"
+      <EmptyState art="docs" title="최근 바뀐 문서가 없습니다."
         help="팀 문서가 바뀌면 여기에 최신 순으로 표시됩니다." />
     );
   }
@@ -366,9 +372,8 @@ export function Home() {
           <Box sx={{ mb: 2.5 }}><Skeleton lines={2} /></Box>
           <Box sx={BODY_GRID}>
             <Stack gap={GRID_GAP}>
-              {/* 업무 판의 계약 높이를 스켈레톤에도 그대로 준다 — 이것이 없으면 로딩이
-                  끝나는 순간 아래 AI 도우미가 한 판 높이만큼 아래로 밀린다. */}
-              <Card sx={WORK_PANEL}><Skeleton lines={6} /></Card>
+              {/* 업무 판의 높이는 데이터가 정한다(D-589) — 스켈레톤은 흔한 크기(여덟 줄)로 선다. */}
+              <Card><Skeleton lines={8} /></Card>
               <Card><Skeleton lines={5} /></Card>
             </Stack>
             <Stack gap={GRID_GAP}>
@@ -415,21 +420,17 @@ function daySummary(tickets) {
   const urgent = URGENT_KEYS
     .map((key) => ({ label: labelOf(key), n: bucketCount(tickets, key) }))
     .filter((x) => x.n);
-  const progress = bucketCount(tickets, "in_progress");
-  const soon = bucketCount(tickets, "due_soon");
+  // 「미완료」 칸의 수다 — 끝나지 않은 내 티켓 전체(급한 셋도 그 안에 든다).
+  const open = bucketCount(tickets, "in_progress");
   if (urgent.length) {
     return {
       title: `지금 급한 일은 ${urgent.map((x) => `${x.label} ${x.n}건`).join(", ")}입니다.`,
-      body: progress
-        ? `진행 중인 ${progress}건도 함께 열려 있습니다.`
-        : "아래에서 그 상태만 골라 볼 수 있습니다.",
+      body: open ? `미완료 티켓은 모두 ${open}건입니다.` : "아래에서 그 상태만 골라 볼 수 있습니다.",
     };
   }
   return {
     title: "급한 일은 없습니다.",
-    body: progress
-      ? `진행 중인 ${progress}건을 이어서 하면 됩니다.`
-      : (soon ? `7일 내 마감인 ${soon}건이 다음 차례입니다.` : "지금 열려 있는 내 티켓이 없습니다."),
+    body: open ? `미완료 티켓 ${open}건을 이어서 처리하면 됩니다.` : "미완료 담당 티켓이 없습니다.",
   };
 }
 
@@ -437,54 +438,65 @@ function daySummary(tickets) {
 function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
   const signalsOf = useTicketSignals();
   const statusEdit = useInlineStatusEdit();
+  // 좁은 화면은 표가 아니라 카드다 — 카드는 한 장이 여섯 줄이라 앞의 몇 장만 세운다(D-589).
+  const narrow = useMediaQuery(TABLE_CARD_QUERY);
   const tickets = data.tickets || {};
   const conn = ticketConnState(tickets);
   // 고른 칸이 없으면 데이터가 정한다(위 `defaultFocus`). 고른 뒤에는 그 선택이 이긴다.
   const focusKey = focus || defaultFocus(tickets);
   const view = VIEWS.find((v) => v.key === focusKey) || VIEWS[0];
-  const rows = (tickets[view.key] && tickets[view.key].items) || [];
+  const itemsOf = (key) => (tickets[key] && tickets[key].items) || [];
+  const rows = itemsOf(view.key);
+  const shownRows = narrow ? rows.slice(0, TODAY_NARROW_CARDS) : rows;
   const total = (tickets[view.key] && tickets[view.key].count) || 0;
   const anyTicket = VIEWS.some((v) => tickets[v.key] && tickets[v.key].count > 0);
-  const summary = daySummary(tickets);
+  /* 판 높이(D-589) — 다섯 칸 가운데 가장 긴 칸의 줄 수(여덟 줄 상한). 칸을 옮겨도 같은 값이라 판이 안 뛴다.
+     다섯 칸이 모두 비었거나 티켓을 못 읽었으면 높이를 걸지 않는다(자연 높이). */
+  const longest = Math.min(TODAY_LIST_MAX_ROWS, Math.max(0, ...VIEWS.map((v) => itemsOf(v.key).length)));
+  const listBox = !conn && longest > 0 ? { height: { lg: listHeightFor(longest) } } : null;
+  // 잘라서 보인 칸이 하나라도 있으면 꼬리 줄 자리를 늘 둔다 — 칸마다 꼬리가 있다 없다 하면 판이 한 줄씩 뛴다.
+  const footAny = !conn && VIEWS.some((v) => tickets[v.key] && tickets[v.key].count > itemsOf(v.key).length);
+  const overflow = total > shownRows.length;
+  // 티켓을 못 읽었으면 「없다」를 말하지 않는다(D-37 · D-589) — 판이 그 사실과 다시 부를 길을 이미 말한다.
+  const summary = conn ? null : daySummary(tickets);
 
   return (
     <>
-      {/* 하루 요약 — 숫자를 읽기 전에 **오늘이 어떤 날인지** 한 줄로 말한다. 아래 칩과
+      {/* 하루 요약 — 숫자를 읽기 전에 **오늘이 어떤 날인지** 한 줄로 말한다. 아래 칸과
           목록이 같은 사실을 숫자로 다시 말하므로 여기서는 판단만 준다. */}
-      <Box sx={{ mb: 2.5 }}>
-        <Callout tone="info" title={summary.title}>{summary.body}</Callout>
-      </Box>
+      {summary ? (
+        <Box sx={{ mb: 2.5 }}>
+          <Callout tone="info" compact title={summary.title}>{summary.body}</Callout>
+        </Box>
+      ) : null}
 
-      {/* 상태 칩 카드 — 이 화면에서 **티켓 수를 말하는 유일한 자리**이고, 동시에 아래 목록을
-        * 거르는 필터다. 칸마다 같은 일이 일어난다(누르면 아래가 바뀐다) — 예전에 여기 있던
-        * '안 읽은 알림'·'안 읽은 채팅' 두 칸만 다른 화면으로 나가는 링크라 칸마다 결과가
-        * 달랐고, 그 두 수는 상단 종과 사이드바 배지가 이미 말하고 있었다.
+      {/* 상태 다섯 — 같은 높이의 고르는 타일 줄이다(D-589). 이 화면에서 **티켓 수를 말하는 유일한 자리**이고,
+        * 동시에 아래 목록을 고르는 단추다(`aria-pressed`). 예전에는 넓은 판 왼쪽에 작은 칩 다섯이 몰리고 판의 나머지가
+        * 비었다(r23 화면 대장 01).
         *
-        * 🔴 **전체를 안 넘긴다.** 다섯은 한 전체의 부분이 아니다 — 한 티켓이 「지연」이면서
-        * 「막힌 일」일 수 있어 합이 티켓 수보다 크다. 그 합으로 비율을 내면 거짓이므로
-        * 카드가 스택 바도 비율도 안 그린다(`StatusSummaryCard` 의 그 문단). */}
+        * 🔴 **전체를 안 넘긴다.** 다섯은 한 전체의 부분이 아니다 — 한 티켓이 「지연」이면서 「막힌 일」일 수 있어
+        * 합이 티켓 수보다 크다. 그래서 비율도 합계도 그리지 않는다. 티켓을 못 읽었으면 수 대신 「-」다. */}
       <Box sx={{ mb: 2.5 }}>
-        <StatusSummaryCard
-          ariaLabel="내 티켓"
-          title="상태로 좁혀 보기"
-          help="누른 상태만 아래 목록에 남습니다."
+        <StatusKpiStrip
+          ariaLabel="상태별 보기"
           items={VIEWS.map((v) => ({
             key: v.key,
-            value: tickets[v.key] ? String(tickets[v.key].count) : null,
+            value: tickets[v.key] ? String(tickets[v.key].count) : "-",
             label: v.label,
             // 색은 셀 값이 있을 때만 — 0건인 '지연'을 빨갛게 칠하면 없는 문제를 만든다.
             kind: v.kind && tickets[v.key] && tickets[v.key].count ? v.kind : undefined,
           }))}
           value={view.key}
           onSelect={onFocus}
+          note="선택한 상태의 티켓만 아래 목록에 표시합니다."
         />
       </Box>
 
       <Box data-testid="home-body-grid" sx={BODY_GRID}>
-        {/* 본문 열 — 오늘 할 일과 그 해석. 두 카드 다 데이터 양에 따라 길이가 변한다. */}
+        {/* 본문 열 — 오늘 할 일과 그 해석. */}
         <Stack gap={GRID_GAP} sx={{ minWidth: 0 }}>
-          {/* 업무 판 — 판독 줄에서 고른 칸의 내용이 여기 들어온다. 바깥 높이는 계약이다. */}
-          <Card sx={WORK_PANEL}>
+          {/* 업무 판 — 위에서 고른 칸의 내용이 여기 들어온다. 높이는 다섯 칸이 함께 정한다(위 `listBox`). */}
+          <Card sx={{ display: "flex", flexDirection: "column" }}>
             {/* SEM-02: 이 화면은 h1(PageHeader "오늘") 아래 최상위 구역이 넷이고 전부 h2 다.
                 제목과 「내 티켓 전체」는 목록 칸 밖에 있어 목록을 굴려도 안 사라진다. */}
             <SectionTitle
@@ -492,54 +504,58 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
               title={`${view.label} ${total}건`}
               action={<Link href="#/my-tickets" underline="hover">내 티켓 전체</Link>}
             />
-            <Box sx={WORK_PANEL_BODY}>
-              {conn ? conn : rows.length ? (
-                <>
-                  {/* 목록 칸만 굴린다 — 티켓이 늘어도 판은 계약 높이에 그대로 선다.
-                      짧으면 스크롤바도 초점도 없고 목록이 위에서부터 그려진다(`ScrollArea`). */}
-                  <ScrollArea sx={BUDGET_SCROLL} ariaLabel={`${view.label} 티켓 목록`}>
-                    <DataTable
-                      /* compact: 본문 열은 2단 배치라 좁다 — 4K 계약의 '표(핵심열)'을 그대로
-                         따른다(난이도·예상 WD 는 빼고, 편집은 아이콘). 전체 열을 넣으면 1366
-                         화면에서 마감·편집이 잘려 가로로 긁어야 보였다. */
-                      columns={ticketColumns({ onEdit, onOpen, compact: true, signalsOf, statusEdit })}
-                      rows={rows}
-                      rowKey={(t) => t.id}
-                      /* 굴려도 열 이름이 안 사라진다. 이 표를 감싼 것이 스크롤 컨테이너라
-                         (`ScrollArea`) 붙는 자리가 그 칸의 위쪽이다. */
-                      stickyHeader
-                    />
-                  </ScrollArea>
-                  {/* 잘라서 보여 준 목록은 잘랐다고 말한다. `count` 는 언제나 진짜 총계라
-                      (`app/home/aggregate.py::bucket`) 이 두 수가 어긋날 일이 없다. */}
-                  {total > rows.length ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-                      {rows.length}건만 표시했습니다.{" "}
-                      <Link href="#/my-tickets" underline="hover">내 티켓에서 {total}건 모두 보기</Link>
-                    </Typography>
-                  ) : null}
-                </>
+            <Box data-today-list="" sx={{ display: "flex", flexDirection: "column", minHeight: 0, ...listBox }}>
+              {conn ? conn : shownRows.length ? (
+                /* 목록 칸만 굴린다 — 여덟 줄이 넘는 칸은 이 안에서 굴린다. 짧으면 스크롤바도 초점도 없다(`ScrollArea`). */
+                <ScrollArea sx={{ ...BUDGET_SCROLL, flex: "1 1 auto" }} ariaLabel={`${view.label} 티켓 목록`}>
+                  <DataTable
+                    /* compact: 본문 열은 2단 배치라 좁다 — 4K 계약의 '표(핵심열)'을 그대로
+                       따른다(난이도·예상 WD 는 빼고, 편집은 아이콘). 전체 열을 넣으면 1366
+                       화면에서 마감·편집이 잘려 가로로 긁어야 보였다. */
+                    columns={ticketColumns({ onEdit, onOpen, compact: true, signalsOf, statusEdit })}
+                    rows={shownRows}
+                    rowKey={(t) => t.id}
+                    /* 굴려도 열 이름이 안 사라진다. 이 표를 감싼 것이 스크롤 컨테이너라
+                       (`ScrollArea`) 붙는 자리가 그 칸의 위쪽이다. */
+                    stickyHeader
+                  />
+                </ScrollArea>
               ) : anyTicket ? (
                 /* 다른 칸에는 티켓이 있는데 이 칸만 비었다 — '검색 결과 없음'과 같은 상황이다.
-                   그림도 문장도 '데이터 없음'과 달라야 사용자가 자기가 고른 칸 때문임을 안다. */
+                   문장도 '데이터 없음'과 달라야 사용자가 자기가 고른 칸 때문임을 안다. */
                 <EmptyState
                   layout="card"
                   art="search"
-                  title={`${view.label}에 해당하는 티켓이 없습니다`}
-                  help="다른 칸을 눌러 보거나 전체 목록에서 확인하세요."
-                  action={<Button size="sm" onClick={() => onFocus("in_progress")}>진행 중 전체 보기</Button>}
+                  title={view.empty}
+                  help="다른 상태를 선택하거나 내 티켓 전체에서 확인하세요."
+                  action={view.key !== "in_progress"
+                    ? <Button size="sm" onClick={() => onFocus("in_progress")}>미완료 티켓 보기</Button>
+                    : null}
                 />
               ) : (
-                /* 내 티켓 자체가 하나도 없다 — 진짜 '데이터 없음'. */
+                /* 끝나지 않은 내 티켓이 하나도 없다 — 그 사실은 위 요약이 이미 말했다. 판은 **다음 행동**만 말한다(§6).
+                   채움 단추는 화면 머리의 「새 티켓」 하나다 — 여기는 보조 단추다. */
                 <EmptyState
-                  layout="card"
+                  layout="region"
                   art="tickets"
-                  title="담당한 티켓이 없습니다"
-                  help="미할당 티켓에서 가져오거나 새 티켓을 직접 만들 수 있습니다."
-                  action={<Button variant="primary" size="sm" href="#/unassigned">미할당 티켓 보기</Button>}
+                  title="미할당 티켓에서 맡을 일을 고를 수 있습니다."
+                  help="새로 할 일이 있으면 「새 티켓」으로 추가하세요."
+                  action={<Button size="sm" href="#/unassigned">미할당 티켓 보기</Button>}
                 />
               )}
             </Box>
+            {/* 잘라서 보여 준 목록은 잘랐다고 말한다(D-587 목록 발과 같은 말). `count` 는 언제나 진짜 총계다
+                (`app/home/aggregate.py::bucket`). */}
+            {footAny || overflow ? (
+              <Box sx={{ mt: 1.5, minHeight: footAny ? { lg: "1.5rem" } : 0 }}>
+                {overflow ? (
+                  <Typography variant="body2" color="text.secondary">
+                    전체 {total}건 중 {shownRows.length}건 표시{" "}
+                    <Link href="#/my-tickets" underline="hover">내 티켓에서 모두 보기</Link>
+                  </Typography>
+                ) : null}
+              </Box>
+            ) : null}
           </Card>
           <AssistantPanel />
         </Stack>
