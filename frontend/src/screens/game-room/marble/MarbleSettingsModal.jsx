@@ -60,9 +60,12 @@ export function MarbleSettingsModal({ open, onClose, config, members, mutations,
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const names = parseNames(text);
-  const dirty = text !== (current.participants || []).map((p) => p.name).join("\n")
-    || Number(winners) !== (current.winners || 1) || pickLast !== !!current.pick_last || Number(speed) !== (current.speed || 1)
+  /* 참가자와 나머지 설정은 따로 저장한다 — 바뀐 쪽만 보낸다. 예전에는 늘 참가자를 먼저 보냈고, 방 구성원을 참가자로 쓰는 방(빈 목록)은
+     그 요청이 막혀 맵조차 저장되지 않았다(r23 D-593). */
+  const participantsDirty = text !== (current.participants || []).map((p) => p.name).join("\n");
+  const configDirty = Number(winners) !== (current.winners || 1) || pickLast !== !!current.pick_last || Number(speed) !== (current.speed || 1)
     || map !== (current.map || "wheel");
+  const dirty = participantsDirty || configDirty;
   const fillMembers = () => setText(players.map((m) => m.name).join("\n"));
   const applySuggestions = (map) => {
     setText(names.map((n) => (map[n] ? map[n] : n)).join("\n"));
@@ -83,8 +86,8 @@ export function MarbleSettingsModal({ open, onClose, config, members, mutations,
         const uid = byName.get(name);
         return uid ? { name, user_id: uid } : { name };
       });
-      await mutations.marbleParticipants.mutateAsync({ participants });
-      await mutations.marbleConfig.mutateAsync({ winners: Number(winners) || 1, pick_last: !!pickLast, speed: Number(speed) || 1, map });
+      if (participantsDirty) await mutations.marbleParticipants.mutateAsync({ participants });
+      if (configDirty) await mutations.marbleConfig.mutateAsync({ winners: Number(winners) || 1, pick_last: !!pickLast, speed: Number(speed) || 1, map });
       onSaved && onSaved();
       onClose();
     } catch (e) {

@@ -103,3 +103,62 @@ describe("동작", () => {
     expect(screen.getByRole("button", { name: "경주 시작" })).toBeInTheDocument();
   });
 });
+
+/* 맵 선택 (D-593) — 방장만, 대기 중에만 쓴다. 「다시 하기」 뒤도 대기다. 진행 · 끝난 방에서는 막고 까닭을 보인다. */
+function makeMarble({ host = true, status = "waiting", waiting = true, stageKey = "wheel" } = {}) {
+  const c = makeC({
+    room: { game_type: "marble_race", status },
+    you: host ? { user_id: "u1", role: "host", is_host: true } : { user_id: "u2", role: "player", is_host: false },
+  });
+  const marbleConfig = { mutate: vi.fn(), mutateAsync: vi.fn(() => Promise.resolve({})), isPending: false };
+  return {
+    ...c, isMarble: true, isHost: host, isDraw: false,
+    marble: { isMarble: true, waiting, stageKey },
+    mutations: { ...c.mutations, marbleConfig },
+  };
+}
+
+describe("맵 선택 (D-593)", () => {
+  it("방장 · 대기 중: 메뉴에 맵 넷이 서고 지금 맵이 표시되며, 고르면 그 맵을 서버에 보낸다", async () => {
+    const c = makeMarble();
+    renderBar(c);
+    const button = screen.getByRole("button", { name: "맵 선택" });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    const items = await screen.findAllByRole("menuitemradio");
+    expect(items.map((el) => el.textContent)).toEqual(["운명의 바퀴", "탐욕의 항아리", "비눗방울", "밤을 달리다"]);
+    expect(screen.getByRole("menuitemradio", { name: "운명의 바퀴" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "탐욕의 항아리" }));
+    expect(c.mutations.marbleConfig.mutateAsync).toHaveBeenCalledWith({ map: "pot" });
+  });
+
+  it("같은 맵을 다시 고르면 요청을 보내지 않는다", async () => {
+    const c = makeMarble({ stageKey: "bubble" });
+    renderBar(c);
+    fireEvent.click(screen.getByRole("button", { name: "맵 선택" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "비눗방울" }));
+    expect(c.mutations.marbleConfig.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("🔴 경주 중에는 막히고 까닭이 단추에 연결된다 — 지우지 않는다", () => {
+    renderBar(makeMarble({ status: "playing", waiting: false, stageKey: "yoru" }));
+    const button = screen.getByRole("button", { name: "맵 선택" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription(/경주 중에는 맵을 바꿀 수 없습니다/);
+  });
+
+  it("끝난 방은 「다시 하기」 뒤에 바꿀 수 있다고 말한다", () => {
+    renderBar(makeMarble({ status: "finished", waiting: false }));
+    expect(screen.getByRole("button", { name: "맵 선택" })).toHaveAccessibleDescription("'다시 하기'를 누른 뒤 변경할 수 있습니다.");
+  });
+
+  it("참가자에게는 맵 선택이 없다(서버도 방장만 받는다)", () => {
+    renderBar(makeMarble({ host: false }));
+    expect(screen.queryByRole("button", { name: "맵 선택" })).toBeNull();
+  });
+
+  it("전체 화면에서는 숨긴다 — 메뉴가 문서의 포털이라 가려진다", () => {
+    renderBar(makeMarble(), { active: true, toggle: vi.fn() });
+    expect(screen.queryByRole("button", { name: "맵 선택" })).toBeNull();
+  });
+});

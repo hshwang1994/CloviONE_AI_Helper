@@ -109,9 +109,12 @@ describe("대기 중", () => {
     expect(screen.getAllByText("대기 중")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "경주 시작" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "정보" })).toBeNull();
+    // 방장 툴바에 맵 선택이 선다(D-593). 창이 열리면 뒤 내용이 가려지므로 먼저 본다.
+    expect(screen.getByRole("button", { name: "맵 선택" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "설정" }));
     expect(await screen.findByText(/조작이 없었다는 증명은 아닙니다/)).toBeInTheDocument();
-    expect(screen.getByText("맵 선택")).toBeInTheDocument();
+    // 「맵 선택」은 설정 창의 칸 이름이고, 방장 툴바에도 같은 이름의 단추가 선다(D-593) — 창 안에서 찾는다.
+    expect(within(screen.getByRole("dialog")).getByText("맵 선택")).toBeInTheDocument();
   });
 
   it("방장이 아니면 설정 단추가 없다", async () => {

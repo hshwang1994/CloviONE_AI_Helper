@@ -32,6 +32,8 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
+import ArrowDropDownRoundedIcon from "@mui/icons-material/ArrowDropDownRounded";
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import HelpOutlineRoundedIcon from "@mui/icons-material/HelpOutlineRounded";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded";
@@ -573,10 +575,13 @@ export function overflowMenuItems(items, onPick, idBase = "menu") {
     /* 할 수 없는 동작은 지우지 않고 까닭 한 줄과 함께 비활성으로 둔다 — 항목 이름은 동작 낱말 그대로이고(`aria-label`),
        까닭은 설명(`aria-describedby`)이다. 비활성 항목의 흐린 처리는 이름만 받고 까닭은 읽히는 굵기로 남긴다. */
     const helpId = it.help ? `${idBase}-help-${it.key || i}` : undefined;
+    /* 고르는 메뉴(하나만 고른다 — 예: 구슬 레이스 맵)는 항목이 `checked` 를 든다. 그 항목만 라디오 항목이고, 고른 것에 표시가 선다. */
+    const radio = typeof it.checked === "boolean";
     return (
       <MenuItem
         key={it.key || it.label || i}
         disabled={it.disabled}
+        {...(radio ? { role: "menuitemradio", "aria-checked": it.checked, selected: it.checked } : null)}
         aria-label={it.help ? it.label : undefined}
         aria-describedby={helpId}
         {...(it.href ? { component: "a", href: it.href } : null)}
@@ -599,13 +604,20 @@ export function overflowMenuItems(items, onPick, idBase = "menu") {
             <Box component="span" sx={{ color: it.disabled ? "text.disabled" : "inherit" }}>{it.label}</Box>
             <Box component="span" id={helpId} sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", ...KO_WORD_BREAK }}>{it.help}</Box>
           </>
+        ) : radio ? (
+          <>
+            <Box component="span" sx={{ flex: 1 }}>{it.label}</Box>
+            {it.checked ? <CheckRoundedIcon aria-hidden="true" sx={{ ml: 1.5, fontSize: remPx(ICON.inline), color: "primary.main" }} /> : null}
+          </>
         ) : it.label}
       </MenuItem>
     );
   });
 }
 
-export function OverflowMenu({ items, ariaLabel = "더 보기", size }) {
+/* `label` 을 주면 아이콘 단추 대신 **글자 단추**(34, 아래 삼각)로 연다 — 고르는 메뉴(맵 선택 등)는 무엇을 여는지 이름이 서야 한다.
+ * `buttonProps` 는 그 단추에 붙는다(비활성 · 설명 연결 · data 표지). 아이콘 단추의 기본 모양은 그대로다. */
+export function OverflowMenu({ items, ariaLabel = "더 보기", size, label, buttonProps }) {
   const list = (items || []).filter(Boolean);
   const [anchorEl, setAnchorEl] = React.useState(null);
   const idBase = React.useId();
@@ -617,16 +629,28 @@ export function OverflowMenu({ items, ariaLabel = "더 보기", size }) {
   const close = () => setAnchorEl(null);
   return (
     <>
-      <IconButton
-        aria-label={ariaLabel}
-        aria-haspopup="menu"
-        aria-expanded={anchorEl ? true : undefined}
-        onClick={(e) => setAnchorEl(e.currentTarget)}
-        size={iconSize}
-        sx={{ border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px`, color: "text.secondary" }}
-      >
-        <MoreHorizRoundedIcon fontSize="small" />
-      </IconButton>
+      {label ? (
+        <Button
+          aria-haspopup="menu"
+          aria-expanded={anchorEl ? true : undefined}
+          onClick={(e) => setAnchorEl(e.currentTarget)}
+          endIcon={<ArrowDropDownRoundedIcon sx={{ fontSize: remPx(ICON.action) }} />}
+          {...buttonProps}
+        >
+          {label}
+        </Button>
+      ) : (
+        <IconButton
+          aria-label={ariaLabel}
+          aria-haspopup="menu"
+          aria-expanded={anchorEl ? true : undefined}
+          onClick={(e) => setAnchorEl(e.currentTarget)}
+          size={iconSize}
+          sx={{ border: 1, borderColor: "divider", borderRadius: `${RADIUS.sm}px`, color: "text.secondary" }}
+        >
+          <MoreHorizRoundedIcon fontSize="small" />
+        </IconButton>
+      )}
       <Menu
         anchorEl={anchorEl}
         open={!!anchorEl}

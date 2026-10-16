@@ -264,3 +264,35 @@ def test_map_choices(app, client, login_as, make_user):
     assert _state(client, rid)["state"]["config"]["map"] == "yoru"
     assert client.post(f"/api/games/rooms/{rid}/start", headers=h).status_code == 200
     assert _state(client, rid)["state"]["map"] == "yoru"
+
+
+def test_a_member_room_changes_the_map_and_an_empty_list_means_members(app, client, login_as, make_user):
+    """D-593 — 방 구성원을 참가자로 쓰는 방(참가자 목록이 비었다)도 맵을 바꾼다. 빈 참가자 목록은 422 가 아니라 「시작 때 구성원」이다."""
+    rid, csrf, c2, csrf2 = _room_with_two(app, client, login_as, make_user)
+    h = {"X-CSRF-Token": csrf}
+    emptied = client.put(f"/api/games/rooms/{rid}/marble/participants", json={"participants": []}, headers=h)
+    assert emptied.status_code == 200, emptied.text
+    assert _state(client, rid)["state"]["config"]["participants"] == []
+    assert c2.put(f"/api/games/rooms/{rid}/marble/participants", json={"participants": []}, headers={"X-CSRF-Token": csrf2}).status_code == 403, "방장만"
+    assert client.put(f"/api/games/rooms/{rid}/marble/config", json={"map": "pot"}, headers=h).status_code == 200
+    assert client.post(f"/api/games/rooms/{rid}/start", headers=h).status_code == 200
+    st = _state(client, rid)
+    assert st["state"]["map"] == "pot", "고른 맵이 경주에 박힌다"
+    assert len(st["state"]["participants"]) == 2, "빈 목록은 시작 때의 구성원이다"
+
+
+def test_after_play_again_the_host_changes_the_map_but_not_while_running(app, client, login_as, make_user):
+    """D-593 — 맵은 대기 중에만 바꾼다. 진행 중에는 409 와 「'다시 하기'를 누른 뒤」라는 까닭, 방장이 아니면 403 이다.
+    「다시 하기」 뒤는 대기이고, 새 라운드에서 바꾼 맵으로 다시 시작한다."""
+    rid, csrf, c2, csrf2 = _room_with_two(app, client, login_as, make_user, map="wheel")
+    h = {"X-CSRF-Token": csrf}
+    assert client.post(f"/api/games/rooms/{rid}/start", headers=h).status_code == 200
+    blocked = client.put(f"/api/games/rooms/{rid}/marble/config", json={"map": "bubble"}, headers=h)
+    assert blocked.status_code == 409, blocked.text
+    assert "'다시 하기'를 누른 뒤 변경할 수 있습니다." in blocked.json()["error"]["message"]
+    assert c2.put(f"/api/games/rooms/{rid}/marble/config", json={"map": "bubble"}, headers={"X-CSRF-Token": csrf2}).status_code == 403
+    assert client.post(f"/api/games/rooms/{rid}/reset", headers=h).status_code == 200
+    assert _state(client, rid)["room"]["status"] == "waiting"
+    assert client.put(f"/api/games/rooms/{rid}/marble/config", json={"map": "bubble"}, headers=h).status_code == 200
+    assert client.post(f"/api/games/rooms/{rid}/start", headers=h).status_code == 200
+    assert _state(client, rid)["state"]["map"] == "bubble"

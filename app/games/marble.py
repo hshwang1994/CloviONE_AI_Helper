@@ -112,7 +112,7 @@ def validate_participants(items) -> list[dict]:
     if len(out) > MAX_PARTICIPANTS:
         raise ValidationAppError(f"참가자는 {MAX_PARTICIPANTS}명까지 넣을 수 있습니다.")
     if len({p["key"] for p in out}) != len(out):
-        raise ValidationAppError("참가자 열쇠가 겹칩니다.")
+        raise ValidationAppError("참가자 구분 값이 겹칩니다.")
     return out
 
 
@@ -169,7 +169,13 @@ def _ensure_host(room: GameRoom, user) -> None:
 def set_participants(db: Session, room: GameRoom, user, items, *, now: datetime) -> list[dict]:
     _ensure_host(room, user)
     if room.status != ROOM_WAITING:
-        raise ConflictError("경주가 진행 중이거나 끝난 방입니다. 다시 하려면 먼저 초기화하세요.")
+        raise ConflictError("경주가 진행 중이거나 끝난 방입니다. '다시 하기'를 누른 뒤 변경할 수 있습니다.")
+    if not list(items or []):
+        # 빈 목록은 「시작할 때의 방 구성원」이다(`config_view` · `start`). 예전에는 2명 미만이라며 422 를 줘, 구성원을 참가자로 쓰는 방은
+        # 설정 창이 참가자를 먼저 보내는 순서 때문에 맵조차 저장하지 못했다(r23 D-593).
+        _save_config(room, {"participants": []})
+        db.flush()
+        return []
     participants = validate_participants(items)
     _save_config(room, {"participants": participants})
     db.flush()
@@ -179,7 +185,7 @@ def set_participants(db: Session, room: GameRoom, user, items, *, now: datetime)
 def set_config(db: Session, room: GameRoom, user, changes: dict, *, now: datetime) -> dict:
     _ensure_host(room, user)
     if room.status != ROOM_WAITING:
-        raise ConflictError("경주가 진행 중이거나 끝난 방입니다. 다시 하려면 먼저 초기화하세요.")
+        raise ConflictError("경주가 진행 중이거나 끝난 방입니다. '다시 하기'를 누른 뒤 변경할 수 있습니다.")
     current = config_view(json.loads(room.config_json or "{}"))
     merged = {**current, **{k: v for k, v in (changes or {}).items() if k in ("winners", "pick_last", "map", "speed")}}
     try:
@@ -189,7 +195,7 @@ def set_config(db: Session, room: GameRoom, user, changes: dict, *, now: datetim
     if not (1 <= winners <= MAX_WINNERS):
         raise ValidationAppError(f"당첨 인원은 1명부터 {MAX_WINNERS}명까지입니다.")
     if merged["map"] not in MAPS:
-        raise ValidationAppError("지원하지 않는 경주 판입니다.")
+        raise ValidationAppError("지원하지 않는 맵입니다.")
     try:
         speed = int(merged["speed"])
     except (TypeError, ValueError):
@@ -211,11 +217,11 @@ def start(db: Session, room: GameRoom, user, *, now: datetime) -> GameRoom:
 
     _ensure_host(room, user)
     if room.status != ROOM_WAITING:
-        raise ConflictError("이미 시작했거나 끝난 방입니다. 다시 하려면 먼저 초기화하세요.")
+        raise ConflictError("이미 시작했거나 끝난 방입니다. '다시 하기'를 누른 뒤 다시 시작할 수 있습니다.")
     config = config_view(json.loads(room.config_json or "{}"))
     participants = config["participants"] or participants_from_members(db, room, now)
     if len(participants) < MIN_PARTICIPANTS:
-        raise ConflictError(f"참가자가 {MIN_PARTICIPANTS}명 이상이어야 합니다. 방장이 설정에서 참가자를 더할 수 있습니다.")
+        raise ConflictError(f"참가자가 {MIN_PARTICIPANTS}명 이상이어야 합니다. 방장이 설정에서 참가자를 추가할 수 있습니다.")
     participants = validate_participants(participants)
     state = {
         "phase": PHASE_RUNNING,

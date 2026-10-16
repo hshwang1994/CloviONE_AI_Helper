@@ -1,15 +1,17 @@
+import React from "react";
 import Box from "@mui/material/Box";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
 import FullscreenRoundedIcon from "@mui/icons-material/FullscreenRounded";
 import FullscreenExitRoundedIcon from "@mui/icons-material/FullscreenExitRounded";
-import { Badge, Button, FlatBadgeSurface, HeadRow, OverflowMenu } from "../../ui/kit.jsx";
+import { Badge, Button, FlatBadgeSurface, HeadRow, OverflowMenu, useToast } from "../../ui/kit.jsx";
 import { CONTROL, FONT_SIZE, ICON, NUMERIC, remPx } from "../../ui/theme.js";
 import { GAME_LABELS } from "../Games.jsx";
 import { Countdown } from "./StageShared.jsx";
 import { marbleMetaParts } from "./roomStatus.js";
-import { STAGE_LABELS } from "./marble/engine/stages/labels.js";
+import { STAGE_KEYS, STAGE_LABELS } from "./marble/engine/stages/labels.js";
 import { useGameRoomLayout } from "./GameRoomLayout.jsx";
 
 /* 방 툴바 (게임 공통 G2 · D-575) — 상태 정본 하나 · 동작 줄 하나.
@@ -27,6 +29,43 @@ function Meta({ children }) {
     <Typography component="span" variant="body2" color="text.secondary" sx={{ ...NUMERIC, whiteSpace: "nowrap" }}>
       {children}
     </Typography>
+  );
+}
+
+/* 맵 선택 (D-593) — 방장만, 대기 중에만 쓴다. 「다시 하기」 뒤도 대기다. 경주 중 · 끝난 방에서는 단추를 지우지 않고 막아 두며 까닭을
+ * 툴팁과 설명(`aria-describedby`)으로 보인다. 예전에는 맵을 바꾸려면 「설정」 창을 열어야 했고, 구성원을 참가자로 쓰는 방은 그 창의 저장이
+ * 막혀 맵을 바꿀 수 없었다. 고른 맵은 서버가 경주 상태에 박는다 — 툴바의 맵 이름과 실제로 그리는 판이 같은 값을 읽는다. */
+function MarbleMapPicker({ current, enabled, reason, mutation }) {
+  const toast = useToast();
+  const reasonId = React.useId();
+  const pick = async (key) => {
+    if (key === current) return;
+    try {
+      await mutation.mutateAsync({ map: key });
+    } catch (e) {
+      toast((e && e.message) || "맵을 바꾸지 못했습니다. 다시 시도해 주세요.", "error");
+    }
+  };
+  const menu = (
+    <OverflowMenu
+      label="맵 선택"
+      items={STAGE_KEYS.map((key) => ({ key, label: STAGE_LABELS[key], checked: key === current, onClick: () => pick(key) }))}
+      buttonProps={{
+        disabled: !enabled || mutation.isPending,
+        "aria-describedby": enabled ? undefined : reasonId,
+        "data-marble-map-picker": enabled ? "on" : "off",
+      }}
+    />
+  );
+  if (enabled) return menu;
+  return (
+    <Tooltip title={reason}>
+      {/* 막힌 단추는 초점을 못 받는다 — 감싸개가 초점을 받아 키보드로도 까닭이 열린다. */}
+      <Box component="span" tabIndex={0} sx={{ display: "inline-flex", borderRadius: 1 }}>
+        {menu}
+        <Box component="span" id={reasonId} className="sr-only">{reason}</Box>
+      </Box>
+    </Tooltip>
   );
 }
 
@@ -76,8 +115,19 @@ export function RoomToolbar({ c, fs, onOpenSettings }) {
     actions.disband ? { key: "disband", label: "게임방 종료", tone: "danger", onClick: c.disbandWithConfirm, disabled: mutations.disband.isPending } : null,
   ].filter(Boolean) : [];
 
+  /* 맵 선택은 방장에게만 선다(서버도 방장만 받는다 — 403). 대기 중이 아니면 막고 까닭을 말한다. 전체 화면에서는 메뉴가 문서의 포털이라
+     가려지므로 설정과 함께 숨긴다. */
+  const mapPick = isMarble && c.isHost && !fullscreen ? {
+    enabled: !!marble.waiting,
+    reason: room.status === "playing" ? "경주 중에는 맵을 바꿀 수 없습니다. 경주가 끝난 뒤 '다시 하기'를 누르면 바꿀 수 있습니다."
+      : "'다시 하기'를 누른 뒤 변경할 수 있습니다.",
+  } : null;
+
   const buttons = (
     <>
+      {mapPick ? (
+        <MarbleMapPicker current={marble.stageKey || "wheel"} enabled={mapPick.enabled} reason={mapPick.reason} mutation={mutations.marbleConfig} />
+      ) : null}
       {actions.settings && !fullscreen ? <Button onClick={onOpenSettings}>설정</Button> : null}
       {actions.ready ? (
         <Button variant={actions.ready.on ? "default" : "primary"} onClick={actions.ready.onClick} disabled={actions.ready.pending}>{actions.ready.label}</Button>
