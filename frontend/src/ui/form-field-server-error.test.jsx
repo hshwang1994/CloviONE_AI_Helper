@@ -119,3 +119,20 @@ describe("한 오류에 표현 하나 (C5)", () => {
     expect(box.closest(".k-form-err")).not.toBeNull();
   });
 });
+
+describe("FormModal — 검사는 제품 문장이 한다", () => {
+  it("폼에 novalidate 가 있어 빈 필수 칸을 Enter 로 제출해도 브라우저 영문 말풍선이 아니라 칸 아래 제품 문장이 선다", async () => {
+    /* 폼에 `noValidate` 가 없으면 입력의 `required` · `type=email` 이 브라우저 기본 검사로 제출을 먼저 막아 영문 말풍선이 뜨고
+       `submit()` 의 제품 문장에 닿지 못했다(r23 화면 대장 03-invalid 와 같은 원인 — 새 티켓은 98617e79 에서 고쳤다). jsdom 은
+       브라우저 기본 검사를 하지 않으니, 계약(속성)과 결과(제품 문장 · 요청 없음)를 함께 잰다. */
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    render(wrap(<FormModal open title="시험" fields={FIELDS} onSubmit={onSubmit} onClose={vi.fn()} />));
+    const name = screen.getByLabelText(/이름/);
+    expect(name.closest("form")).toHaveAttribute("novalidate");
+    await user.click(name);
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText("이름을 입력하세요.")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});

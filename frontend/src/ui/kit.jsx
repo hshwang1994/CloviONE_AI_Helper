@@ -4505,6 +4505,8 @@ export function FormModal({ open, title, fields, initial, submitLabel, onSubmit,
           위해 기본 Enter 동작 유지). */}
       <Box
         component="form"
+        /* 검사는 `submit()` 이 칸 아래 제품 문장으로 한다 — Enter 제출 때 브라우저 기본 말풍선이 먼저 뜨지 않게 한다. */
+        noValidate
         onSubmit={(e) => { e.preventDefault(); submit(); }}
         /* 칸 사이 간격은 폼이 준다(20, D-527) - 칸이 각자 아래 여백을 들지 않는다. */
         sx={{ display: "flex", flexDirection: "column", rowGap: 2.5, minWidth: 0 }}
