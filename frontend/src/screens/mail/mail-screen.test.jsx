@@ -441,6 +441,8 @@ describe("메일 화면 — 안내 흐름 (D-560)", () => {
     expect(within(next).getByText("시험 메일을 보내세요.")).toBeInTheDocument();
     // 「지금 할 일」 상자가 이미 말한 문장은 단계 목록이 다시 쓰지 않는다.
     expect(within(card).getAllByText("시험 메일을 보내세요.")).toHaveLength(1);
+    // 「이동」은 길 안내라 보조 단추다 — 주 단추는 그 단계의 실제 동작 하나다(한 화면 주 단추 하나).
+    expect(within(next).getByRole("button", { name: "이동" }).className).not.toMatch(/containedPrimary/);
     await user.click(within(next).getByRole("button", { name: "이동" }));
     // 이동은 누르지 않는다 — 그 줄의 단추에 초점만 둔다(창이 열리지 않는다).
     expect(document.activeElement).toBe(within(checksSection()).getByRole("button", { name: "시험 메일 보내기" }));

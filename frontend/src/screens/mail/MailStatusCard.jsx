@@ -158,12 +158,14 @@ function StageList({ stages }) {
 }
 
 /* 「지금 할 일」 한 줄(D-560) — 서버가 고른 다음 단계의 문장과 그 자리로 가는 [이동]. 제목 없이 한 줄(굵은 꼬리표 + 문장)이다 — 동작이
-   든 상자의 계약(D-528: 아이콘 · 첫 줄 · 동작이 한 가운데선)은 제목 줄을 세지 않는다. 막힌 단계면 주의 톤이다. */
+   든 상자의 계약(D-528: 아이콘 · 첫 줄 · 동작이 한 가운데선)은 제목 줄을 세지 않는다. 막힌 단계면 주의 톤이다.
+   [이동]은 그 단계의 단추로 초점을 옮기는 길 안내라 보조 단추다 — 그 단계의 실제 동작(시험 메일 보내기 · 받은 편지함에서 확인함)이 화면의
+   주 단추다. 둘 다 주 단추면 한 화면에 주 단추가 둘이 선다(r23 kit_measure primary_budget). */
 function NextStep({ next, onGo }) {
   return (
     <Callout
       tone={next.state === "blocked" ? "warn" : "info"} className="k-mail-next"
-      action={onGo ? <Button size="sm" variant="primary" onClick={() => onGo(next)}>이동</Button> : null}
+      action={onGo ? <Button size="sm" onClick={() => onGo(next)}>이동</Button> : null}
     >
       <Typography component="span" variant="body2" sx={KO_WORD_BREAK}>
         <Box component="strong" sx={{ fontWeight: FONT_WEIGHT.semibold, mr: 0.75 }}>지금 할 일</Box>
