@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Link from "@mui/material/Link";
 import { api } from "../lib/api.js";
-import { approvalTypeKo, fmtDateTime } from "../lib/format.js";
+import { approvalTypeKo, fmtDateTime, objKo } from "../lib/format.js";
 import { failureText } from "../lib/failure.js";
 import {
   Badge, Button, Callout, DataTable, EmptyState, ErrorState, Modal, PageHeader, RowActions, useConfirm, useToast,
@@ -87,10 +87,19 @@ function DraftPreview({ requestId, onClose }) {
  * 문구에 `\n` 을 넣지 않는 것이 이 저장소의 규칙이고(CLAUDE.md §10), 이름표와 값을 콜론으로
  * 나열한 조각은 완전한 문장도 아니다. 줄바꿈은 `pre-line` 이라는 CSS 한 줄에 기대는 배치라
  * 그 한 줄이 바뀌면 문구가 한 줄로 뭉개진다 — 같은 사실을 주어와 서술어가 있는 문장으로 적는다. */
-function decisionSummary(r) {
+/* 승인 대상의 사람 말(r23 #28) — 서버가 요청에 싣는 이름이다. 자리는 요청 종류마다 다르다: 역할 변경 · 대리 보기 · AI 초안은
+   `target_name`(없으면 `target_email`), 외부 연동은 `config.name`, 실행 일정은 `definition.name`. 이름이 없으면 종류 낱말(「사용자」 ·
+   「외부 연동」 · 「실행 일정」)만 쓴다 — 예전에는 「user user-01」 · 「integration integration-04」처럼 내부 종류 키와 id 를 그대로 보였다.
+   id 는 표 칸의 툴팁에 남긴다. */
+export function approvalTargetText(r) {
   const p = (r && r.request_payload) || {};
-  const target = p.target_name || p.target_email
-    || (r.object_type ? (r.object_type + " " + (r.object_id || "")).trim() : "");
+  const name = p.target_name || p.target_email || (p.config && p.config.name) || (p.definition && p.definition.name);
+  if (name) return String(name);
+  return r && r.object_type ? objKo(r.object_type) : "";
+}
+
+function decisionSummary(r) {
+  const target = approvalTargetText(r);
   const what = approvalTypeKo(r.request_type);
   const requester = r.requester_name || r.requester_email || r.requested_by;
   const who = requester ? requester + "님이 올린" : "요청자를 알 수 없는";
@@ -209,11 +218,10 @@ export function MyApprovals() {
       key: "requested_by", label: "요청자", type: "name", min: "13rem",
       // 사람이 나오는 자리에는 **조직 경로를 함께** 보여 준다(0060 §5) — 동명이인을 구별할
       // 방법이 화면에 없으면 잘못된 요청을 승인하게 된다.
-      /* 이 칸은 두 줄로 쌓인다(이름 + 조직 경로). 칸의 정렬은 `text-align` 하나뿐이라
-         안쪽 블록이 자기 폭을 가지면 두 줄의 시작점이 서로 어긋난다 — 두 줄을 같은
-         축에 세우려면 안쪽도 함께 가운데로 맞춰야 한다. */
+      /* 이 칸은 두 줄로 쌓인다(이름 + 조직 경로). 이름 열은 왼쪽 축이라(`columnTypes.js` 의 name, 머리도 왼쪽) 안쪽 두 줄도
+         왼쪽에서 시작한다 — 예전에는 열이 가운데 축이던 때의 `alignItems: center` 가 남아, 머리는 왼쪽인데 값만 가운데에 섰다(r23 #27). */
       render: (r) => (
-        <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
           <Typography variant="body2" sx={{ minWidth: 0 }}>
             {r.requester_name || r.requested_by}
           </Typography>
@@ -235,8 +243,13 @@ export function MyApprovals() {
             </Link>
           );
         }
-        return r.object_type ? `${r.object_type} ${r.object_id || ""}`.trim() : "-";
+        const text = approvalTargetText(r);
+        if (!text) return "-";
+        const raw = r.object_type ? `${r.object_type} ${r.object_id || ""}`.trim() : "";
+        return <Box component="span" title={raw || undefined}>{text}</Box>;
       },
+      value: (r) => (r.request_type === AI_DRAFT
+        ? ((r.request_payload && r.request_payload.title) || "AI 초안") : (approvalTargetText(r) || "-")),
     },
     {
       key: "status", label: "상태", type: "status",

@@ -756,6 +756,9 @@ export function Segmented({ value, onChange, options, ariaLabel, sx }) {
       onKeyDown={onKeyDown}
       sx={{
         display: "inline-flex",
+        /* 세로 flex 셸(화면 몸통 `c-screen` 등) 안에서도 칸 폭은 내용이 정한다 — 부모의 `align-items: stretch` 가 상자를 판 폭으로
+           늘려, 회색 바탕이 판 끝까지 서고 칸 셋은 왼쪽에 몰렸다(r23 승인 #25). */
+        alignSelf: "flex-start",
         alignItems: "center",
         gap: "2px",
         p: "3px",
