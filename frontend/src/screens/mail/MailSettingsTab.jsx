@@ -458,7 +458,7 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
   const advancedSummary = local
     ? "담당자에게 보낼 요청 내용과 복사할 DNS 레코드, 고급 설정을 봅니다."
     : (hasIconHelp(status.help)
-      ? "받은 편지함 아이콘 조건을 보고 사설 CA 인증서와 응답 대기 시간을 정합니다."
+      ? "받는 쪽 메일 프로그램이 보낸 사람 아이콘을 보여 주는 조건을 확인하고, 사설 CA 인증서와 응답 대기 시간을 정합니다."
       : "사설 CA 인증서와 응답 대기 시간을 정합니다.");
 
   return (
