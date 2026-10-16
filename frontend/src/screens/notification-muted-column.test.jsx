@@ -4,6 +4,9 @@
  * router.py::_view) — "목록에서 빼지 않고 표시만 한다"는 그 필드 자체의 존재 이유가 화면에
  * 안 보이면 성립하지 않는다: 뮤트해 놓고도 계속 알림이 온다고만 보이지, 왜 오는지는 알 길이
  * 없었다.
+ *
+ * qa-contract-change: 따로 서던 「뮤트 유형」 열을 유형 칸 안의 「뮤트됨」 표지로 합쳤다(r23 #31) — 뮤트한 유형이 없으면 열 전체가
+ * 「-」였다. 뮤트 사실을 행에서 보인다는 단언은 그대로이고, 표지 글과 자리만 새것이다.
  */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -45,16 +48,17 @@ function renderScreen() {
   );
 }
 
-describe("알림 목록 — 뮤트 유형 열 (RG-03)", () => {
-  it("뮤트한 유형의 알림에는 '뮤트된 유형' 배지가 보인다", async () => {
+describe("알림 목록 — 뮤트한 유형 표지 (RG-03 · r23 #31)", () => {
+  it("뮤트한 유형의 알림은 유형 칸에 「뮤트됨」 표지가 서고, 따로 「뮤트 유형」 열은 없다", async () => {
     renderScreen();
     const row = (await screen.findByText("뮤트된 유형 알림")).closest("tr");
-    expect(within(row).getByText("뮤트된 유형")).toBeInTheDocument();
+    expect(within(row).getByText("뮤트됨")).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: /뮤트 유형/ })).toBeNull();
   });
 
-  it("뮤트 안 한 유형은 배지 없이 '-'만 보인다(뮤트 상태를 지어내지 않는다)", async () => {
+  it("뮤트 안 한 유형은 표지 없이 유형 이름만 보인다(뮤트 상태를 지어내지 않는다)", async () => {
     renderScreen();
     const row = (await screen.findByText("보통 알림")).closest("tr");
-    expect(within(row).queryByText("뮤트된 유형")).toBeNull();
+    expect(within(row).queryByText("뮤트됨")).toBeNull();
   });
 });

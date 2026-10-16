@@ -106,8 +106,9 @@ describe("AI 도우미 — 쓸 수 없을 때", () => {
     expect(await screen.findByText("AI 가 아직 연결되지 않았습니다.")).toBeInTheDocument();
     expect(screen.getByText("관리자가 AI를 연결하면 쓸 수 있습니다.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "AI 연결 열기" })).toBeNull();
-    // 문서 찾기는 모델을 부르지 않으므로 그대로 권한다(머리의 단추 + 판 안의 단추).
-    expect(screen.getAllByRole("link", { name: "문서에서 찾기" }).length).toBeGreaterThanOrEqual(2);
+    // 문서 찾기는 모델을 부르지 않으므로 그대로 권한다 — 화면 머리의 단추 하나다. 판 안에 같은 단추를 또 세우지 않는다(r23 #34).
+    // qa-contract-change: 판 안의 「문서에서 찾기」를 걷었다(머리와 같은 단추가 한 화면에 두 번 섰다). 권하는 길은 그대로 있다.
+    expect(screen.getAllByRole("link", { name: "문서에서 찾기" })).toHaveLength(1);
     await waitFor(() => expect(screen.getByLabelText("메시지 입력")).toBeDisabled());
   });
 

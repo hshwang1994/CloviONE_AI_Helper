@@ -250,7 +250,7 @@ export function Chat() {
   });
   const notFound = !!cid && thread.isError && !items.length && thread.error && [403, 404].includes(thread.error.status);
   const emptyNode = !cid
-    ? (unavailable ? <AssistantUnavailable assistant={assistant} />
+    ? (unavailable ? <AssistantUnavailable assistant={assistant} showSearch={false} />
       : <Welcome mode={mascot} title="무엇을 도와드릴까요?" busy={starting} onPick={prefillFromPrompt}
           help="문서, 티켓, 프로젝트, 승인 요청, 알림, 회의록을 내 권한 안에서 찾아 답합니다. 팀 채팅 대화는 찾지 않습니다." />)
     : thread.isLoading ? <Skeleton lines={3} />
@@ -260,7 +260,7 @@ export function Chat() {
         action={<Button onClick={() => onOpen(null)}>새 대화 시작</Button>} />
     )
     : thread.isError && !items.length ? <ErrorState layout="region" error={thread.error} onRetry={() => thread.refetch()} />
-    : unavailable ? <AssistantUnavailable assistant={assistant} />
+    : unavailable ? <AssistantUnavailable assistant={assistant} showSearch={false} />
     : <Welcome mode={mascot} title="새 대화" busy={starting} onPick={prefillFromPrompt} help="아래에 질문을 입력하거나, 예시를 눌러 시작하세요." />;
   const faces = {
     assistant: <MascotPose mode="listening" place="chatBubble" decorative />,

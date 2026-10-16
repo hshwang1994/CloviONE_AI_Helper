@@ -91,11 +91,20 @@ function notificationsScreen({ key, audience, area, title, help, emptyHelp }) {
     // 보여야 성립하는 계약인데, 열이 없어 뮤트해 놓고도 왜 계속 오는지 알 길이 없었다.
     // 「제목」은 그 행의 제목 열이다(D-501) — 홀로 왼쪽에 서고 남는 폭을 갖는다. 예전 `identifier` 는
     // 가운데 정렬에 옆 열과 같은 폭이었다.
-    columns: [{ ...col("title", "제목", "title"), sortable: true }, { ...mapCol("type", "유형", TYPE_KO), sortable: true }, { ...readCol("read_at", "읽음"), sortable: true }, dateCol("created_at", "시각"),
-      // 이 파일은 .js라 JSX 대신 React.createElement를 직접 쓴다(integrations.js와 같은
-      // 이유 — 빌드 설정이 .jsx/.tsx에만 JSX 변환을 적용한다).
-      { key: "muted", label: "뮤트 유형", type: "enum", render: (r) => r.muted
-        ? React.createElement(Badge, { value: "뮤트된 유형", kind: "neutral" }) : "-" }],
+    // 뮤트한 유형은 따로 열을 두지 않고 유형 칸 안의 표지로 말한다(r23 #31) — 예전 「뮤트 유형」 열은 뮤트한 유형이 없으면 열 전체가
+    // 「-」였고, 제목 열 다음의 빈 열 때문에 유형 · 읽음 · 시각이 오른쪽 멀리 밀렸다. 이 파일은 .js라 JSX 대신 React.createElement를
+    // 쓴다(빌드 설정이 .jsx/.tsx에만 JSX 변환을 적용한다).
+    columns: [{ ...col("title", "제목", "title"), sortable: true },
+      { ...mapCol("type", "유형", TYPE_KO), sortable: true,
+        values: [...Object.values(TYPE_KO).map((label) => label + " 뮤트됨")],
+        render: (r) => {
+          const label = TYPE_KO[r.type] || (r.type == null ? "-" : String(r.type));
+          return r.muted
+            ? React.createElement("span", { style: { display: "inline-flex", alignItems: "baseline", gap: "0.5rem" } },
+              label, React.createElement(Badge, { value: "뮤트됨", kind: "neutral" }))
+            : label;
+        } },
+      { ...readCol("read_at", "읽음"), sortable: true }, dateCol("created_at", "시각")],
     // related_object_id는 원래 상세에서 원시 UUID로만 보여줬다 — 바로 옆 '관련 항목 보기'/'관련
     // 목록 열기' 액션 버튼이 이미 같은 id를 실제로 이동 가능한 링크로 해석해 주므로, 클릭도
     // 복사도 안 되는 평문 UUID 한 줄은 정보 없이 자리만 차지했다(drop).

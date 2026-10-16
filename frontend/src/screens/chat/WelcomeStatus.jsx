@@ -49,12 +49,13 @@ export function unavailableHelp(assistant) {
   if (assistant && assistant.reason === "blocked") {
     return admin ? "AI 연결 화면에서 연결 상태를 확인하세요." : "관리자에게 AI 연결 상태를 알려 주세요.";
   }
-  return admin ? "AI 연결 화면에서 제공자를 연결하고 AI 사용을 켜세요." : "관리자가 AI를 연결하면 쓸 수 있습니다.";
+  return admin ? "AI 연결 화면에서 제공자를 연결하고 AI 사용을 활성화하세요." : "관리자가 AI를 연결하면 쓸 수 있습니다.";
 }
 
 /* AI 를 지금 쓸 수 없는 판 — 「찾지 못함」(정상 답)과 다른 상태다. 입력 칸은 담는 쪽이 막는다.
-   문서 찾기는 모델을 부르지 않으므로 그대로 권한다. */
-export function AssistantUnavailable({ assistant, layout = "page" }) {
+   문서 찾기는 모델을 부르지 않으므로 그대로 권한다. 다만 화면 머리에 이미 「문서에서 찾기」가 있는 AI 도우미 화면은
+   `showSearch={false}` 로 판 안의 같은 단추를 빼서 한 화면에 같은 단추가 두 번 서지 않게 한다(r23 #34). 머리가 없는 클로비 판은 그대로다. */
+export function AssistantUnavailable({ assistant, layout = "page", showSearch = true }) {
   const admin = !!(assistant && assistant.can_configure);
   return (
     <Box sx={{ m: "auto", width: "100%", maxWidth: "38rem" }}>
@@ -66,7 +67,7 @@ export function AssistantUnavailable({ assistant, layout = "page" }) {
         action={(
           <Stack direction="row" flexWrap="wrap" gap={1} justifyContent="center">
             {admin ? <Button variant="primary" size="sm" href="#/ai-connection">AI 연결 열기</Button> : null}
-            <Button size="sm" href="#/ai">문서에서 찾기</Button>
+            {showSearch ? <Button size="sm" href="#/ai">문서에서 찾기</Button> : null}
           </Stack>
         )}
       />
