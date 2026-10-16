@@ -361,13 +361,32 @@ CONTROLS_JS = r"""
       if (!reason) reason = el.getAttribute('title') || '';
     }
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    let covered = null;
-    if (cx >= 0 && cy >= 0 && cx < innerWidth && cy < innerHeight) {
+    let covered = null, coverKind = '';
+    // 비활성 요소는 누름을 받지 않는다(MUI 는 pointer-events 를 끈다) — 가운데 점에 형제 요소(스위치 막대)가 잡혀 「덮임」으로 셌다.
+    // 덮임은 재지 않고 까닭 검사만 한다.
+    if (!disabled && cx >= 0 && cy >= 0 && cx < innerWidth && cy < innerHeight) {
       const top = document.elementFromPoint(cx, cy);
       covered = top ? !(el === top || el.contains(top) || top.contains(el)) : null;
+      if (covered) {
+        // 굴림 판 밖으로 잘린 요소는 덮인 것이 아니라 굴려야 닿는 것이다(가로 탭 줄 · 홈 업무 판 · 대화 기록).
+        let clip = false;
+        for (let a = el.parentElement; a && a !== document.body && !clip; a = a.parentElement) {
+          const st = getComputedStyle(a);
+          if (!/(auto|scroll|hidden|clip)/.test(st.overflowX + ' ' + st.overflowY)) continue;
+          const ar = a.getBoundingClientRect();
+          clip = cx < ar.left || cx > ar.right || cy < ar.top || cy > ar.bottom;
+        }
+        // 붙박이(fixed · sticky) 판 밑으로 지나간 요소는 굴리거나 그 판(열린 패널)을 닫으면 닿는다 — 끝까지 굴린 뒤의 덮임은 COVER_JS 가 잰다.
+        let pinned = false;
+        for (let a = top; a && a !== document.body && !pinned; a = a.parentElement) {
+          const pos = getComputedStyle(a).position;
+          pinned = pos === 'fixed' || pos === 'sticky';
+        }
+        coverKind = clip ? 'clip' : (pinned ? 'pinned' : 'other');
+      }
     }
     items.push({ role, name, disabled, reason: reason.slice(0, 160), x: Math.round(r.left), y: Math.round(r.top),
-      w: Math.round(r.width), h: Math.round(r.height), covered, tag: el.tagName.toLowerCase() });
+      w: Math.round(r.width), h: Math.round(r.height), covered, coverKind, tag: el.tagName.toLowerCase() });
   }
   const fakes = [];
   for (const el of document.querySelectorAll('body *')) {
@@ -1061,6 +1080,15 @@ _BAD = """<!doctype html><html><body style="margin:0;font-family:sans-serif;heig
 </body></html>"""
 
 
+# 덮임의 종류 — 비활성(재지 않는다) · 굴림 판 밖(clip) · 붙박이 판 아래(pinned) · 진짜 겹침(other).
+_COVER_KINDS = """<body style="margin:0"><header style="position:fixed;top:0;left:0;right:0;height:60px;background:#223;z-index:5">머리</header>
+<button style="margin-top:20px">머리 밑 단추</button>
+<div style="margin-top:80px;display:flex"><div style="flex:none;width:200px;overflow-x:auto;white-space:nowrap"><button style="width:150px">탭 하나</button><button style="width:150px">탭 둘</button></div>
+<div style="width:300px;height:40px;background:#eee">옆 칸</div></div>
+<span style="position:relative;display:inline-block;width:60px;height:30px"><input type="checkbox" role="switch" aria-label="꺼진 스위치" disabled
+style="position:absolute;inset:0;opacity:0;margin:0;width:100%;height:100%;pointer-events:none"><span style="position:absolute;inset:0;background:#ccc"></span></span>
+<div style="position:relative"><button>겹친 단추</button><div style="position:absolute;top:0;left:0;width:200px;height:40px;background:#c00"></div></div>
+</body>"""
 # 채팅 입력 칸 — 첫 화면 아래(초점을 주면 굴러 들어온다) · 끝까지 굴려도 붙박이 바가 덮는다(진짜 결함).
 _CHAT_BELOW = """<body style="margin:0"><div style="height:700px">대화</div><textarea aria-label="메시지 입력"></textarea></body>"""
 _CHAT_CLIPPED = """<body style="margin:0"><div style="height:700px">대화</div><textarea aria-label="메시지 입력"></textarea>
@@ -1117,6 +1145,12 @@ def self_test() -> int:
         page.set_content(_MODAL)
         if page.evaluate(COVER_JS):
             fails.append("COVER_JS: 모달 뒤의 단추를 덮임으로 셌다")
+        page.set_content(_COVER_KINDS)
+        kinds = {i["name"]: (i["covered"], i["coverKind"]) for i in page.evaluate(CONTROLS_JS)["items"]}
+        want = {"머리 밑 단추": (True, "pinned"), "탭 둘": (True, "clip"), "꺼진 스위치": (None, ""), "겹친 단추": (True, "other"),
+                "탭 하나": (False, "")}
+        if any(kinds.get(k) != v for k, v in want.items()):
+            fails.append(f"CONTROLS_JS: 덮임 종류를 잘못 갈랐다 {kinds}")
         page.set_viewport_size({"width": 390, "height": 500})
         page.set_content(_CHAT_BELOW)
         page.evaluate(CHAT_FOCUS_JS)
