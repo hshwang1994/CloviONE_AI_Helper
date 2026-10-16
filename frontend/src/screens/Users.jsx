@@ -11,7 +11,7 @@ import { api } from "../lib/api.js";
 import { ROLE_LABELS } from "../lib/roles.js";
 import { expireSession } from "../lib/sessionRedirect.js";
 import { diffFields } from "../lib/diffFields.js";
-import { fmtDateTime, shortUA } from "../lib/format.js";
+import { fmtDateTime, uaSummary } from "../lib/format.js";
 import { useAuth } from "../app/auth.jsx";
 import { PageHeader, Badge, Button, DataTable, DetailGrid, DetailRow, FormModal, Modal, OverflowMenu, EmptyState, ErrorState, Callout, useConfirm, useToast, ActionFooter } from "../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../ui/theme.js";
@@ -906,7 +906,7 @@ export function Users() {
 
 const SESSION_COLUMNS = [
   { key: "client_ip", label: "IP", render: (s) => s.client_ip || "-" },
-  { key: "user_agent", label: "기기/브라우저", render: (s) => <Tooltip title={s.user_agent || ""}><span>{shortUA(s.user_agent)}</span></Tooltip> },
+  { key: "user_agent", label: "기기/브라우저", render: (s) => <Tooltip title={s.user_agent || ""}><span>{uaSummary(s.user_agent)}</span></Tooltip> },
   { key: "last_seen_at", label: "최근 활동", type: "datetime", nowrap: true, render: (s) => <DateCell value={s.last_seen_at} /> },
 ];
 

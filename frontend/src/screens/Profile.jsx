@@ -7,7 +7,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import DevicesOtherRoundedIcon from "@mui/icons-material/DevicesOtherRounded";
 import { api } from "../lib/api.js";
-import { fmtDateTime, fmtRelative, shortUA } from "../lib/format.js";
+import { fmtDateTime, fmtRelative, uaSummary } from "../lib/format.js";
 import { useInstantSave } from "../lib/useInstantSave.js";
 import { useAuth } from "../app/auth.jsx";
 import { UserAvatar } from "../ui/UserAvatar.jsx";
@@ -424,8 +424,9 @@ function DndCard({ prefs, save }) {
       {/* 두 줄이 `SettingRow` 다 — 알림 설정과 같은 리듬. 스위치의 접근 가능한
           이름(「방해금지」·「조용시간」)은 그대로다. */}
       <Box>
+        {/* 두 줄은 한 줄 말줄임(`compact`)이 아니다 — 설명이 「무엇이 조용해지고 메일은 그대로인지」를 나르므로 390 에서도 끝까지
+            읽혀야 한다(캡처 r23 28 390 에서 「자정을 넘겨도 됩니다(예: 22…」로 잘렸다). 알림 유형 목록(훑는 목록)은 그대로 compact 다. */}
         <SettingRow
-          compact
           label="지금부터 방해금지"
           /* 켜기 전에도 무엇이 조용해지는지 말한다(D-591) — 배지 숫자와 채팅 표시만이고 메일은 그대로다(notifications/router.py ·
              team_chat/service.py, 메일 발송은 방해금지를 보지 않는다). */
@@ -456,7 +457,6 @@ function DndCard({ prefs, save }) {
         ) : null}
 
         <SettingRow
-          compact
           label="매일 정한 시간에 방해금지"
           description="정한 시간에는 배지 숫자만 숨깁니다. 한국 시간 기준이고 자정을 넘겨도 됩니다(예: 22:00에서 08:00)."
           controlId="pref-dnd-quiet"
@@ -532,12 +532,11 @@ function DeviceRow({ session, onRevoke, busy }) {
           {`${s.client_ip || "IP 미상"}, 최근 활동 ${fmtRelative(s.last_seen_at)}`}
         </Typography>
         {s.user_agent ? (
-          // Users.jsx(관리자의 다른 사용자 세션 목록)와 같은 이유로 원문 대신 60자로
-          // 자른 표기 + Tooltip으로 전체 문구를 보존한다 — 원문 그대로 두면 긴 UA
-          // 문자열이 이 카드의 폭을 밀어냈다.
+          // Users.jsx(관리자의 다른 사용자 세션 목록)와 같이 원문 대신 브라우저와 운영체제 한 줄(「Chrome 128, Windows」) +
+          // Tooltip 으로 전체 문구를 보존한다 — 원문은 카드 폭을 밀어냈고, 60자로 잘라도 무슨 기기인지 읽히지 않았다.
           <Tooltip title={s.user_agent}>
             <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.micro, ...ONE_LINE }}>
-              {shortUA(s.user_agent)}
+              {uaSummary(s.user_agent)}
             </Typography>
           </Tooltip>
         ) : null}

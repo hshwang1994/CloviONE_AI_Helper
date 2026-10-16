@@ -225,6 +225,42 @@ export function shortUA(ua) {
   return s.length > 60 ? s.slice(0, 60) + "…" : s;
 }
 
+/* 브라우저 원문(user-agent)을 사람이 읽는 한 줄로 — 「Chrome 128, Windows」. 원문은 「Mozilla/5.0 (Windows NT 10.0; …」로 시작해
+   60자로 잘라도 무슨 기기인지 읽히지 않았다(캡처 r23 28 내 기기). 모르는 모양이면 첫 제품 토큰(「python-httpx 0.28.1」), 그것도
+   없으면 60자로 자른 원문이다. 원문 전체는 부르는 쪽이 툴팁으로 남긴다. 순서가 뜻이다: Edge · Opera · Whale · 삼성 인터넷은
+   UA 에 Chrome 도 적고, iPhone 은 「Mac OS X」도, Android 는 「Linux」도 적는다. */
+const UA_BROWSERS = [
+  [/EdgA?\/(\d+)|EdgiOS\/(\d+)|Edge\/(\d+)/, "Edge"],
+  [/OPR\/(\d+)/, "Opera"],
+  [/Whale\/(\d+)/, "Whale"],
+  [/SamsungBrowser\/(\d+)/, "삼성 인터넷"],
+  [/Firefox\/(\d+)|FxiOS\/(\d+)/, "Firefox"],
+  [/Chrome\/(\d+)|CriOS\/(\d+)/, "Chrome"],
+  [/Version\/(\d+)[\d.]*.*Safari\//, "Safari"],
+];
+const UA_SYSTEMS = [
+  [/Windows NT/, "Windows"], [/iPhone|iPad|iPod/, "iOS"], [/Mac OS X|Macintosh/, "macOS"], [/Android/, "Android"],
+  [/CrOS/, "ChromeOS"], [/Linux/, "Linux"],
+];
+export function uaSummary(ua) {
+  if (!ua) return "-";
+  const s = String(ua);
+  let browser = null;
+  for (const [re, name] of UA_BROWSERS) {
+    const m = s.match(re);
+    if (m) {
+      const version = m.slice(1).find(Boolean);
+      browser = version ? `${name} ${version}` : name;
+      break;
+    }
+  }
+  const system = (UA_SYSTEMS.find(([re]) => re.test(s)) || [])[1] || null;
+  if (browser) return system ? `${browser}, ${system}` : browser;
+  const token = s.match(/^([A-Za-z][\w.-]*)\/([\w.]+)/);
+  if (token && token[1] !== "Mozilla") return `${token[1]} ${token[2]}`;
+  return shortUA(s);
+}
+
 // 감사/승인 enum 한국어화 — "대상.동작" 꼴을 대상/동작으로 나눠 번역(감사 로그·대시보드·승인 공용).
 export const OBJECT_KO = {
   user: "사용자", integration: "외부 연동", runner: "러너", workflow: "워크플로", prompt: "프롬프트",

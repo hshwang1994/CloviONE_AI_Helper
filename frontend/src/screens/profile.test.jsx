@@ -257,7 +257,7 @@ describe("내 프로필", () => {
   /* WF1 R1 — Users.jsx(관리자의 다른 사용자 세션 목록)는 진작 shortUA+Tooltip으로 UA를 60자로
    * 잘라 보여줬는데, 같은 모양의 데이터를 그리는 이 화면(내 기기 목록)만 원문을 그대로 냈다.
    * 실제 브라우저 UA 문자열은 흔히 100자를 넘어 카드 폭을 밀어냈다. */
-  it("긴 user-agent 는 60자로 잘려 보이고 전체 문구는 title(Tooltip)로 남는다", async () => {
+  it("긴 user-agent 는 브라우저와 운영체제 한 줄로 보이고 전체 문구는 title(Tooltip)로 남는다", async () => {
     const longUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
     apiMock.mockImplementation((path) => {
       if (path === "/api/me/sessions") {
@@ -270,7 +270,8 @@ describe("내 프로필", () => {
     renderProfile();
     await screen.findByText("지금 이 창");
     expect(screen.queryByText(longUA)).not.toBeInTheDocument();
-    const shown = screen.getByText(longUA.slice(0, 60) + "…");
+    // qa-contract-change: 60자로 자른 원문(「Mozilla/5.0 (Windows NT …」) 대신 사람이 읽는 요약이다(r23 28 내 기기). 원문은 툴팁에 그대로 남는다.
+    const shown = screen.getByText("Chrome 128, Windows");
     expect(shown).toBeInTheDocument();
 
     // 화면엔 잘린 문구뿐이지만, 전체 문구는 hover 시 Tooltip으로 여전히 확인할 수 있다(사라진 게

@@ -8,7 +8,7 @@
  * 몇 시간 밀린 시각이 보이는 결함이었다(불변규칙 §3-7: 표시는 항상 Asia/Seoul).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fmtDayLongKo, fmtListStamp, fmtRelative, fmtTimeShort } from "./format.js";
+import { fmtDayLongKo, fmtListStamp, fmtRelative, fmtTimeShort, uaSummary } from "./format.js";
 
 describe("fmtTimeShort — 항상 KST(UTC+9)로 표시한다", () => {
   afterEach(() => { vi.unstubAllEnvs(); });
@@ -92,5 +92,27 @@ describe("fmtListStamp — 목록 행 시각(이레 안은 상대, 그 뒤는 �
     vi.setSystemTime(new Date("2026-09-15T03:00:00Z"));
     expect(fmtListStamp("2026-09-20T03:00:00")).toBe(fmtRelative("2026-09-20T03:00:00"));
     expect(fmtListStamp("")).toBe("-");
+  });
+});
+
+/* 내 기기 · 사용자 세션의 「기기/브라우저」 — 원문 대신 브라우저와 운영체제 한 줄(r23 28). 순서가 뜻이다: Edge 는 Chrome 도, iPhone 은
+   Mac OS X 도 적는다. 모르는 모양은 첫 제품 토큰, 그것도 없으면 잘린 원문이다. */
+describe("uaSummary", () => {
+  it("흔한 브라우저와 운영체제를 한 줄로 말한다", () => {
+    expect(uaSummary("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"))
+      .toBe("Chrome 128, Windows");
+    expect(uaSummary("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"))
+      .toBe("Edge 141, Windows");
+    expect(uaSummary("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"))
+      .toBe("Safari 17, iOS");
+    expect(uaSummary("Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0")).toBe("Firefox 131, Linux");
+    expect(uaSummary("Mozilla/5.0 (Linux; Android 14; SM-S921N) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/26.0 Chrome/122.0.0.0 Mobile Safari/537.36"))
+      .toBe("삼성 인터넷 26, Android");
+  });
+
+  it("모르는 모양은 첫 제품 토큰, 비었으면 「-」다", () => {
+    expect(uaSummary("python-httpx/0.28.1")).toBe("python-httpx 0.28.1");
+    expect(uaSummary("")).toBe("-");
+    expect(uaSummary(null)).toBe("-");
   });
 });
