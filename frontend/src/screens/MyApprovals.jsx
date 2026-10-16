@@ -300,12 +300,18 @@ export function MyApprovals() {
       <DraftPreview requestId={preview} onClose={() => setPreview(null)} />
       {!q.first && !q.isError ? <DataTable placement="surface" columns={columns} rows={[]} loading /> : null}
 
+      {/* 0건과 권한 없음은 목록 판 안(표 머리 아래 띠)에 선다(D-588) — 다건과 같은 셸이다. 예전에는 판 없이 화면 가운데 큰 클로비와
+          두 줄만 남아, 세 칸을 오갈 때마다 화면 모양이 바뀌었다(r23 화면 대장 06). 권한 없음은 다른 아이콘(자물쇠)이다. */}
       {data && box === "todo" && !canDecide ? (
-        <EmptyState
-          layout="page"
-          title="승인 요청을 처리할 권한이 없습니다."
-          help="지금은 승인 요청을 처리할 수 있는 자리가 아닙니다. 부재 중 위임을 받으면 이 목록에 처리할 승인 요청이 나타납니다."
-          art="noPermission"
+        <DataTable
+          placement="surface" columns={columns} rows={[]}
+          emptyState={(
+            <EmptyState
+              title="승인 요청을 처리할 권한이 없습니다."
+              help="지금은 승인 요청을 처리할 수 있는 자리가 아닙니다. 부재 중 위임을 받으면 이 목록에 처리할 승인 요청이 나타납니다."
+              art="noPermission"
+            />
+          )}
         />
       ) : null}
 
@@ -313,8 +319,10 @@ export function MyApprovals() {
           안 그려졌다(Integrity.jsx 와 같은 오배선). */}
       {data && (box !== "todo" || canDecide) ? (
         q.rows.length === 0 ? (
-          /* 세 칸 전부 화면 전체가 비는 자리다 — 탭 아래에 이 상태밖에 없다. */
-          <EmptyState layout="page" title={current.empty} help={current.emptyHelp} art="success" />
+          <DataTable
+            placement="surface" columns={columns} rows={[]}
+            emptyState={<EmptyState title={current.empty} help={current.emptyHelp} art="success" />}
+          />
         ) : (
           /* 목록 판 — 받은 건수와 「결재 더 보기」는 판 안 발이다(조합 계약 C-3). */
           <DataTable
