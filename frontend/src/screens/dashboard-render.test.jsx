@@ -1,6 +1,7 @@
 /* qa-contract-change: 실패 작업 경보의 단추가 「작업 큐 열기」에서 목적지를 말하는 「실패 작업 보기」가 됐다(실패로 거른 작업 큐로 간다). 권한 노출 판정은 그대로다.
  * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
+/* qa-contract-change: 실패 · 대기 경보 줄의 건수가 값 칸의 맨 숫자에서 이름에 붙은 명사구(「실패한 작업 2건」 · 「대기 작업 4건」)로 옮겼다(D-587). 같은 줄이 뜬다는 단언은 그대로이고, 감사자 경보의 부재 단언은 새 이름으로 다시 겨눈다(옛 정규식은 새 이름에 늘 안 맞아 거짓 통과가 된다). */
 /* qa-contract-change: S11 이 대시보드의 «활성 워크플로» 타일을 걷어냈다(그 화면이 없어졌다). 줄어든 단언 하나가 정확히 그 타일이고, 나머지 지표 넷의 단언은 그대로다 — 값도 형태도 안 바뀌었다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -146,8 +147,8 @@ describe("대시보드 — 경보와 정상 지표의 중복 없음(PA-RC-0018 a
 
     expect(await screen.findByText("지금 상태")).toBeInTheDocument();
     // 경보 행: 스케줄러 중단, 실패 2, 대기 4, 성공률 낮음(70%) — 넷 다 행으로 뜬다.
-    expect(screen.getByText("2")).toBeInTheDocument(); // 실패 작업 값
-    expect(screen.getByText("4")).toBeInTheDocument(); // 대기 작업 값
+    expect(screen.getByText("실패한 작업 2건")).toBeInTheDocument(); // 실패 작업 줄(건수가 이름에 붙은 명사구, D-587)
+    expect(screen.getByText("대기 작업 4건")).toBeInTheDocument(); // 대기 작업 줄
     expect(screen.getByText("70%")).toBeInTheDocument(); // 성공률 값
     // 기본 조치 버튼: 가장 급한(danger) 한 건만 primary, 나머지는 outlined.
     const primaryButtons = container.querySelectorAll(".MuiButton-containedPrimary");
@@ -259,7 +260,8 @@ describe("대시보드 — 조치 버튼의 권한 노출(PA-RC-0018 acceptance 
     const btn = screen.getByRole("button", { name: "이동 불가" });
     expect(btn).toBeDisabled();
     // 작업 큐 읽기는 감사자에게 열렸다(app/jobs/router.py) — 실패 작업 경보는 큐로 간다.
-    expect(screen.queryByText(/실패 작업.*관리자 문의/)).toBeNull();
+    expect(screen.getByText("실패한 작업 3건")).toBeInTheDocument();
+    expect(screen.queryByText(/실패한 작업.*관리자 문의/)).toBeNull();
     expect(screen.getByRole("button", { name: "실패 작업 보기" })).not.toBeDisabled();
   });
 

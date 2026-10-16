@@ -147,9 +147,11 @@ export function buildAlerts(d, role) {
   // `/maintenance` 는 `/settings?tab=policy` 로 접힌 옛 주소다 — 링크는 실제 목적지를 가리킨다.
   if (d.maintenance) alerts.push({ src: "maintenance", label: "유지보수 모드", value: "활성", kind: "danger", to: canGo("/settings", role) ? "/settings?tab=policy" : undefined });
   /* 실패 · 대기 경보는 작업 큐를 **그 상태로 걸러서** 연다. 둘 다 맨 `/jobs` 로 보내면 같은 이름(「작업 큐 열기」)의 단추가
-     두 줄에 서고, 누른 사람은 전체 목록에서 그 작업을 다시 찾아야 했다. 작업 큐는 주소의 `status` 를 필터로 읽는다. */
-  if (jobs.failed_open) alerts.push({ src: "job:failed", label: "실패 작업" + failedOpenAgeLabel(jobs) + jobsNote, value: fmtNum(jobs.failed_open), kind: "danger", to: jobsTo && JOBS_FAILED_TO });
-  if (jobs.queued) alerts.push({ src: "job:queued", label: "대기 작업" + jobsNote, value: fmtNum(jobs.queued), kind: "warn", to: jobsTo && JOBS_QUEUED_TO });
+     두 줄에 서고, 누른 사람은 전체 목록에서 그 작업을 다시 찾아야 했다. 작업 큐는 주소의 `status` 를 필터로 읽는다.
+     두 줄은 **건수가 이름에 붙은 명사구**다(D-587 「대기 작업 7건」, 진단 화면의 같은 줄과 같은 틀) — 예전에는 이름과 떨어진 값 칸에
+     맨 숫자가 서서 「실패 작업, 가장 오래된 것 53일 전  3」으로 읽혔다. 값 칸은 비우고 심각도 낱말만 남는다. */
+  if (jobs.failed_open) alerts.push({ src: "job:failed", label: "실패한 작업 " + fmtNum(jobs.failed_open) + "건" + failedOpenAgeLabel(jobs) + jobsNote, value: "", kind: "danger", to: jobsTo && JOBS_FAILED_TO });
+  if (jobs.queued) alerts.push({ src: "job:queued", label: "대기 작업 " + fmtNum(jobs.queued) + "건" + jobsNote, value: "", kind: "warn", to: jobsTo && JOBS_QUEUED_TO });
   // success_rate_pct의 분모는 최근 24시간에 '종료된'(성공+실패+취소) 작업만이다 — 접수만
   // 몰린 순간에는 이 값이 영향받지 않는다. headlineStats의 80/95 경계와 맞춘다.
   if (jobs.success_rate_pct != null && jobs.total > 0 && jobs.success_rate_pct < 80)
@@ -222,8 +224,12 @@ export function buildAlerts(d, role) {
   return alerts;
 }
 
-/** 「지금 제품이 정상인가」 한 문장. 조치 목록과 **같은 재료**로 만든다 — 두 줄이 서로 다른
- * 말을 하면 어느 쪽도 안 믿게 된다. */
+/** 「지금 제품이 정상인가」 한 줄. 조치 목록과 **같은 재료**로 만든다 — 두 줄이 서로 다른
+ * 말을 하면 어느 쪽도 안 믿게 된다.
+ *
+ * 건수가 있으면 **상태 제목(명사구)**이다 — 「조치가 필요한 문제 2건, 지켜볼 항목 3건」(D-587). 예전에는 긴 문장
+ * 「지금 조치가 필요한 문제가 2건 있고, 지켜볼 것이 3건 있습니다.」가 판정 상자의 제목이었다. 건수가 없으면 빈 상태의
+ * 틀대로 완전한 문장이다. 주의만 있을 때도 같은 낱말(「지켜볼 항목」)을 써서 두 판정이 같은 것을 다른 이름으로 부르지 않는다. */
 export function systemVerdict(alerts) {
   const list = Array.isArray(alerts) ? alerts : [];
   const danger = list.filter((a) => a.kind === "danger").length;
@@ -232,16 +238,16 @@ export function systemVerdict(alerts) {
     return {
       // 배지 낱말은 아래 조치 목록의 심각도 태그(SEV_TEXT)와 같은 어휘여야 한다 — 예전엔
       // 여기만 "문제"였고 목록 각 줄은 "위험"이라 같은 화면에 같은 뜻의 경고가 다른 말로
-      // 두 번 떴다(재감사 C16, "경고 관용구를 둘 쓴다"). 문장 속의 "문제"는 자연스러운
+      // 두 번 떴다(재감사 C16, "경고 관용구를 둘 쓴다"). 제목 속의 "문제"는 자연스러운
       // 서술이라 그대로 둔다 — 배지처럼 위험/주의/정상 셋 중 하나로 끊어 읽는 낱말만 맞춘다.
       tone: "danger", label: "위험",
       text: warn
-        ? `지금 조치가 필요한 문제가 ${danger}건 있고, 지켜볼 것이 ${warn}건 있습니다.`
-        : `지금 조치가 필요한 문제가 ${danger}건 있습니다.`,
+        ? `조치가 필요한 문제 ${danger}건, 지켜볼 항목 ${warn}건`
+        : `조치가 필요한 문제 ${danger}건`,
     };
   }
   if (warn) {
-    return { tone: "warn", label: "주의", text: `제품은 정상적으로 동작하고 있습니다. 지켜볼 것이 ${warn}건 있습니다.` };
+    return { tone: "warn", label: "주의", text: `지켜볼 항목 ${warn}건` };
   }
   return { tone: "ok", label: "정상", text: "지금 조치가 필요한 문제가 없습니다." };
 }
@@ -437,19 +443,22 @@ function HealthyStrip({ items }) {
 }
 
 /* 사실 한 줄 — 이름과 값. 운영 자료 세 묶음이 같은 모양으로 읽히게 한다.
- * 값이 몇 개뿐인 자료에 큰 판독 칸을 쓰지 않는다(그러면 그 자료가 화면을 지배한다). */
+ * 값이 몇 개뿐인 자료에 큰 판독 칸을 쓰지 않는다(그러면 그 자료가 화면을 지배한다).
+ *
+ * 🔴 **세 묶음이 한 정렬을 쓴다.** 예전에는 줄이 「이름 … 값」 양 끝 맞춤에 20rem 상한이었고, 묶음 폭이 셋 다 달라서
+ * (1920 에서 약 550 · 600 · 420px) 같은 상한이 묶음마다 다른 자리에 섰다 — 값 열이 가운데 · 가운데 · 오른쪽으로 읽혔다.
+ * 이제 이름 칸은 세 묶음이 같은 폭(`FACT_LABEL_COL`, 가장 긴 이름 「평균 처리 시간」이 한 줄로 서는 폭)이고 값은 그 바로
+ * 뒤에 왼쪽 맞춤으로 선다. 이름과 값이 넓은 화면에서도 벌어지지 않고(옛 20rem 상한이 막던 것), 세 묶음의 값이 같은 세로선에 선다. */
+const FACT_LABEL_COL = "7.5rem";
 function Fact({ label, value, tone }) {
   return (
-    /* 이름과 값 사이를 넓은 화면에서 무한히 벌리지 않는다. 4K 에서 한 칸이 700px 이면
-       「처리 요청」과 「0」이 그만큼 떨어져 한 줄로 안 읽힌다 — 값이 무슨 값인지 다시
-       찾아야 한다. 상한을 20rem 으로 좁혔다(예전 26rem 은 2560 에서 여전히 396px 였다). */
-    <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1.5, py: 0.5, minWidth: 0, maxWidth: "20rem" }}>
+    <Box sx={{ display: "grid", gridTemplateColumns: `${FACT_LABEL_COL} minmax(0,1fr)`, columnGap: 1.5, alignItems: "baseline", py: 0.5, minWidth: 0 }}>
       <Typography variant="body2" color="text.secondary" sx={{ minWidth: 0, ...KO_WORD_BREAK }}>{label}</Typography>
       <Typography
         component="div"
         variant="body2"
         color={tone ? `${tone}.strong` : "text.primary"}
-        sx={{ fontWeight: FONT_WEIGHT.semibold, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 0.75 }}
+        sx={{ fontWeight: FONT_WEIGHT.semibold, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}
       >
         {value}
       </Typography>
@@ -488,11 +497,11 @@ function OpsLink({ label, onClick }) {
  * 함몰면**을 준다(`Surface tone="inset"`). 테두리도 그림자도 없다 — 면 하나와 여백이면
  * 「여기부터 다른 이야기」가 읽힌다.
  *
- * ## 폭은 정보량으로 나눈다
+ * ## 세 묶음은 같은 폭이다
  *
- * 정확히 3분의 1씩 주지 않는다. 백업의 「마지막 성공」은 날짜와 시각이 함께 들어가 이 화면
- * 에서 가장 긴 값이고, 작업 지표는 짧은 수 셋뿐이다. 같은 폭을 주면 한쪽은 꺾이고 한쪽은
- * 빈다.
+ * 예전에는 정보량으로 폭을 나눴다(1.05 · 1.15 · 0.8). 그랬더니 1920 에서 묶음이 약 550 · 600 · 420px 로 서서 세 판이
+ * 다른 크기로 보였고, 같은 줄 규칙의 값 열이 묶음마다 다른 자리에 섰다. 백업의 「최근 성공」(날짜와 시각)이 가장 긴
+ * 값이지만 1366 의 3분의 1 칸에서도 한 줄로 선다 — 나눌 이유가 없다. 같은 폭 · 같은 정렬(`Fact`)이다.
  *
  * ⚠️ 중단점 미디어쿼리를 **키로 직접 적지 않는다.** `gridTemplateColumns: { xs, md }` 도
  * 같은 `@media (min-width:900px)` 키로 펴지기 때문에, 같은 객체에 `[t.breakpoints.up("md")]`
@@ -503,7 +512,7 @@ const OPS_GRID = {
   gridTemplateColumns: {
     xs: "minmax(0,1fr)",
     md: "repeat(2, minmax(0,1fr))",
-    lg: "minmax(0,1.05fr) minmax(0,1.15fr) minmax(0,0.8fr)",
+    lg: "repeat(3, minmax(0,1fr))",
   },
 };
 

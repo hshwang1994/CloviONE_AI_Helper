@@ -300,14 +300,15 @@ export function Diagnostics() {
             ) : null}
             <JobQueuePanel jobs24={jobs24} jobErrors={jobErrors} errorDist={errorDist} nav={nav} />
             {/* 활성 스케줄 수는 **줄 하나**다(D-501). 여기 「현재 리소스」 구획이 있었고, 값 하나를 든 전폭 판(「1 활성 스케줄」)이
-                1,600px 를 가로질렀다 — 누를 곳도 경보도 아닌 값 하나는 판을 세울 이유가 없다. 바로 아래 「대시보드에서 보기」와
+                1,600px 를 가로질렀다 — 누를 곳도 경보도 아닌 값 하나는 판을 세울 이유가 없다. 바로 아래 「대시보드 보기」와
                 같은 주석 줄(수 한 문장 + 가는 길)로 그 줄 위에 선다. 가는 길은 실행 일정 화면이고, 이 화면에 들어오는 역할(운영자
                 이상)은 언제나 그곳에 닿는다. 번들이 이 수를 안 주는 배포에서는 줄도 없다. */}
+            {/* 문장은 완전한 문장이고 가는 길은 명사구 단추 이름이다(D-587 — 「실패 작업 보기」 · 「대기 작업 보기」와 같은 틀). */}
             {counts.active_schedules != null ? (
               <Note sx={{ mt: 0, mb: 0.75 }}>
                 {`지금 활성화된 실행 일정은 ${fmtNum(counts.active_schedules)}개입니다.`}{" "}
                 <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/schedules")}>
-                  실행 일정에서 보기 →
+                  실행 일정 보기 →
                 </Link>
               </Note>
             ) : null}
@@ -321,7 +322,7 @@ export function Diagnostics() {
             <Note sx={{ mt: 0, mb: 3 }}>
               백업 상태와 최근 주요 변경은 대시보드에서 항상 확인할 수 있습니다.{" "}
               <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/dashboard")}>
-                대시보드에서 보기 →
+                대시보드 보기 →
               </Link>
             </Note>
             <Section titleAs="h2" title="원본 자료">

@@ -149,13 +149,14 @@ export function daysSince(iso) {
 // 있는데 이 지표만 시간축이 없었다). 서버가 새로 주는 failed_open_oldest_at(가장 오래된
 // 미해결 실패의 생성 시각, app/health/service.py)로 나이를 덧붙인다. 하루 미만이면
 // "오늘"이라고 정직하게 말한다 — "0일 전"은 "방금"과 "그럭저럭 하루 지남"을 뭉갠다.
+// 무엇이 오래됐는지 말한다(「가장 오래된 실패는 53일 전」) — 예전 「가장 오래된 것」은 무엇을 가리키는지 앞 낱말에 기댔다.
 export function failedOpenAgeLabel(jobs) {
   const oldest = jobs && jobs.failed_open_oldest_at;
   if (!oldest) return "";
   const age = daysSince(oldest);
   if (age == null) return "";
   const days = Math.floor(age);
-  return ", 가장 오래된 것 " + (days < 1 ? "오늘" : days + "일 전");
+  return ", 가장 오래된 실패는 " + (days < 1 ? "오늘" : days + "일 전");
 }
 
 // 측정값 타일은 값을 크게 낸다(ui/StatusKpi.jsx::StatusKpiTile), 자리수가 늘면(작업 누적 총계 등) 천 단위
@@ -174,6 +175,19 @@ export function fmtProcessingTime(sec) {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return s ? m + "분 " + s + "초" : m + "분";
+}
+
+/* 흐른 시간(분) → 「45분」 · 「3시간 5분」 · 「53일 2시간」. 작업 큐의 「가장 오래된 대기」 칩과 「지연」 칸이 쓴다.
+ *
+ * 하루가 넘으면 분을 버리고 일과 시간만 말한다 — 「1274시간 20분」은 사람이 24로 나눠 봐야 「53일」로 읽힌다. 아래 단위가
+ * 0이면 붙이지 않는다(「2시간 0분」이 아니라 「2시간」). 음수 · 숫자가 아닌 값은 0분으로 읽는다(시계가 어긋나도 「-3분」을 그리지 않는다). */
+export function fmtElapsedMinutes(minutes) {
+  const m = Math.max(0, Math.floor(Number(minutes) || 0));
+  if (m < 60) return m + "분";
+  const h = Math.floor(m / 60);
+  if (h < 24) return m % 60 ? h + "시간 " + (m % 60) + "분" : h + "시간";
+  const d = Math.floor(h / 24);
+  return h % 24 ? d + "일 " + (h % 24) + "시간" : d + "일";
 }
 
 // 인증서 만료는 음수(이미 만료)일 수 있다, 숫자만 노출하지 않는다.
@@ -322,7 +336,13 @@ export function healthVerdict(comps, disk, mem, certDays, jobs, integrations, ba
   if (!problems.length) return { tone: "success", problems, msg: "시스템이 정상이고 조치가 필요한 항목이 없습니다." };
   // 다중 장애가 동시에 겹치면(문제가 여러 건) ', '로 이어붙인 한 줄 긴 문장은 훑어보기 어렵다 —
   // 요약 한 줄만 msg로 두고, 실제 항목은 (아래 렌더에서) 줄마다 나눠 보여준다.
-  return { tone: danger ? "danger" : "warn", problems, msg: problems.length === 1 ? problems[0].msg : "주의 " + problems.length + "건" };
+  // 🔴 요약은 심각도 하나를 대표로 세우지 않는다. 예전 「주의 5건」 아래에 「위험」 줄 둘이 섞여 있었다 — 제목이 아래 목록과
+  // 다른 말을 했다. 전체는 「확인할 항목 N건」이고, 두 심각도가 섞이면 괄호 안에 갈라 말한다(같은 낱말 위험 · 주의, 줄마다의 표지와 같다).
+  const dangerCount = problems.filter((p) => p.tone === "danger").length;
+  const warnCount = problems.length - dangerCount;
+  const summary = "확인할 항목 " + problems.length + "건"
+    + (dangerCount && warnCount ? "(위험 " + dangerCount + "건, 주의 " + warnCount + "건)" : "");
+  return { tone: danger ? "danger" : "warn", problems, msg: problems.length === 1 ? problems[0].msg : summary };
 }
 
 // 대상 ID를 8자로 줄여 보여줄 때, 줄였다는 시각적 신호(…)를 남긴다(Dashboard.jsx와 동일 규칙) —

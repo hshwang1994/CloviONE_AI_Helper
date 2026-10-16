@@ -1,9 +1,31 @@
 import { describe, it, expect } from "vitest";
 /* qa-contract-change: 실패 · 대기 작업 경보의 목적지가 맨 `/jobs` 에서 그 상태로 거른 작업 큐(`/jobs?status=failed|queued`)로 바뀌었다. 두 줄이 같은 이름의 단추로 같은 곳에 가던 결함을 고친 것이고, 권한 판정(jobsTo)은 그대로다. */
+/* qa-contract-change: 판정 제목이 상태 명사구(「조치가 필요한 문제 2건, 지켜볼 항목 3건」)가 되고, 실패 · 대기 경보 줄은 건수가 이름에 붙은 명사구(「실패한 작업 5건, 가장 오래된 실패는 21일 전」 · 「대기 작업 2건」)가 됐다(D-587). 심각도 · 목적지 단언은 그대로이고 기대하는 글자만 바뀐다. */
 /* 링크 활성화 판정의 정본은 `app/navConfig.js` 한 곳이다 — 예전에는 Dashboard.jsx 가
    자기 표를 들고 있었고 그 표가 정본과 갈라져 있었다(아래 describe 참고, 지시 21). */
 import { canReach as canGo } from "../app/navConfig.js";
-import { fmtCertDays } from "./ops/opsHelpers.js";
+import { fmtCertDays, fmtElapsedMinutes } from "./ops/opsHelpers.js";
+
+/* 흐른 시간(분) — 작업 큐의 「가장 오래된 대기」 · 「지연」이 쓴다. 하루가 넘으면 분을 버리고 일과 시간이다. */
+describe("fmtElapsedMinutes", () => {
+  it("한 시간 안은 분, 하루 안은 시간과 분이다 — 0인 아래 단위는 붙이지 않는다", () => {
+    expect(fmtElapsedMinutes(0)).toBe("0분");
+    expect(fmtElapsedMinutes(59)).toBe("59분");
+    expect(fmtElapsedMinutes(60)).toBe("1시간");
+    expect(fmtElapsedMinutes(125)).toBe("2시간 5분");
+    expect(fmtElapsedMinutes(1439)).toBe("23시간 59분");
+  });
+  it("하루가 넘으면 일과 시간이다 — 1274시간 20분은 53일 2시간이다", () => {
+    expect(fmtElapsedMinutes(1440)).toBe("1일");
+    expect(fmtElapsedMinutes(1274 * 60 + 20)).toBe("53일 2시간");
+    expect(fmtElapsedMinutes(25 * 60 + 59)).toBe("1일 1시간");
+  });
+  it("음수 · 숫자가 아닌 값은 0분으로 읽는다", () => {
+    expect(fmtElapsedMinutes(-3)).toBe("0분");
+    expect(fmtElapsedMinutes(undefined)).toBe("0분");
+    expect(fmtElapsedMinutes("x")).toBe("0분");
+  });
+});
 
 describe("fmtCertDays", () => {
   it("returns em-dash for null/undefined", () => {
@@ -211,10 +233,16 @@ describe("buildAlerts — 조치 대기 목록의 값(원본 로직 그대로)",
     expect(a).toEqual([{ src: "maintenance", label: "유지보수 모드", value: "활성", kind: "danger", to: "/settings?tab=policy" }]);
   });
 
-  it("실패 작업은 danger, 대기 작업은 warn이다", () => {
+  it("실패 작업은 danger, 대기 작업은 warn이다 — 건수는 이름에 붙은 명사구다", () => {
     const a = buildAlerts({ jobs_24h: { failed_open: 5, queued: 2 } }, "admin");
-    expect(a.find((x) => x.src === "job:failed")).toMatchObject({ value: "5", kind: "danger", to: "/jobs?status=failed" });
-    expect(a.find((x) => x.src === "job:queued")).toMatchObject({ value: "2", kind: "warn", to: "/jobs?status=queued" });
+    expect(a.find((x) => x.src === "job:failed")).toMatchObject({ label: "실패한 작업 5건", value: "", kind: "danger", to: "/jobs?status=failed" });
+    expect(a.find((x) => x.src === "job:queued")).toMatchObject({ label: "대기 작업 2건", value: "", kind: "warn", to: "/jobs?status=queued" });
+  });
+
+  it("실패 경보는 가장 오래된 실패의 나이를 「가장 오래된 실패는 N일 전」으로 덧붙인다", () => {
+    const oldAt = new Date(Date.now() - 53 * 86400000 - 3600000).toISOString().replace(/\.\d+Z$/, "");
+    const a = buildAlerts({ jobs_24h: { failed_open: 3, failed_open_oldest_at: oldAt } }, "admin");
+    expect(a.find((x) => x.src === "job:failed").label).toBe("실패한 작업 3건, 가장 오래된 실패는 53일 전");
   });
 
   it("성공률은 80/95% 경계로 danger/warn/무경보가 갈린다(끝난 작업이 있을 때만)", () => {
@@ -315,17 +343,19 @@ describe("systemVerdict", () => {
     expect(systemVerdict([]).text).toBe("지금 조치가 필요한 문제가 없습니다.");
   });
 
-  it("주의만 있으면 제품은 돌고 있다고 말한다 — 빨간 판정으로 올리지 않는다", () => {
+  it("주의만 있으면 지켜볼 항목만 말한다 — 빨간 판정으로 올리지 않는다", () => {
     const v = systemVerdict([{ kind: "warn" }, { kind: "warn" }]);
     expect(v.tone).toBe("warn");
-    expect(v.text).toContain("지켜볼 것이 2건");
+    expect(v.text).toBe("지켜볼 항목 2건");
+    expect(v.text).not.toContain("조치가 필요한");
   });
 
-  it("위험이 하나라도 있으면 위험이고, 주의 건수도 함께 말한다", () => {
+  it("위험이 하나라도 있으면 위험이고, 제목은 상태 명사구로 주의 건수도 함께 말한다", () => {
     const v = systemVerdict([{ kind: "danger" }, { kind: "warn" }]);
     expect(v.tone).toBe("danger");
-    expect(v.text).toContain("문제가 1건");
-    expect(v.text).toContain("지켜볼 것이 1건");
+    expect(v.text).toBe("조치가 필요한 문제 1건, 지켜볼 항목 1건");
+    // 반례: 지켜볼 것이 없으면 그 절을 붙이지 않는다.
+    expect(systemVerdict([{ kind: "danger" }, { kind: "danger" }]).text).toBe("조치가 필요한 문제 2건");
   });
 });
 

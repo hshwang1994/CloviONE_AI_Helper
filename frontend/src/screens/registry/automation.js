@@ -13,6 +13,7 @@ import React from "react";
 import Link from "@mui/material/Link";
 import { CONCURRENCY_OPTS, JOB_TYPE, MISFIRE_OPTS, OPS_ROLES, SCHEDT_OPTS, SCHED_PRESET_OPTS, SCHED_RUN, SCHED_TARGET_OPTS, SCHED_TYPE, WRITE_ROLES, badgeCol, col, dateCol, enabledCol, field, fmtDateTimeCompact, jsonField, mapCol, opt, personField, schedSkipReasonText } from "./shared.js";
 import { onoff } from "./actions.js";
+import { fmtElapsedMinutes } from "../ops/opsHelpers.js";
 
 export const AUTOMATION_SCREENS = {
   schedules: {
@@ -276,8 +277,10 @@ export const AUTOMATION_SCREENS = {
       // 타일'을 피하려는 목적) — 정작 이 화면 자신의 요약 판독은 그 드릴다운이 없어 같은 데이터를
       // 보여주면서도 클릭해도 아무 일이 없었다. 목록의 status 필터로 직접 좁혀 준다.
       cards: (s, ctx) => {
+        /* 상태 이름은 행의 상태 배지(`kit.jsx` 의 `queued` → 「대기 중」)와 같은 낱말이다 — 칩은 「대기」, 행은 「대기 중」이라 같은
+           상태가 두 이름으로 읽혔다(D-587 「같은 상태는 같은 틀」). 상태 칸의 선택지도 같은 낱말이다. */
         const cards = [
-          { value: s.queued != null ? s.queued : 0, label: "대기", type: "count", kind: s.queued > 0 ? "warn" : undefined, onClick: () => ctx.setFilter("status", "queued") },
+          { value: s.queued != null ? s.queued : 0, label: "대기 중", type: "count", kind: s.queued > 0 ? "warn" : undefined, onClick: () => ctx.setFilter("status", "queued") },
           { value: s.running != null ? s.running : 0, label: "실행 중", kind: "info", onClick: () => ctx.setFilter("status", "running") },
           // '실행 가능(ready)'은 status 값이 아니라 대기 중 행 중 available_at이 이미 지난 부분집합의
           // 계산값이다(백엔드에 그 자체의 status 필터가 없다) — '대기'와 동일하게 좁혀 준 뒤 목록의
@@ -316,7 +319,8 @@ export const AUTOMATION_SCREENS = {
           const t = new Date(iso).getTime();
           if (!Number.isNaN(t)) {
             const m = Math.floor(Math.max(0, Date.now() - t) / 60000);
-            const age = m < 60 ? m + "분" : Math.floor(m / 60) + "시간 " + (m % 60) + "분";
+            // 하루가 넘으면 「53일 2시간」이다(`fmtElapsedMinutes`) — 「1274시간 20분」은 며칠인지 사람이 나눠 봐야 읽혔다.
+            const age = fmtElapsedMinutes(m);
             // 다른 타일과 달리 이 '가장 오래된 대기' 카드만 드릴다운이 없어(백로그로 빨갛게 물들어도
             // 눌러도 아무 일이 없었다) — 인접한 '실행 가능(ready)' 타일과 같은 대기 큐로 좁혀 준다.
             // **신호다** — 반폭 판에 큰 글자로 섰는데(622시간 38분) 그 값이 뜻하는 것은 「큐가 멈췄다」다. 카드 머리의
@@ -335,7 +339,7 @@ export const AUTOMATION_SCREENS = {
       { key: "schedules", endpoint: "/api/admin/schedules" },
     ],
     filters: [
-      { key: "status", type: "select", label: "상태", options: opt([["queued", "대기"], ["running", "실행 중"], ["succeeded", "완료"], ["failed", "실패"], ["cancelled", "취소됨"]]) },
+      { key: "status", type: "select", label: "상태", options: opt([["queued", "대기 중"], ["running", "실행 중"], ["succeeded", "완료"], ["failed", "실패"], ["cancelled", "취소됨"]]) },
       { key: "job_type", type: "select", label: "유형", options: opt([["chat_message", "채팅 메시지"], ["schedule_run", "예약 실행"], ["mail_send", "메일 발송"]]) },
       /* 크로스링크(onQuery)가 채우기도 하지만 운영자가 직접 고르기도 하는 자리다.
          W5: 셋 중 **전역 목록이 있는 둘**은 이름으로 고르게 바꾼다 — 사람이 UUID 를
@@ -359,16 +363,16 @@ export const AUTOMATION_SCREENS = {
     serverSort: { keys: ["created_at", "available_at", "started_at", "finished_at", "status", "job_type", "attempt_count"], default: { key: "created_at", dir: "desc" } },
     columns: [{ ...dateCol("created_at", "생성"), rowName: (r) => (JOB_TYPE[r.job_type] || r.job_type) + " / " + fmtDateTimeCompact(r.created_at) }, { ...mapCol("job_type", "유형", JOB_TYPE), sortable: true }, { ...badgeCol("status", "상태"), sortable: true },
       // 대기 중인데 실행 예정 시각이 이미 지났으면 지연(백로그) 신호 — 워커 정체를 이 화면에서 바로 감지.
-      // 값이 「지연 622시간 38분」처럼 길다 — 남는 폭은 「오류」가 가져가므로(D-501) 이 열은 그 값이 한 줄로 서는
-      // 바닥을 스스로 든다. 개수 바닥(6rem)이면 값이 옆 칸 위로 넘친다.
+      // 값이 「지연 23시간 59분」처럼 길다 — 남는 폭은 「오류」가 가져가므로(D-501) 이 열은 그 값이 한 줄로 서는
+      // 바닥을 스스로 든다. 개수 바닥(6rem)이면 값이 옆 칸 위로 넘친다. 하루가 넘으면 「지연 53일 2시간」이다(`fmtElapsedMinutes`).
       { key: "available_at", label: "대기", type: "count", min: "10rem", render: (r) => {
         if (r.status !== "queued" || !r.available_at) return "-";
         const s = String(r.available_at); const iso = /[zZ]$|[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z";
         const t = new Date(iso).getTime(); if (Number.isNaN(t)) return "-";
         const diff = Date.now() - t; if (diff <= 0) return "대기 중";
         const m = Math.floor(diff / 60000);
-        if (m < 1) return "지연 1분 미만"; if (m < 60) return "지연 " + m + "분";
-        return "지연 " + Math.floor(m / 60) + "시간 " + (m % 60) + "분";
+        if (m < 1) return "지연 1분 미만";
+        return "지연 " + fmtElapsedMinutes(m);
       } },
       { key: "attempt_count", label: "시도", type: "count", sortable: true, render: (r) => r.max_attempts != null ? r.attempt_count + " / " + r.max_attempts : String(r.attempt_count) },
       /* 실패 사유를 목록에서 바로 훑을 수 있게(예전엔 상세 드로어를 하나씩 열어야만 보였다).

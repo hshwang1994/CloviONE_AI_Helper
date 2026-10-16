@@ -14,6 +14,8 @@ import { FILTER_GROUP_ORDER, filterGroupOf } from "../ui/FilterBar.jsx";
  * 목록 단언은 대기와 실행 가능이 갈리는 입력으로 옮겼고, 세 규칙을 각각 새로 잰다.
 
  * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ *
+ * qa-contract-change: 대기 칩의 이름이 행의 상태 배지와 같은 「대기 중」이 됐다(같은 상태가 칩은 「대기」, 행은 「대기 중」이던 결함, D-587). 칩 목록 단언은 새 이름을 기다리고, 하루가 넘는 대기 나이를 「53일 2시간」으로 읽는지 새로 잰다.
  */
 function ctx() {
   return { setFilter: vi.fn() };
@@ -57,9 +59,37 @@ describe("작업 큐 요약 카드 — 최근 24시간 신호 (VIS-120)", () => 
     );
     const labels = cards.map((c) => c.label);
     expect(labels).toEqual(expect.arrayContaining([
-      "대기", "실행 중", "실행 가능", "실패", "완료", "취소됨",
+      "대기 중", "실행 중", "실행 가능", "실패", "완료", "취소됨",
       "최근 24시간 실패", "평균 처리 시간(최근 24시간)",
     ]));
+    // 옛 이름이 남아 같은 상태가 두 이름으로 서지 않는다.
+    expect(labels).not.toContain("대기");
+  });
+
+  it("상태 칸의 대기 선택지도 행의 배지와 같은 「대기 중」이다", () => {
+    const status = REGISTRY.jobs.filters.find((f) => f.key === "status");
+    expect(status.options.find((o) => o.value === "queued").label).toBe("대기 중");
+  });
+});
+
+/* 하루가 넘는 대기 — 「1274시간 20분」은 사람이 24로 나눠 봐야 며칠인지 읽힌다. 칩과 「대기」 열의 지연은 같은 형식기를 쓴다. */
+describe("작업 큐 — 하루가 넘는 대기는 일과 시간으로 말한다", () => {
+  const base = { queued: 1, running: 0, ready: 1, failed: 0, succeeded: 0, cancelled: 0 };
+  const AGO = (min) => new Date(Date.now() - min * 60000).toISOString();
+
+  it("가장 오래된 대기 칩: 76,460분(1274시간 20분)은 「53일 2시간」이다", () => {
+    const chip = REGISTRY.jobs.summary.cards({ ...base, oldest_queued_at: AGO(1274 * 60 + 20) }, ctx())
+      .find((c) => c.label === "가장 오래된 대기");
+    expect(chip.value).toBe("53일 2시간");
+  });
+
+  it("대기 열의 지연도 같은 형식이고, 하루 안쪽은 시간과 분이다", () => {
+    const col = REGISTRY.jobs.columns.find((c) => c.key === "available_at");
+    expect(col.render({ status: "queued", available_at: AGO(1274 * 60 + 20) })).toBe("지연 53일 2시간");
+    expect(col.render({ status: "queued", available_at: AGO(125) })).toBe("지연 2시간 5분");
+    expect(col.render({ status: "queued", available_at: AGO(24 * 60) })).toBe("지연 1일");
+    // 반례: 대기가 아니면 지연을 말하지 않는다.
+    expect(col.render({ status: "failed", available_at: AGO(125) })).toBe("-");
   });
 });
 

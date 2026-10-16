@@ -12,6 +12,7 @@ import { MemoryRouter } from "react-router-dom";
  * 나타나는지는 어느 테스트도 확인하지 않았다. 이 파일은 그 gap을 메운다.
 
  * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ * qa-contract-change: 대시보드로 가는 줄의 단추 이름이 명사구 「대시보드 보기 →」가 됐다(D-587, 「실행 일정 보기 →」와 같은 틀). 그 단추가 남아 있다는 단언은 그대로이고 기대하는 이름만 바뀐다.
  */
 
 const apiMock = vi.fn();
@@ -158,7 +159,7 @@ describe("진단 — 백업 실패 표시", () => {
     renderDiagnostics();
 
     expect(await screen.findByText("최근 백업 실패")).toBeInTheDocument(); // 상단 배너
-    expect(screen.getByRole("button", { name: "대시보드에서 보기 →" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "대시보드 보기 →" })).toBeInTheDocument();
   });
 });
 
@@ -191,7 +192,7 @@ describe("진단 — 대시보드와 중복이던 섹션 제거(PA-RC-0028)", ()
     expect(screen.queryByText("백업")).toBeNull();
     expect(screen.queryByText("백업 관리")).toBeNull(); // 예전 백업 카드의 CTA 버튼
     expect(screen.getByText(/백업 상태와 최근 주요 변경은 대시보드에서/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "대시보드에서 보기 →" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "대시보드 보기 →" })).toBeInTheDocument();
   });
 });
 

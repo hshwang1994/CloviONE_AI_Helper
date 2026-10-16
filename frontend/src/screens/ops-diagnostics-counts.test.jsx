@@ -3,7 +3,9 @@
  */
 /* qa-contract-change: 「현재 리소스」 구획(값 하나를 든 전폭 판)이 「대시보드에서 보기」와 같은 주석 줄 한 문장으로 옮긴다(D-501). 크래시하지 않고 수를
    보인다는 단언은 그대로이고, 라벨 단언은 그 문장(「지금 활성화된 실행 일정은 5개입니다.」)과 실행 일정으로 가는 길로 잰다. 같은 회차의 진단 정리(디스크 두
-   값은 속성 줄, 작업 지표는 24시간 측정만, 백로그는 판정 줄에서 거른 작업 큐로)를 재는 시험을 이 파일에 더한다. */
+   값은 속성 줄, 작업 지표는 24시간 측정만, 백로그는 판정 줄에서 거른 작업 큐로)를 재는 시험을 이 파일에 더한다.
+   qa-contract-change: 주석 줄의 가는 길이 명사구 단추 이름 「실행 일정 보기 →」가 됐다(D-587, 「실패 작업 보기」와 같은 틀). 가는 곳(/schedules)은 그대로이고, 반례의
+   부재 단언이 옛 문장(「켜져 있는 스케줄은」)을 찾아 늘 통과하던 것을 지금 문장으로 바꾼다. 판정 요약이 「확인할 항목 N건(위험 · 주의)」인지 새로 잰다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -98,12 +100,12 @@ describe("진단 — 현재 리소스(counts) 섹션", () => {
     expect(document.querySelector("[data-summary-single]")).toBeNull();
   });
 
-  it("그 줄의 「스케줄에서 보기 →」가 실행 일정으로 간다", async () => {
+  it("그 줄의 「실행 일정 보기 →」가 실행 일정으로 간다", async () => {
     withBundle({ counts: { active_schedules: 2 } });
     const user = userEvent.setup();
     renderDiagnostics();
     const line = (await screen.findByText("지금 활성화된 실행 일정은 2개입니다.")).closest("p");
-    await user.click(within(line).getByRole("button", { name: "실행 일정에서 보기 →" }));
+    await user.click(within(line).getByRole("button", { name: "실행 일정 보기 →" }));
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/schedules");
   });
 
@@ -111,7 +113,8 @@ describe("진단 — 현재 리소스(counts) 섹션", () => {
     withBundle({ counts: {} });
     renderDiagnostics();
     await screen.findByText("필수 서비스");
-    expect(screen.queryByText(/켜져 있는 스케줄은/)).toBeNull();
+    expect(screen.queryByText(/활성화된 실행 일정은/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "실행 일정 보기 →" })).toBeNull();
   });
 });
 
@@ -191,5 +194,29 @@ describe("진단 — 백로그는 판정 줄 한 곳이 말하고 그 줄에서 
     expect(byMsg["미해결 실패 작업 1건"].link).toEqual({ to: "/jobs?status=failed", label: "실패 작업 보기" });
     expect(byMsg["웹 서버 중단"].link).toBeUndefined();
     expect(JOBS_BACKLOG_LINKS.failed.to).toBe("/jobs?status=failed");
+  });
+});
+
+/* 판정 요약은 심각도 하나를 대표로 세우지 않는다 — 예전 「주의 5건」 아래에 「위험」 줄 둘이 섞여 제목과 목록이 다른 말을 했다. */
+describe("진단 — 판정 요약은 전체 건수이고 두 심각도가 섞이면 갈라 말한다", () => {
+  it("위험과 주의가 섞이면 「확인할 항목 N건(위험 D건, 주의 W건)」이다", () => {
+    // 위험 둘(웹 서버 중단 · 미해결 실패) + 주의 둘(대기 · 디스크 80%).
+    const hv = healthVerdict({ web: "down" }, { used_pct: 81 }, {}, null, { queued: 2, failed_open: 1 }, {}, null, null);
+    expect(hv.tone).toBe("danger");
+    expect(hv.msg).toBe("확인할 항목 4건(위험 2건, 주의 2건)");
+  });
+
+  it("한 심각도뿐이면 괄호를 붙이지 않는다 — 줄마다의 표지가 이미 말한다", () => {
+    const hv = healthVerdict({}, { used_pct: 81 }, { used_pct: 82 }, null, { queued: 2 }, {}, null, null);
+    expect(hv.tone).toBe("warn");
+    expect(hv.msg).toBe("확인할 항목 3건");
+    expect(hv.msg).not.toMatch(/^주의/);
+  });
+
+  it("화면 머리 상자가 그 요약을 제목으로 쓰고 줄마다 위험 · 주의 표지를 단다", async () => {
+    withBundle({ components: { web: "up", worker: "down" }, jobs_24h: { total: 1, queued: 7, failed_open: 3 } });
+    renderDiagnostics();
+    expect(await screen.findByText("확인할 항목 3건(위험 2건, 주의 1건)")).toBeInTheDocument();
+    expect(screen.queryByText(/^주의 \d+건$/)).toBeNull();
   });
 });
