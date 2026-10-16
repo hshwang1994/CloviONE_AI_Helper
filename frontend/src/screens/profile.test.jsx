@@ -145,14 +145,14 @@ describe("내 프로필", () => {
 
   it("방해금지 안내가 '알림은 그대로 쌓인다'를 말한다", async () => {
     renderProfile();
-    expect(await screen.findByText(/방해금지 중에도 알림은 평소대로 쌓입니다/)).toBeInTheDocument();
+    expect(await screen.findByText(/방해금지 중에도 알림은 평소대로 쌓이고 메일 알림도 그대로 갑니다/)).toBeInTheDocument();
   });
 
   it("방해금지를 켜면 지금 조용하다는 사실과 알림이 쌓이고 있다는 사실을 함께 알린다", async () => {
     renderProfile();
     const toggle = await screen.findByRole("switch", { name: "방해금지" });
     await userEvent.click(toggle);
-    expect(await screen.findByText(/알림은 계속 쌓이고 있습니다/)).toBeInTheDocument();
+    expect(await screen.findByText(/알림은 계속 쌓이고 메일 알림도 그대로 갑니다/)).toBeInTheDocument();
   });
 
   it("유형 스위치를 끄면 그 유형만 뮤트로 보낸다(다른 유형은 그대로)", async () => {

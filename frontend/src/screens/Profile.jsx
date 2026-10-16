@@ -410,14 +410,14 @@ function DndCard({ prefs, save }) {
       <SectionTitle spacing="none"
         component="h2"
         title="방해금지"
-        help="방해금지 중에도 알림은 평소대로 쌓입니다. 사이드바 배지만 조용해지고, 비활성화하면 그동안 쌓인 것이 한꺼번에 다시 보입니다."
+        help="방해금지 중에도 알림은 평소대로 쌓이고 메일 알림도 그대로 갑니다. 알림 배지 숫자만 숨기고, 방해금지가 끝나면 쌓인 알림이 다시 보입니다."
       />
 
       {dnd.quiet_now ? (
         <Callout tone="info" compact>
           지금 방해금지 중입니다({dnd.reason === "manual" ? "직접 켬" : "정한 시간"}).
           {dnd.until ? ` ${fmtDateTime(dnd.until)}에 자동으로 풀립니다.` : ""}
-          {" "}알림은 계속 쌓이고 있습니다.
+          {" "}알림은 계속 쌓이고 메일 알림도 그대로 갑니다.
         </Callout>
       ) : null}
 
@@ -427,7 +427,10 @@ function DndCard({ prefs, save }) {
         <SettingRow
           compact
           label="지금부터 방해금지"
-          description={dnd.enabled ? (dnd.until ? `${fmtRelative(dnd.until)} 자동 해제` : "직접 끌 때까지") : undefined}
+          /* 켜기 전에도 무엇이 조용해지는지 말한다(D-591) — 배지 숫자와 채팅 표시만이고 메일은 그대로다(notifications/router.py ·
+             team_chat/service.py, 메일 발송은 방해금지를 보지 않는다). */
+          description={dnd.enabled ? (dnd.until ? `${fmtRelative(dnd.until)} 자동 해제` : "직접 끌 때까지")
+            : "1시간 동안 배지 숫자를 숨기고 채팅에 방해금지를 표시합니다. 메일은 그대로 갑니다."}
           controlId="pref-dnd-now"
           action={(
             <Switch
@@ -455,7 +458,7 @@ function DndCard({ prefs, save }) {
         <SettingRow
           compact
           label="매일 정한 시간에 방해금지"
-          description="한국 시간 기준입니다. 자정을 넘겨도 됩니다(예: 22:00에서 08:00)."
+          description="정한 시간에는 배지 숫자만 숨깁니다. 한국 시간 기준이고 자정을 넘겨도 됩니다(예: 22:00에서 08:00)."
           controlId="pref-dnd-quiet"
           action={(
             <Switch
@@ -762,17 +765,18 @@ export function Profile() {
             }}
           />
           <Box sx={TWO_COL_EVEN}>
-            {/* 왼쪽은 판 둘이다 — 「메일 알림」(내가 어떤 메일을 어디에서 받는가)이 먼저, 「알림 배지」가 다음이다(D-550).
-                관리자의 메일 설정과 나뉜 카드이고, 메일 서버의 말과 값이 없다. */}
+            {/* 왼쪽은 알림 셋이다(D-591) — 「메일 알림」(내가 어떤 메일을 어디에서 받는가) → 「알림 배지」 → 「방해금지」. 셋은 서로 다른
+                기능이고(방해금지는 배지 숫자만 숨기며 메일을 멈추지 않는다) 한 열에 나란히 서야 그 차이가 읽힌다. 예전에는 방해금지만
+                오른쪽 열의 내 기기 아래에 있었다(r23 화면 대장 28). 메일 카드는 관리자의 메일 설정과 나뉜 카드다(D-550). */}
             <Box sx={{ display: "grid", gap: GRID_GAP, alignContent: "start", minWidth: 0 }}>
               <MailNotificationCard mail={prefsQuery.data.mail} save={savePrefs.mutate} />
               <NotificationCard prefs={prefsQuery.data} save={savePrefs.mutate} />
+              <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} />
             </Box>
-            {/* 오른쪽은 **내 기기 → 방해금지 → 강조색 → 둘러보기**다. 앞의 둘은 계정과
-                알림에 관한 것이고 뒤의 둘은 이 브라우저의 취향과 안내다 — 급한 것이 위다. */}
+            {/* 오른쪽은 **내 기기 → 화면 효과 → 강조색 → 둘러보기**다. 계정(내 기기)이 먼저이고 뒤의 셋은 이 브라우저의 취향과
+                안내다. */}
             <Box sx={{ display: "grid", gap: GRID_GAP, alignContent: "start", minWidth: 0 }}>
               <SessionsCard />
-              <DndCard prefs={prefsQuery.data} save={savePrefs.mutate} />
               <CelebrationCard prefs={prefsQuery.data} save={savePrefs.mutate} />
               <AccentPicker />
               <TourCard

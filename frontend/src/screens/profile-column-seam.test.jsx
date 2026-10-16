@@ -31,6 +31,8 @@ import { MemoryRouter } from "react-router-dom";
  *
  * 반례를 함께 잰다. 그리고 화면이 실제로 그려졌는지(판 다섯이 있는지)를 먼저 확인한다 —
  * 빈 화면에서는 이 단언들이 공짜로 통과한다.
+
+ * qa-contract-change: r23 지시서(D-591)가 알림 셋(메일 알림 · 알림 배지 · 방해금지)을 왼쪽 열에 모았다 — 왼쪽 판은 둘에서 셋이 되고 방해금지가 마지막이다. 두 열 · 전폭 머리 계약은 그대로다.
  */
 
 const apiMock = vi.fn();
@@ -142,16 +144,18 @@ describe("내 프로필 — 신원 머리는 전폭이고 설정은 한 줄에�
     expect(settings.contains(avatar)).toBe(false);
   });
 
-  it("설정 줄은 두 열이다 — 왼쪽은 메일 알림 · 알림 배지 판 둘, 오른쪽은 셋 이상", async () => {
+  /* qa-contract-change 는 파일 머리에 있다 — 왼쪽 열이 알림 셋(메일 알림 · 알림 배지 · 방해금지)이 됐다(D-591). */
+  it("설정 줄은 두 열이다 — 왼쪽은 메일 알림 · 알림 배지 · 방해금지 판 셋, 오른쪽은 셋 이상", async () => {
     const { container } = renderProfile();
     await waitFor(() => expect(container.querySelectorAll(".MuiCard-root").length).toBeGreaterThanOrEqual(6));
     const [, settings] = cardRows(container);
     expect(settings.children).toHaveLength(2);
-    // 왼쪽은 판 둘을 담는 세로 격자다 - 메일 알림이 먼저, 알림 배지가 다음이다.
+    // 왼쪽은 판 셋을 담는 세로 격자다 - 메일 알림 → 알림 배지 → 방해금지(D-591).
     const left = [...settings.children[0].querySelectorAll(":scope > .MuiCard-root")];
-    expect(left).toHaveLength(2);
+    expect(left).toHaveLength(3);
     expect(left[0].querySelector("h2").textContent).toBe("메일 알림");
     expect(left[1].textContent).toContain("알림 배지");
+    expect(left[2].querySelector("h2").textContent).toBe("방해금지");
     expect(settings.children[1].querySelectorAll(":scope > .MuiCard-root").length).toBeGreaterThanOrEqual(3);
   });
 

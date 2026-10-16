@@ -4,7 +4,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
-/* qa-contract-change: 왼쪽 판의 이름이 「알림 설정」에서 「알림 배지」로 바뀌었다(D-550) - 메일 알림이 제 카드가 되며 이 판은 배지만
+/* qa-contract-change: r23 지시서(D-591)가 알림 셋(메일 알림 · 알림 배지 · 방해금지)을 왼쪽 열에 모았다 — 셋은 서로 다른 기능이고(방해금지는
+ * 배지 숫자만 숨기며 메일을 멈추지 않는다) 한 열에 나란히 서야 그 차이가 읽힌다. 그래서 5-3 의 오른쪽 순서에서 방해금지만 왼쪽 알림 판 뒤로
+ * 옮겼고, 오른쪽 열은 「내 기기 → 화면 효과 → 강조색 → 둘러보기」다. 단언은 두 열의 순서와 「같은 열」을 모두 잰다.
+ *
+ * qa-contract-change: 왼쪽 판의 이름이 「알림 설정」에서 「알림 배지」로 바뀌었다(D-550) - 메일 알림이 제 카드가 되며 이 판은 배지만
  * 다룬다. 순서 단언은 같은 판을 새 이름으로 찾는다.
  *
  * qa-contract-change: 소유자가 5-3 에서 오른쪽 열의 순서를 「내 기기 → 방해금지 → 강조색 → 둘러보기」로 직접 지정했다 — 지시 18 의 「둘러보기가 강조색보다 위」를 뒤집는다. 그 지시의 근거는 「둘러보기가 스크롤 끝에 있다」였는데, 신원 머리가 전폭으로 나가고 설정이 한 줄이 되면서 오른쪽 열은 판 넷짜리 짧은 레일이 됐다. 단언은 늘었다 — 방향만 뒤집는 대신 레일 전체의 순서를 잰다.
@@ -90,15 +94,30 @@ beforeEach(() => { apiMock.mockReset(); });
 describe("내 프로필 — 순서", () => {
   /* 🔴 오른쪽 레일은 **급한 순서**다. 계정에 남이 들어와 있는지가 먼저이고, 취향과 안내가
      마지막이다. 하나만 재면 그 하나만 지켜지므로 넷을 이어서 잰다. */
-  it("오른쪽 레일이 내 기기 → 방해금지 → 강조색 → 둘러보기 순이다", async () => {
+  it("왼쪽 열은 알림 셋이다 — 메일 알림 → 알림 배지 → 방해금지가 한 열에 선다 (D-591)", async () => {
+    mount();
+    const badge = await screen.findByRole("heading", { name: "알림 배지" });
+    const dnd = await screen.findByRole("heading", { name: "방해금지" });
+    expect(order(badge, dnd)).toBe(-1);
+    const column = (el) => el.closest(".MuiCard-root").parentElement;
+    expect(column(dnd)).toBe(column(badge));
+    // 메일 알림 판은 서버가 메일 묶음을 줄 때만 선다(이 시험의 응답에는 없다) — 서면 맨 앞이다(옆 시험이 구조로 잰다).
+    const mail = screen.queryByRole("heading", { name: "메일 알림" });
+    if (mail) { expect(order(mail, badge)).toBe(-1); expect(column(mail)).toBe(column(badge)); }
+  });
+
+  it("오른쪽 열은 내 기기 → 화면 효과 → 강조색 → 둘러보기 순이고 방해금지가 없다", async () => {
     mount();
     const devices = await screen.findByRole("heading", { name: /내 기기/ });
-    const dnd = await screen.findByRole("heading", { name: "방해금지" });
+    const effects = await screen.findByRole("heading", { name: "화면 효과" });
     const accent = await screen.findByRole("heading", { name: /강조색/ });
     const tour = await screen.findByRole("heading", { name: "둘러보기" });
-    expect(order(devices, dnd)).toBe(-1);
-    expect(order(dnd, accent)).toBe(-1);
+    const dnd = await screen.findByRole("heading", { name: "방해금지" });
+    expect(order(devices, effects)).toBe(-1);
+    expect(order(effects, accent)).toBe(-1);
     expect(order(accent, tour)).toBe(-1);
+    const column = (el) => el.closest(".MuiCard-root").parentElement;
+    expect(column(dnd)).not.toBe(column(devices));
   });
 
   it("신원 머리는 설정 전부보다 위에 있다 — 내가 누구인가가 먼저다", async () => {
