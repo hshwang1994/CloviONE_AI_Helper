@@ -28,18 +28,21 @@ import { MILESTONE_STATUS_KO, PROJECT_WRITE_ROLES } from "./project-format.js";
  * 말하고, 저장은 버튼이 시킨다.
  */
 
+/* 묶음 이름과 빈 묶음의 문장. 문장은 그 묶음이 실제로 세는 것을 말한다(`app/projects/weekly.py::sections` — 이번 주 마감 · 지난 주까지
+   마감 · 막힘 표시 · 다음 주 마감). 「이슈」는 막힘 표시한 일을 세는 칸이라 홈 · 서버 요약과 같은 「막힌 일」이다. 예전 빈 문장은
+   주어 없는 「없습니다.」였고, 문구 적용 도구가 두 줄을 겹쳐 고쳐 「작업이 마일스톤이 없습니다.」가 됐다(r23 #45 · 캡처 15). */
 const SECTIONS = [
-  ["done", "이번 주 완료"],
-  ["in_progress", "미완료"],
-  ["delayed", "지연"],
-  ["issues", "이슈"],
-  ["next_week", "다음 주 계획"],
+  ["done", "이번 주 완료", "이번 주 마감 작업 가운데 완료한 작업이 없습니다."],
+  ["in_progress", "미완료", "이번 주 마감 작업 가운데 미완료 작업이 없습니다."],
+  ["delayed", "지연", "지난주까지 마감이었는데 끝나지 않은 작업이 없습니다."],
+  ["issues", "막힌 일", "막힌 일로 표시된 작업이 없습니다."],
+  ["next_week", "다음 주 계획", "다음 주 마감 작업이 없습니다."],
 ];
 
 const MILESTONE_BUCKETS = [
-  ["changed", "이번 주에 바뀐 마일스톤"],
-  ["due_this_week", "이번 주가 기한인 마일스톤"],
-  ["overdue", "기한을 넘긴 마일스톤"],
+  ["changed", "이번 주에 바뀐 마일스톤", "이번 주에 바뀐 마일스톤이 없습니다."],
+  ["due_this_week", "이번 주가 기한인 마일스톤", "이번 주가 기한인 마일스톤이 없습니다."],
+  ["overdue", "기한을 넘긴 마일스톤", "기한을 넘긴 마일스톤이 없습니다."],
 ];
 
 /** 창의 **포함되는** 마지막 날. 계약은 배타적 끝이지만 사람에게는 포함으로 보여야 한다. */
@@ -52,7 +55,7 @@ export function inclusiveLastDay(endExclusive) {
   return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
 }
 
-function Bucket({ title, bucket, onOpen }) {
+function Bucket({ title, empty, bucket, onOpen }) {
   const b = bucket || { count: 0, items: [] };
   const items = Array.isArray(b.items) ? b.items : [];
   return (
@@ -61,7 +64,7 @@ function Bucket({ title, bucket, onOpen }) {
         {title + " " + (b.count || 0) + "건"}
       </Typography>
       {items.length === 0 ? (
-        <EmptyState layout="inline" title="작업이 마일스톤이 없습니다." />
+        <EmptyState layout="inline" title={empty} />
       ) : (
         <FlatBadgeSurface>
         <Box component="ul" sx={{ m: 0, mt: 1, p: 0, display: "grid", gap: 0.75 }}>
@@ -92,7 +95,7 @@ function Bucket({ title, bucket, onOpen }) {
   );
 }
 
-function MilestoneBucket({ title, bucket }) {
+function MilestoneBucket({ title, empty, bucket }) {
   const b = bucket || { count: 0, items: [] };
   const items = Array.isArray(b.items) ? b.items : [];
   return (
@@ -101,7 +104,7 @@ function MilestoneBucket({ title, bucket }) {
         {title + " " + (b.count || 0) + "건"}
       </Typography>
       {items.length === 0 ? (
-        <EmptyState layout="inline" title="작업이 마일스톤이 없습니다." />
+        <EmptyState layout="inline" title={empty} />
       ) : (
         <Box component="ul" sx={{ m: 0, mt: 1, p: 0, display: "grid", gap: 0.5 }}>
           {items.map((m) => (
@@ -202,8 +205,8 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
       <Card>
         <SectionTitle component="h2" title="이번 주 작업" />
         <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
-          {SECTIONS.map(([key, title]) => (
-            <Bucket key={key} title={title} bucket={data[key]} onOpen={openTicket} />
+          {SECTIONS.map(([key, title, empty]) => (
+            <Bucket key={key} title={title} empty={empty} bucket={data[key]} onOpen={openTicket} />
           ))}
         </Box>
       </Card>
@@ -211,8 +214,8 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
       <Card>
         <SectionTitle component="h2" title="마일스톤" />
         <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
-          {MILESTONE_BUCKETS.map(([key, title]) => (
-            <MilestoneBucket key={key} title={title} bucket={milestones[key]} />
+          {MILESTONE_BUCKETS.map(([key, title, empty]) => (
+            <MilestoneBucket key={key} title={title} empty={empty} bucket={milestones[key]} />
           ))}
         </Box>
       </Card>

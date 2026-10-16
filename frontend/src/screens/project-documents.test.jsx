@@ -5,6 +5,8 @@
  * 프로젝트 문서 추가"로 바로 이어지는가(§14.3, 동사는 PA-RC-0002 §3 표준 동사표를 따른다).
 
  * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ * qa-contract-change: 빈 띠의 「이 프로젝트 문서 추가」를 걷었다 — 같은 창을 여는 탭 머리의 「새 문서」와 한 화면에 두 이름으로 섰다(r23 #43).
+ * 빈 목록에서 바로 만들 수 있다는 §14.3 은 그대로이고, 그 길이 「새 문서」 하나다.
  */
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
@@ -48,7 +50,7 @@ describe("ProjectDocuments", () => {
     expect(await screen.findByText("설계 문서")).toBeInTheDocument();
   });
 
-  it("🔴 문서가 없으면 「이 프로젝트 문서 추가」로 바로 만들 수 있다(§14.3)", async () => {
+  it("🔴 문서가 없어도 「새 문서」로 바로 만들 수 있고, 같은 일을 하는 단추가 둘 서지 않는다(§14.3 · r23 #43)", async () => {
     apiMock.mockImplementation((path, options) => {
       if (options?.method === "POST") {
         expect(options.body.project_id).toBe("proj-1");
@@ -70,7 +72,9 @@ describe("ProjectDocuments", () => {
     const user = userEvent.setup();
     renderTab();
 
-    const action = await screen.findByRole("button", { name: "이 프로젝트 문서 추가" });
+    await screen.findByText("이 프로젝트에 등록된 문서가 없습니다.");
+    expect(screen.queryByRole("button", { name: "이 프로젝트 문서 추가" })).toBeNull();
+    const action = screen.getByRole("button", { name: "새 문서" });
     await user.click(action);
     const dialog = await screen.findByRole("dialog");
     /* 문서 화면과 **같은 모달**이다(`knowledge/NewDocumentModal.jsx` · lockedProject) —

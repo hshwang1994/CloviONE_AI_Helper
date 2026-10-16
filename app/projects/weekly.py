@@ -315,7 +315,8 @@ def split_milestones(
 # 사용자에게 보이는 문구다. 가운뎃점과 em 대시를 쓰지 않는다(scripts/check_user_text.py).
 SECTION_TITLES = (
     ("done", "이번 주 완료"),
-    ("in_progress", "진행 중"),
+    # 화면의 묶음 이름과 같다 — 이 칸은 이번 주 마감인 끝나지 않은 작업 전부라 「미완료」다(D-589 의 홈 칸과 같은 말).
+    ("in_progress", "미완료"),
     ("delayed", "지연"),
     ("issues", "막힌 일"),
     ("next_week", "다음 주 계획"),

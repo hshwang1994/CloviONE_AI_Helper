@@ -139,12 +139,12 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
         placement="surface"
         columns={columns} rows={rows} rowKey={(d) => d.id} onRow={openDoc}
         emptyState={(
-          /* 만드는 단추는 30 보조다 — 탭 머리의 「새 문서」가 이 화면의 채움 하나다(핸드오프 RULES §1 · §3). */
+          /* 만드는 길은 탭 머리의 「새 문서」 하나다(핸드오프 RULES §1 · §3). 예전에는 빈 띠에 같은 창을 여는 「이 프로젝트 문서
+             추가」가 하나 더 서서, 한 동작이 한 화면에서 두 이름으로 보였다(r23 #43). */
           <EmptyState
             layout="region"
             title="이 프로젝트에 등록된 문서가 없습니다."
             help="회의록이나 설계 문서를 여기에 모아 두면 프로젝트 안에서 바로 찾을 수 있습니다."
-            action={<Button size="sm" onClick={() => { createDocument.reset(); setNewDoc(true); }}>이 프로젝트 문서 추가</Button>}
           />
         )}
         note={hidden

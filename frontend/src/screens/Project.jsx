@@ -181,17 +181,19 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
               <Typography variant="body2" color="text.secondary" sx={{ minWidth: "6.5rem", whiteSpace: "nowrap" }}>
                 {m.due_on || "기한 없음"}
               </Typography>
+              {/* 이름은 날짜 바로 다음, 늘 같은 시작선에 선다. 「n일 지남」은 상태 낱말 뒤의 덧붙임이다 — 예전에는 날짜와 이름 사이에
+                  끼어 지난 마일스톤만 이름이 오른쪽으로 밀렸다(r23 #42). */}
+              <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, minWidth: 0, ...KO_WORD_BREAK }}>
+                {m.name}
+              </Typography>
+              <Badge value={MILESTONE_STATUS_KO[m.status] || m.status}
+                     kind={MILESTONE_STATUS_KIND[m.status]} />
               {m.overdue && m.due_on && today ? (
                 <Typography component="span" variant="body2"
                             sx={{ color: "error.main", whiteSpace: "nowrap" }}>
                   {"(" + daysBetween(m.due_on, today) + "일 지남)"}
                 </Typography>
               ) : null}
-              <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.body, minWidth: 0, ...KO_WORD_BREAK }}>
-                {m.name}
-              </Typography>
-              <Badge value={MILESTONE_STATUS_KO[m.status] || m.status}
-                     kind={MILESTONE_STATUS_KIND[m.status]} />
               {canWrite ? (
                 <Stack direction="row" gap={0.5} sx={{ ml: "auto" }}>
                   <Button
