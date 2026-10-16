@@ -1221,6 +1221,9 @@ def _seed_w10(db, me, now) -> None:
         ("schedule.enable", "schedule", '{"cron": "0 9 * * 1"}'),
         ("schedule.enable", "schedule", '{"cron": "0 18 * * 5"}'),
     )
+    # 만료 시각은 **오늘 시계**로 잡는다. 씨앗 시각(`now`, 2026-08-24)으로 잡으면 실제 시계로는 이미 지난 건이라
+    # 「처리할 승인」이 늘 비고(`pending_clause`), 승인 확인 창을 열 줄이 없었다(r23 화면 대장 EX-A1).
+    live = datetime.utcnow().replace(microsecond=0)
     for i, (req_type, obj_type, payload) in enumerate(pending):
         who = requesters[i % len(requesters)]
         db.add(Approval(
@@ -1229,7 +1232,7 @@ def _seed_w10(db, me, now) -> None:
             requested_by=who.id,
             approver_id=None, status="pending", request_payload_json=payload,
             requested_at=now - timedelta(hours=i + 1),
-            expires_at=now + timedelta(hours=72 - i),
+            expires_at=live + timedelta(hours=72 - i),
         ))
     for i in range(3):
         db.add(Approval(
