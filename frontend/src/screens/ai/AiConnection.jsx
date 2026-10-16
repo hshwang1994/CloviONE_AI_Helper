@@ -46,7 +46,7 @@ const POLL_MS = 1500;
 const VERIFY_LIMIT_MS = 90_000;
 
 const FEATURES = [
-  ["chat_enabled", "AI 도우미", "비활성화하면 AI 도우미 화면과 대화 API가 닫힙니다."],
+  ["chat_enabled", "AI 도우미", "비활성화하면 AI 도우미 화면과 대화 기능을 쓸 수 없습니다."],
   ["assistant_narrative_enabled", "홈 문장 요약", "활성화하면 홈과 도우미가 숫자 옆에 한두 문장 요약을 붙입니다."],
   ["game_ai_enabled", "게임 퀴즈 AI", "활성화하면 놀이 화면에서 AI가 퀴즈 초안을 만듭니다."],
 ];
