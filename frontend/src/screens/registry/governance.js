@@ -333,7 +333,10 @@ export const GOVERNANCE_SCREENS = {
       // (실패·설정 변경 등)이 그 사이에 묻힌다. action(하나만 골라 좁히는 정확 일치)과는
       // 반대 방향이 필요해서 별도 필터로 둔다 — exclude_actions는 이것만 빼고 전부 보여준다
       // (백엔드 app/audit/router.py, 쉼표로 구분된 action 목록을 받는다).
-      { key: "exclude_actions", type: "select", label: "표시 범위",
+      /* 첫 줄은 감사의 네 축(행위자 · 대상 · 결과 · 기간)이다. 잡음을 거르는 이 칸은 「추가 필터」에 접는다(D-596) — 다섯 칸과
+         「추가 필터」 단추가 1366 에서 한 줄을 넘어 단추 하나만 둘째 줄에 섰다. 값이 걸려 있으면(저장된 뷰 · 주소) 접힌 칸이
+         처음부터 펼쳐진다. */
+      { key: "exclude_actions", type: "select", label: "표시 범위", more: true,
         options: [{ value: "user.login,user.logout", label: "로그인/로그아웃 제외" }] },
       /* W5: 행위자는 Entity 다 — 계정이 늘면 후보도 는다. 딥링크(`?user_id=`)가 넣는 값이
          후보에 없어도(목록에서 빠진 계정) 그 값은 그대로 보이고 질의도 그대로 나간다. */

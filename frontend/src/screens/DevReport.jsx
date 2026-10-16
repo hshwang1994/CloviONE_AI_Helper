@@ -1,17 +1,21 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
+import Link from "@mui/material/Link";
+import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
+import { topicParticle } from "../lib/format.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import {
   PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, DataTable,
   Section, StatusDot,
 } from "../ui/kit.jsx";
+import { Note } from "../ui/adminKit.jsx";
 import { StatusSummaryCard } from "../ui/StatusKpi.jsx";
 import { FilterBar } from "../ui/FilterBar.jsx";
 import { FilterSelect } from "../ui/filters.jsx";
-import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
+import { APPBAR_HEIGHT, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, PROSE_MAX_WIDTH } from "../ui/theme.js";
 import { resolveChartColor } from "../ui/charts/base.jsx";
 
 /* 고른 달은 **주소에** 둔다 (S15 · `lib/useQueryState.js`).
@@ -226,6 +230,81 @@ const DEV_TICKET_COLUMNS = [
     render: (t) => (t.overdue ? <Badge value="지연" kind="danger" /> : "") },
 ];
 
+/* 표에 줄을 세울 사람 — 이 달 마감 티켓이 있거나 마감일 없는 열린 티켓이 있는 사람이다(「마감 없음」 칸이 그 수를 말한다).
+ *
+ * 🔴 **0만 든 줄을 세우지 않는다.** 서버는 활성 사용자 전원을 싣는다(이 달 티켓이 없으면 0). 예전에는 그 사람들이 두 표에서 모든 칸이
+ * 0인 줄과 빈 회색 막대로 섰다 — 표가 길어지고 진짜 일이 있는 줄이 그 사이에 묻혔다. 두 표는 같은 사람 줄을 쓰고, 뺀 사람은 표 아래
+ * 한 문장이 이름으로 말한다. 팀 합계(위 카드)는 서버 값 그대로라 바뀌지 않는다. */
+export function hasReportRow(d) {
+  return !!(d && (d.has_tickets || (d.no_due && d.no_due.open > 0)));
+}
+
+/** 표에서 뺀 사람을 한 문장으로. 표가 서 있으면 「표에서 뺐습니다」, 아무도 줄이 없으면 「없습니다」로 끝난다. */
+export function idlePeopleSentence(idle, { tablesShown }) {
+  const names = (idle || []).map(devLabel).filter(Boolean);
+  if (!names.length) return "";
+  const subject = names.length === 1
+    ? names[0] + topicParticle(names[0])
+    : names.join(", ") + " " + names.length + "명은";
+  return subject + (tablesShown
+    ? " 이 달에 집계된 티켓이 없어 이 표와 업무량 분석 표에서 뺐습니다."
+    : " 이 달에 집계된 티켓이 없습니다.");
+}
+
+/* 구획 바로 가기 (D-596) — 다섯 구획이 이어지는 긴 보고서라 요약 카드 아래에서 각 구획으로 간다. 주소는 해시 라우터가 쓰고
+   있어 `#조각` 링크를 걸면 화면이 바뀐다 — 제목 글자의 id 로 그 구획을 찾아 굴리고, 키보드로 온 사람의 초점을 그 제목에 둔다.
+   고정 상단바 뒤로 제목이 숨지 않게 구획마다 상단바 높이만큼 굴림 여백을 준다. 인쇄에는 서지 않는다. */
+const SECTION_IDS = {
+  detail: "dev-report-detail",
+  workload: "dev-report-workload",
+  completed: "dev-report-completed",
+  tickets: "dev-report-tickets",
+};
+const JUMPS = [
+  { id: SECTION_IDS.detail, label: "개발자별 상세" },
+  { id: SECTION_IDS.workload, label: "업무량 분석" },
+  { id: SECTION_IDS.completed, label: "이 달에 끝낸 일" },
+  { id: SECTION_IDS.tickets, label: "담당자별 상세 티켓" },
+];
+const JUMP_TARGET_SX = {
+  scrollMarginTop: Object.fromEntries(Object.entries(APPBAR_HEIGHT).map(([bp, px]) => [bp, `calc(${px}px + 1rem)`])),
+};
+
+function SectionTitleText({ id, children }) {
+  return <span id={id} tabIndex={-1}>{children}</span>;
+}
+
+function jumpTo(id) {
+  const title = typeof document !== "undefined" ? document.getElementById(id) : null;
+  if (!title) return;
+  const section = title.closest("section") || title;
+  if (typeof section.scrollIntoView === "function") section.scrollIntoView({ block: "start", behavior: "smooth" });
+  if (typeof title.focus === "function") title.focus({ preventScroll: true });
+}
+
+function SectionJumps() {
+  return (
+    <Box
+      component="nav" aria-label="리포트 구획 바로 가기" data-section-jumps=""
+      sx={{
+        mb: 4, display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: 2, rowGap: 0.5,
+        "@media print": { display: "none" },
+      }}
+    >
+      <Typography component="span" variant="body2" color="text.secondary">바로 가기</Typography>
+      <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.5 }}>
+        {JUMPS.map((j) => (
+          <Box component="li" key={j.id}>
+            <Link component="button" type="button" variant="body2" underline="hover" onClick={() => jumpTo(j.id)}>
+              {j.label}
+            </Link>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
 /* 개발자 월간 리포트 — 마감일이 그 달인 티켓을 담당자별로 묶어 보여 주고(마감일 축), 그 달에 끝낸 일을
  * 끝낸 날짜로 따로 센다(완료일 축, 계획 3.7). 숫자는 전부 서버가 계산한다 - 화면은 나누지도 반올림하지도
  * 않는다. 팀 합계 카드로 요약을 먼저 주고, 표는 그 아래에 둔다. */
@@ -245,6 +324,9 @@ export function DevReport() {
   const setPeriod = (next) => setView({ period: next });
   const defs = (ok && data.definitions) || {};
   const devs = ok ? data.developers : [];
+  /* 두 표(개발자별 상세 · 업무량 분석)는 같은 사람 줄을 쓴다. 0만 든 사람은 표 아래 한 문장이다(`hasReportRow`). */
+  const shown = devs.filter(hasReportRow);
+  const idle = devs.filter((d) => !hasReportRow(d));
   const withTickets = ok ? devs.filter((d) => d.has_tickets) : [];
   const withCompleted = ok ? devs.filter((d) => d.completed && d.completed.done) : [];
   const devKey = (d) => d.user_id || "unknown";
@@ -268,13 +350,14 @@ export function DevReport() {
         "@media print": { "& .MuiPaper-root": { boxShadow: "none" }, "& section": { breakInside: "avoid" } },
       }}>
       <PageHeader area="감사" title="개발자 월간 리포트"
-        description={period ? "마감일이 " + periodLabel(period) + "인 티켓을 담당자별로 모아 업무량과 위험을 봅니다." : "마감일이 이 달인 티켓을 담당자별로 모아 업무량과 위험을 봅니다."}
+        /* 달은 응답(또는 주소)이 정한다 — 화면 설명이 지금 보고 있는 달을 그대로 말한다. */
+        description={(period ? periodLabel(period) : "이 달") + " 마감 티켓을 담당자별로 집계한 보고서입니다."}
         help="마감일이 선택한 달인 티켓을 담당자별로 집계합니다. 그 달에 끝낸 일은 끝낸 날짜로 따로 셉니다. 사람은 이름이 아니라 계정으로 묶으므로 같은 이름의 두 사람은 두 줄로 보입니다. 예상 WD와 난이도는 추정한 값이고, 실제 WD는 완료한 담당자가 입력합니다."
         actions={<Button onClick={() => query.refetch()} disabled={query.isFetching} loading={query.isFetching}>새로고침</Button>} />
 
       <FilterBar
         sx={{ "@media print": { display: "none" } }}
-        end={<Button onClick={() => window.print()}>인쇄하거나 PDF로 저장</Button>}
+        end={<Button onClick={() => window.print()}>인쇄 또는 PDF 저장</Button>}
       >
         <FilterSelect
           label="연도" value={period.slice(0, 4)} noAllOption disabled={!period}
@@ -306,7 +389,8 @@ export function DevReport() {
               아니라서 합계 밖에 둔다(완료율 분모와 같은 선). 지연 · 담당자 없음은 그 위의 신호다. */}
           <StatusSummaryCard
             ariaLabel="팀 합계"
-            sx={{ mb: 4 }}
+            /* 아래 「바로 가기」 줄이 구획 간격을 맡는다. 인쇄에는 그 줄이 없으므로 카드가 간격을 되찾는다. */
+            sx={{ mb: 2, "@media print": { mb: 4 } }}
             unit="건"
             total={team.total - team.cancel}
             items={[
@@ -335,32 +419,51 @@ export function DevReport() {
             ]}
           />
 
-          <Section titleAs="h2" title={`개발자별 상세 (${data.period})`} rule
-            action={devs.length ? <StatusLegend /> : null}>
+          <SectionJumps />
+
+          <Section titleAs="h2" title={<SectionTitleText id={SECTION_IDS.detail}>{`개발자별 상세 (${data.period})`}</SectionTitleText>} rule
+            sx={JUMP_TARGET_SX}
+            action={shown.length ? <StatusLegend /> : null}>
             {devs.length === 0 ? (
               /* 구획 하나가 빈 것이라 한 줄 띠다(D-530) — 큰 그림은 화면 전체가 빈 자리에만 선다. */
               <EmptyState layout="band" title="이 달에 집계할 담당자가 없습니다."
                 help="선택한 달에 마감일이 있는 티켓이 없거나 활성 사용자가 없습니다." />
+            ) : shown.length === 0 ? (
+              /* 사람은 있지만 모두 0이다 — 0만 든 줄로 표를 채우지 않고 무엇이 없는지 말한다. 누가 없는지는 아래 문장이 이름으로 말한다. */
+              <EmptyState layout="band" title="이 달 마감 티켓을 맡은 담당자가 없습니다."
+                help="선택한 달에 마감일이 있는 티켓이 배정되면 여기에 담당자별로 보입니다." />
             ) : (
               <TableWrap minWidth="60rem">
                 {/* 집계 표라 「받았다」는 건수를 말하지 않는다(`list={false}`) — 행은 받은 목록이 아니라 사람별 합이다. */}
-                <DataTable placement="surface" list={false} columns={devSummaryColumns(defs)} rows={devs} rowKey={devKey} />
+                <DataTable placement="surface" list={false} columns={devSummaryColumns(defs)} rows={shown} rowKey={devKey} />
               </TableWrap>
             )}
+            {idle.length ? (
+              <Box data-idle-people="">
+                <Note sx={{ maxWidth: PROSE_MAX_WIDTH }}>{idlePeopleSentence(idle, { tablesShown: shown.length > 0 })}</Note>
+              </Box>
+            ) : null}
           </Section>
 
-          <Section titleAs="h2" title="업무량 분석 (완료 업무량 기준)" rule
+          <Section titleAs="h2" title={<SectionTitleText id={SECTION_IDS.workload}>업무량 분석 (완료 업무량 기준)</SectionTitleText>} rule
+            sx={JUMP_TARGET_SX}
             help={(
               <Box component="span" sx={{ display: "block", maxWidth: PROSE_MAX_WIDTH, ...KO_WORD_BREAK }}>
                 완료 건수와 완료 예상 WD는 마감일이 이 달인 일 가운데 끝낸 양입니다. 담당 건수가 적으면 완료율이 쉽게 높아지므로 담당 건수와 함께 봅니다.
               </Box>
             )}>
-            <TableWrap minWidth="52rem">
-              <DataTable placement="surface" list={false} columns={devWorkloadColumns(defs)} rows={devs} rowKey={devKey} />
-            </TableWrap>
+            {shown.length === 0 ? (
+              <EmptyState layout="band" title="이 달에 집계할 업무량이 없습니다."
+                help="선택한 달에 마감일이 있는 티켓이 배정되면 여기에 담당자별로 보입니다." />
+            ) : (
+              <TableWrap minWidth="52rem">
+                <DataTable placement="surface" list={false} columns={devWorkloadColumns(defs)} rows={shown} rowKey={devKey} />
+              </TableWrap>
+            )}
           </Section>
 
-          <Section titleAs="h2" title={`이 달에 끝낸 일 (${data.period})`} rule
+          <Section titleAs="h2" title={<SectionTitleText id={SECTION_IDS.completed}>{`이 달에 끝낸 일 (${data.period})`}</SectionTitleText>} rule
+            sx={JUMP_TARGET_SX}
             help={(
               <Box component="span" sx={{ display: "block", maxWidth: PROSE_MAX_WIDTH, ...KO_WORD_BREAK }}>
                 {defs.completed_done} {completedTeam ? "팀 전체로는 " + completedTeam.done + "건을 끝냈고, 그중 " + completedTeam.late_done + "건은 마감일보다 늦게 끝냈습니다." : ""}
@@ -381,7 +484,8 @@ export function DevReport() {
             )}
           </Section>
 
-          <Section titleAs="h2" title="담당자별 상세 티켓" rule>
+          <Section titleAs="h2" title={<SectionTitleText id={SECTION_IDS.tickets}>담당자별 상세 티켓</SectionTitleText>} rule
+            sx={JUMP_TARGET_SX}>
             {withTickets.length === 0 ? (
               <EmptyState layout="band" title="이 달에 담당한 티켓이 있는 사람이 없습니다."
                 help="선택한 달에 마감일이 있는 티켓이 배정되면 여기에 담당자별로 묶여 표시됩니다." />

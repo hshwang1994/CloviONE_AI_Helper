@@ -10,7 +10,10 @@ import { HashRouter, Routes, Route } from "react-router-dom";
  *
  * 필터가 여덟 칸이라 1366 에서 세 줄로 접혔다. 정확한 값을 붙여넣는 세 축(대상 ID · 작업 · 문의 번호)은 주소로 오거나
  * 상세에서 옮겨 적는 값이라 첫 줄에 늘 설 이유가 없다 — 접는다. 다만 그 칸에 조건이 걸려 있으면(상세의 「감사 로그에서
- * 보기」 딥링크) 접힌 칸에 숨기지 않는다. */
+ * 보기」 딥링크) 접힌 칸에 숨기지 않는다.
+ *
+ * qa-contract-change: 첫 줄이 감사의 네 축(행위자 · 대상 · 결과 · 기간)이 되고 잡음을 거르는 「표시 범위」도 「추가 필터」에 접혔다 — 다섯 칸과 접기 단추가 1366 에서
+ * 한 줄을 넘어 단추 하나만 둘째 줄에 섰다. 접힌 칸 · 첫 줄 칸 목록의 기대만 옮겼고, 값이 걸린 접힌 칸이 처음부터 펼쳐지는지를 표시 범위로도 잰다. */
 
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
@@ -51,8 +54,8 @@ function renderAudit() {
   );
 }
 
-const MORE = ["대상 ID", "작업(정확히, 예: user.update)", "문의 번호(요청 ID)"];
-const MAIN = ["대상", "표시 범위", "결과"];
+const MORE = ["대상 ID", "작업(정확히, 예: user.update)", "문의 번호(요청 ID)", "표시 범위"];
+const MAIN = ["대상", "결과", "행위자"];
 
 describe("감사 로그 — 추가 필터 (D-596)", () => {
   it("정확한 값을 붙여넣는 세 칸은 접혀 있고, 「추가 필터」가 연다", async () => {
@@ -78,5 +81,14 @@ describe("감사 로그 — 추가 필터 (D-596)", () => {
     expect(within(document.querySelector("[data-filter-more]")).getByLabelText("대상 ID")).toHaveValue("a-1");
     await waitFor(() => expect(apiMock.mock.calls.some(([u]) => String(u).includes("object_id=a-1"))).toBe(true));
     expect([...document.querySelectorAll("[data-condition-chip]")].some((c) => c.textContent.includes("a-1"))).toBe(true);
+  });
+
+  it("표시 범위가 걸린 주소(저장된 뷰 · 공유 주소)는 접힌 칸을 처음부터 펼치고 그 조건이 질의에 실린다", async () => {
+    window.location.hash = "#/audit?exclude_actions=" + encodeURIComponent("user.login,user.logout");
+    renderAudit();
+    const toggle = await screen.findByRole("button", { name: "추가 필터 1" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(within(document.querySelector("[data-filter-more]")).getByLabelText("표시 범위")).toBeInTheDocument();
+    await waitFor(() => expect(apiMock.mock.calls.some(([u]) => /exclude_actions=user\.login(%2C|,)user\.logout/.test(String(u)))).toBe(true));
   });
 });

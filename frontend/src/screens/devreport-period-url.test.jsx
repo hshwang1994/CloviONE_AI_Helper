@@ -15,6 +15,9 @@ import "@testing-library/jest-dom/vitest";
  *
  * 관리자 콘솔의 다른 목록 화면은 이미 조건을 주소에 싣는다(S15 · `lib/useQueryState.js`).
  * 이 화면만 컴포넌트 지역 상태였다.
+ *
+ * qa-contract-change: 화면 설명이 「마감일이 2026년 3월인 티켓을 담당자별로 모아 업무량과 위험을 봅니다.」에서 「2026년 3월 마감 티켓을 담당자별로 집계한
+ * 보고서입니다.」로 바뀌었다(D-587). 설명이 지금 보고 있는 달을 말한다는 단언은 그대로이고 기대하는 글자만 새 문장이다.
  */
 
 const apiMock = vi.fn();
@@ -82,20 +85,20 @@ describe("개발자 월간 리포트 — 고른 달이 주소에 실린다", () 
     renderReport("/dev-report?period=2026-03");
     await waitFor(() => expect(asked.length).toBeGreaterThan(0));
     expect(asked[0]).toContain("period=2026-03");
-    expect(await screen.findByText(/마감일이 2026년 3월인 티켓을/)).toBeInTheDocument();
+    expect(await screen.findByText(/^2026년 3월 마감 티켓을 담당자별로 집계한 보고서입니다\.$/)).toBeInTheDocument();
   });
 
   it("월을 바꾸면 주소가 따라오고 설명문도 그 달을 말한다", async () => {
     const user = userEvent.setup();
     renderReport("/dev-report?period=2026-03");
-    await screen.findByText(/마감일이 2026년 3월인 티켓을/);
+    await screen.findByText(/^2026년 3월 마감 티켓을 담당자별로 집계한 보고서입니다\.$/);
 
     await user.click(screen.getByLabelText("월"));
     await user.click(await screen.findByRole("option", { name: "5월" }));
 
     await waitFor(() => expect(addr()).toContain("period=2026-05"));
     await waitFor(() => expect(asked.some((u) => u.includes("period=2026-05"))).toBe(true));
-    expect(await screen.findByText(/마감일이 2026년 5월인 티켓을/)).toBeInTheDocument();
+    expect(await screen.findByText(/^2026년 5월 마감 티켓을 담당자별로 집계한 보고서입니다\.$/)).toBeInTheDocument();
   });
 
   it("반례 — 아무것도 안 고른 주소는 깨끗하게 두고, 이번 달은 서버가 정한다", async () => {

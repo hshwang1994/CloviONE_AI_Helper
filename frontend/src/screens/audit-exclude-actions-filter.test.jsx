@@ -12,6 +12,9 @@ import "@testing-library/jest-dom/vitest";
  * 서버는 이미 이 조건을 받는다(app/audit/router.py `_filtered_stmt`, 목록과 CSV 내보내기가
  * 같은 질의를 쓴다). 여기서는 화면에 실제로 필터가 있고, 고르면 서버 조회에 실제로
  * 실리는지를 확인한다.
+ *
+ * qa-contract-change: 「표시 범위」가 감사 로그의 「추가 필터」 접기 칸으로 옮겼다(D-596, 첫 줄은 행위자 · 대상 · 결과 · 기간). 칸이 있고 고르면 서버 질의에 실린다는
+ * 단언은 그대로이고, 접힌 칸을 「추가 필터」로 먼저 연 뒤에 찾는다. 접힌 동안 칸이 첫 줄에 없다는 것도 함께 잰다.
  */
 
 const apiMock = vi.fn();
@@ -60,14 +63,19 @@ beforeEach(() => {
 afterEach(() => { window.location.hash = ""; });
 
 describe("감사 로그 — 로그인/로그아웃 제외 필터 (VIS-59)", () => {
-  it("화면에 '표시 범위' 필터가 있다", async () => {
+  it("화면에 '표시 범위' 필터가 있다 — 「추가 필터」 안에 접혀 있다", async () => {
+    const user = userEvent.setup();
     renderAudit();
+    const toggle = await screen.findByRole("button", { name: "추가 필터" });
+    expect(screen.queryByLabelText(/표시 범위/)).toBeNull();
+    await user.click(toggle);
     expect(await screen.findByLabelText(/표시 범위/)).toBeInTheDocument();
   });
 
   it("'로그인/로그아웃 제외'를 고르면 서버 조회에 exclude_actions가 실린다", async () => {
     const user = userEvent.setup();
     renderAudit();
+    await user.click(await screen.findByRole("button", { name: "추가 필터" }));
     await screen.findByLabelText(/표시 범위/);
 
     await user.click(screen.getByRole("combobox", { name: "표시 범위" }));

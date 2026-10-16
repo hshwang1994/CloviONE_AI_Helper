@@ -32,6 +32,21 @@ def _pair(ids, surfaces, category, name, act, **kw):
         flow(fid, surface, category, name, act, route=route, shell=ADMIN, **kw)
 
 
+def _in_more_filters(act):
+    """감사 로그의 「추가 필터」(D-596) 안에 접힌 칸을 쓰는 동작 — 접혀 있으면 먼저 편다.
+
+    대상 ID · 작업 · 문의 번호 · 표시 범위는 첫 줄이 아니라 「추가 필터」 접기 칸에 선다. 칸이 접힌 채로 찾으면
+    「칸이 없다」로 멈추는데, 그것은 화면이 아니라 고르기가 틀린 것이다. 이미 펼쳐져 있으면(값이 걸린 주소) 그대로 둔다.
+    """
+    def _act(r, ctx):
+        toggle = r.page.get_by_role("button", name="추가 필터")
+        if toggle.count() and toggle.first.get_attribute("aria-expanded") == "false":
+            toggle.first.click()
+            r.settle(500)
+        return act(r, ctx)
+    return _act
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # /audit — 감사 로그
 # ═══════════════════════════════════════════════════════════════════════════
@@ -73,7 +88,7 @@ def _text_filter(label: str, value: str, axis: str, api: str):
 
 
 flow("FF-0645", "admin_audit__audit", "filter", "대상 ID로 좁혀 한 엔티티의 사건만 추적한다",
-     _text_filter("대상 ID", "s21", "object_id", AUDIT), route="/audit?tab=audit",
+     _in_more_filters(_text_filter("대상 ID", "s21", "object_id", AUDIT)), route="/audit?tab=audit",
      shell=ADMIN, api=AUDIT)
 
 
@@ -103,10 +118,10 @@ def _action_autocomplete(r, ctx):
 
 flow("FF-0646", "admin_audit__audit", "combobox",
      "'작업(정확히)' 필터에서 현재 페이지의 실제 action 문자열을 자동완성으로 고른다",
-     _action_autocomplete, route="/audit?tab=audit", shell=ADMIN, api=AUDIT)
+     _in_more_filters(_action_autocomplete), route="/audit?tab=audit", shell=ADMIN, api=AUDIT)
 
 flow("FF-0647", "admin_audit__audit", "filter", "표시 범위에서 로그인/로그아웃을 제외해 잡음을 줄인다",
-     ds_filter("표시 범위", "로그인", AUDIT), route="/audit?tab=audit", shell=ADMIN,
+     _in_more_filters(ds_filter("표시 범위", "로그인", AUDIT)), route="/audit?tab=audit", shell=ADMIN,
      api=AUDIT)
 
 # 행위자는 **글자 칸이 아니라 사람 고르기**다(registry: type=select · kind=entity).
@@ -119,7 +134,7 @@ flow("FF-0649", "admin_audit__audit", "filter", "결과(성공/실패)로 좁힌
      shell=ADMIN, api=AUDIT)
 
 flow("FF-0650", "admin_audit__audit", "filter", "문의 번호(요청 ID)로 그 요청 하나를 짚는다",
-     _text_filter("요청", "s21-request", "request_id", AUDIT), route="/audit?tab=audit",
+     _in_more_filters(_text_filter("요청", "s21-request", "request_id", AUDIT)), route="/audit?tab=audit",
      shell=ADMIN, api=AUDIT)
 
 
