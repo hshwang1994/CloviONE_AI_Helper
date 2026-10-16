@@ -9,6 +9,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import { Note } from "../ui/adminKit.jsx";
+import { ROUTE_ROLES } from "./routeAccess.js";
 import { api } from "../lib/api.js";
 import { failureText } from "../lib/failure.js";
 import { fmtRelative, fmtDateTime, typeKo, NOTI_FAILURE_TYPES } from "../lib/format.js";
@@ -56,17 +57,8 @@ function serverRoute(n) {
   const r = n && n.related_route;
   return typeof r === "string" && r.startsWith("/") && !r.startsWith("//") ? r : null;
 }
-// 대상 라우트의 접근 역할 — 화면 자체(App.jsx SCREEN_ROLES)가 열려 있어도, 그 화면이 부르는
-// API가 더 좁게 막으면(app/core/authz.py CONSOLE_READ_ROLES 등) 눌러도 그 자리에서 403이
-// 뜬다 — 이 표는 "실제로 읽을 수 있는가"를 백엔드 라우터 기준으로 맞춘다.
-// /approvals·/schedules는 CONSOLE_READ_ROLES(operator/admin/system_admin/auditor)를,
-// /jobs 의 읽기도 같은 집합이다 — 재시도·취소만 OPS 로 좁다(app/jobs/router.py 경로별 게이트).
-const ROUTE_ROLES = {
-  "/users": ["admin", "system_admin"],
-  "/jobs": ["operator", "admin", "system_admin", "auditor"],
-  "/approvals": ["operator", "admin", "system_admin", "auditor"],
-  "/schedules": ["operator", "admin", "system_admin", "auditor"],
-};
+// 대상 라우트의 접근 역할(`app/routeAccess.js::ROUTE_ROLES`) — 화면 자체(App.jsx SCREEN_ROLES)가 열려 있어도, 그 화면이 부르는
+// API가 더 좁게 막으면(app/core/authz.py CONSOLE_READ_ROLES 등) 눌러도 그 자리에서 403이 뜬다. 내 활동의 「열기」도 같은 표를 쓴다.
 const FOCUSABLE = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /* 관리 알림 / 내 업무 알림 구분(0051) — 서버가 저장한 audience("user"|"admin",

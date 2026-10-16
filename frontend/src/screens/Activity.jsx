@@ -6,6 +6,8 @@ import Typography from "@mui/material/Typography";
 import EastRoundedIcon from "@mui/icons-material/EastRounded";
 import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
 import { api } from "../lib/api.js";
+import { useAuth } from "../app/auth.jsx";
+import { routeReachable } from "../app/routeAccess.js";
 import { chatDayLabel, fmtDateTime, fmtRelative, kstDayKey } from "../lib/format.js";
 import {
   Badge, Button, Card, EmptyState, ErrorState, ListCard, PageHeader, Skeleton, FlatBadgeSurface,
@@ -55,7 +57,7 @@ function groupByDay(items) {
   return groups;
 }
 
-function ActivityRow({ item, onOpen }) {
+function ActivityRow({ item, canOpen, onOpen }) {
   const isDid = item.kind === "did";
   const failed = item.result && item.result !== "success";
   return (
@@ -95,7 +97,9 @@ function ActivityRow({ item, onOpen }) {
           {", "}{isDid ? "내가 한 일" : "나에게 일어난 일"}
         </Typography>
       </Box>
-      {item.route ? (
+      {/* 「열기」는 이 사람이 실제로 열 수 있는 목적지에만 선다(`routeReachable`, r23 #68) — 일반 사용자의 「로그인했습니다」 줄에
+          관리자 화면(`/users`)으로 가는 단추가 서서, 누르면 「권한이 없습니다」였다. 목적지가 없는 줄에는 단추 자리도 없다. */}
+      {canOpen ? (
         <Button size="sm" onClick={() => onOpen(item.route)}>열기</Button>
       ) : null}
     </Box>
@@ -105,6 +109,8 @@ function ActivityRow({ item, onOpen }) {
 export function Activity() {
   const [kind, setKind] = React.useState("");
   const nav = useNavigate();
+  const auth = useAuth();
+  const role = auth.data && auth.data.role;
 
   const q = useInfiniteList({
     key: ["my-activity", kind],
@@ -167,7 +173,7 @@ export function Activity() {
               <FlatBadgeSurface>
                 <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0 }}>
                   {g.items.map((item) => (
-                    <ActivityRow key={item.id} item={item} onOpen={(route) => nav(route)} />
+                    <ActivityRow key={item.id} item={item} canOpen={routeReachable(item.route, role)} onOpen={(route) => nav(route)} />
                   ))}
                 </Box>
               </FlatBadgeSurface>

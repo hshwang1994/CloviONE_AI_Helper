@@ -27,6 +27,12 @@ vi.mock("../lib/api.js", () => ({
   setCsrf: () => {},
 }));
 
+// 역할은 시험마다 바꾼다 — 「열기」는 그 역할이 실제로 열 수 있는 목적지에만 선다(r23 #68).
+let mockRole = "user";
+vi.mock("../app/auth.jsx", () => ({
+  useAuth: () => ({ data: { role: mockRole, id: "u-1" } }),
+}));
+
 import { Activity } from "./Activity.jsx";
 import { chatDayLabel } from "../lib/format.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
@@ -70,7 +76,7 @@ function renderActivity() {
   );
 }
 
-beforeEach(() => { apiMock.mockReset(); });
+beforeEach(() => { apiMock.mockReset(); mockRole = "user"; });
 
 describe("내 활동", () => {
   it("두 원천을 날짜별로 묶어 보여 준다", async () => {
@@ -180,5 +186,32 @@ describe("내 활동", () => {
     await userEvent.click(more);
     await screen.findByText("55건 표시");
     expect(screen.queryByRole("button", { name: "활동 더 보기" })).toBeNull();
+  });
+});
+
+describe("내 활동 — 「열기」는 열 수 있는 목적지에만 선다 (r23 #68)", () => {
+  /* 서버의 경로 표는 권한과 무관하다(app/notifications/destinations.py). 로그인 줄의 목적지는 관리자 화면(`/users?id=`)이라
+     일반 사용자가 누르면 「권한이 없습니다」였다. */
+  const LOGIN = {
+    id: "audit:9", kind: "did", at: "2026-08-03T06:00:00", action: "user.login",
+    object_type: "user", object_id: "u-1", title: "로그인했습니다", body: null,
+    result: "success", route: "/users?id=u-1", read_at: null,
+  };
+  const rowOf = (text) => screen.getByText(text).closest("li");
+
+  it("일반 사용자: 관리자 화면으로 가는 줄에는 「열기」가 없고, 사용자 화면으로 가는 줄에는 있다", async () => {
+    apiMock.mockResolvedValue({ ...FEED, items: [LOGIN, ...FEED.items], total: 4 });
+    renderActivity();
+    await screen.findByText("로그인했습니다");
+    expect(within(rowOf("로그인했습니다")).queryByRole("button", { name: "열기" })).toBeNull();
+    expect(within(rowOf("티켓을(를) 고침")).getByRole("button", { name: "열기" })).toBeInTheDocument();
+  });
+
+  it("관리자: 같은 줄에 「열기」가 선다 — 그 화면을 실제로 열 수 있다", async () => {
+    mockRole = "admin";
+    apiMock.mockResolvedValue({ ...FEED, items: [LOGIN, ...FEED.items], total: 4 });
+    renderActivity();
+    await screen.findByText("로그인했습니다");
+    expect(within(rowOf("로그인했습니다")).getByRole("button", { name: "열기" })).toBeInTheDocument();
   });
 });
