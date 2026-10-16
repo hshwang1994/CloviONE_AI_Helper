@@ -37,6 +37,7 @@ if str(ROOT) not in sys.path:
 from scripts import check_user_text as cut  # noqa: E402
 
 WORK = ROOT / "dist" / "ui-qa" / "copy-census"
+INVENTORY = WORK / "inventory.json"   # `--inventory` 가 바꾼다
 HANGUL = re.compile(r"[가-힣]")
 PLACEHOLDER = re.compile(r"\$\{[^}]*\}")
 
@@ -64,6 +65,7 @@ OFFSCREEN = (
     ("app/cli/", "설치 · 운영 명령줄 출력이다(웹 화면이 아니다)."),
     ("app/migration/", "이관 도구 출력이다(웹 화면이 아니다)."),
     ("frontend/src/generated/", "생성 파일이다."),
+    ("frontend/src/screens/dev/", "부품 갤러리(`/kit`)의 견본 문구다 — 제품 화면이 아니고 사이드바에 없다(`UserRoutes.jsx`)."),
 )
 
 
@@ -241,15 +243,18 @@ def _template_entries(rel: str, raw: str) -> list[dict]:
     return out
 
 
-def extract() -> Path:
+def extract(tree: Path | None = None, out: Path | None = None) -> Path:
+    """원본 문구를 모은다. `tree` 를 주면 그 트리(예: 기준 커밋을 풀어 둔 폴더)에서 모은다 — 「기존」 문구의 정본은
+    작업 중인 트리가 아니라 회차를 시작한 커밋이다."""
+    base = Path(tree) if tree else ROOT
     entries: list[dict] = []
-    for path in sorted((ROOT / "frontend" / "src").rglob("*")):
+    for path in sorted((base / "frontend" / "src").rglob("*")):
         if path.suffix not in (".js", ".jsx") or ".test." in path.name or "test-helpers" in path.parts:
             continue
-        rel = path.relative_to(ROOT).as_posix()
+        rel = path.relative_to(base).as_posix()
         entries += _js_entries(rel, path.read_text(encoding="utf-8", errors="replace"))
-    for path in sorted((ROOT / "app").rglob("*")):
-        rel = path.relative_to(ROOT).as_posix()
+    for path in sorted((base / "app").rglob("*")):
+        rel = path.relative_to(base).as_posix()
         if "static" in path.parts or "__pycache__" in path.parts:
             continue
         if path.suffix == ".py":
@@ -261,7 +266,7 @@ def extract() -> Path:
         e["domain"] = _domain(e["file"])
         e["offscreen"] = _offscreen(e["file"]) or ("개발 모드에서만 던지는 오류다." if e["kind"] == "개발 모드 오류" else "")
     WORK.mkdir(parents=True, exist_ok=True)
-    out = WORK / "inventory.json"
+    out = Path(out) if out else WORK / "inventory.json"
     out.write_text(json.dumps(entries, ensure_ascii=False, indent=0), encoding="utf-8")
     by = {}
     for e in entries:
@@ -286,7 +291,7 @@ def _matcher(text: str):
 
 
 def map_ledgers(ledgers: list[Path]) -> Path:
-    entries = json.loads((WORK / "inventory.json").read_text(encoding="utf-8"))
+    entries = json.loads(INVENTORY.read_text(encoding="utf-8"))
     shown: list[tuple[str, str, str]] = []   # (보인 글, 화면 번호, 화면 이름)
     for ledger in ledgers:
         data = json.loads(Path(ledger).read_text(encoding="utf-8"))
@@ -341,7 +346,7 @@ def _load_map() -> dict:
 
 def sheet(domain: str) -> Path:
     """판정할 줄을 영역별 CSV 로 — 판정자는 decision · after · reason · condition 네 칸을 채운다."""
-    entries = json.loads((WORK / "inventory.json").read_text(encoding="utf-8"))
+    entries = json.loads(INVENTORY.read_text(encoding="utf-8"))
     hits = _load_map().get("hits", {})
     rows = [e for e in entries if e["domain"] == domain]
     out = WORK / "sheets" / f"{domain}.csv"
@@ -360,6 +365,79 @@ def sheet(domain: str) -> Path:
     return out
 
 
+UNIQUE_COLS = ["n", "text", "count", "kinds", "props", "where", "screens", "seen", "keys",
+               "decision", "after", "reason", "condition", "only_keys"]
+TEXT_COLS = ["text", "decision", "after", "reason", "condition", "only_keys"]
+
+
+def unique_sheet(domain: str) -> Path:
+    """같은 글을 한 줄로 묶은 판정표 — 판정자는 글 하나를 한 번 읽고 정한다(그 글을 쓰는 원본 줄 전부에 걸린다).
+    같은 글이 자리마다 다른 뜻이면 판정자가 `only_keys` 로 그 줄만 따로 정한다."""
+    entries = json.loads(INVENTORY.read_text(encoding="utf-8"))
+    hits = _load_map().get("hits", {})
+    groups: dict[str, list[dict]] = {}
+    for e in entries:
+        if e["domain"] != domain or e.get("offscreen"):
+            continue
+        groups.setdefault(e["text"], []).append(e)
+    out = WORK / "sheets" / f"{domain}-unique.csv"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=UNIQUE_COLS)
+        w.writeheader()
+        for n, (text, es) in enumerate(sorted(groups.items(), key=lambda kv: (kv[1][0]["file"], kv[1][0]["line"])), 1):
+            screens = sorted({s for e in es for s in hits.get(e["key"], [])})
+            w.writerow({
+                "n": n, "text": text, "count": len(es),
+                "kinds": " / ".join(sorted({e["kind"] for e in es})),
+                "props": " / ".join(sorted({e["prop"] for e in es if e["prop"]})),
+                "where": " ".join(f'{e["file"]}:{e["line"]}' for e in es[:6]) + (" …" if len(es) > 6 else ""),
+                "screens": " ".join(screens[:12]) + (" …" if len(screens) > 12 else ""),
+                "seen": "Y" if screens else "N",
+                "keys": " ".join(e["key"] for e in es),
+                "decision": "", "after": "", "reason": "", "condition": "", "only_keys": "",
+            })
+    print(f"COPY_CENSUS_UNIQUE {domain} {len(groups)}글 → {out}")
+    return out
+
+
+def expand() -> int:
+    """글 단위 판정(`decisions-text/*.csv`)을 원본 줄 단위 판정(`decisions/<이름>.csv`)으로 편다.
+    `only_keys` 가 있는 줄은 그 줄들에만, 없으면 그 글을 쓰는 같은 영역의 원본 줄 전부에 건다."""
+    entries = json.loads(INVENTORY.read_text(encoding="utf-8"))
+    by_text: dict[tuple[str, str], list[str]] = {}
+    for e in entries:
+        by_text.setdefault((e["domain"], e["text"]), []).append(e["key"])
+    src = WORK / "decisions-text"
+    dst = WORK / "decisions"
+    dst.mkdir(parents=True, exist_ok=True)
+    total, bad = 0, 0
+    for path in sorted(src.glob("*.csv")):
+        domain = path.stem.split("-")[0]
+        rows_out = []
+        with open(path, encoding="utf-8-sig", newline="") as f:
+            for row in csv.DictReader(f):
+                if row.get("decision") not in DECISIONS:
+                    bad += 1
+                    print("  판정 값이 틀렸다:", path.name, (row.get("text") or "")[:40], row.get("decision"))
+                    continue
+                keys = (row.get("only_keys") or "").split() or by_text.get((domain, row["text"]), [])
+                if not keys:
+                    bad += 1
+                    print("  원본을 못 찾은 글:", path.name, (row.get("text") or "")[:60])
+                    continue
+                for k in keys:
+                    rows_out.append({"key": k, "decision": row["decision"], "after": row.get("after", ""),
+                                     "reason": row.get("reason", ""), "condition": row.get("condition", "")})
+        with open(dst / path.name, "w", encoding="utf-8-sig", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=["key", "decision", "after", "reason", "condition"])
+            w.writeheader()
+            w.writerows(rows_out)
+        total += len(rows_out)
+    print(f"COPY_CENSUS_EXPAND {total}줄 · 틀린 줄 {bad}")
+    return 0 if not bad else 1
+
+
 def _decisions() -> dict[str, dict]:
     out: dict[str, dict] = {}
     for path in sorted((WORK / "decisions").glob("*.csv")):
@@ -371,7 +449,7 @@ def _decisions() -> dict[str, dict]:
 
 
 def report(out_csv: Path | None) -> int:
-    entries = json.loads((WORK / "inventory.json").read_text(encoding="utf-8"))
+    entries = json.loads(INVENTORY.read_text(encoding="utf-8"))
     mp = _load_map()
     hits, names = mp.get("hits", {}), mp.get("names", {})
     dec = _decisions()
@@ -433,16 +511,21 @@ def main() -> int:
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description="문구 대장(r23)")
-    ap.add_argument("command", nargs="?", choices=("extract", "map", "sheet", "report"))
+    ap.add_argument("command", nargs="?", choices=("extract", "map", "sheet", "unique", "expand", "report"))
     ap.add_argument("--ledger", nargs="*", default=[])
     ap.add_argument("--domain", default="")
     ap.add_argument("--out", default="")
     ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("--tree", default="", help="extract: 이 폴더에서 모은다(기준 커밋을 풀어 둔 곳)")
+    ap.add_argument("--inventory", default="", help="map · sheet · report 가 읽을 원본 대장(기본 inventory.json)")
     args = ap.parse_args()
+    if args.inventory:
+        global INVENTORY
+        INVENTORY = Path(args.inventory)
     if args.self_test:
         return self_test()
     if args.command == "extract":
-        extract()
+        extract(Path(args.tree) if args.tree else None, Path(args.out) if args.out else None)
         return 0
     if args.command == "map":
         map_ledgers([Path(x) for x in args.ledger])
@@ -451,6 +534,12 @@ def main() -> int:
         for d in ([args.domain] if args.domain else [n for n, _ in DOMAINS]):
             sheet(d)
         return 0
+    if args.command == "unique":
+        for d in ([args.domain] if args.domain else [n for n, _ in DOMAINS]):
+            unique_sheet(d)
+        return 0
+    if args.command == "expand":
+        return expand()
     if args.command == "report":
         return report(Path(args.out) if args.out else None)
     ap.print_help()

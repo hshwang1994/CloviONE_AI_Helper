@@ -129,7 +129,8 @@ C69: list[Case] = [
     Case("17-zero", "미할당 티켓 · 0건", "/unassigned", routes=(("**/api/tickets/unassigned*", "empty"),), check=E),
     Case("18", "작업 보드", "/work-board", check="main"),
     Case("18-backlog", "작업 보드 · 백로그", "/work-board?tab=backlog", check="main"),
-    Case("19", "스프린트 회의 · 회차 고르기 전", "/sprint?sprint=none-r23", check="main"),
+    Case("19", "스프린트 회의 · 회차 고르기 전", "/sprint?{sprint_idle_q}", check=E),
+    Case("19-none", "스프린트 회의 · 회차 없음", "/sprint?{sprint_none_q}", check=E),
     Case("20", "스프린트 회의 · 회차", "/sprint?{sprint_q}", check="main"),
     Case("21", "문서", "/knowledge", check=LIST_E),
     Case("22", "문서 휴지통 · 문서 0건", "/team-docs/trash?kind=document", routes=((re.compile(r"/api/trash\?"), "empty_trash_docs"),), check=E),
@@ -629,9 +630,22 @@ def discover(get) -> dict:
     take("user", "/api/admin/users")
     take("dept", "/api/admin/departments")
     take("audit", "/api/admin/audit")
-    sprint = take("sprint", "/api/work/sprints")
+    # 데이터가 선 회의를 찍으려면 **열린 회차**다(목록의 첫 회차는 다음 회차일 수 있다 — 예정 회차는 빈 판만 선다).
+    sprint = take("sprint", "/api/work/sprints", pred=lambda r: bool(r.get("active"))) or take("sprint", "/api/work/sprints")
     if sprint and sprint.get("department_id"):
         ids["sprint_q"] = f"team={sprint['department_id']}&sprint={sprint['id']}"
+    # 스프린트 회의의 두 빈 얼굴 — 회차는 있는데 열린 회차가 없는 팀(「회의할 회차를 고르세요.」, 열린 회차가 있으면 화면이
+    # 그것을 스스로 고른다)과 회차가 하나도 없는 팀(「아직 만든 회차가 없습니다.」). 없는 회차 id 를 넣으면 404 화면이 된다.
+    env = get("/api/work/sprints") or {}
+    for opt in ((env.get("team") or {}).get("options") or []):
+        tid = opt.get("id")
+        if not tid:
+            continue
+        rows = (get(f"/api/work/sprints?department_id={tid}") or {}).get("sprints") or []
+        if rows and not any(r.get("active") for r in rows):
+            ids.setdefault("sprint_idle_q", f"team={tid}")
+        if not rows:
+            ids.setdefault("sprint_none_q", f"team={tid}")
     return ids
 
 
