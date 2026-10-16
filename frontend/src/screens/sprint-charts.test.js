@@ -71,7 +71,8 @@ describe("scopeTrendSeries", () => {
 
   it("일자별 누적 두 선을 낸다", () => {
     const out = scopeTrendSeries({ trend });
-    expect(out.series.map((s) => s.label)).toEqual(["들어옴", "빠짐"]);
+    // 범례는 같은 화면 「범위 변경」 카드 표지와 같은 낱말이다(r23 문구 대장).
+    expect(out.series.map((s) => s.label)).toEqual(["추가됨", "제외됨"]);
     expect(out.series[0].points).toEqual([0, 2, 3]);
     expect(out.series[1].points).toEqual([0, 0, 1]);
   });

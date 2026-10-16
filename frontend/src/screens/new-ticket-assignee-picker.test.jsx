@@ -223,7 +223,7 @@ describe("새 티켓 — 설명은 문서와 같은 편집기다", () => {
     expect(screen.getByText(/문서와 같은 도구로 서식, 목록, 표, 링크, 이모지를 넣을 수 있습니다/)).toBeInTheDocument();
     /* 미리보기 판은 **새로 쓰는 자리에 없다** — 편집기가 이미 결과를 그대로 보여 준다(WYSIWYG).
        마크다운 편집기이던 시절에는 「무엇을 쳤나」와 「어떻게 보이나」가 달라서 필요했다. */
-    expect(screen.queryByText("미리보기")).toBeNull();
+    expect(screen.queryByText(/^미리 ?보기$/)).toBeNull();
   });
 
   it("서식 도구가 문서 편집기와 같은 묶음으로 선다", async () => {

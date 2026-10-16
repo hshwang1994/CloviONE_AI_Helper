@@ -370,7 +370,8 @@ describe("스프린트 회의", () => {
     });
     renderSprint();
     await waitFor(() => expect(screen.getByText(/얼마나 바뀌었는지 알 수 없습니다/)).toBeTruthy());
-    expect(screen.queryByText(/0건이 들어오고/)).toBeNull();
+    // 범위 문장은 「N건이 추가되고 M건이 제외되었습니다」다(같은 화면의 카드 표지와 같은 낱말) — 기록이 없으면 서지 않는다.
+    expect(screen.queryByText(/0건이 추가되고/)).toBeNull();
   });
 
   it("담긴 티켓이 없는 회차의 건강은 0 이 아니라 「아직 재지 않음」이다", async () => {

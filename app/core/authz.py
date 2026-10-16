@@ -171,7 +171,7 @@ CAPABILITIES: tuple[Capability, ...] = (
     Capability(
         "offboarding.run", "오프보딩 실행(보유 티켓 재배정, 계정 비활성화, 보관)", "사용자",
         CONSOLE_WRITE_ROLES,
-        "실행 전에 반드시 미리보기를 거치고, 실행 결과는 되돌릴 수 있습니다.",
+        "실행 전에 반드시 미리 보기를 거치고, 실행 결과는 되돌릴 수 있습니다.",
     ),
     Capability(
         "org.manage", "부서, 직책 명부와 조직도 수정", "사용자", CONSOLE_WRITE_ROLES,

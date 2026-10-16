@@ -330,7 +330,7 @@ export const VERB_KO = {
   disable_requested: "비활성화 요청", role_change_requested: "역할 변경 요청",
   generate_requested: "생성 요청", generate: "생성 요청", resolve_conflict: "충돌 해결",
   retry_run: "실행 재시도", run_now: "지금 실행", clone: "복제", retry: "재시도",
-  preview: "미리보기", publish: "발행", archive_expired: "만료 보관",
+  preview: "미리 보기", publish: "발행", archive_expired: "만료 보관",
   restore: "복원", backup: "백업",
   // app/auth/router.py가 실제로 기록하는 본인 비밀번호 변경 감사 동작 — 없으면 감사 로그의
   // '작업' 칸이 "사용자, password_change_self"처럼 절반만 번역된 채 노출된다.

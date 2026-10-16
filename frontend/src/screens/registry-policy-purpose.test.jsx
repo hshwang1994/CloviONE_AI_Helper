@@ -32,7 +32,7 @@ describe("정책 목록 — 종류와 적용할 기능, 폼의 설명 (D-519)", 
     expect(REGISTRY.policies.groupSlots.map((s) => s.key)).toEqual(["approval", "data_protection", "content"]);
     expect(REGISTRY.policies.groupSlots.every((s) => s.emptyText === "이 종류의 규칙이 없습니다.")).toBe(true);
     expect(groupOf({ kind: "data_protection" })).toEqual({ key: "data_protection", label: "개인정보 가리기", note: "모델에 보내기 전에 개인정보를 가립니다." });
-    expect(groupOf({ kind: "approval" }).label).toBe("승인 필요");
+    expect(groupOf({ kind: "approval" }).label).toBe("쓰기 승인");
     expect(groupOf({ kind: "content" }).note).toContain("응답");
     expect(findCol("kind")).toBeUndefined();
   });

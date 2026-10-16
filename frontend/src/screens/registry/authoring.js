@@ -37,7 +37,7 @@ const POLICY_TARGETS = [["*", "모든 기능"], ["assistant.chat", "AI 도우미
   ["game.quiz", "게임 퀴즈 만들기"]];
 /* 정책 화면의 종류별 구획(D-542). 구획 머리는 종류 이름과 그 종류가 런타임에서 하는 일 한 문장이다. */
 const POLICY_GROUPS = {
-  approval: { key: "approval", label: "승인 필요", note: "AI가 만든 결과를 사람이 승인한 뒤에 씁니다." },
+  approval: { key: "approval", label: "쓰기 승인", note: "AI가 만든 결과를 사람이 승인한 뒤에 씁니다." },
   data_protection: { key: "data_protection", label: "개인정보 가리기", note: "모델에 보내기 전에 개인정보를 가립니다." },
   content: { key: "content", label: "응답 제한", note: "응답 길이와 링크를 제한합니다." },
 };

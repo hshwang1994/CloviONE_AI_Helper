@@ -101,7 +101,7 @@ const STATUS_TEXT = {
   write: "쓰기", maintenance: "점검", normal: "정상", awaiting_approval: "승인 대기",
   quality_failed: "품질 미달", passed: "통과", not_run: "미실행", untested: "미검증",
   // 문서 화면 상태 필터 라벨('미리보기 완료')과 같은 값이라 배지도 같은 말을 쓴다(어긋나면 필터 결과가 배지와 안 맞아 보인다).
-  preview_ready: "미리보기 완료", skipped: "건너뜀",
+  preview_ready: "미리 보기 완료", skipped: "건너뜀",
   // 라이프사이클 중간 상태(프롬프트·정책·템플릿) — 한국어 표시가 없으면 원시 영어가 새어 나온다.
   test: "테스트", review: "검토", archived: "보관됨",
   // 워크플로 테스트 도달성 — reachable/unreachable가 매핑되지 않으면 영어 그대로 회색으로 뜬다.

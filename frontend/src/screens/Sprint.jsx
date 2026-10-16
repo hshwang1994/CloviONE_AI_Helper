@@ -805,7 +805,7 @@ export function Sprint() {
           {/* 3 — 이번 회차 논의 항목(회차의 지금 상태로 센다 — 「오늘」이 아니다). 프로젝트 필터는 **여기만** 좁힌다. */}
           <Section
             title="이번 회차 논의 항목"
-            help="항목을 누르면 그 티켓이 아래에 나옵니다. 줄을 누르면 미리보기가 열립니다."
+            help="항목을 누르면 그 티켓이 아래에 나옵니다. 줄을 누르면 미리 보기가 열립니다."
             rule
           >
             <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" sx={{ mb: 1.5 }}>
@@ -912,14 +912,14 @@ export function Sprint() {
                   {body.scope.tracked ? (
                     <Stack spacing={1}>
                       <Typography variant="body2">
-                        {`회차가 시작한 뒤 ${body.scope.added}건이 들어오고 ${body.scope.removed}건이 빠졌습니다.`}
+                        {`회차가 시작한 뒤 ${body.scope.added}건이 추가되고 ${body.scope.removed}건이 제외되었습니다.`}
                       </Typography>
                       {scopeTrend ? (
                         <LineSeries
                           series={scopeTrend.series}
                           labels={scopeTrend.labels}
                           unit="건"
-                          question="회차 중에 티켓이 언제 들어오고 빠졌는지 봅니다."
+                          question="회차 중에 티켓이 언제 추가되고 제외되었는지 봅니다."
                           revealKey={body.sprint.id}
                         />
                       ) : null}

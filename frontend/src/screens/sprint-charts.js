@@ -155,10 +155,11 @@ export function scopeTrendSeries(scope) {
   return {
     labels: points.map((p) => shortDate(p.date)),
     series: [
-      { label: "들어옴", points: added },
-      { label: "빠짐", points: removed },
+      /* 범례 · 문장은 같은 화면의 「범위 변경」 카드 표지(`TicketFace` 「추가됨 · 제외됨」)와 같은 낱말이다(r23 문구 대장). */
+      { label: "추가됨", points: added },
+      { label: "제외됨", points: removed },
     ],
-    summary: `회차가 시작한 뒤 ${added[added.length - 1]}건이 들어오고 ${removed[removed.length - 1]}건이 빠졌습니다.`,
+    summary: `회차가 시작한 뒤 ${added[added.length - 1]}건이 추가되고 ${removed[removed.length - 1]}건이 제외되었습니다.`,
   };
 }
 

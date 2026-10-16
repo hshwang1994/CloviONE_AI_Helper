@@ -34,7 +34,7 @@ FEATURE_FLAGS: dict[str, str] = {
     catalog.QUIZ: "game_ai_enabled",
 }
 STATE_ON, STATE_OFF, STATE_AI_UNAVAILABLE = "on", "off", "ai_unavailable"
-STATE_LABELS = {STATE_ON: "켜짐", STATE_OFF: "비활성화", STATE_AI_UNAVAILABLE: "AI 미연결"}
+STATE_LABELS = {STATE_ON: "활성화", STATE_OFF: "비활성화", STATE_AI_UNAVAILABLE: "AI 미연결"}
 LIFECYCLE_LABELS = {"draft": "초안", "published": "적용 중", "archived": "보관"}
 
 

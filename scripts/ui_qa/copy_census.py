@@ -499,6 +499,43 @@ def _decisions() -> dict[str, dict]:
     return out
 
 
+_NOW: dict[str, set] = {}
+
+
+def _texts_now(rel: str) -> set:
+    """지금 원본 파일의 글 조각 — 추출기를 다시 돌린다(주석 · docstring 은 빠진다)."""
+    if rel in _NOW:
+        return _NOW[rel]
+    path = ROOT / rel
+    out: set = set()
+    if path.exists():
+        raw = path.read_text(encoding="utf-8")
+        try:
+            ents = (_py_entries(rel, raw) if rel.endswith(".py")
+                    else _template_entries(rel, raw) if rel.endswith((".html", ".txt"))
+                    else _js_entries(rel, raw))
+            out = {e["text"] for e in ents}
+        except Exception:  # noqa: BLE001
+            out = set()
+    _NOW[rel] = out
+    return out
+
+
+def applied_state(entry: dict, after: str) -> str:
+    """「변경」 줄이 지금 원본에 반영됐는가 — 반영 · 미반영 · 대체(후속 변경이 그 줄을 다시 썼다)."""
+    now = _texts_now(entry["file"])
+    old_in = entry["text"] in now
+    fn = _matcher(after) if after else None
+    new_in = bool(fn) and any(fn(t) for t in now)
+    if new_in and not old_in:
+        return "반영"
+    if new_in and old_in:
+        return "반영(옛 글은 같은 파일 다른 자리에도 있음)"
+    if old_in:
+        return "미반영"
+    return "대체(후속 변경)"
+
+
 def report(out_csv: Path | None) -> int:
     entries = json.loads(INVENTORY.read_text(encoding="utf-8"))
     mp = _load_map()
@@ -520,6 +557,9 @@ def report(out_csv: Path | None) -> int:
         seen = hits.get(e["key"], [])
         if decision in ("변경", "유지"):
             counts[f"{decision}·브라우저 {'확인' if seen else '미검증'}"] += 1
+        applied = applied_state(e, (d.get("after") or "").strip()) if decision == "변경" else ""
+        if applied:
+            counts["원본 " + applied.split("(")[0]] = counts.get("원본 " + applied.split("(")[0], 0) + 1
         a = after.get(e["key"]) if decision == "변경" else None
         if a is not None:
             counts["변경·후 새 문구 " + ("봄" if a["new_seen"] else "못 봄")] += 1
@@ -532,6 +572,7 @@ def report(out_csv: Path | None) -> int:
             "이유": (d.get("reason") or e.get("offscreen") or "").strip(),
             "기능 · 조회 조건": (d.get("condition") or "").strip(),
             "브라우저 확인": "화면에서 봄" if seen else "화면에서 못 봄",
+            "원본 반영": applied,
             "후 화면 새 문구": ("" if a is None else (" ".join(a["new_seen"][:8]) or "못 봄")),
             "후 화면 옛 문구": ("" if a is None else (" ".join(a["old_seen"][:8]) or "없음")),
         })
