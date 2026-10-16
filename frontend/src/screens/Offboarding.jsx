@@ -234,7 +234,8 @@ function OffboardPlan({ preview, onDone, toast }) {
   const chosen = ids.filter((id) => selection.selected.has(id));
   const columns = [
     selectionColumn(selection, ids),
-    { key: "tid", label: "티켓", type: "code", render: (t) => t.key || "-" },
+    /* 그리는 글을 `value` 로도 말해야 열 폭이 그 길이를 따른다(columnValueText 는 render 를 재지 않는다). */
+    { key: "tid", label: "티켓", type: "code", value: (t) => t.key || "-", render: (t) => t.key || "-" },
     { key: "title", label: "제목", type: "title" },
     { key: "status", label: "상태", type: "status", render: (t) => <Badge value={t.status} /> },
     { key: "due", label: "마감", type: "date", render: (t) => t.due || "-" },
@@ -410,8 +411,11 @@ function RunResult({ result }) {
   );
 }
 
+/* 옮긴 티켓 수 칸의 글 — 그리는 글과 재는 글(`value`)이 같아야 열 폭이 맞는다. */
+const movedText = (r) => `${r.ticket_moved}/${r.ticket_total}` + (r.ticket_failed ? ` (실패 ${r.ticket_failed}건)` : "");
+
 const MOVE_COLUMNS = [
-  { key: "tid", label: "티켓", type: "code", render: (m) => m.key || m.ticket_page_id },
+  { key: "tid", label: "티켓", type: "code", value: (m) => m.key || m.ticket_page_id, render: (m) => m.key || m.ticket_page_id },
   { key: "title", label: "제목", type: "title", render: (m) => m.title || "-" },
   { key: "status", label: "결과", render: (m) => <Badge value={MOVE_STATUS_KO[m.status] || m.status} kind={MOVE_STATUS_KIND[m.status]} /> },
   /* 오류 원문이라 `text` 다 — 타입이 없으면 말줄임이 안 걸려 여러 줄로 접힌다. */
@@ -486,7 +490,7 @@ function RunHistory() {
       <Badge value={RUN_STATUS_KO[r.status] || r.status}
         kind={r.status === "completed" ? "ok" : r.status === "undone" ? "neutral" : "warn"} />
     ) },
-    { key: "ticket_moved", label: "티켓", type: "code", render: (r) => `${r.ticket_moved}/${r.ticket_total}` + (r.ticket_failed ? ` (실패 ${r.ticket_failed}건)` : "") },
+    { key: "ticket_moved", label: "티켓", type: "code", value: movedText, render: movedText },
     { key: "actor_name", label: "실행자", type: "name" },
   ];
 

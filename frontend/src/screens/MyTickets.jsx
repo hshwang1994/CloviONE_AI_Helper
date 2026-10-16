@@ -169,9 +169,11 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, claimingId = null
     /* 번호는 `AAAAAA-123456` 같이 접두 여섯 + 숫자 여섯까지 한 줄이다. 예전 7rem 은
        접두가 긴 값이 두 줄로 접혀 행 높이가 들쭉날쭉했다. 식별자 기본(anywhere)은
        끄고, 폭이 모자라면 표를 가로로 민다. */
-    /* 폭은 티켓 번호 길이가 정한다(코드 열 — 값 길이, D-529). 예전 고정 10rem 은 「MQHENX-8」 옆이 비었다. */
+    /* 폭은 티켓 번호 길이가 정한다(코드 열 — 값 길이, D-529). 예전 고정 10rem 은 「MQHENX-8」 옆이 비었다. 그리는 함수만 있는
+       열은 열 계획이 값을 재지 않으므로(`columnPlan.js::columnValueText`) 같은 글을 `value` 로 말한다 — 없을 때는 바닥(6.5rem)에
+       머물러 홈 지연 표에서 「SXDNMW...」처럼 번호가 잘렸다(r23 캡처 01). */
     { key: "tid", label: "티켓", type: "code",
-      nowrap: true, sortable: true, render: (t) => ticketId(t) },
+      nowrap: true, sortable: true, value: (t) => ticketId(t), render: (t) => ticketId(t) },
     // minWidth: 제목 열이 절대 그 아래로 줄지 않는 폭. 나머지 열이 전부 고정폭 + nowrap 이라,
     // 컨테이너가 좁으면(홈의 2단 배치, 1366 화면) 제목만 남은 폭을 다 먹히고 24px 로 눌려
     // 글자가 한 음절씩 세로로 무너졌다(QA vertical_text_collapse 가 실제로 잡았다).
