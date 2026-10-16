@@ -74,6 +74,16 @@ describe("좁은 칸에서 열을 뺄 때", () => {
     expect(screen.getByText(/행을 열면 숨긴 값도 볼 수 있습니다/)).toBeInTheDocument();
   });
 
+  it("표에 여는 길이 없어도 칸이 행을 여는 표(opensRow — 내 티켓의 제목 칸)는 「행을 열면」이라고 말한다(r23 #48)", () => {
+    render(
+      <ThemeModeProvider>
+        <DataTable columns={COLS.map((c, i) => (i === 0 ? { ...c, opensRow: true } : c))} rows={ROWS} rowKey={(r) => r.id} ellipsis />
+      </ThemeModeProvider>,
+    );
+    expect(screen.getByText(/행을 열면 숨긴 값도 볼 수 있습니다/)).toBeInTheDocument();
+    expect(screen.queryByText(/창을 넓히면/)).toBeNull();
+  });
+
   it("🔴 지금 정렬 중인 열은 좁아도 안 숨긴다 — 화살표까지 같이 사라진다", () => {
     draw({ sort: { key: "when", dir: "desc" }, onSort: () => {} });
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);

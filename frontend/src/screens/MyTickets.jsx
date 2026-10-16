@@ -180,6 +180,8 @@ export function ticketColumns({ showAssignee, onEdit, onClaim, claimingId = null
     // rowName: 이 표에서 행을 구별하는 값은 제목이다(ui/rowName.js). 선택 체크박스와 상세
     // 열기 버튼이 이 값을 접근 이름에 쓴다 — 없으면 스무 행이 전부 "이 항목 선택"으로 읽힌다.
     { key: "title", label: "제목", type: "title", min: compact ? "11rem" : undefined, sortable: true, rowName: (t) => t.title || "제목 없음",
+      /* 제목이 티켓을 연다 — 표에 숨긴 열이 있으면 「행을 열면 숨긴 값도 볼 수 있습니다」가 맞는 안내다(kit `rowsOpenable`). */
+      opensRow: !!onOpen,
       render: (t) => ticketTitleCell(t, onOpen) },
     { key: "status", label: "상태", type: "status", sortable: true, filter: { kind: "enum", field: "status" },
       render: (t) => (t.status

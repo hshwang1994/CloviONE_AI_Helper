@@ -3041,6 +3041,9 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
   });
   const wideCols = fit.shown;
   const stickyCols = stickyColumnsOf(wideCols, fit);
+  /* 행을 열 수 있는 표인가 — 표가 여는 길(`onRow` · `rowHref`)이 없어도 칸이 행을 여는 표(내 티켓의 제목 칸)는 열 정의가
+     `opensRow` 로 말한다. 숨긴 열 안내가 「창을 넓히면」(1920 에서는 할 수 없는 일) 대신 「행을 열면」을 고른다(r23 #48). */
+  const rowsOpenable = !!onRow || !!rowHref || (columns || []).some((c) => c && c.opensRow);
   // 값 자체는 행을 열면(onRow) 상세에서 그대로 보인다 — 여기서는 "더 있다"는 사실만 알린다.
   const hiddenCols = fit.hidden;
 
@@ -3067,7 +3070,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
      한 줄로 두면 고정 도구 줄이 그만큼 길어져 1366 판에서 표 행 하나를 먹었다(P17V). */
   const footed = framed || fill;
   if (footed && hiddenCols.length) {
-    footNotes.push(<HiddenColumnsNote key="hidden" inline columns={hiddenCols} openable={!!onRow || !!rowHref} />);
+    footNotes.push(<HiddenColumnsNote key="hidden" inline columns={hiddenCols} openable={rowsOpenable} />);
   }
   if (footed && collapse.caption) {
     footNotes.push(
@@ -3452,7 +3455,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
     <FlatBadgeSurface>
       {frame(<>
       {/* 판 위 표와 채움 표는 이 두 안내를 발에 둔다(위 `footNotes`). 발이 없는 표(모달 · 서랍)만 예전처럼 표 위 한 줄이다. */}
-      {footed ? null : <HiddenColumnsNote columns={hiddenCols} openable={!!onRow || !!rowHref} />}
+      {footed ? null : <HiddenColumnsNote columns={hiddenCols} openable={rowsOpenable} />}
       {/* 뺀 열은 **한 번 적는다** (R-91). 열이 조용히 사라지면 사용자는 그 값을 못 봤다는
           사실조차 모른다 — 무엇이 왜 없는지를 표가 직접 말한다. */}
       {!footed && collapse.caption ? (

@@ -18,3 +18,10 @@ describe("티켓 번호 열", () => {
     expect(long.min).toBeGreaterThan(short.min);
   });
 });
+
+describe("티켓 제목 칸", () => {
+  it("제목이 티켓을 여는 표만 opensRow 를 말한다 — 숨긴 열 안내가 「행을 열면」을 고를 근거다(r23 #48)", () => {
+    expect(ticketColumns({ onOpen: () => {} }).find((c) => c.key === "title").opensRow).toBe(true);
+    expect(ticketColumns({}).find((c) => c.key === "title").opensRow).toBe(false);
+  });
+});
