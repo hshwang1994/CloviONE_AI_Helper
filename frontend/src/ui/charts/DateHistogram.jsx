@@ -84,6 +84,13 @@ function initialZoomRange(days) {
   };
 }
 
+/** 처음 여는 구간이 창 전체보다 좁은가 — 문장이 「그림은 앞뒤 구간을 먼저 보여 준다」고 덧붙일지 정한다. */
+export function zoomedIn(days) {
+  if (!Array.isArray(days) || !days.length) return false;
+  const zoom = initialZoomRange(days);
+  return zoom.startValue > 0 || zoom.endValue < days.length - 1;
+}
+
 /** 옵션 — **순수 함수**다(§18.2). `days` 는 `{date, count}` 배열, 0건인 날도 포함된다. */
 export function dateHistogramOption({
   days, fillColor, trackColor, drawn, axisColor, axisLineColor, fontSize,
@@ -123,6 +130,8 @@ export function dateHistogramOption({
           itemStyle: { color: d.count > 0 ? fillColor : trackColor, borderRadius: [3, 3, 0, 0] },
         })),
         barCategoryGap: "25%",
+        /* 칸이 넓어도 막대는 이 폭까지만 선다 — 자료가 하루에 몰리면 처음 여는 구간이 며칠뿐이라 막대 하나가 300px 로 섰다(r23 #39). */
+        barMaxWidth: 40,
         animationDuration: CHART_MOTION.duration,
         animationEasing: CHART_MOTION.easing,
       },
@@ -170,14 +179,17 @@ export function DateHistogram({ days, question, color, emptyLabel = "추가된 �
         {/* 날짜 눈금은 이 상자 **안**에 있다(위 문서 «날짜 눈금만은 ECharts 가 그린다»). */}
         <Box ref={containerRef} aria-hidden="true" sx={{ width: "100%", height: PLOT_HEIGHT }} />
       </Box>
-      {/* 그림의 글자 대체물. 막대 아흔 개를 읽어 주는 대신 **읽을 만한 두 사실**을 말한다. */}
+      {/* 그림의 글자 대체물. 막대 아흔 개를 읽어 주는 대신 **읽을 만한 두 사실**을 말한다. 창의 길이(「최근 90일」)를 먼저 밝힌다 —
+          그림은 자료가 있는 구간만 먼저 열어서(`initialZoomRange`) 축은 며칠뿐인데 문장은 석 달을 말해 기간이 다르게 읽혔다(r23 #39).
+          그림이 창의 일부만 보일 때는 그 사실을 한 문장 더 말한다. */}
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-        {`${rows[0].date}부터 ${rows[rows.length - 1].date}까지 `}
+        {`최근 ${rows.length}일 동안(${rows[0].date}부터 ${rows[rows.length - 1].date}까지) `}
         <Box component="span" sx={{ fontWeight: FONT_WEIGHT.semibold, color: "text.primary" }}>
           {`${total}${unit}`}
         </Box>
         {/* 조사는 단위의 받침을 따른다(건이 · 개가). */}
         {`${subjectParticle(unit)} 추가되었습니다. 가장 많았던 날은 ${busiest.date}(${busiest.count}${unit})입니다.`}
+        {zoomedIn(rows) ? " 그림은 추가된 날 앞뒤 구간을 먼저 보여 줍니다." : ""}
       </Typography>
     </Box>
   );

@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
  * dataZoom 의 초기 창이 그 구간을 앞뒤 며칠 여유로 감싸 연다 — "막대 두 개 + 텅 빈 축"으로
  * 처음부터 열리지 않는다.
  */
-import { dateHistogramOption } from "./DateHistogram.jsx";
+import { dateHistogramOption, zoomedIn } from "./DateHistogram.jsx";
 
 function days(counts) {
   return counts.map((count, i) => ({ date: `2026-08-${String(i + 1).padStart(2, "0")}`, count }));
@@ -90,5 +90,19 @@ describe("dateHistogramOption — 날짜 눈금", () => {
 
   it("가장 높은 막대 위에 여백이 있다 — 0 이면 최댓값 막대가 판 위에 붙어 잘린 것처럼 보인다", () => {
     expect(opt().grid.top).toBeGreaterThanOrEqual(8);
+  });
+});
+
+/* r23 #39 — 그림은 자료가 있는 구간을 먼저 열고 문장은 창 전체(최근 90일)를 말한다. 막대는 칸이 넓어도 40px 까지다. */
+describe("창 · 구간 · 막대 폭", () => {
+  it("처음 여는 구간이 창보다 좁을 때만 zoomedIn 이 참이다", () => {
+    expect(zoomedIn(days([5, 3, ...Array(87).fill(0)]))).toBe(true);
+    expect(zoomedIn(days(Array(90).fill(1)))).toBe(false);
+    expect(zoomedIn([])).toBe(false);
+  });
+
+  it("자료가 하루에 몰려도 막대는 40px 까지만 선다", () => {
+    const opt = dateHistogramOption({ days: days([0, 0, 8, 0]), fillColor: "#f", trackColor: "#t", drawn: true });
+    expect(opt.series[0].barMaxWidth).toBe(40);
   });
 });
