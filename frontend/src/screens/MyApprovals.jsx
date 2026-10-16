@@ -285,7 +285,7 @@ export function MyApprovals() {
   return (
     <Box className="c-screen">
       <PageHeader
-        area="내 업무" title="승인"
+        area="승인" title="승인"
         help="나에게 배정된 결재와 내가 올린 요청입니다. 관리 범위 전체 현황은 관리자 콘솔의 승인 화면에 있습니다."
       />
       {/* 보기 전환은 세그먼티드(34)다 — 밑줄 탭(48)은 페이지 탭(`TabShell`)의 어휘다(핸드오프 RULES §3 · 계획 B-7). */}

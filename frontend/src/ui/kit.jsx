@@ -4666,7 +4666,9 @@ export function PageHeader({ area, title, actions, overflow, crumbRoot, size = "
      였다. 사용자 탭 화면(승인·휴지통·프로젝트 상세)은 제목을 고정하고 탭을 그 아래 둔다 —
      관리자 그릇도 같은 모양이다(D-452). 호출부가 둘(TabShell·SettingsShell)뿐이라 prop
      자체를 걷었다. */
-  const crumb = [resolvedCrumbRoot, area].filter(Boolean).join(" › ");
+  /* 뿌리와 같은 낱말은 두 번 쓰지 않는다. 사용자 콘솔의 뿌리는 사이드바 묶음 이름이라, 화면이 묶음 이름을 `area` 로 넘기면
+   * 「내 업무 › 내 업무」가 섰다(r23 화면 대장 05 · 07). 화면이 넘길 것은 메뉴 이름이고, 여기서는 겹침만 걷는다. */
+  const crumb = [resolvedCrumbRoot, area && area !== resolvedCrumbRoot ? area : null].filter(Boolean).join(" › ");
   const heading = title;
   // PA-RC-0022: 상시 안내 패널(8+ 화면, 실제로는 registry 28개 화면 전부가 DataScreen.jsx를
   // 통해 이 자리를 썼다)을 "제목 옆 도움말 토글"로 옮긴다 — 내용은 그대로, 기본 접힘만 바뀐다.

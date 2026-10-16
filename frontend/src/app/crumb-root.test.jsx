@@ -112,6 +112,15 @@ describe("사용자 콘솔 — crumbRoot를 유도한다 (PA-RC-0039 acceptance 
     expect(main().getByText("내 업무 › 운영")).toBeInTheDocument();
   });
 
+  it("화면이 넘긴 낱말이 뿌리와 같으면 한 번만 쓴다 — 「내 업무 › 내 업무」가 서지 않는다", () => {
+    renderAt("/my-approvals", {
+      nav: USER_NAV, isUser: true, userSeg: true,
+      screen: <PageHeader area="내 업무" title="승인" />,
+    });
+    expect(main().getByText("내 업무")).toBeInTheDocument();
+    expect(main().queryByText(/내 업무 › 내 업무/)).toBeNull();
+  });
+
   it("자기 메뉴 항목이 없는 상세 경로도 prefix로 소속 그룹을 찾는다(활성 메뉴 판정과 같은 함수)", () => {
     // /team-docs/trash는 PA-RC-0031로 독립 메뉴 항목을 잃었다(TeamDocs.jsx 화면 안 버튼으로
     // 이동) — /team-docs 접두 매칭으로 그 부모의 그룹('팀 업무')을 그대로 물려받는다.

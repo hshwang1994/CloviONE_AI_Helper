@@ -159,7 +159,7 @@ export const NOTIFICATIONS_SCREEN = {
   notifications: notificationsScreen({
     key: "notifications",
     audience: "user",
-    area: "내 업무",
+    area: "알림",
     title: "알림",
     help: "티켓, 문서, 댓글, 멘션처럼 나에게 온 알림입니다.",
     emptyHelp: () => "나에게 온 알림이 여기에 표시됩니다.",
