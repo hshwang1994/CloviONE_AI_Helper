@@ -7,6 +7,8 @@ import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import "@testing-library/jest-dom/vitest";
 
+/* qa-contract-change: 단추 이름을 계획 §6 대로 바꿨다 — 「넣기 · ✓」 → 「설명에 추가 · 추가함」, 접근 이름 「설명에 '…' 절 넣기 ·
+ * …: 이미 넣었습니다」 → 「설명에 '…' 절 추가 · …: 이미 추가했습니다」(동사표). 한 줄에 단추 하나 · 작은 단추 · 넣은 뒤 꺼짐 단언은 그대로다. */
 /* qa-contract-change: 작성 도움 항목이 통째로 단추이던 손 카드에서 판 하나 안의 목록 줄 + 줄마다 작은 「넣기」 단추(30)로 바뀌어(핸드오프 계획 C · O-4), 「선택」 표시와 넣은 뒤 상태를 단추 안이 아니라 항목 줄에서 잰다. */
 
 /* '작성 도움' 레일의 절 삽입 버튼이 흰 Card 위에서 안 보이던 회귀 (사용자 지적:
@@ -98,7 +100,7 @@ describe("REAUDIT C19 — 「넷이 핵심, 둘은 더」가 화면에 보인다
     for (const item of items) {
       const buttons = within(item).getAllByRole("button");
       expect(buttons).toHaveLength(1);
-      expect(buttons[0]).toHaveTextContent(/^넣기$/);
+      expect(buttons[0]).toHaveTextContent(/^설명에 추가$/);
       expect(buttons[0].className).toMatch(/MuiButton-sizeSmall/);
       expect(item.tagName).toBe("LI");
     }
@@ -108,12 +110,12 @@ describe("REAUDIT C19 — 「넷이 핵심, 둘은 더」가 화면에 보인다
     const user = userEvent.setup();
     renderNewTicket();
     await screen.findByText("작성 도움");
-    await user.click(screen.getByRole("button", { name: "설명에 '배경과 문제' 절 넣기" }));
-    const done = await screen.findByRole("button", { name: "배경과 문제: 이미 넣었습니다" });
+    await user.click(screen.getByRole("button", { name: "설명에 '배경과 문제' 절 추가" }));
+    const done = await screen.findByRole("button", { name: "배경과 문제: 이미 추가했습니다" });
     expect(done).toBeDisabled();
-    expect(done).toHaveTextContent(/^✓$/);
+    expect(done).toHaveTextContent(/^추가함$/);
     expect(screen.queryByText(/넣었음/)).toBeNull();
     // 다른 절은 그대로 넣을 수 있다.
-    expect(screen.getByRole("button", { name: "설명에 '완료 기준' 절 넣기" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "설명에 '완료 기준' 절 추가" })).not.toBeDisabled();
   });
 });

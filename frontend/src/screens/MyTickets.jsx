@@ -63,7 +63,7 @@ function useBulkTrash(path, qc, toast, onDone) {
       const n = (res.trashed || []).length;
       const failed = res.failed || [];
       // UA-25 — Trash.jsx와 같은 이유로 실제 사유를 보여준다(전엔 항상 "권한이 없어"였다).
-      if (!failed.length) toast(`${n}건을 휴지통으로 옮겼습니다.`, "success");
+      if (!failed.length) toast(`${n}건을 휴지통으로 보냈습니다.`, "success");
       // refetchType:"all" — 지금 화면에 없는(비활성) 목록까지 즉시 다시 불러와, 삭제 후 어느 페이지로
       // 가도 최신으로 보이게 한다(이전엔 비활성 목록이 stale로만 남아 '자동 갱신 안 됨'처럼 보였다).
       // 어떤 키가 티켓을 그리는지는 ticket-views.js 한 곳이 안다(홈·스프린트가 여기서 빠져 있었다).
@@ -94,7 +94,7 @@ function listActionNotice(bulk, claim) {
   if (!failed.length) return null;
   return (
     <Callout tone="warn" compact>
-      {`${(res.trashed || []).length}건을 휴지통으로 옮겼습니다.` + bulkFailureNote(failed)}
+      {`${(res.trashed || []).length}건을 휴지통으로 보냈습니다.` + bulkFailureNote(failed)}
     </Callout>
   );
 }
@@ -552,7 +552,7 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
      말하지 않았다. 검사 순서와 문구는 그대로이고, 예전처럼 처음 걸린 하나만 말한다. */
   function submit() {
     if (!form.title.trim()) { invalid("title", "제목은 비울 수 없습니다."); return; }
-    if (!form.status) { invalid("status", "진행상태는 비울 수 없습니다."); return; }
+    if (!form.status) { invalid("status", "상태는 비울 수 없습니다."); return; }
     if (form.est_wd !== "" && Number.isNaN(Number(form.est_wd))) { invalid("est_wd", "예상 WD에는 숫자를 입력하세요."); return; }
     if (form.act_wd !== "" && Number.isNaN(Number(form.act_wd))) { invalid("act_wd", "실제 WD에는 숫자를 입력하세요."); return; }
     if (form.blocked && form.blockedReason.trim().length > BLOCKED_REASON_MAX) {
@@ -585,7 +585,9 @@ export function TicketEditModal({ ticket, open, onClose, projectScope }) {
   const saveFailure = failureText([m, "저장하지 못했습니다. 잠시 후 다시 시도해 주세요."]);
   return (
     <Modal open={open} onClose={onClose} title={"티켓 수정" + (ticket.key ? ", " + ticket.key : "")} size="md" footer={footer} dirty={dirty}>
-      <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
+      {/* `noValidate` — 검사는 `submit()` 이 칸 아래 제품 문장으로 한다. 없으면 브라우저 기본 말풍선(영문 「Please fill out this
+          field.」)이 먼저 떠 그 검사에 닿지 못했다(r23 화면 대장 03-invalid). */}
+      <form noValidate onSubmit={(e) => { e.preventDefault(); submit(); }}>
         {/* 제목이 맨 위다 — 이 화면에서 바꾸는 값 중 사용자가 가장 먼저 보는 것이다.
             예전에는 아예 없어서 제목 오타 하나 때문에 노션을 열어야 했다. */}
         <Box sx={{ minWidth: 0 }}>
@@ -1160,9 +1162,10 @@ function WritingAidItem({ sec, already, onInsert }) {
         size="sm"
         onClick={() => onInsert(sec)}
         disabled={already}
-        aria-label={already ? `${sec.title}: 이미 넣었습니다` : `설명에 '${sec.title}' 절 넣기`}
+        aria-label={already ? `${sec.title}: 이미 추가했습니다` : `설명에 '${sec.title}' 절 추가`}
       >
-        {already ? "✓" : "넣기"}
+        {/* 하는 일을 이름으로 말한다(계획 §6) — 「넣기 · ✓」는 무엇을 어디에 넣는지 말하지 않았다. */}
+        {already ? "추가함" : "설명에 추가"}
       </Button>
     </Box>
   );
@@ -1186,7 +1189,7 @@ function WritingAid({ doc, onInsert }) {
       <SectionTitle spacing="none"
         component="h2"
         title="작성 도움"
-        help={<>좋은 티켓은 <strong>왜 하는지와 무엇을 하면 끝인지</strong>가 적혀 있습니다. 아래를 누르면 설명에 그 절이 들어갑니다.</>}
+        help="배경, 목표, 작업 범위, 완료 기준을 정리해 주세요. 아래 「설명에 추가」를 누르면 그 절이 설명에 들어갑니다."
 
       />
       {list(core)}
@@ -1428,11 +1431,13 @@ export function NewTicket() {
         <Card data-page-fill="grow" sx={{ ...NEW_TICKET_PLATE, display: "flex", flexDirection: "column", overflow: "visible" }}>
           {firstLoad ? <Skeleton kind="section" lines={8} /> : (
           /* 폼은 판 전체다 — 발(`ActionFooter card`)이 판 가장자리까지 면을 펴야 하므로 읽기 폭 상한(72rem)은 안쪽 칸들에만 건다. */
-          <Box component="form" onSubmit={(e) => { e.preventDefault(); submit(); }} sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto" }}>
+          /* `noValidate` — 검사는 `submit()` 이 칸 아래 제품 문장으로 하고 걸린 칸에 초점을 준다(위 `invalid`). 없으면 브라우저 기본
+             말풍선(영문 「Please fill out this field.」)만 뜨고 그 검사에 닿지 못했다(r23 화면 대장 03-invalid). */
+          <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); submit(); }} sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto" }}>
           <Box sx={{ maxWidth: "72rem", display: "flex", flexDirection: "column", flex: "1 1 auto" }}>
             {/* 폼 안 안내는 메시지 박스다(핸드오프 RULES §7) — 문장과 링크는 그대로다. */}
             <Callout>
-              간단한 티켓은 여기서 바로 추가합니다. 긴 배경은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 더 정확합니다.
+              필수 항목을 입력하고 티켓을 추가하세요.
             </Callout>
             {/* 칸은 12칸 격자에 선다(핸드오프 RULES §7 · 계획 표 8): 제목 12 / 프로젝트 6 · 진행상태 3 · 우선순위 3 /
                 난이도 3 · 예상 WD 3 · 마감일 3 · 담당자 3. 열 수는 뷰포트가 아니라 **폼이 받은 칸의 폭**이 정한다

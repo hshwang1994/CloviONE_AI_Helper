@@ -505,6 +505,20 @@ describe("새 티켓 — 칸 이름 · 도움말 · 오류는 칸의 세 줄에 
       .toHaveTextContent("프로젝트를 먼저 고르세요. 그 프로젝트에 접근할 수 있는 사람만 담당자가 될 수 있습니다.");
   });
 
+  /* 🔴 빈 폼 그대로 눌러도 브라우저 기본 말풍선(영문 「Please fill out this field.」)이 아니라 제품 문장이 그 칸 아래에 선다.
+     폼에 `noValidate` 가 없으면 입력의 `required` 가 제출을 먼저 막아 화면 검사에 닿지 못했다(r23 화면 대장 03-invalid). */
+  it("빈 폼으로 눌러도 제목 칸 아래 제품 문장이 서고 초점이 그 칸으로 간다", async () => {
+    const user = userEvent.setup();
+    renderNewTicket();
+    const title = await screen.findByLabelText(/^제목( 필수)?$/);
+    expect(title.closest("form")).toHaveAttribute("novalidate");
+    await user.click(screen.getByRole("button", { name: "티켓 추가" }));
+    const help = document.getElementById("nt-title-help");
+    await waitFor(() => expect(help.querySelector('[role="alert"]')).toHaveTextContent("제목을 입력하세요."));
+    expect(title).toHaveFocus();
+    expect(apiMock).not.toHaveBeenCalledWith("/api/tickets", expect.anything());
+  });
+
   it("검증에 걸리면 그 칸 아래 오류 줄이 서고 포커스가 그 칸으로 가며, 칸을 고치면 걷힌다(토스트였다)", async () => {
     const user = userEvent.setup();
     renderNewTicket();
