@@ -405,6 +405,30 @@ OVERLAP_JS = r"""
 }
 """
 
+# 채팅 입력 칸에 초점을 준 뒤의 자리 — 390 × 500 은 가상 키보드가 열린 높이라 입력 칸을 누른 뒤에만 생긴다(계획 §3 W0a).
+# 브라우저는 초점을 받은 칸을 화면 안으로 굴린다. 그래도 화면 밖이면(잘린 판 · 덮는 판) 진짜 결함이다.
+# 초점 주기와 재기를 나눈다 — 이미 초점이 있는 칸에 다시 `focus()` 를 불러도 브라우저는 굴리지 않는다.
+CHAT_FOCUS_JS = r"""
+() => {
+  window.scrollTo(0, 0);
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  const el = document.querySelector('[aria-label="메시지 입력"]');
+  if (el) el.focus();
+}
+"""
+CHAT_RECT_JS = r"""
+() => {
+  const el = document.querySelector('[aria-label="메시지 입력"]');
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + Math.min(r.height / 2, 12);
+  const inView = r.top >= 0 && r.bottom <= innerHeight && r.width > 0;
+  const top = inView ? document.elementFromPoint(cx, cy) : null;
+  const reachable = !!top && (top === el || el.contains(top) || top.contains(el));
+  return { inView: inView && reachable, top: Math.round(r.top), bottom: Math.round(r.bottom), focused: document.activeElement === el };
+}
+"""
+
 # 붙박이 판(fixed · sticky)이 조작 요소를 덮는가 — 맨 위와 맨 아래에서 잰다(새 티켓 · 메일 설정의 고정 저장 바).
 COVER_JS = r"""
 () => {
@@ -826,6 +850,10 @@ class Ledger:
             page.evaluate("() => { window.scrollTo(0, document.body.scrollHeight); document.querySelectorAll('main, [data-scroll-root]').forEach(e => { e.scrollTop = e.scrollHeight; }); }")
             page.wait_for_timeout(250)
             view["cover_bottom"] = page.evaluate(COVER_JS)
+            if vp.name == "390x500" and (view["overlap"] or {}).get("chatInput"):
+                page.evaluate(CHAT_FOCUS_JS)
+                page.wait_for_timeout(300)   # 굴림이 끝난 뒤 잰다
+                view["overlap"]["chatInputFocused"] = page.evaluate(CHAT_RECT_JS)
             if self._probe_js and theme == "light":
                 self._run_probes(page, case, vp)
         except Exception as exc:  # noqa: BLE001 — 한 줄이 실패해도 나머지를 찍는다
@@ -1033,6 +1061,10 @@ _BAD = """<!doctype html><html><body style="margin:0;font-family:sans-serif;heig
 </body></html>"""
 
 
+# 채팅 입력 칸 — 첫 화면 아래(초점을 주면 굴러 들어온다) · 끝까지 굴려도 붙박이 바가 덮는다(진짜 결함).
+_CHAT_BELOW = """<body style="margin:0"><div style="height:700px">대화</div><textarea aria-label="메시지 입력"></textarea></body>"""
+_CHAT_CLIPPED = """<body style="margin:0"><div style="height:700px">대화</div><textarea aria-label="메시지 입력"></textarea>
+<footer style="position:fixed;left:0;right:0;bottom:0;height:120px;background:#223;z-index:5">바</footer></body>"""
 # 굴리면 드러나는 덮임(고정 머리 아래로 지나간 줄)은 결함이 아니다 — 맞는 견본.
 _SCROLLED = """<body style="margin:0"><header style="position:sticky;top:0;height:60px;background:#223;z-index:5">머리</header>
 <main>""" + "".join(f'<p style="height:40px;margin:0"><button>줄 {i}</button></p>' for i in range(60)) + """</main></body>"""
@@ -1085,6 +1117,20 @@ def self_test() -> int:
         page.set_content(_MODAL)
         if page.evaluate(COVER_JS):
             fails.append("COVER_JS: 모달 뒤의 단추를 덮임으로 셌다")
+        page.set_viewport_size({"width": 390, "height": 500})
+        page.set_content(_CHAT_BELOW)
+        page.evaluate(CHAT_FOCUS_JS)
+        page.wait_for_timeout(100)
+        got = page.evaluate(CHAT_RECT_JS)
+        if not (got and got["inView"] and got["focused"]):
+            fails.append(f"CHAT_FOCUS_JS: 초점을 주면 굴러 들어오는 입력 칸을 화면 밖으로 셌다 {got}")
+        page.set_content(_CHAT_CLIPPED)
+        page.evaluate(CHAT_FOCUS_JS)
+        page.wait_for_timeout(100)
+        got = page.evaluate(CHAT_RECT_JS)
+        if not got or got["inView"]:
+            fails.append(f"CHAT_FOCUS_JS: 붙박이 바가 덮는 입력 칸을 화면 안으로 셌다 {got}")
+        page.set_viewport_size({"width": 800, "height": 600})
         page.set_content(_CARDS)
         if not page.locator(LIST).count():
             fails.append("LIST: 카드 보기 목록을 못 알아봤다")
