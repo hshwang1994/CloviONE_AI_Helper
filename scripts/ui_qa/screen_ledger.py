@@ -874,7 +874,13 @@ class Ledger:
                 page.wait_for_timeout(300)   # 굴림이 끝난 뒤 잰다
                 view["overlap"]["chatInputFocused"] = page.evaluate(CHAT_RECT_JS)
             if self._probe_js and theme == "light":
-                self._run_probes(page, case, vp)
+                # 치수 프로브는 첫 화면에서 잰다(첫 데이터 윗변 · 머리 겹침이 굴린 자리를 따른다) — 끝까지 굴린 뒤 그대로 재면 틀린다.
+                page.evaluate("() => { window.scrollTo(0, 0); document.querySelectorAll('main, [data-scroll-root]').forEach(e => { e.scrollTop = 0; }); }")
+                page.wait_for_timeout(150)
+                try:
+                    self._run_probes(page, case, vp)
+                except Exception as exc:  # noqa: BLE001 — 프로브가 터져도 그 줄의 상태 판정 · 캡처는 그대로 둔다
+                    self.measure[f"{case.id}__light__{vp.name}"] = {"error": str(exc).splitlines()[0][:300]}
         except Exception as exc:  # noqa: BLE001 — 한 줄이 실패해도 나머지를 찍는다
             view["state"] = "state-missing"
             view["error"] = str(exc).splitlines()[0][:300]
