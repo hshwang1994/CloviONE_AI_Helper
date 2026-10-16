@@ -18,6 +18,8 @@ import { render, screen } from "@testing-library/react";
  * qa-contract-change: 열 폭 배분(D-529)이 「제목 열이 남는 폭을 다 먹고 나머지는 바닥 rem 이 곧 폭」을 「바닥 · 비중 · 상한과 머리글 ·
  * 값 길이로 나눈다」로 바꿨다. 타입 바닥 값(제목 16→14 · 식별자 12.5→11 · 상태 7.5→6 · 수치 8→7)의 단언을 옮기고, 머리글이 한 줄로
  * 서는지는 바닥 숫자 대신 머리글 필요 폭 계산으로 단언한다. 좁은 칸 숨김은 `planNarrowColumns` 대신 `planColumns` 로 단언한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 import { COLUMN_TYPES, assignLeftoverWidth, columnLayoutWidth, planColumnCollapse, resolveColumn, tableMinWidth, ALIGN_BY_TYPE } from "./columnTypes.js";
@@ -380,6 +382,6 @@ describe("열 제거는 질의 계약을 아는 호출부만 시킬 수 있다 (
     />);
     expect(screen.queryByText("상태")).toBeNull();
     // 조사도 열 이름에서 파생한다 — 「상태은」이 아니라 「상태는」이다.
-    expect(screen.getByText(/상태는 이 목록에서 전부 '진행'/)).toBeTruthy();
+    expect(screen.getByText(/상태는 이 목록에서 모두 같은 값\(‘진행’\)/)).toBeTruthy();
   });
 });

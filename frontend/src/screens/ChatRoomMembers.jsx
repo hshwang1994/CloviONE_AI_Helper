@@ -283,7 +283,7 @@ function RosterBody({ members, people, meId }) {
       </Box>
       {filterable ? (
         <Box sx={{ flexShrink: 0, px: 1.5, pt: 1.25 }}>
-          <PeopleFilter value={q} onChange={setQ} count={shown.length} total={rows.length} placeholder="이름, 부서로 좁히기" />
+          <PeopleFilter value={q} onChange={setQ} count={shown.length} total={rows.length} placeholder="이름, 부서 검색" />
         </Box>
       ) : null}
       {shown.length ? (
@@ -296,7 +296,7 @@ function RosterBody({ members, people, meId }) {
       ) : (
         /* 「참여자가 없다」가 아니라 「조건 때문에 0명」이다(C1) — 관리 창의 초대 후보와 같은 말을 쓴다. */
         <Box sx={{ px: 0.5, pb: 0.5 }}>
-          <EmptyState size="compact" title="조건에 맞는 사람이 없습니다" help="이름이나 부서 일부로 다시 찾아보세요." />
+          <EmptyState size="compact" title="검색 조건에 맞는 사람이 없습니다." help="이름이나 부서의 일부로 다시 검색하세요." />
         </Box>
       )}
     </>
@@ -464,13 +464,13 @@ export function ManageRoomModal({ open, onClose, roomId, title, members, meId, p
         {dir.isPending ? <Skeleton lines={3} />
           : dir.isError ? <ErrorState layout="region" error={dir.error} onRetry={() => dir.refetch()} />
           : candidates.length === 0 ? (
-            <EmptyState size="compact" title="초대할 다른 사용자가 없습니다" />
+            <EmptyState size="compact" title="초대할 다른 사용자가 없습니다." />
           ) : (
             <>
               <PeopleFilter value={pickQ} onChange={setPickQ} count={shownCandidates.length} total={candidates.length} />
               {shownCandidates.length === 0 ? (
                 /* 「초대할 사람이 없다」와 「조건 때문에 0명」은 다른 사실이다(C1). */
-                <EmptyState size="compact" title="조건에 맞는 사람이 없습니다" help="이름이나 이메일 일부로 다시 찾아보세요." />
+                <EmptyState size="compact" title="검색 조건에 맞는 사람이 없습니다." help="이름이나 이메일의 일부로 다시 검색하세요." />
               ) : (
               <Box sx={PICKER_SX}>
                 {shownCandidates.map((u) => (

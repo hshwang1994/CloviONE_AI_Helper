@@ -12,7 +12,7 @@ from scripts.ui_qa.pilot_kit import (  # noqa: F401
     required_blocks_submit, retry_from_error, stop,
 )
 
-ROOM_SEARCH = '#main-content input[aria-label="채팅방 이름으로 거르기"]'
+ROOM_SEARCH = '#main-content input[aria-label="채팅방 이름 검색"]'
 COMPOSER = '#main-content textarea, #main-content input[aria-label="메시지 입력"]'
 
 

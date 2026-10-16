@@ -19,6 +19,8 @@ import "@testing-library/jest-dom/vitest";
  * 2) draft(채팅 입력창 초안)도 같은 훅의 useState라 방을 바꿔도 안 비워진다 - 이전 방에 쓰다 만
  *    문구가 새 방 입력창에 그대로 남아, 방을 착각하고 그대로 보내기를 누르면 엉뚱한 방에 전송될
  *    뻔한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -120,14 +122,14 @@ describe("게임방을 마운트 해제 없이 다른 방으로 전환 - 채팅 
     await screen.findByTestId("game-chat-log");
 
     const user = userEvent.setup();
-    const input = screen.getByPlaceholderText("메시지 입력");
+    const input = screen.getByPlaceholderText("메시지를 입력하세요");
     await user.type(input, "첫 번째 방에서 쓰다 만 말");
     expect(input).toHaveValue("첫 번째 방에서 쓰다 만 말");
 
     await user.click(screen.getByRole("button", { name: "다른 방으로 이동(테스트용)" }));
 
     expect(await screen.findByRole("heading", { name: "두 번째 방" })).toBeInTheDocument();
-    const input2 = await screen.findByPlaceholderText("메시지 입력");
+    const input2 = await screen.findByPlaceholderText("메시지를 입력하세요");
     expect(input2).toHaveValue("");
   });
 });

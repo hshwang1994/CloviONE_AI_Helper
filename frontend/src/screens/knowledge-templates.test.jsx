@@ -20,6 +20,8 @@
  * 왕복은 **0027 이 실제로 시드한 본문 셋 전부**로도 쟀다(meeting · requirements ·
  * ops-guide, 10·13·11줄, 셋 다 바이트까지 같음). 아래 `SEED_BODY` 는 그 셋이 쓰는 마디
  * 다섯을 한 판에 모은 것이라, 시드를 이 파일에 복제하지 않고도 같은 것을 잰다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 import React from "react";
@@ -240,7 +242,7 @@ describe("분류 관리 — 틀 탭", () => {
     renderManager();
     await openTemplateTab(user);
     await waitFor(() =>
-      expect(screen.getByText(/이미 만든 문서는[\s\S]*그대로 남습니다/)).toBeTruthy());
+      expect(screen.getByText(/이미 추가한 문서는[\s\S]*그대로 남습니다/)).toBeTruthy());
   });
 });
 

@@ -191,9 +191,9 @@ export function ConversationSidebar({
                 filtered={!!convFilter.trim()}
                 onClear={() => setConvFilter("")}
                 clearLabel="검색어 지우기"
-                filteredTitle="검색 결과가 없습니다"
-                filteredHelp={`'${convFilter.trim()}' 으로 찾은 대화가 없습니다.`}
-                title={showArchived ? "보관한 대화가 없습니다" : "아직 대화가 없습니다"}
+                filteredTitle="검색 조건에 맞는 대화가 없습니다."
+                filteredHelp={`'${convFilter.trim()}' 대신 다른 검색어로 검색하세요.`}
+                title={showArchived ? "보관한 대화가 없습니다." : "대화가 없습니다."}
                 help={showArchived ? "대화를 보관하면 여기에 모입니다." : "위의 '새 대화'를 눌러 시작하세요."}
               />
             </Box>

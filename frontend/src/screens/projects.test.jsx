@@ -24,6 +24,8 @@
  * 450px 를 넘어 표 머리가 711px 에서야 섰다. 이제 평균 진행률은 카드 머리 오른쪽의 값과 막대, 「건강도 낮음」 · 「지연 마일스톤」은
  * 칩 줄의 위험 칩(누르면 좁힌다), 각 수의 뜻은 정의 줄(dt · dd)이다. 칸 선택자(`data-summary-panel`)를 값 선택자(`data-summary-metric`)
  * 와 정의 줄로 옮기고, 통째 비교에 위험 칩 둘을 더했다. 건강도 원은 위험 칩이 대신한다 — 막대 단언(지시 15)은 그대로 둔다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -472,7 +474,7 @@ describe("프로젝트 목록 — 요약", () => {
       "보류": "3개",
       "계획": "2개",
       "건강도 낮음": "4개",
-      "지연 마일스톤": "6개",
+      "지연된 마일스톤": "6개",
     });
 
     // 평균 진행률 — 숫자는 막대 옆에 그대로 있다.
@@ -488,7 +490,7 @@ describe("프로젝트 목록 — 요약", () => {
     expect(metric("평균 진행률").querySelector('[aria-hidden="true"]')).toBeTruthy();
     // 위험 칩은 켜고 끄는 단추다 — 아무것도 안 골랐어도 눌림 상태를 말한다.
     expect(screen.getByRole("button", { name: "건강도가 낮은 프로젝트만 보기" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "지연 마일스톤이 있는 프로젝트만 보기" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "지연된 마일스톤이 있는 프로젝트만 보기" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("🔴 요약 칸을 누르면 목록이 그 조건으로 좁아지고, 다시 누르면 풀린다", async () => {
@@ -523,7 +525,7 @@ describe("프로젝트 목록 — 요약", () => {
         .some((p) => p.startsWith("/api/projects?") && p.includes("trouble=true"))).toBe(true);
     });
 
-    await user.click(screen.getByRole("button", { name: "지연 마일스톤이 있는 프로젝트만 보기" }));
+    await user.click(screen.getByRole("button", { name: "지연된 마일스톤이 있는 프로젝트만 보기" }));
     await waitFor(() => {
       expect(apiMock.mock.calls.map(([p]) => String(p))
         .some((p) => p.startsWith("/api/projects?") && p.includes("overdue_milestones=true"))).toBe(true);
@@ -545,10 +547,10 @@ describe("프로젝트 목록 — 요약", () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
 
-    expect(screen.getByText(/프로젝트 14건의 평균입니다/)).toBeInTheDocument();
-    expect(screen.getByText(/6건은 아직 계산하지 않았습니다/)).toBeInTheDocument();
-    expect(screen.getByText(/2건은 셀 작업이 없습니다/)).toBeInTheDocument();
-    expect(screen.getByText(/2건은 판정할 규칙이 없습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/프로젝트 14개의 평균입니다/)).toBeInTheDocument();
+    expect(screen.getByText(/6개는 아직 계산하지 않았습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/2개는 셀 작업이 없습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/2개는 판정할 규칙이 없습니다/)).toBeInTheDocument();
   });
 
   it("VIS-09: 각주가 구역 전체가 아니라 그 숫자를 담은 타일 안에 있다", async () => {
@@ -559,7 +561,7 @@ describe("프로젝트 목록 — 요약", () => {
     // 얘기인지 DOM 만으로 확인할 방법이 없었다. 지금은 각 각주가 자기 이름(dt) 바로 옆의
     // 정의(dd)다(StatusSummaryCard 의 notes).
     const avgNote = note("평균 진행률");
-    expect(within(avgNote).getByText(/프로젝트 14건의 평균입니다/)).toBeInTheDocument();
+    expect(within(avgNote).getByText(/프로젝트 14개의 평균입니다/)).toBeInTheDocument();
 
     const healthNote = note("건강도");
     expect(within(healthNote).getByText(/판정할 규칙이 없습니다/)).toBeInTheDocument();
@@ -567,7 +569,7 @@ describe("프로젝트 목록 — 요약", () => {
     // 건강도 각주가 평균 진행률 정의 안에는 없다(서로 새지 않는다).
     expect(within(avgNote).queryByText(/판정할 규칙이 없습니다/)).toBeNull();
     // 지연 마일스톤은 가장 오래 밀린 것 하나를 이름과 지난 날수로 말한다.
-    expect(note("지연 마일스톤").textContent).toMatch(/가장 오래 밀린 것은 \d+일 지난 「.+」입니다\./);
+    expect(note("지연된 마일스톤").textContent).toMatch(/가장 오래 밀린 것은 \d+일 지난 「.+」입니다\./);
   });
 
   it("PA-RC-0018 direction 4: 프로젝트가 0건이면 값 없는 요약 타일 여덟 장을 빈 상태 위에 그리지 않는다", async () => {
@@ -581,7 +583,7 @@ describe("프로젝트 목록 — 요약", () => {
     });
     renderAt("/projects");
 
-    expect(await screen.findByText("프로젝트가 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("프로젝트가 없습니다.")).toBeInTheDocument();
     expect(document.querySelectorAll(READOUT)).toHaveLength(0);
   });
 });
@@ -699,7 +701,7 @@ describe("프로젝트 상세 — 진행률", () => {
   it("셀 작업이 없으면 0% 가 아니라 작업이 없다고 말한다", async () => {
     progressPayload = { project_id: "p-1", percent: null, basis: EMPTY_BASIS, notion_percent: 55 };
     renderAt("/projects/p-1");
-    expect(await screen.findByText("작업이 아직 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("작업이 아직 없습니다.")).toBeInTheDocument();
 
     expect(screen.queryByText("0%")).toBeNull();
     // 저쪽 값이 있다고 그것으로 대신 채우지 않는다 - 그건 포털이 센 값이 아니다.
@@ -730,7 +732,7 @@ describe("프로젝트 상세 — Health", () => {
   it("잴 것이 없으면 0점이라고 하지 않는다", async () => {
     healthPayload = { project_id: "p-1", score: null, reasons: [], checked: [], unknown: HEALTH.unknown };
     renderAt("/projects/p-1");
-    expect(await screen.findByText("점수를 낼 수 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("점수를 낼 수 없습니다.")).toBeInTheDocument();
     expect(screen.queryByText("0점")).toBeNull();
   });
 });
@@ -1156,7 +1158,7 @@ describe("마일스톤 CRUD", () => {
     await screen.findByText("63점");
     await user.click(screen.getByRole("tab", { name: "마일스톤" }));
 
-    expect(await screen.findByText("마일스톤이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("등록된 마일스톤이 없습니다.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "마일스톤 추가" })).toBeInTheDocument();
   });
 

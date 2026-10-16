@@ -70,7 +70,7 @@ export function RoomDetailPanel({ id }) {
   });
   const disband = useMutation({
     mutationFn: () => api(`/api/team-chat/rooms/${id}/disband`, { method: "POST" }),
-    onSuccess: () => backToList("채팅방을 파했습니다."),
+    onSuccess: () => backToList("채팅방을 삭제했습니다."),
   });
   const hide = useMutation({
     mutationFn: () => api(`/api/team-chat/rooms/${id}/hide`, { method: "POST" }),
@@ -79,7 +79,7 @@ export function RoomDetailPanel({ id }) {
   /* 머리 동작의 실패는 머리 바로 아래 메시지 박스다(핸드오프 RULES §1 · 계획 표 6 — 토스트였다). 다시 누르면 걷힌다. */
   const actionFailure = failureText(
     [leave, "나가지 못했습니다. 다시 시도해 주세요."],
-    [disband, "채팅방을 파하지 못했습니다. 다시 시도해 주세요."],
+    [disband, "채팅방을 삭제하지 못했습니다. 다시 시도해 주세요."],
     [hide, "숨기지 못했습니다. 다시 시도해 주세요."],
   );
 
@@ -117,10 +117,10 @@ export function RoomDetailPanel({ id }) {
       {you.can_disband ? (
         <Button variant="danger" disabled={busy}
           onClick={async () => {
-            const ok = await confirm("이 채팅방을 파합니다. 모든 참여자의 목록에서 사라지며 되돌릴 수 없습니다.",
-              { title: "채팅방 파하기", confirmLabel: "파하기", danger: true });
+            const ok = await confirm("이 채팅방을 삭제합니다. 모든 참여자의 목록에서 사라지며 되돌릴 수 없습니다.",
+              { title: "채팅방 삭제", confirmLabel: "삭제", danger: true });
             if (ok) disband.mutate();
-          }}>방 파하기</Button>
+          }}>채팅방 삭제</Button>
       ) : null}
     </>
   );

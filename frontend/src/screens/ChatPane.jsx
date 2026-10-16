@@ -75,6 +75,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
   const confirm = useConfirm();
   const lb = useLightbox();
   const logRef = React.useRef(null);
+  const pasteHintId = React.useId();
   const inputRef = React.useRef(null);
   const prevCountRef = React.useRef(0);
   const [draft, setDraft] = React.useState("");
@@ -179,7 +180,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
   const del = useMutation({
     mutationFn: (msgSeq) => api(`/api/team-chat/rooms/${roomId}/messages/${msgSeq}/delete`, { method: "POST" }),
     onSuccess: () => { q.refetch(); qc.invalidateQueries({ queryKey: ["team-chat-rooms"] }); },
-    onError: (e) => setComposerError((e && e.message) || "메시지를 지우지 못했습니다. 다시 시도해 주세요."),
+    onError: (e) => setComposerError((e && e.message) || "메시지를 삭제하지 못했습니다. 다시 시도해 주세요."),
   });
 
   const data = q.data || {};
@@ -327,7 +328,7 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
           // VIS-90 — 이 화면만 아이콘 없는 회색 한 줄이었다(같은 제품 안의 /games·/chat은
           // 아이콘/마스코트+제목+안내를 갖췄다). game-room/ChatPanel.jsx의 같은 빈 상태와
           // 짝을 맞춘다 — 문구·아이콘이 다르면 사용자는 "다른 채팅 기능"이라고 오해한다.
-          : msgs.length === 0 ? <EmptyState size="compact" icon="💬" title="아직 메시지가 없습니다" help="먼저 인사해 보세요." />
+          : msgs.length === 0 ? <EmptyState size="compact" icon="💬" title="메시지가 없습니다." help="첫 메시지를 보내 대화를 시작하세요." />
           : (() => {
             const rows = groupMessages(msgs, you.user_id);
             /* 묶음의 끝 줄 — 다음 줄이 같은 사람의 이어지는 말이 아니면 이 줄이 묶음의 마지막이다(날짜 구분선 · 시스템
@@ -575,9 +576,9 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
         }}
       >
         <InputBase
-          fullWidth value={draft} placeholder="메시지 입력 (이미지는 Ctrl+V로 붙여넣기)"
+          fullWidth value={draft} placeholder="메시지를 입력하세요"
           inputRef={inputRef}
-          inputProps={{ maxLength: 2000, "aria-label": "메시지 입력" }}
+          inputProps={{ maxLength: 2000, "aria-label": "메시지 입력", "aria-describedby": pasteHintId }}
           onChange={(e) => setDraft(e.target.value)}
           onPaste={onPaste}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); doSend(); } }}
@@ -606,6 +607,15 @@ export function ChatPane({ roomId, compact = false, interval = 2000, idleMax = 0
               <AlternateEmailRoundedIcon sx={{ fontSize: remPx(ICON.action) }} />
             </IconButton>
           ) : null}
+          {/* 이 방의 이미지는 첨부 단추 없이 붙여넣기로만 들어온다. 그 안내가 입력 칸 자리표시자(「메시지 입력 (이미지는 Ctrl+V로
+              붙여넣기)」)에 있었는데, 자리표시자는 「메시지를 입력하세요」 한 문장으로 두고 안내는 도구 줄로 옮겼다(r23 문구 대장).
+              휴대폰에는 Ctrl+V 가 없어 넓은 화면에서만 보인다. */}
+          <Typography
+            id={pasteHintId}
+            sx={{ display: { xs: "none", sm: "block" }, ml: 0.5, minWidth: 0, fontSize: FONT_SIZE.caption, color: "text.secondary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+          >
+            이미지는 Ctrl+V로 붙여 넣을 수 있습니다.
+          </Typography>
           <Box sx={{ flex: 1 }} />
           {/* 보내기는 30 채움 단추다 — 그림만 서고 이름은 접근 이름이 든다(예전 아이콘 단추와 같은 「보내기」). */}
           <Button

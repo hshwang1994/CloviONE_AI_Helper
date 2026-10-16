@@ -238,7 +238,7 @@ describe("편집 권한이 없을 때", () => {
   it("버튼이 그냥 사라지지 않고 이유를 말한다", () => {
     const { container } = wrap({ attachments: [IMG], canEdit: false });
 
-    expect(screen.getByText(/고칠 권한이 없어/)).toBeInTheDocument();
+    expect(screen.getByText(/수정할 권한이 없어/)).toBeInTheDocument();
     // 이유를 말하되 누를 수 없는 것은 여전히 없다 — 눌러 봐야 거절당하는 버튼은 안 그린다.
     expect(screen.queryByRole("button", { name: "파일 추가" })).toBeNull();
     expect(fileInput(container)).toBeNull();

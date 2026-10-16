@@ -58,7 +58,7 @@ export function NewDocumentModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="새 문서 만들기"
+      title="새 문서 추가"
       size="lg"
       dirty={Boolean((values.title || "").trim())}
       /* 「만들기」를 **감추지 않고 비활성으로** 둔다. 조건을 못 채운 사람에게 필요한 것은
@@ -69,7 +69,7 @@ export function NewDocumentModal({
           onCancel={onClose}
           onSubmit={submit}
           disabled={!canSubmit}
-          submitLabel="만들기"
+          submitLabel="추가"
           busy={busy}
         />
       )}
@@ -99,7 +99,7 @@ export function NewDocumentModal({
               required
               value={values.category_id || ""}
               onChange={(e) => set({ category_id: e.target.value })}
-              helperText="문서의 큰 갈래입니다. 분류 관리에서 갈래를 만들 수 있습니다."
+              helperText="문서의 큰 갈래입니다. 분류 관리에서 분류를 추가할 수 있습니다."
               fullWidth
             >
               {categories.map((c) => (
@@ -112,7 +112,7 @@ export function NewDocumentModal({
             required
             value={values.tags}
             onChange={(next) => set({ tags: next })}
-            helperText="하나 이상 고릅니다. 없는 이름을 적으면 새로 만듭니다."
+            helperText="하나 이상 고릅니다. 없는 이름을 적으면 새로 추가합니다."
           />
           {/* 라벨은 필터 줄과 **같은 낱말**이다 — 같은 축을 두 자리가 두 이름으로 부르면
               사용자는 그것을 두 가지 설정으로 읽는다. */}
@@ -146,7 +146,7 @@ export function NewDocumentModal({
         </Stack>
 
         <Stack spacing={1.5}>
-          <Typography sx={{ fontWeight: FONT_WEIGHT.semibold }}>템플릿</Typography>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.semibold }}>틀</Typography>
           <Stack spacing={0.75}>
             {templates.map((t) => (
               <Box

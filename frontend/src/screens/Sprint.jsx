@@ -94,9 +94,9 @@ const DISCUSS_TABS = [
   { key: "overdue", label: SIGNALS.overdue.label, empty: "지연된 티켓이 없습니다.", tone: SIGNALS.overdue.tone },
   { key: "blocked", label: SIGNALS.blocked.label, empty: "차단된 티켓이 없습니다.", tone: SIGNALS.blocked.tone },
   { key: "issue", label: SIGNALS.issue.label, empty: "이슈로 표시한 티켓이 없습니다.", tone: SIGNALS.issue.tone },
-  { key: "unassigned", label: "미할당", empty: "담당자가 비어 있는 티켓이 없습니다." },
+  { key: "unassigned", label: "미할당", empty: "미할당 티켓이 없습니다." },
   { key: "due_soon", label: "마감 임박", empty: "곧 마감인 티켓이 없습니다.", tone: "warn" },
-  { key: "no_estimate", label: "예상 WD 없음", empty: "예상 WD 가 비어 있는 티켓이 없습니다." },
+  { key: "no_estimate", label: "예상 WD 없음", empty: "예상 WD가 비어 있는 티켓이 없습니다." },
   { key: "no_due", label: "마감 없음", empty: "마감이 비어 있는 티켓이 없습니다." },
   { key: "scope_changes", label: "범위 변경", empty: "회차가 시작한 뒤 드나든 티켓이 없습니다." },
 ];
@@ -493,7 +493,7 @@ export function Sprint() {
     },
     onError: (e, _vars, ctx) => {
       if (ctx && ctx.prev) qc.setQueryData(meetingKey, ctx.prev);
-      toast((e && e.message) || "고치지 못했습니다. 다시 시도해 주세요.", "error");
+      toast((e && e.message) || "수정하지 못했습니다. 다시 시도해 주세요.", "error");
     },
     onSuccess: (row) => {
       patchDecisions((list) => list.map((d) => (d.id === row.id ? row : d)));
@@ -566,7 +566,7 @@ export function Sprint() {
                 label: `${s.name} (${sprintStateLabel(s)})`,
                 secondary: `${s.starts_on} ~ ${s.ends_on}`,
               }))}
-              allLabel="고르세요"
+              allLabel="회차 선택"
             />
           </>
         )}
@@ -602,8 +602,8 @@ export function Sprint() {
       {sprintsReady && !sprintId && sprintRows.length === 0 ? (
         <EmptyState
           layout="page"
-          title="아직 만든 회차가 없습니다."
-          help="회차를 만들면 여기서 번다운과 건강, 담당자별 남은 일을 보고 회의를 진행할 수 있습니다."
+          title="등록된 회차가 없습니다."
+          help="회차를 추가하면 여기서 번다운과 건강, 담당자별 남은 일을 보고 회의를 진행할 수 있습니다."
           action={
             <>
               {canPlan ? (
@@ -737,7 +737,7 @@ export function Sprint() {
                     />
                   ) : (
                     <Typography variant="body2" color="text.secondary">
-                      예상 WD 가 적힌 티켓이 있어야 번다운을 그릴 수 있습니다. 아래 「예상 WD 없음」에서 채울 수 있습니다.
+                      예상 WD가 적힌 티켓이 있어야 번다운을 그릴 수 있습니다. 아래 「예상 WD 없음」에서 채울 수 있습니다.
                     </Typography>
                   )}
                 </Box>
@@ -784,7 +784,7 @@ export function Sprint() {
           {/* 3 — 오늘 논의할 항목. 프로젝트 필터는 **여기만** 좁힌다. */}
           <Section
             title="오늘 논의할 항목"
-            help="갈래를 누르면 그 티켓이 아래에 나옵니다. 줄을 누르면 미리보기가 열립니다."
+            help="항목을 누르면 그 티켓이 아래에 나옵니다. 줄을 누르면 미리보기가 열립니다."
             rule
           >
             <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" sx={{ mb: 1.5 }}>
@@ -823,7 +823,7 @@ export function Sprint() {
             >
               {bucket.items.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
-                  {body.discuss_project_id ? "이 프로젝트에는 해당하는 티켓이 없습니다." : tab.empty}
+                  {body.discuss_project_id ? "선택한 프로젝트에는 이 항목에 든 티켓이 없습니다." : tab.empty}
                 </Typography>
               ) : (
                 <Box
@@ -843,7 +843,7 @@ export function Sprint() {
                   ))}
                   {bucket.truncated ? (
                     <Typography variant="caption" color="text.secondary" sx={{ gridColumn: "1 / -1" }}>
-                      {`${bucket.total}건 가운데 앞의 ${bucket.items.length}건만 보여 줍니다.`}
+                      {`전체 ${bucket.total}건 중 ${bucket.items.length}건 표시`}
                     </Typography>
                   ) : null}
                 </Box>
@@ -881,7 +881,7 @@ export function Sprint() {
                     />
                   ) : (
                     <Typography variant="body2" color="text.secondary">
-                      담당자가 걸린 남은 티켓이 없습니다.
+                      담당자가 지정된 남은 티켓이 없습니다.
                     </Typography>
                   )}
                 </Box>
@@ -898,7 +898,7 @@ export function Sprint() {
                           series={scopeTrend.series}
                           labels={scopeTrend.labels}
                           unit="건"
-                          question="회차 중에 범위가 언제 드나들었는지 봅니다."
+                          question="회차 중에 티켓이 언제 들어오고 빠졌는지 봅니다."
                           revealKey={body.sprint.id}
                         />
                       ) : null}
@@ -954,13 +954,13 @@ export function Sprint() {
                   kind: KIND_DECISION,
                   title: "결정",
                   help: "회의에서 확정한 사실을 적어 둡니다.",
-                  empty: "아직 적은 결정이 없습니다.",
+                  empty: "등록된 결정이 없습니다.",
                 },
                 {
                   kind: KIND_ACTION,
                   title: "할 일",
                   help: "다음에 해야 할 일을 적고, 끝나면 체크합니다.",
-                  empty: "아직 적은 할 일이 없습니다.",
+                  empty: "등록된 할 일이 없습니다.",
                 },
               ].map((lane) => {
                 const rows = body.decisions.filter((r) => r.kind === lane.kind);
@@ -1003,7 +1003,7 @@ export function Sprint() {
                               !readOnly && canEditDecision(row)
                                 ? async (r) => {
                                     const ok = await confirm(
-                                      "삭제한 회의 기록은 되살릴 수 없습니다. 이 기록을 삭제할까요?",
+                                      "삭제한 회의 기록은 되돌릴 수 없습니다. 이 기록을 삭제할까요?",
                                       { danger: true, confirmLabel: "삭제" }
                                     );
                                     if (ok) removeDecision.mutate(r.id);

@@ -23,6 +23,8 @@ import "@testing-library/jest-dom/vitest";
  * 그 사실을 말하는가**를 본다.
  *
  * 반례를 함께 둔다 — 살아 있는 문서에서는 편집기와 저장이 그대로여야 한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 vi.mock("../ui/BlockEditor.jsx", () => ({
@@ -111,8 +113,8 @@ describe("휴지통에 있는 문서", () => {
   it("🔴 휴지통에 있다고 말한다 — 누가 언제 버렸는지까지", async () => {
     stubDocument({ archived: true });
     await renderDoc();
-    expect(screen.getByText("이 문서는 휴지통에 있습니다")).toBeInTheDocument();
-    expect(screen.getByText(/이성진님이 .*에 버렸습니다/)).toBeInTheDocument();
+    expect(screen.getByText("이 문서는 휴지통에 있습니다.")).toBeInTheDocument();
+    expect(screen.getByText(/이성진님이 .*에 휴지통으로 보냈습니다/)).toBeInTheDocument();
     expect(screen.getByText(/영구 삭제됩니다/)).toBeInTheDocument();
   });
 
@@ -185,7 +187,7 @@ describe("반례 — 살아 있는 문서", () => {
   it("안내판이 없고 편집기와 저장이 그대로다", async () => {
     stubDocument({ archived: false });
     await renderDoc();
-    expect(screen.queryByText("이 문서는 휴지통에 있습니다")).toBeNull();
+    expect(screen.queryByText("이 문서는 휴지통에 있습니다.")).toBeNull();
     expect(screen.getByTestId("editor")).toHaveAttribute("data-readonly", "false");
     expect(screen.getByRole("button", { name: "저장" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "이동" })).toBeInTheDocument();

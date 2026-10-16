@@ -136,7 +136,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
 
   const askRemove = async (att) => {
     const ok = await confirm(`${att.filename}${objectParticle(att.filename)} 이 티켓에서 뗍니다. 계속할까요?`,
-      { title: "첨부 삭제", confirmLabel: "떼기", danger: true });
+      { title: "첨부 떼기", confirmLabel: "떼기", danger: true });
     if (ok) remove.mutate(att.id);
   };
 
@@ -172,7 +172,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
           `ensure_can_edit`)과 같은 선이다 — 한쪽만 고치면 화면이 거짓말을 하게 된다. */}
       {!canEdit ? (
         <Note sx={{ mt: 0 }}>
-          이 티켓을 고칠 권한이 없어 첨부를 올리거나 뗄 수 없습니다.
+          이 티켓을 수정할 권한이 없어 첨부를 올리거나 뗄 수 없습니다.
         </Note>
       ) : null}
 
@@ -313,7 +313,7 @@ export function TicketAttachments({ ticketId, attachments, canEdit, onChanged })
                 화면 캡처나 규격서를 여기에 끌어다 놓으세요. 눌러서 고를 수도 있습니다.
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                PNG, JPEG, GIF, WebP, PDF 를 한 개당 10MB까지 올릴 수 있습니다
+                PNG, JPEG, GIF, WebP, PDF를 한 개당 10MB까지 올릴 수 있습니다.
               </Typography>
             </>
           )}

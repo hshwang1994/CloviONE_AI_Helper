@@ -373,7 +373,7 @@ export function GroupedTickets({ rows, columns, empty, emptyHelp, emptyState, gr
       rowKey={(t, i) => rowGroup[i] + "::" + groupedRowKey(t, i)}
       groupOf={(t, i) => rowGroup[i]}
       groupCollapsible={collapsible}
-      emptyState={emptyState || <EmptyState title={empty || "표시할 항목이 없습니다"} help={emptyHelp} />}
+      emptyState={emptyState || <EmptyState title={empty || "표시할 티켓이 없습니다."} help={emptyHelp} />}
       sort={sort}
       onSort={onSort}
       filters={filters}
@@ -744,9 +744,9 @@ export function ticketConnState(data, onRetry) {
          절차를 안내하지는 않는다. */
       <EmptyState
         art="tickets"
-        title="지금은 티켓 목록을 불러올 수 없습니다"
+        title="지금은 티켓 목록을 불러올 수 없습니다."
         situation="서버가 티켓을 읽지 못했습니다."
-        steps={["잠시 뒤 다시 불러와 보세요.", "계속 같으면 관리자에게 문의하세요."]}
+        steps={["잠시 뒤 '다시 불러오기'를 누르세요.", "계속 같으면 관리자에게 문의하세요."]}
         expected="다시 불러오면 담당자, 상태, 마감이 담긴 티켓 목록이 이 자리에 표시됩니다."
         action={onRetry ? <Button onClick={onRetry}>다시 불러오기</Button> : null}
       />
@@ -851,7 +851,7 @@ export function MyTickets() {
                  **몇 건인지 숫자로** 말한다: "선택한 항목" 은 몇 개인지 안 알려 준다. */
               onClick={async () => {
                 const n = sel.selected.size;
-                if (!(await confirm(`티켓 ${n}건을 휴지통으로 보냅니다. 휴지통에서 되돌릴 수 있습니다.`,
+                if (!(await confirm(`티켓 ${n}건을 휴지통으로 보냅니다. 휴지통에서 복원할 수 있습니다.`,
                   { danger: true, title: "선택 삭제", confirmLabel: `${n}건 삭제` }))) return;
                 bulk.mutate([...sel.selected]);
               }}>선택 삭제</Button>
@@ -901,7 +901,7 @@ export function MyTickets() {
                   <TicketEmptyState
                     filtered={hasTicketFilter(filters, SELF_FILTER_FIELDS)}
                     onClear={clearFilters}
-                    title="담당한 티켓이 없습니다"
+                    title="담당한 티켓이 없습니다."
                     help="나에게 배정된 티켓이 아직 없습니다. ‘미할당 티켓’에서 맡을 일을 고를 수 있습니다."
                   />
                 }
@@ -955,7 +955,7 @@ export function Unassigned() {
                  **몇 건인지 숫자로** 말한다: "선택한 항목" 은 몇 개인지 안 알려 준다. */
               onClick={async () => {
                 const n = sel.selected.size;
-                if (!(await confirm(`티켓 ${n}건을 휴지통으로 보냅니다. 휴지통에서 되돌릴 수 있습니다.`,
+                if (!(await confirm(`티켓 ${n}건을 휴지통으로 보냅니다. 휴지통에서 복원할 수 있습니다.`,
                   { danger: true, title: "선택 삭제", confirmLabel: `${n}건 삭제` }))) return;
                 bulk.mutate([...sel.selected]);
               }}>선택 삭제</Button>
@@ -999,7 +999,7 @@ export function Unassigned() {
                   <TicketEmptyState
                     filtered={hasTicketFilter(filters, SELF_FILTER_FIELDS)}
                     onClear={clearFilters}
-                    title="담당자 없는 티켓이 없습니다"
+                    title="미할당 티켓이 없습니다."
                     help="모든 활성 티켓에 담당자가 지정되어 있습니다."
                   />
                 }
@@ -1083,25 +1083,25 @@ const TICKET_SECTIONS = [
   {
     title: "배경과 문제",
     hint: "왜 필요한가요? 지금 무엇이 문제인가요?",
-    example: "예: 서버를 등록할 때 같은 IP 를 두 번 넣을 수 있어 운영에서 중복 장비가 생깁니다.",
+    example: "예: 서버를 등록할 때 같은 IP를 두 번 넣을 수 있어 운영에서 중복 장비가 생깁니다.",
     heading: "## 배경과 문제",
   },
   {
     title: "목표",
     hint: "무엇을 달성하려고 하나요?",
-    example: "예: 같은 IP 로는 등록이 안 되게 막고, 막힌 이유를 화면에서 알려 줍니다.",
+    example: "예: 같은 IP로는 등록이 안 되게 막고, 막힌 이유를 화면에서 알려 줍니다.",
     heading: "## 목표",
   },
   {
     title: "작업 범위",
     hint: "이번에 할 것과 하지 않을 것을 나눠 적습니다.",
-    example: "예: 등록 화면과 저장 API 를 고칩니다. 이미 들어간 중복 데이터 정리는 이번에 안 합니다.",
+    example: "예: 등록 화면과 저장 API를 고칩니다. 이미 들어간 중복 데이터 정리는 이번에 안 합니다.",
     heading: "## 작업 범위",
   },
   {
     title: "완료 기준",
     hint: "어떤 상태가 되면 끝난 건가요?",
-    example: "예: 같은 IP 를 저장하면 오류 문구가 뜨고, 목록에 새 줄이 안 생깁니다.",
+    example: "예: 같은 IP를 저장하면 오류 문구가 뜨고, 목록에 새 줄이 안 생깁니다.",
     heading: "## 완료 기준",
   },
   {
@@ -1114,7 +1114,7 @@ const TICKET_SECTIONS = [
   {
     title: "확인 방법",
     hint: "받는 사람이 무엇을 눌러 보면 되나요?",
-    example: "예: 서버 등록에서 10.0.0.1 을 두 번 저장해 봅니다.",
+    example: "예: 서버 등록에서 10.0.0.1을 두 번 저장해 봅니다.",
     heading: "## 확인 방법",
     optional: true,
   },
@@ -1413,7 +1413,7 @@ export function NewTicket() {
     <div className="c-screen">
       <PageHeader crumbRoot="내 업무" area="새 티켓" title="새 티켓" />
       {notConfigured ? (
-        <Callout tone="warn">지금은 티켓을 만들 수 없습니다. 잠시 뒤 다시 시도해 보시고, 계속 같으면 관리자에게 문의하세요.</Callout>
+        <Callout tone="warn">지금은 티켓을 추가할 수 없습니다. 잠시 뒤 다시 시도하고, 계속 같으면 관리자에게 문의하세요.</Callout>
       ) : loadFailed ? (
         /* `ErrorState` 는 상태 코드로 제목과 안내를 스스로 고른다(401·403·404·네트워크를
            갈라 쓴다) — 여기서 문구를 덧씌우지 않는다. */
@@ -1432,7 +1432,7 @@ export function NewTicket() {
           <Box sx={{ maxWidth: "72rem", display: "flex", flexDirection: "column", flex: "1 1 auto" }}>
             {/* 폼 안 안내는 메시지 박스다(핸드오프 RULES §7) — 문장과 링크는 그대로다. */}
             <Callout>
-              간단한 티켓은 여기서 바로 만듭니다. 긴 배경은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 더 정확합니다.
+              간단한 티켓은 여기서 바로 추가합니다. 긴 배경은 <Link href="#/chat" underline="hover">AI 도우미</Link>가 더 정확합니다.
             </Callout>
             {/* 칸은 12칸 격자에 선다(핸드오프 RULES §7 · 계획 표 8): 제목 12 / 프로젝트 6 · 진행상태 3 · 우선순위 3 /
                 난이도 3 · 예상 WD 3 · 마감일 3 · 담당자 3. 열 수는 뷰포트가 아니라 **폼이 받은 칸의 폭**이 정한다
@@ -1461,7 +1461,7 @@ export function NewTicket() {
                   error={errors.project_id}
                   help={
                     !projects.length
-                      ? (context.team ? "이 팀의 회차에 담을 수 있는 프로젝트가 없습니다." : "선택할 수 있는 프로젝트가 없습니다")
+                      ? (context.team ? "이 팀의 회차에 담을 수 있는 프로젝트가 없습니다." : "선택할 수 있는 프로젝트가 없습니다.")
                       : (context.team ? "이 팀의 회차에 담을 수 있는 프로젝트만 보입니다." : undefined)
                   }
                   sx={fieldSpan({ wide: 6, mid: 1 })}
@@ -1477,7 +1477,7 @@ export function NewTicket() {
                     loading={projectsQ.isLoading}
                     disabled={projectsQ.isLoading || !projects.length}
                     allLabel="프로젝트 선택"
-                    noOptionsText={projects.length ? "일치하는 프로젝트가 없습니다" : "선택할 수 있는 프로젝트가 없습니다"}
+                    noOptionsText={projects.length ? "일치하는 프로젝트가 없습니다." : "선택할 수 있는 프로젝트가 없습니다."}
                     options={projects
                       .filter((p) => p.can_create_ticket !== false)
                       .map((p) => ({ value: p.id, label: p.name || "(제목 없음)" }))}
@@ -1522,7 +1522,7 @@ export function NewTicket() {
                     별표만 붙이고 끝내지 않는다: 서버도 같은 요구를 한다(`TicketCreate`). */}
                 <FormFieldCell
                   label="예상 WD" htmlFor="nt-wd" required helpId="nt-wd-help"
-                  help="사람이 며칠 붙는 일인가요. 0 도 됩니다." error={errors.est_wd}
+                  help="사람 한 명이 며칠 동안 할 일인지 입력합니다. 0도 입력할 수 있습니다." error={errors.est_wd}
                   sx={fieldSpan({ wide: 3, mid: 1 })}
                 >
                   <TextField
@@ -1549,7 +1549,7 @@ export function NewTicket() {
                 <FormFieldCell
                   label="담당자" labelId="nt-assignee-label" helpId="nt-assignee-help"
                   help={!form.project_id
-                    ? "프로젝트를 먼저 고르세요. 그 프로젝트에 닿을 수 있는 사람만 담당자가 될 수 있습니다."
+                    ? "프로젝트를 먼저 고르세요. 그 프로젝트에 접근할 수 있는 사람만 담당자가 될 수 있습니다."
                     : (!assigneesQ.isLoading && !candidates.length
                       ? "배정할 수 있는 사람이 없습니다. 이 프로젝트에 접근할 수 있는 계정만 후보로 나옵니다."
                       : undefined)}

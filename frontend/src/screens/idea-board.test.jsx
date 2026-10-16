@@ -177,7 +177,7 @@ describe("상태 배지는 아이디어에만 뜬다", () => {
   it("자유게시판에는 상태 필터 자체가 없다", async () => {
     mockApi(() => ({ items: [] }));
     renderScreen(<Board />);
-    await screen.findByRole("heading", { name: "아직 게시글이 없습니다" });
+    await screen.findByRole("heading", { name: "등록된 게시글이 없습니다." });
 
     expect(screen.queryByRole("combobox", { name: "상태" })).toBeNull();
     expect(screen.getByRole("combobox", { name: "카테고리" })).toBeInTheDocument();

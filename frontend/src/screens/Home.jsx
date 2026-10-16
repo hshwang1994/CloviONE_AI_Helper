@@ -170,7 +170,7 @@ function SprintProgress({ sprint }) {
   if (!sprint) {
     return (
       <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-        티켓 소스를 읽지 못해 이번 주 진척을 계산할 수 없습니다. 관리자에게 문의하세요.
+        티켓을 읽지 못해 이번 주 진척을 계산할 수 없습니다. 관리자에게 문의하세요.
       </Typography>
     );
   }
@@ -181,7 +181,7 @@ function SprintProgress({ sprint }) {
       <EmptyState
         art="tickets"
         title="이번 주 마감인 티켓이 없습니다."
-        help={`${fmtDayKo(sprint.window.start)}부터 한 주 동안 마감인 내 티켓이 없습니다.`}
+        help={`${fmtDayKo(sprint.window.start)}부터 한 주 동안 마감인 티켓을 셉니다.`}
       />
     );
   }
@@ -244,7 +244,7 @@ function RecentDocuments({ items: all }) {
   if (!items.length) {
     return (
       <EmptyState art="docs" title="최근 바뀐 문서가 없습니다."
-        help="팀 문서가 바뀌면 여기에 최신 순으로 표시됩니다." />
+        help="팀 문서가 바뀌면 여기에 최신순으로 표시됩니다." />
     );
   }
   return (

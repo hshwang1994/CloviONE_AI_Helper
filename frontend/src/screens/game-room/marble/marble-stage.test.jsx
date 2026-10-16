@@ -13,6 +13,8 @@ import "@testing-library/jest-dom/vitest";
  *      결과를 한 번 올린다 — 방장은 finish, 참가자는 attest. 지문은 64자리 16진수이고 순위는 참가자 전체의 순열이다.
  *   3) 종료: 서버가 확정한 결과(announceable)만 결과 대화 상자로 발표한다. disputed 는 대화 상자 없이 판 위 알림이다. 늦게 들어온
  *      사람(첫 로드)은 전환 없이 결과를 본다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -108,8 +110,8 @@ describe("대기 중", () => {
     expect(screen.getByRole("button", { name: "경주 시작" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "정보" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "설정" }));
-    expect(await screen.findByText(/계산이 조작되지 않았다는 증명은 아닙니다/)).toBeInTheDocument();
-    expect(screen.getByText("경주 판")).toBeInTheDocument();
+    expect(await screen.findByText(/조작이 없었다는 증명은 아닙니다/)).toBeInTheDocument();
+    expect(screen.getByText("맵 선택")).toBeInTheDocument();
   });
 
   it("방장이 아니면 설정 단추가 없다", async () => {

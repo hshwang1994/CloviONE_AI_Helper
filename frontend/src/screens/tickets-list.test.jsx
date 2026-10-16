@@ -1,4 +1,6 @@
-/* qa-contract-change: UI 3차 조합 계약 C-1 — 목록 위 단독 결과 줄(「전체 N건」)을 걷어 결과 수를 필터 면 안 조건 줄과 목록 끝 줄이 말하게 됐다. 건수 단언을 끝 줄 문장으로 옮기고 단독 줄이 되살아나지 않음을 더한다. */
+/* qa-contract-change: UI 3차 조합 계약 C-1 — 목록 위 단독 결과 줄(「전체 N건」)을 걷어 결과 수를 필터 면 안 조건 줄과 목록 끝 줄이 말하게 됐다. 건수 단언을 끝 줄 문장으로 옮기고 단독 줄이 되살아나지 않음을 더한다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -85,13 +87,13 @@ describe("내 티켓 — 목록을 못 읽었을 때", () => {
   it("'무엇을 하면 되는지'까지 담은 빈 상태를 보여주고 목록은 그리지 않는다", async () => {
     mockMine({ configured: false, tickets: [] });
     renderMyTickets();
-    expect(await screen.findByText("지금은 티켓 목록을 불러올 수 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("지금은 티켓 목록을 불러올 수 없습니다.")).toBeInTheDocument();
     // 막다른 경고가 아니라 다음 행동이 적혀 있어야 한다.
     //
     // 예전에는 그 다음 행동이 「관리자에게 Notion 연동 설정을 요청하세요」였다. 그 절차는
     // 없어졌으므로(S14 · D-284) 안내도 바뀌었다 — 없어진 절차를 계속 시키면 사용자는
     // 관리자에게 존재하지 않는 설정을 요청하러 간다.
-    expect(screen.getByText(/잠시 뒤 다시 불러와 보세요/)).toBeInTheDocument();
+    expect(screen.getByText(/잠시 뒤 '다시 불러오기'를 누르세요/)).toBeInTheDocument();
     expect(screen.queryByText(/Notion/)).toBeNull();
     // 목록/툴바는 그려지지 않는다.
     expect(screen.queryByRole("combobox", { name: "상태" })).toBeNull();
@@ -104,7 +106,7 @@ describe("내 티켓 — 목록을 못 읽었을 때", () => {
   it("연결을 요청하라는 옛 안내가 되살아나지 않는다", async () => {
     mockMine({ configured: true, mapped: false, tickets: [], total: 0 });
     renderMyTickets();
-    expect(await screen.findByText("담당한 티켓이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("담당한 티켓이 없습니다.")).toBeInTheDocument();
     expect(screen.queryByText(/Notion/)).toBeNull();
   });
 });
@@ -173,7 +175,7 @@ describe("내 티켓 — 목록", () => {
 });
 
 /* UB-26: 개인 범위(내 티켓/미할당)는 팀 티켓과 달리 동기화 배너 자체가 아예 없었다 —
- * 미러가 한 번도 안 됐는데 error도 아니면 "담당한 티켓이 없습니다"만 보여, 정말 0건인지
+ * 미러가 한 번도 안 됐는데 error도 아니면 "담당한 티켓이 없습니다."만 보여, 정말 0건인지
  * 아직 못 재본 것인지 구분이 안 됐다. 백엔드는 이미 두 엔드포인트(mine/unassigned) 모두
  * `_with_sync`로 sync 블록을 얹어 주고 있었다(`app/tickets/router.py`) — 화면만 안 그렸다.
  * 이제는 어느 화면에도 동기화 버튼이 없다(부를 엔드포인트가 없어졌다) — 아래 단언들이

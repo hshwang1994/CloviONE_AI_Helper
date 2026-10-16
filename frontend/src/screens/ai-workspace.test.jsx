@@ -19,6 +19,8 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
  *   * **생성이 막혀 있어도 근거는 나온다** — 그리고 화면이 그 사실을 말한다.
  *   * **인용을 누르면 그 문단까지 간다** — 주소에 블록 앵커가 실려 있어야 한다.
  *   * **못 쓰는 기능을 숨기지 않는다** — 단추가 조용히 사라지면 기능이 없는 줄 안다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const toasts = [];
@@ -124,7 +126,7 @@ describe("문서에서 찾기", () => {
     });
     await renderWorkspace();
 
-    await userEvent.type(screen.getByLabelText(/무엇을 찾고 있습니까/), "연차");
+    await userEvent.type(screen.getByLabelText(/찾을 내용/), "연차");
     // 못 쓰는 단추를 **숨기지 않는다.** 있고, 눌리지 않고, 왜인지가 옆에 적혀 있다.
     expect(screen.getByRole("button", { name: "AI 도우미에게 묻기" })).toBeDisabled();
     expect(screen.getByText(/AI 사용이 꺼져 있어 지금은 답할 수 없습니다/)).toBeInTheDocument();
@@ -144,7 +146,7 @@ describe("문서에서 찾기", () => {
     });
     await renderWorkspace();
 
-    await userEvent.type(screen.getByLabelText(/무엇을 찾고 있습니까/), "연차");
+    await userEvent.type(screen.getByLabelText(/찾을 내용/), "연차");
     await userEvent.click(screen.getByRole("button", { name: "문서 찾기" }));
     await userEvent.click(await screen.findByRole("button", { name: "문서에서 보기" }));
 
@@ -159,7 +161,7 @@ describe("문서에서 찾기", () => {
     stubStatus();
     await renderWorkspace();
 
-    await userEvent.type(screen.getByLabelText(/무엇을 찾고 있습니까/), "연차 신청 방법");
+    await userEvent.type(screen.getByLabelText(/찾을 내용/), "연차 신청 방법");
     await userEvent.click(screen.getByRole("button", { name: "AI 도우미에게 묻기" }));
 
     await waitFor(() =>
@@ -182,12 +184,12 @@ describe("문서에서 찾기", () => {
     });
     await renderWorkspace();
 
-    await userEvent.type(screen.getByLabelText(/무엇을 찾고 있습니까/), "연차");
+    await userEvent.type(screen.getByLabelText(/찾을 내용/), "연차");
     await userEvent.click(screen.getByRole("button", { name: "문서 찾기" }));
     await userEvent.click(await screen.findByRole("button", { name: "이 근거로 초안 쓰기" }));
     await userEvent.click(await screen.findByRole("button", { name: "초안 쓰기" }));
 
-    await waitFor(() => expect(toasts).toContain("초안을 만들어 승인을 요청했습니다. 승인되면 문서가 만들어집니다."));
+    await waitFor(() => expect(toasts).toContain("초안을 만들어 승인을 요청했습니다. 승인되면 문서가 추가됩니다."));
     expect(screen.queryByTestId("here")).toBeNull();
   });
 
@@ -206,9 +208,9 @@ describe("문서에서 찾기", () => {
     });
     await renderWorkspace();
 
-    await userEvent.type(screen.getByLabelText(/무엇을 찾고 있습니까/), "없는말");
+    await userEvent.type(screen.getByLabelText(/찾을 내용/), "없는말");
     await userEvent.click(screen.getByRole("button", { name: "문서 찾기" }));
 
-    expect(await screen.findByText("찾은 문서가 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("검색 조건에 맞는 문서가 없습니다.")).toBeInTheDocument();
   });
 });

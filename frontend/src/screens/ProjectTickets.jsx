@@ -149,8 +149,8 @@ function ProjectTicketList({ pageId }) {
         <TicketEmptyState
           filtered={hasTicketFilter(filters, PROJECT_TICKET_FILTER_KEYS)}
           onClear={clearFilters}
-          title="이 프로젝트에 걸린 티켓이 없습니다"
-          help="티켓을 만들 때 이 프로젝트를 고르면 여기에 모입니다."
+          title="이 프로젝트에 등록된 티켓이 없습니다."
+          help="티켓을 추가할 때 이 프로젝트를 고르면 여기에 모입니다."
         />
       }
       list={{
@@ -174,9 +174,9 @@ export function ProjectTickets({ project }) {
       <Card>
         <EmptyState
           art="tickets"
-          title="이 프로젝트의 티켓이 없습니다"
-          situation="아직 이 프로젝트로 만든 티켓이 하나도 없습니다."
-          help="티켓을 만들 때 이 프로젝트를 고르면 여기에 모입니다."
+          title="이 프로젝트에 등록된 티켓이 없습니다."
+          situation="아직 이 프로젝트로 추가한 티켓이 하나도 없습니다."
+          help="티켓을 추가할 때 이 프로젝트를 고르면 여기에 모입니다."
         />
       </Card>
     );

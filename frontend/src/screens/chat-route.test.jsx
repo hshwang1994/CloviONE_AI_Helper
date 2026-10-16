@@ -15,7 +15,9 @@ import "@testing-library/jest-dom/vitest";
  *   - 첫 전송은 대화를 만든 뒤 `/chat/<새 id>` 로 **바꾼다**(replace — 되돌아가기에 빈 초안이 남지 않는다). 보낸 말은 남는다.
  *   - 없는 · 남의 대화는 판 안 오류와 「새 대화 시작」 길로 끝난다.
  *   - 빠르게 여러 줄을 눌러도 늦게 온 앞 대화의 응답이 화면을 덮지 않는다.
- *   - 답이 오면 목록을 다시 읽는다 — 첫 답의 의도 제목이 머리와 목록 줄에 함께 선다. */
+ *   - 답이 오면 목록을 다시 읽는다 — 첫 답의 의도 제목이 머리와 목록 줄에 함께 선다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
@@ -242,11 +244,11 @@ describe("주소가 정본이다", () => {
     const user = userEvent.setup();
     apiMock.mockImplementation(server({ messages: () => Promise.reject(notFound(status)) }));
     renderChat("/chat/nope");
-    expect(await screen.findByText("대화를 찾을 수 없습니다")).toBeInTheDocument();
-    expect(screen.getByText("지워졌거나 열 수 없는 대화입니다. 새 대화를 시작해 주세요.")).toBeInTheDocument();
+    expect(await screen.findByText("대화를 찾을 수 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("삭제되었거나 열 수 없는 대화입니다. 새 대화를 시작해 주세요.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "새 대화 시작" }));
     expect(here()).toBe("/chat");
-    expect(screen.queryByText("대화를 찾을 수 없습니다")).toBeNull();
+    expect(screen.queryByText("대화를 찾을 수 없습니다.")).toBeNull();
     expect(headTitle("새 대화")).toBeInTheDocument();
   });
 

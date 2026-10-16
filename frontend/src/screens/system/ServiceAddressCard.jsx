@@ -71,7 +71,7 @@ export function recentRows(recent) {
 }
 
 function who(row) {
-  return row && row.actor ? ` ${row.actor} 님이 적용했습니다.` : "";
+  return row && row.actor ? ` ${row.actor}님이 적용했습니다.` : "";
 }
 
 export function ServiceAddressCard({ system }) {
@@ -104,7 +104,7 @@ export function ServiceAddressCard({ system }) {
     : queryError || helperDown || previewFailed ? "확인하지 못했습니다"
       : <StatusDots checks={checks} />;
   const statusDescription = queryError || (helperDown || previewFailed ? body.detail : null)
-    || ["DNS 는 사내 해석기(이 서버가 쓰는 해석기) 기준입니다.", publicDns].filter(Boolean).join(" ");
+    || ["DNS는 사내 해석기(이 서버가 쓰는 해석기) 기준입니다.", publicDns].filter(Boolean).join(" ");
 
   const techRows = [
     ["바인드 주소", domain.bind_ip || current.bind_ip],

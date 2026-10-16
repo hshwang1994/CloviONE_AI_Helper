@@ -57,7 +57,7 @@ export function NumberBoard({ c }) {
   return (
     <BoardFrame.Centered data-number-board="playing">
       <Typography component="p" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.title, textAlign: "center", ...KO_WORD_BREAK }}>
-        {gstate.min || 1} ~ {gstate.max || 10} 중 하나를 몰래 내세요
+        {gstate.min || 1} ~ {gstate.max || 10} 중 하나를 몰래 내세요.
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", ...KO_WORD_BREAK }}>
         가장 낮은 유일한 숫자를 낸 사람이 이깁니다. 지금 {gstate.submitted_count || 0}명이 냈습니다.

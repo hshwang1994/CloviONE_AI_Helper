@@ -97,7 +97,7 @@ function QuizEditor({ questions, setQuestions }) {
             {/* 정답으로 찍었던 보기를 지우면(removeOpt) 새 정답을 추측하지 않고 미지정(-1)으로
              * 되돌린다 — 방장이 못 보고 넘어가지 않도록 라디오가 전부 비어 보이는 것과 별개로
              * 글로 한 번 더 알린다("몰래 다른 보기가 정답이 되는" 문제의 재발 지점). */}
-            {q.answer < 0 ? <Callout tone="warn">정답으로 표시했던 보기를 지웠습니다. 정답을 다시 선택해 주세요.</Callout> : null}
+            {q.answer < 0 ? <Callout tone="warn">정답으로 표시했던 보기를 삭제했습니다. 정답을 다시 선택해 주세요.</Callout> : null}
           </Box>
         </Card>
       ))}
@@ -155,12 +155,12 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
     onSuccess: (res) => {
       const qs = (res.questions || []).map((q) => ({ q: q.q, options: q.options, answer: q.answer }));
       // 만든 문제가 없으면 생성 칸 아래 오류 줄이 말한다(`genNotice`) — 만들었을 때만 토스트다.
-      if (qs.length) { setQuizQs(qs); toast(`문제 ${qs.length}개를 만들었어요. 검토하고 수정한 뒤 방을 추가하세요.`, "success"); }
+      if (qs.length) { setQuizQs(qs); toast(`문제 ${qs.length}개를 만들었습니다. 검토하고 수정한 뒤 방을 추가하세요.`, "success"); }
     },
   });
   const genNotice = failureText([genAi, "AI 생성에 실패했습니다. 다시 시도해 주세요."])
     || (genAi.isSuccess && !((genAi.data && genAi.data.questions) || []).length
-      ? "생성된 문제가 없습니다. 주제를 더 구체적으로 적어 보세요." : null);
+      ? "생성된 문제가 없습니다. 주제를 더 구체적으로 입력하세요." : null);
 
   const setOption = (i, v) => setOptions((prev) => prev.map((o, idx) => (idx === i ? v : o)));
   const addOption = () => setOptions((prev) => (prev.length >= MAX_OPTIONS ? prev : [...prev, ""]));
@@ -207,9 +207,9 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
       method: "POST",
       body: { title, game_type: gameType, max_players: Number(maxPlayers) || 8, allow_spectators: spectators, config },
     }),
-    onSuccess: (res) => { toast("게임방을 만들었습니다.", "success"); onCreated && onCreated(res.room); },
+    onSuccess: (res) => { toast("게임방을 추가했습니다.", "success"); onCreated && onCreated(res.room); },
   });
-  const createFailure = failureText([create, "게임방을 만들지 못했습니다. 다시 시도해 주세요."]);
+  const createFailure = failureText([create, "게임방을 추가하지 못했습니다. 다시 시도해 주세요."]);
   const canSave = title.trim().length > 0 && optionsReady && questionReady && quizReady && marbleReady && !create.isPending;
 
   // 뭔가 입력했으면 Esc·바깥 클릭에 그냥 닫히지 않게 한다 (E11). 퀴즈는 최대 20문항이라
@@ -332,7 +332,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
             <TextField
               id="gr-nummax" type="number" size="small" fullWidth
               inputProps={{ min: 2, max: 100 }} value={numMax} onChange={(e) => setNumMax(e.target.value)}
-              helperText={`참여자가 1~${Number(numMax) || 10} 중 하나를 몰래 냅니다. 가장 낮은 ‘유일한’ 숫자를 낸 사람이 승리해요.`}
+              helperText={`참여자가 1~${Number(numMax) || 10} 중 하나를 몰래 냅니다. 가장 낮은 ‘유일한’ 숫자를 낸 사람이 승리합니다.`}
             />
           </Box>
         ) : isRps ? (
@@ -343,7 +343,7 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
               value={rpsMode} onChange={(e) => setRpsMode(e.target.value)}
               helperText={rpsMode === "tournament"
                 ? "참여자를 무작위로 짝지어 1:1로 붙고, 이긴 사람이 다음 라운드로 올라가 마지막 한 명이 챔피언이 됩니다. 비기면 그 대진만 다시 냅니다."
-                : "참여자가 몰래 가위, 바위, 보 중 하나를 냅니다. 방장이 공개하면 서버가 판정해요 (두 종류만 나오면 이기는 쪽 승리, 아니면 무승부)."}
+                : "참여자가 몰래 가위, 바위, 보 중 하나를 냅니다. 방장이 공개하면 서버가 판정합니다(두 종류만 나오면 이기는 쪽 승리, 아니면 무승부)."}
             >
               <MenuItem value="single">한 판 (다 같이 한 번에)</MenuItem>
               <MenuItem value="tournament">토너먼트 (짝지어 이긴 사람이 올라감)</MenuItem>
@@ -393,13 +393,13 @@ function CreateRoomModal({ open, onClose, onCreated, aiEnabled }) {
               <TextField
                 id="gr-marble-names" size="small" fullWidth multiline minRows={3} maxRows={10}
                 value={marbleNames} onChange={(e) => setMarbleNames(e.target.value)}
-                placeholder={"한 줄에 한 명씩 적습니다.\n비워 두면 방에 들어온 사람이 참가자입니다."}
-                helperText="2명부터 100명까지, 이름은 24자까지입니다. 방을 연 뒤에도 방장이 설정에서 고칠 수 있습니다."
+                placeholder={"한 줄에 한 명씩 적습니다. 비워 두면 방에 들어온 사람이 참가자입니다."}
+                helperText="2명부터 100명까지, 이름은 24자까지입니다. 방을 연 뒤에도 방장이 설정에서 수정할 수 있습니다."
               />
             </Box>
             <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" } }}>
               <Box sx={{ minWidth: 0 }}>
-                <FieldLabel id="gr-marble-map-label">경주 판</FieldLabel>
+                <FieldLabel id="gr-marble-map-label">맵 선택</FieldLabel>
                 <TextField SelectProps={{ labelId: "gr-marble-map-label" }} id="gr-marble-map" select size="small" fullWidth
                   value={marbleMap} onChange={(e) => setMarbleMap(e.target.value)}>
                   {STAGE_KEYS.map((k) => <MenuItem key={k} value={k}>{STAGE_LABELS[k]}</MenuItem>)}
@@ -492,7 +492,7 @@ export function Games() {
         <EmptyState
           layout="page"
           art="games"
-          title="열린 게임방이 없습니다"
+          title="열린 게임방이 없습니다."
           help="‘게임방 추가’로 첫 방을 열면 팀원이 들어와 함께 시작할 수 있습니다."
         />
       ) : (

@@ -14,6 +14,8 @@ import "@testing-library/jest-dom/vitest";
  *     나가지 않아야 한다.
  * 두 버튼이 같은 행에 나란히 있어서, 재설계 중 mutation을 바꿔 달면 "복원을 눌렀는데 지워졌다"가
  * 조용히 성립한다 — 그래서 '어떤 URL로 갔는지'까지 본다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -134,7 +136,7 @@ describe("권한과 빈 상태", () => {
   it("비어 있으면 표 대신 빈 화면 안내를 보여준다", async () => {
     mockList([]);
     renderTrash();
-    expect(await screen.findByRole("heading", { name: "휴지통이 비어 있습니다" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "휴지통이 비어 있습니다." })).toBeInTheDocument();
     // 표도 조작기도 그리지 않는다 — 「전체 0 / 티켓 0 / 문서 0」은 정보가 아니라 소음이다.
     // (조건이 걸려 0건인 경우는 **다른 사실**이라 탭 줄이 남는다 — trash-tabs.test.jsx.)
     expect(screen.queryByRole("tab")).toBeNull();
@@ -147,7 +149,7 @@ describe("권한과 빈 상태", () => {
   it("빈 상태 안내가 바로 위 상시 안내문과 같은 사실(보관 일수)을 반복하지 않는다", async () => {
     mockList([]);
     renderTrash();
-    await screen.findByRole("heading", { name: "휴지통이 비어 있습니다" });
+    await screen.findByRole("heading", { name: "휴지통이 비어 있습니다." });
     /* 상시 안내문(보관 일수 포함)은 여전히 있다 — 빈 상태에서도 사라지지 않는다.
        문구가 「티켓 7일, 문서 7일」로 갈라진 것은 두 정책이 실제로 다르기 때문이다(D-352):
        티켓 쪽은 원본을 보관처리하고, 문서 쪽은 행을 지운다. */
@@ -155,7 +157,7 @@ describe("권한과 빈 상태", () => {
     // 빈 상태 자체의 문구는 그 사실을 다시 말하지 않는다.
     expect(screen.queryByText(/7일 동안 여기 보관됩니다/)).not.toBeInTheDocument();
     // 그래도 되돌릴 수 있다는 재확인(이 화면의 핵심 안심 메시지)은 남아 있다.
-    expect(screen.getByText(/이 화면에서 되돌릴 수 있습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/이 화면에서 복원할 수 있습니다/)).toBeInTheDocument();
   });
 });
 

@@ -236,7 +236,7 @@ export function useGameRoomController(id) {
   useEffect(() => {
     if ((notFound || closed) && !goneRef.current) {
       goneRef.current = true;
-      toast("방이 사라졌습니다.", "info");
+      toast("게임방이 종료됐습니다.", "info");
       qc.invalidateQueries({ queryKey: ["games-rooms"] });
       nav("/games");
     }
@@ -385,8 +385,8 @@ export function useGameRoomController(id) {
   // 방 파하기 확인 다이얼로그 — 승인해야만 disband를 호출한다. 원래 GameRoom() 렌더의 disband
   // 버튼 onClick 안에 있던 로직을 그대로 옮겼다.
   const disbandWithConfirm = async () => {
-    const ok = await confirm("방을 파하면 모두 나가지고 방이 사라집니다. 계속할까요?",
-      { title: "방 파하기", confirmLabel: "방 파하기", danger: true });
+    const ok = await confirm("게임방을 종료하면 모두 나가게 되고 방이 사라집니다. 계속할까요?",
+      { title: "게임방 종료", confirmLabel: "게임방 종료", danger: true });
     if (ok) disband.mutate();
   };
 

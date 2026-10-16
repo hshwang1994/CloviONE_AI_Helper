@@ -17,6 +17,8 @@ import "@testing-library/jest-dom/vitest";
  *      조직이 둘 이상 섞인 방에서는 줄이 조직 + 끝 칸 부서로 선다.
  *   5. Esc 로 닫으면 초점이 요약 단추로 돌아온다. 얼굴을 눌러 열었어도 같다.
  *   6. 방장이 아니어도 열린다. 전체 채팅에는 명단이 없어서 여는 자리도 없다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -299,8 +301,8 @@ describe("여러 명일 때 — 좁히기 칸", () => {
     const user = userEvent.setup();
     mount(payload(crowd(9)));
     const dialog = await openFromSummary(user, 9);
-    const box = within(dialog).getByRole("searchbox", { name: "사람 좁히기" });
-    expect(box).toHaveAttribute("placeholder", "이름, 부서로 좁히기");
+    const box = within(dialog).getByRole("searchbox", { name: "사람 검색" });
+    expect(box).toHaveAttribute("placeholder", "이름, 부서 검색");
     // 칸은 목록보다 앞에 선다.
     const list = within(dialog).getByRole("list", { name: "참여자 명단" });
     expect(box.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
@@ -324,7 +326,7 @@ describe("여러 명일 때 — 좁히기 칸", () => {
     const user = userEvent.setup();
     mount(payload(crowd(9)));
     const dialog = await openFromSummary(user, 9);
-    const box = within(dialog).getByRole("searchbox", { name: "사람 좁히기" });
+    const box = within(dialog).getByRole("searchbox", { name: "사람 검색" });
     // 「플랫폼본부」는 끝 칸 부서가 아니라 경로의 윗칸이다. 줄에 「플랫폼본부 › …」로 보이므로 찾을 수 있어야 한다.
     await user.type(box, "플랫폼본부");
     expect(rowsOf(dialog)).toHaveLength(8);
@@ -334,17 +336,17 @@ describe("여러 명일 때 — 좁히기 칸", () => {
     await user.clear(box);
     await user.type(box, "본부플랫폼");
     expect(within(dialog).queryByRole("list", { name: "참여자 명단" })).toBeNull();
-    expect(within(dialog).getByText("조건에 맞는 사람이 없습니다")).toBeInTheDocument();
+    expect(within(dialog).getByText("검색 조건에 맞는 사람이 없습니다.")).toBeInTheDocument();
   });
 
   it("🔴 조건 때문에 0명이면 「없다」가 아니라 「조건에 맞는 사람이 없다」고 말한다", async () => {
     const user = userEvent.setup();
     mount(payload(crowd(9)));
     const dialog = await openFromSummary(user, 9);
-    await user.type(within(dialog).getByRole("searchbox", { name: "사람 좁히기" }), "없는사람");
+    await user.type(within(dialog).getByRole("searchbox", { name: "사람 검색" }), "없는사람");
     expect(within(dialog).queryByRole("list", { name: "참여자 명단" })).toBeNull();
-    expect(within(dialog).getByText("조건에 맞는 사람이 없습니다")).toBeInTheDocument();
-    expect(within(dialog).getByText("이름이나 부서 일부로 다시 찾아보세요.")).toBeInTheDocument();
+    expect(within(dialog).getByText("검색 조건에 맞는 사람이 없습니다.")).toBeInTheDocument();
+    expect(within(dialog).getByText("이름이나 부서의 일부로 다시 검색하세요.")).toBeInTheDocument();
   });
 
   it("명단 목록은 초점을 받는다 — 누를 것이 없는 줄이라 그러지 않으면 키보드로 넘친 줄까지 스크롤할 수 없다", async () => {
@@ -358,13 +360,13 @@ describe("여러 명일 때 — 좁히기 칸", () => {
     const user = userEvent.setup();
     mount(payload(crowd(9)));
     let dialog = await openFromSummary(user, 9);
-    await user.type(within(dialog).getByRole("searchbox", { name: "사람 좁히기" }), "이운영");
+    await user.type(within(dialog).getByRole("searchbox", { name: "사람 검색" }), "이운영");
     expect(rowsOf(dialog)).toHaveLength(1);
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     dialog = await openFromSummary(user, 9);
-    expect(within(dialog).getByRole("searchbox", { name: "사람 좁히기" })).toHaveValue("");
+    expect(within(dialog).getByRole("searchbox", { name: "사람 검색" })).toHaveValue("");
     expect(rowsOf(dialog)).toHaveLength(9);
   });
 });

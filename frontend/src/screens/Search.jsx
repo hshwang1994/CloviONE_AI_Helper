@@ -104,7 +104,7 @@ function ResultGroup({ group, onOpen }) {
       </List>
       {group.total > group.items.length ? (
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-          {group.total}건 중 {group.items.length}건을 보여 줍니다. 검색어를 더 좁혀 보세요.
+          {group.total}건 중 {group.items.length}건을 보여 줍니다. 검색어를 더 구체적으로 입력하세요.
         </Typography>
       ) : null}
     </Card>
@@ -227,12 +227,12 @@ export function Search() {
            지우는 것이지, 데이터를 만드는 것이 아니다. */
         <EmptyState
           layout="page"
-          title="검색 결과 없음"
-          situation={`‘${urlQuery}’ 와 일치하는 항목을 찾지 못했습니다.`}
+          title="검색 조건에 맞는 항목이 없습니다."
+          situation={`‘${urlQuery}’ 검색어와 일치하는 항목을 찾지 못했습니다.`}
           help={
             result && result.mode === "like"
-              ? "한두 글자 검색어는 정확히 그 글자가 들어간 항목만 찾습니다. 조금 더 길게 쳐 보세요."
-              : "맞춤법을 확인하거나 더 짧은 검색어로 다시 시도해 보세요."
+              ? "한두 글자 검색어는 정확히 그 글자가 들어간 항목만 찾습니다. 검색어를 조금 더 길게 입력하세요."
+              : "맞춤법을 확인하거나 더 짧은 검색어로 다시 검색하세요."
           }
           art="search"
           action={<Button onClick={() => submit("")}>검색어 지우기</Button>}
@@ -243,7 +243,7 @@ export function Search() {
             {/* 결과 줄 — 화면이 쓰던 문장을 그대로 세운다(계획 P-21). */}
             <ResultLine
               total={result.total}
-              text={`총 ${result.total}건`
+              text={`검색 결과 ${result.total}건`
                 + (result.mode === "like" ? ", 짧은 검색어라 부분 일치로 찾았습니다" : "")
                 + (result.truncated ? ", 일부만 표시합니다" : "")}
               sx={{ mb: 2 }}

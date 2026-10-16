@@ -105,7 +105,7 @@ export function MarbleSettingsModal({ open, onClose, config, members, mutations,
           <TextField
             id="marble-names" size="small" fullWidth multiline minRows={4} maxRows={12}
             value={text} onChange={(e) => setText(e.target.value)}
-            placeholder={"한 줄에 한 명씩 적습니다.\n비워 두면 방 구성원이 참가자입니다."}
+            placeholder={"한 줄에 한 명씩 적습니다. 비워 두면 방 구성원이 참가자입니다."}
             inputProps={{ "aria-describedby": "marble-names-help" }}
           />
           <Stack direction="row" gap={1} alignItems="center" flexWrap="wrap" sx={{ mt: 1 }}>
@@ -117,7 +117,7 @@ export function MarbleSettingsModal({ open, onClose, config, members, mutations,
         </Box>
         <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" } }}>
           <Box sx={{ minWidth: 0 }}>
-            <FieldLabel id="marble-map-label">경주 판</FieldLabel>
+            <FieldLabel id="marble-map-label">맵 선택</FieldLabel>
             <TextField SelectProps={{ labelId: "marble-map-label" }} id="marble-map" select size="small" fullWidth
               value={map} onChange={(e) => setMap(e.target.value)}>
               {STAGE_KEYS.map((k) => <MenuItem key={k} value={k}>{STAGE_LABELS[k]}</MenuItem>)}
@@ -142,7 +142,7 @@ export function MarbleSettingsModal({ open, onClose, config, members, mutations,
         />
         {/* 결과의 뜻 한 줄(D-564) — 예전 「정보」 대화 상자에 있던 문장이다. 출처 고지는 사용자 메뉴의 「오픈소스 고지」로 갔다(D-579). */}
         <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>
-          모든 화면이 같은 seed 로 같은 경주를 계산하고 서버가 결과를 대조합니다. 「확인됨」은 서로 다른 화면의 결과가 일치했다는 뜻이고, 계산이 조작되지 않았다는 증명은 아닙니다.
+          모든 화면이 같은 시작값으로 경주를 계산하고 서버가 결과를 대조합니다. 「확인됨」은 화면끼리 결과가 같았다는 뜻이고, 조작이 없었다는 증명은 아닙니다.
         </Typography>
         {problem ? (
           <Callout tone="danger" compact>
@@ -151,7 +151,7 @@ export function MarbleSettingsModal({ open, onClose, config, members, mutations,
               {suggestionRows.length ? (
                 <Box sx={{ display: "grid", gap: 0.5 }}>
                   {suggestionRows.map(([from, to]) => <Typography key={from} variant="body2">{from} → {to}</Typography>)}
-                  <Box><Button size="sm" onClick={() => applySuggestions(problem.suggestions)}>제안대로 고치기</Button></Box>
+                  <Box><Button size="sm" onClick={() => applySuggestions(problem.suggestions)}>제안대로 수정</Button></Box>
                 </Box>
               ) : null}
             </Box>

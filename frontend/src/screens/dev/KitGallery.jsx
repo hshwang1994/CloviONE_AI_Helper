@@ -906,7 +906,7 @@ export function KitGallery() {
             <Pair
               caption="자료가 없어 비었으면 만드는 동작을 주고, 조건 때문에 비었으면 조건을 지우는 동작을 줍니다. 조건 때문일 때는 클로비가 없습니다."
               left={{ label: "자료가 아직 없음", node: <EmptyState art="tickets" title="아직 맡은 티켓이 없습니다" action={<Button size="sm">새 티켓</Button>} /> }}
-              right={{ label: "조건 때문에 0건", node: <EmptyState title="조건에 맞는 항목이 없습니다" help="지금 걸린 조건에 맞는 항목이 없습니다." action={<Button size="sm">필터 지우기</Button>} /> }}
+              right={{ label: "조건 때문에 0건", node: <EmptyState title="조건에 맞는 항목이 없습니다" help="지금 걸린 조건에 맞는 항목이 없습니다." action={<Button size="sm">필터 초기화</Button>} /> }}
             />
             <Pair
               caption="판 하나가 실패하면 그 판 안에서 왼쪽 정렬로, 화면 전체가 실패하면 가운데로 섭니다."

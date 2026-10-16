@@ -11,7 +11,9 @@ import { ThemeModeProvider } from "../../ui/ThemeModeProvider.jsx";
 /* 방 툴바 (D-575) — 상태 정본 하나 · 동작 줄 하나.
  *
  * 못박는 것: 상태 칩이 DOM 에 정확히 하나 · 방장 / 참가자 / 관전자의 단계별 동작 · 결과 보기는 끝난 결과가 있고 대화 상자가 닫혔을
- * 때만 · 넘침 메뉴에 방 파하기(방장) · 전체 화면 변형은 설정 · 나가기 · 넘침을 숨기고 「전체 화면 종료」(aria-pressed). */
+ * 때만 · 넘침 메뉴에 방 파하기(방장) · 전체 화면 변형은 설정 · 나가기 · 넘침을 숨기고 「전체 화면 종료」(aria-pressed).
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 const mutation = () => ({ mutate: vi.fn(), isPending: false });
 
@@ -64,7 +66,7 @@ describe("동작", () => {
     expect(screen.getByRole("button", { name: "전체 화면" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "나가기" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "방 동작 더 보기" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "방 파하기" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "게임방 종료" }));
     expect(c.disbandWithConfirm).toHaveBeenCalled();
   });
 

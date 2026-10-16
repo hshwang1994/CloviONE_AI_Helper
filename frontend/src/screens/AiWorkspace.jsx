@@ -134,7 +134,7 @@ export function AiWorkspace() {
          내 승인 화면의 「내가 올린 요청」에서 본다. */
       if (data.approval) {
         setDrafting(false);
-        toast("초안을 만들어 승인을 요청했습니다. 승인되면 문서가 만들어집니다.");
+        toast("초안을 만들어 승인을 요청했습니다. 승인되면 문서가 추가됩니다.");
         return;
       }
       /* 초안을 못 쓴 응답이면 모달을 닫지 않는다 — 그 이유는 폼 위 오류로 선다(아래 `onSubmit` 이
@@ -197,7 +197,7 @@ export function AiWorkspace() {
           }}
         >
           <Field
-            label="무엇을 찾고 있습니까?"
+            label="찾을 내용"
             htmlFor="ai-workspace-question"
             help={
               assistantOff
@@ -255,7 +255,7 @@ export function AiWorkspace() {
               </Stack>
             ) : (
               <EmptyState
-                title="찾은 문서가 없습니다"
+                title="검색 조건에 맞는 문서가 없습니다."
                 help="다른 낱말로 다시 찾아보거나, 문서가 아직 색인되지 않았는지 확인해 주세요."
                 art="search"
               />
@@ -265,7 +265,7 @@ export function AiWorkspace() {
       ) : (
         <EmptyState
           layout="page"
-          title="찾을 내용을 적어 보세요"
+          title="찾을 내용을 입력하세요."
           help="사내 문서에서 근거를 찾고, 그 문단까지 바로 갈 수 있습니다."
           art="search"
         />

@@ -24,7 +24,7 @@ export const SOURCE_KINDS = {
   document: { label: "문서", Icon: DescriptionOutlinedIcon },
   ticket: { label: "티켓", Icon: ConfirmationNumberOutlinedIcon },
   project: { label: "프로젝트", Icon: FolderOutlinedIcon },
-  approval: { label: "결재", Icon: FactCheckOutlinedIcon },
+  approval: { label: "승인 요청", Icon: FactCheckOutlinedIcon },
   board: { label: "게시글", Icon: ForumOutlinedIcon },
   sprint: { label: "회의록", Icon: EventNoteOutlinedIcon },
 };

@@ -36,11 +36,11 @@ import { celebrateIfCleared } from "../ui/celebrate.js";
 /* 칸마다 «없다» 의 뜻이 다르다 — 처리할 것이 없는 것은 좋은 소식이고, 올린 것이 없는 것은
  * 아직 아무것도 안 한 것이다. 한 문장으로 뭉치면 화면이 그 차이를 못 말한다. */
 const BOXES = [
-  { key: "todo", label: "처리할 승인", empty: "지금 결재할 건이 없습니다.",
-    emptyHelp: "나에게 배정된 결재가 생기면 여기에 나타납니다." },
+  { key: "todo", label: "처리할 승인", empty: "처리할 승인 요청이 없습니다.",
+    emptyHelp: "나에게 배정된 승인 요청이 생기면 여기에 나타납니다." },
   { key: "requested", label: "내가 올린 요청", empty: "내가 올린 승인 요청이 없습니다.",
     emptyHelp: "승인이 필요한 일을 하면 그 요청이 여기에 쌓입니다." },
-  { key: "done", label: "내가 처리한 건", empty: "아직 결재한 건이 없습니다.",
+  { key: "done", label: "내가 처리한 건", empty: "처리한 승인 요청이 없습니다.",
     emptyHelp: "승인하거나 거절한 건이 여기에 기록으로 남습니다." },
 ];
 
@@ -255,7 +255,7 @@ export function MyApprovals() {
 
   if (box === "todo") {
     columns.push({
-      key: "actions", label: "결재", type: "actions",
+      key: "actions", label: "처리", type: "actions",
       /* 칸 폭은 단추 글로 잰다 — 「승인 · 거절」 두 단추가 판 끝에서 잘렸다(r23 #26). */
       actionLabels: ["승인", "거절"],
       render: (r) => {
@@ -286,11 +286,11 @@ export function MyApprovals() {
     <Box className="c-screen">
       <PageHeader
         area="승인" title="승인"
-        help="나에게 배정된 결재와 내가 올린 요청입니다. 관리 범위 전체 현황은 관리자 콘솔의 승인 화면에 있습니다."
+        help="나에게 배정된 승인 요청과 내가 올린 요청입니다. 관리 범위 전체 현황은 관리자 콘솔의 승인 화면에 있습니다."
       />
       {/* 보기 전환은 세그먼티드(34)다 — 밑줄 탭(48)은 페이지 탭(`TabShell`)의 어휘다(핸드오프 RULES §3 · 계획 B-7). */}
       <Segmented
-        ariaLabel="결재함 구분" value={box} onChange={setBox}
+        ariaLabel="승인 목록 구분" value={box} onChange={setBox}
         options={BOXES.map((b) => ({ value: b.key, label: b.label }))}
         sx={{ mb: 2 }}
       />
@@ -303,8 +303,8 @@ export function MyApprovals() {
       {data && box === "todo" && !canDecide ? (
         <EmptyState
           layout="page"
-          title="결재 권한이 없습니다"
-          help="지금은 결재할 수 있는 자리가 아닙니다. 부재 중 위임을 받으면 이 목록에 결재할 건이 나타납니다."
+          title="승인 요청을 처리할 권한이 없습니다."
+          help="지금은 승인 요청을 처리할 수 있는 자리가 아닙니다. 부재 중 위임을 받으면 이 목록에 처리할 승인 요청이 나타납니다."
           art="noPermission"
         />
       ) : null}
@@ -323,7 +323,7 @@ export function MyApprovals() {
             list={{
               total: q.total, loaded: q.loaded,
               hasNext: q.hasNext, isFetchingNext: q.isFetchingNext, onMore: q.fetchNext,
-              moreLabel: "결재 더 보기",
+              moreLabel: "승인 요청 더 보기",
             }}
           />
         )

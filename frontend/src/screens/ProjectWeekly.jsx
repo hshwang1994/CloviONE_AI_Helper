@@ -30,7 +30,7 @@ import { MILESTONE_STATUS_KO, PROJECT_WRITE_ROLES } from "./project-format.js";
 
 const SECTIONS = [
   ["done", "이번 주 완료"],
-  ["in_progress", "진행 중"],
+  ["in_progress", "미완료"],
   ["delayed", "지연"],
   ["issues", "이슈"],
   ["next_week", "다음 주 계획"],
@@ -61,7 +61,7 @@ function Bucket({ title, bucket, onOpen }) {
         {title + " " + (b.count || 0) + "건"}
       </Typography>
       {items.length === 0 ? (
-        <EmptyState layout="inline" title="없습니다." />
+        <EmptyState layout="inline" title="작업이 마일스톤이 없습니다." />
       ) : (
         <FlatBadgeSurface>
         <Box component="ul" sx={{ m: 0, mt: 1, p: 0, display: "grid", gap: 0.75 }}>
@@ -101,7 +101,7 @@ function MilestoneBucket({ title, bucket }) {
         {title + " " + (b.count || 0) + "건"}
       </Typography>
       {items.length === 0 ? (
-        <EmptyState layout="inline" title="없습니다." />
+        <EmptyState layout="inline" title="작업이 마일스톤이 없습니다." />
       ) : (
         <Box component="ul" sx={{ m: 0, mt: 1, p: 0, display: "grid", gap: 0.5 }}>
           {items.map((m) => (
@@ -182,7 +182,7 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
           <Button size="sm" onClick={() => onWeek(win.next_week || "")}>다음 주</Button>
           <Typography variant="body2" color="text.secondary" aria-live="polite" sx={{ ml: 1 }}>
             {win.start
-              ? win.start + " ~ " + inclusiveLastDay(win.end_exclusive) + " (마감일 기준, Asia/Seoul)"
+              ? win.start + " ~ " + inclusiveLastDay(win.end_exclusive) + " (마감일 기준, 한국 시간)"
               : "기간을 알 수 없습니다."}
           </Typography>
         </Stack>
@@ -250,7 +250,7 @@ export function ProjectWeekly({ projectId, week, onWeek, query }) {
           return (
             <>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, ...KO_WORD_BREAK }}>
-                {savedIsLlm ? "AI 가 쓴 요약입니다(저장본)." : "규칙으로 만든 요약입니다."}
+                {savedIsLlm ? "AI가 쓴 요약입니다(저장본)." : "규칙으로 만든 요약입니다."}
                 {/* 🔴 **왜** 규칙 요약인지까지 말한다. 서버가 `llm_notice` 로 계산해 보내는데
                     화면이 안 그리면, 사용자는 AI 요약이 꺼져 있는지 고장 났는지 구분할 수 없다.
                     (실제로 서버에만 넣고 화면을 안 고친 채 "배선했다"고 적어 뒀던 자리다.) */}

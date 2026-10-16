@@ -120,7 +120,7 @@ const FOCUS_TEXT = {
   blocked: (n) => `막힌 티켓 ${n}건이 진행을 멈추고 있습니다.`,
   due_today: (n) => `오늘 마감인 일이 ${n}건 있습니다.`,
   due_soon: (n) => `오늘 마감은 없고 앞으로 7일 안에 ${n}건이 마감입니다.`,
-  in_progress: (n) => `급한 일은 없습니다. 진행 중인 ${n}건을 이어서 하면 됩니다.`,
+  in_progress: (n) => `급한 일은 없습니다. 미완료 티켓 ${n}건을 이어서 하면 됩니다.`,
 };
 
 /** 주어진 순서에서 **비어 있지 않은 첫 칸**. 티켓을 못 읽었으면 `null` 이다.
@@ -335,7 +335,7 @@ function briefingParts(data) {
          * 자기 빈 상태로 말하고 있었다. 첫째가 문장을 다시 안 쓰는 것과 같은 이유다. */}
         {!sprint ? (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-            「이번 주」 카드와 같은 이유로 이번 주 진척도 계산할 수 없습니다.
+            「이번 주」 카드와 같은 이유로 이번 주 진척을 계산할 수 없습니다.
           </Typography>
         ) : sprint.assigned ? (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
@@ -381,7 +381,7 @@ function standupParts(data) {
     detail: (
       <SubGroup title="공유할 내용" first>
         <Box sx={SECTION_GRID}>
-          <TicketLines label="최근 끝낸 일" block={data.recently_done} empty="이번 주에 완료한 티켓이 없습니다." />
+          <TicketLines label="최근 끝낸 일" block={data.recently_done} empty="이번 주 마감 티켓 중 완료된 티켓이 없습니다." />
           <TicketLines label="오늘 할 일" block={data.today_plan} empty="오늘 마감이거나 지연된 티켓이 없습니다." />
           {/* 「상태가 이슈인」이었다. `이슈` 는 더 이상 상태가 아니라 상태와 직교하는
               신호다(D-349) — 이 묶음은 **이슈 있음이거나 차단됨**인 티켓이다
@@ -420,7 +420,7 @@ function weeklyParts(data) {
   );
   const detail = (
     <>
-      <SubGroup title="팀은 이번 주에 무엇을 했나" first>
+      <SubGroup title="이번 주 팀 현황" first>
         {team ? (
           <Box sx={{ display: "grid", gap: 2.5, alignItems: "start", gridTemplateColumns: { xs: "minmax(0,1fr)", lg: "minmax(0,1.4fr) minmax(0,1fr)" } }}>
             <BarSeries
@@ -516,7 +516,7 @@ function triageParts(data) {
     return {
       head: null,
       detail: (
-        <EmptyState art="tickets" title="미할당 티켓을 불러오지 못했습니다"
+        <EmptyState art="tickets" title="미할당 티켓을 불러오지 못했습니다."
           help={data.message || data.error || "잠시 뒤에 다시 시도하거나 관리자에게 문의하세요."} />
       ),
     };
@@ -525,7 +525,7 @@ function triageParts(data) {
     return {
       head: null,
       detail: (
-        <EmptyState art="tickets" title="담당자를 지정할 티켓이 없습니다"
+        <EmptyState art="tickets" title="미할당 티켓이 없습니다."
           help="새로 들어온 티켓에 담당자가 비어 있으면 여기에 급한 순서로 표시됩니다." />
       ),
     };
@@ -542,7 +542,7 @@ function triageParts(data) {
         담당자 없는 티켓이 {data.total}건 있습니다{late ? `. 그중 ${late}건은 이미 지연입니다` : ""}.
       </Lede>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
-        아래는 제안이고 이 화면은 아무것도 배정하지 않습니다. 배정은 미할당 티켓 화면에서 직접 확인하고 누릅니다.
+        아래는 제안이고 이 화면은 아무것도 배정하지 않습니다. 배정은 미할당 티켓 화면에서 할 수 있습니다.
       </Typography>
     </>
   );
@@ -565,7 +565,7 @@ function triageParts(data) {
         </TicketList>
       </SubGroup>
 
-      <SubGroup title="지금 손이 비어 있는 사람">
+      <SubGroup title="맡은 티켓이 적은 사람">
         {candidates.length ? (
           <BarSeries
             question="맡고 있는 티켓이 적은 순입니다. 누가 무엇을 잘하는지는 판단하지 않습니다."

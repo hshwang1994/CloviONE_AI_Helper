@@ -27,6 +27,8 @@ import { MemoryRouter, useLocation } from "react-router-dom";
  * qa-contract-change: 두 줄의 이름을 목적지 화면의 위험 칩과 같은 낱말로 바꾸고(「건강도 낮은 프로젝트」 · 「지연된 마일스톤」), 누르면 그 조건이
  * 걸린 목록으로 간다(`/projects?trouble=1` · `?overdue=1`). 예전 시험은 접근 이름만 봤다 — 이제 실제 이동한 주소를 단언한다.
  * 네이티브 button 으로 찾던 단언을 role=button 칸으로 옮기고, 키보드로 닿는다(tabIndex 0)는 단언을 더한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -160,8 +162,8 @@ describe("이번 주 업무 상태 묶음", () => {
     const summary = await screen.findByText("이 수에 안 들어간 프로젝트가 있습니다");
     expect(summary).toBeInTheDocument();
     // 진단 문구 자체는 지우지 않는다 — 접힌 안쪽에 그대로 있다.
-    expect(screen.getByText(/건강도 점수가 없는 프로젝트 1건/)).toBeInTheDocument();
-    expect(screen.getByText(/일부 항목만으로 계산한 프로젝트 2건/)).toBeInTheDocument();
+    expect(screen.getByText(/건강도 점수가 없는 프로젝트 1개/)).toBeInTheDocument();
+    expect(screen.getByText(/일부 항목만으로 계산한 프로젝트 2개/)).toBeInTheDocument();
     // 예전 문구(내부 용어 그대로)는 화면 본문에 없다.
     expect(screen.queryByText(/건강도를 계산하지 않은|Health/)).toBeNull();
     expect(screen.queryByText(/점수의 신뢰도가 낮을 수 있습니다/)).toBeNull();

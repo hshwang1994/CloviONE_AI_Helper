@@ -10,7 +10,9 @@ import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 /* AI-18: 대화 목록이 100개 고정 상한이었고 그 이상은 스크롤로도 영영 안 보였다. 이제
  * useChat.js가 total로 상한 너머를 판단해 hasMoreConvs를 내려주면, 여기(사이드바)는 그 값만
  * 보고 "대화 더 보기" 버튼을 그리거나 숨긴다 — 훅의 페이지네이션 계산과 화면의 렌더링을
- * 분리해서 본다(chat-bulk-archive-empty.test.jsx와 같은 직접-props 렌더 방식). */
+ * 분리해서 본다(chat-bulk-archive-empty.test.jsx와 같은 직접-props 렌더 방식).
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 function conv(id, extra = {}) {
   return { id, title: "대화 " + id, archived: false, updated_at: "2026-08-10T00:00:00", ...extra };
@@ -70,7 +72,7 @@ describe("대화 목록 '더 보기' (AI-18)", () => {
     // total도 함께 0이 되어 실제로는 훅이 hasMoreConvs:false를 내려주지만, 화면 쪽 렌더링
     // 자체가 빈 상태 분기 안에 더 보기 버튼을 둘 수 없는 구조인지 독립적으로 확인한다.
     renderSidebar({ convItems: [], hasMoreConvs: true });
-    expect(screen.getByText("아직 대화가 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("대화가 없습니다.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
   });
 });

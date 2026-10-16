@@ -34,10 +34,10 @@ export const HEALTH_POLL_MS = 1000;
 export const HEALTH_LIMIT_MS = 60_000;
 
 const STEP_STATE = {
-  ok: { label: "끝남", tone: "ok" },
+  ok: { label: "완료", tone: "ok" },
   failed: { label: "실패", tone: "danger" },
   running: { label: "진행 중", tone: "info" },
-  waiting: { label: "기다림", tone: "neutral" },
+  waiting: { label: "대기", tone: "neutral" },
 };
 
 /* 웹 서버 지연 재시작을 지켜본다 — 예약한 시간이 지난 뒤 같은 주소의 `/healthz` 가 200 을 줄 때까지(60초 상한). */
@@ -171,10 +171,10 @@ export function DomainChangeDialog({ open, onClose, domain, currentCert }) {
 
   function addExtra() {
     const got = parseAddress(extra);
-    if (!extra.trim()) { setExtraError("더할 주소를 넣으세요."); return; }
+    if (!extra.trim()) { setExtraError("추가할 주소를 입력하세요."); return; }
     if (got.error) { setExtraError(got.error); return; }
     if (rows.some((r) => r.name === got.host)) { setExtraError("이미 목록에 있는 주소입니다."); return; }
-    setRows((list) => [...list, { name: got.host, checked: true, note: "새로 더한 주소입니다." }]);
+    setRows((list) => [...list, { name: got.host, checked: true, note: "새로 추가한 주소입니다." }]);
     setExtra("");
     setExtraError(null);
   }
@@ -276,8 +276,8 @@ export function DomainChangeDialog({ open, onClose, domain, currentCert }) {
                   </SettingRows>
                   </Box>
                 ) : null}
-                <FieldRow columns={["min(100%, 24rem)"]} action={<Button onClick={addExtra}>더하기</Button>}>
-                  <Field label="주소 더하기" htmlFor="domain-alias-new" error={extraError}>
+                <FieldRow columns={["min(100%, 24rem)"]} action={<Button onClick={addExtra}>추가</Button>}>
+                  <Field label="주소 추가" htmlFor="domain-alias-new" error={extraError}>
                     <TextField
                       id="domain-alias-new" size="small" fullWidth value={extra} placeholder="old.example.internal"
                       onChange={(e) => { setExtra(e.target.value); setExtraError(null); }}
@@ -333,12 +333,12 @@ export function DomainChangeDialog({ open, onClose, domain, currentCert }) {
                 <>
                   <CheckList checks={checks} />
                   <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-                    {["DNS 는 사내 해석기(이 서버가 쓰는 해석기) 기준입니다.", publicDns].filter(Boolean).join(" ")}
+                    {["DNS는 사내 해석기(이 서버가 쓰는 해석기) 기준입니다.", publicDns].filter(Boolean).join(" ")}
                   </Typography>
                 </>
               )}
               {hasFailure(checks) || preview.can_apply === false ? (
-                <Callout tone="danger" compact>실패한 확인이 있어 적용할 수 없습니다. 그 항목을 고친 뒤 다시 확인하세요.</Callout>
+                <Callout tone="danger" compact>실패한 확인이 있어 적용할 수 없습니다. 그 항목을 수정한 뒤 다시 확인하세요.</Callout>
               ) : null}
               <Callout tone="info" title="적용하면 이렇게 바뀝니다">
                 <Box component="ul" data-testid="domain-impact" sx={{ m: 0, pl: 2.5, display: "grid", gap: 0.5 }}>
@@ -372,7 +372,7 @@ export function DomainChangeDialog({ open, onClose, domain, currentCert }) {
                   </Typography>
                 </Callout>
               ) : (
-                <Callout tone="danger" title="서비스 주소를 바꾸지 못했습니다">
+                <Callout tone="danger" title="서비스 주소를 바꾸지 못했습니다.">
                   {`${result.detail || "적용하지 못했습니다."}${result.rolled_back ? " 바꾸기 전 설정으로 되돌렸습니다." : ""}`}
                 </Callout>
               )}

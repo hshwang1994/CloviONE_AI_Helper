@@ -147,7 +147,7 @@ function MilestoneTimeline({ projectId, query, canWrite }) {
         <Card>
           <EmptyState
             art="tickets"
-            title="마일스톤이 없습니다"
+            title="등록된 마일스톤이 없습니다."
             help="마일스톤이 하나도 없으면 일정 준수 여부를 판정할 수 없어 건강도에서도 그 항목이 빠집니다."
             action={addButton}
           />
@@ -320,8 +320,8 @@ function Overview({
           : (
             <DateHistogram
               days={(trendQuery.data || {}).days}
-              question="언제 일이 몰렸나요?"
-              emptyLabel="이 기간에 만든 티켓이 없습니다"
+              question="티켓이 언제 몰렸는지 봅니다."
+              emptyLabel="이 기간에 추가된 티켓이 없습니다."
             />
           )}
       </Card>
@@ -467,7 +467,8 @@ export function Project() {
 
   async function handleArchive() {
     if (!(await confirm(
-      "\"" + (project.name || "이 프로젝트") + "\"를 보관할까요? 되돌리는 기능은 없습니다.",
+      /* 조사를 이름에 붙이지 않는다 — 받침에 따라 「을 · 를」이 갈린다. 이름이 없으면 「이 프로젝트를」이다. */
+      (project.name ? `"${project.name}" 프로젝트를` : "이 프로젝트를") + " 보관할까요? 되돌릴 수 없습니다.",
       { danger: true, confirmLabel: "프로젝트 보관" }
     ))) return;
     await archive.mutateAsync(project.id);

@@ -34,7 +34,7 @@ import { FONT_SIZE } from "../../ui/theme.js";
  * 채팅방 참여자 명단(`ChatRoomMembers.jsx::MemberRoster`)도 같은 칸을 쓴다. 그 명단의 줄에는 이메일이 없고
  * 부서가 보이므로, 칸 안내 글자만 자리마다 `placeholder` 로 받는다. 대조 규칙(`filterPeople`)은 한 벌 그대로다.
  */
-export function PeopleFilter({ value, onChange, count, total, placeholder = "이름, 이메일로 좁히기" }) {
+export function PeopleFilter({ value, onChange, count, total, placeholder = "이름, 이메일 검색" }) {
   const id = React.useId();
   return (
     <Box sx={{ mb: 1 }}>
@@ -46,7 +46,7 @@ export function PeopleFilter({ value, onChange, count, total, placeholder = "이
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        inputProps={{ "aria-label": "사람 좁히기" }}
+        inputProps={{ "aria-label": "사람 검색" }}
       />
       {/* 조건과 결과의 관계를 말한다(C2 «결과 줄»). 조건이 없으면 아무 말도 하지 않는다 —
           「전체 12명 / 12명」은 정보가 아니라 소음이다. */}

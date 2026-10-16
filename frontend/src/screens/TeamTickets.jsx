@@ -121,7 +121,7 @@ export function TeamTickets() {
           사용자에게 자기가 못 쓰는 기능이 있다고 말하는 셈이다. */}
       <PageHeader
         crumbRoot="팀 업무" area="팀 티켓" title="팀 티켓"
-        description="팀 전체 티켓을 담당자별로 묶어서 봅니다. 보이는 티켓은 담당자가 아니어도 고칠 수 있고, 고친 내용은 이력에 남습니다."
+        description="팀 전체 티켓을 담당자별로 묶어서 봅니다. 보이는 티켓은 담당자가 아니어도 수정할 수 있고, 수정한 내용은 이력에 남습니다."
       />
       {q.isLoading ? <Card><Skeleton lines={6} /></Card>
         : q.isError ? <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
@@ -156,9 +156,9 @@ export function TeamTickets() {
                   <TicketEmptyState
                     filtered={hasTicketFilter(filters, TEAM_FIELDS) || !!filters.dept}
                     onClear={() => setFilters({ ...clearTicketFilters(TEAM_FIELDS), dept: "", ...TICKET_LIST_EXTRA, active: true })}
-                    title="팀 티켓이 없습니다"
+                    title="팀 티켓이 없습니다."
                     help={filters.active
-                      ? "지금 진행 중인 팀 티켓이 없습니다. ‘완료, 취소 포함’을 켜면 끝난 티켓까지 봅니다."
+                      ? "미완료 팀 티켓이 없습니다. ‘완료, 취소 포함’을 누르면 끝난 티켓까지 봅니다."
                       : "이 팀에 티켓이 없습니다."}
                   />
                 }

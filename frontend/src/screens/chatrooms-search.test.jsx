@@ -11,7 +11,9 @@ import "@testing-library/jest-dom/vitest";
  * 왜 이 테스트가 필요한가: 목록 행은 서버가 준 `title` 로 그린다(app/team_chat/router.py 의
  * `_room_title`). 그런데 거르는 쪽이 다른 이름을 보고 있으면, 화면에는 이름이 멀쩡히 보이는데
  * 한 글자만 쳐도 목록이 통째로 비는 상태가 된다 — 사용자에게는 "채팅방이 깨졌다" 로 보인다.
- * 보이는 글자와 거르는 글자가 같은 값이어야 한다는 것을 여기서 못박는다. */
+ * 보이는 글자와 거르는 글자가 같은 값이어야 한다는 것을 여기서 못박는다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 const apiMock = vi.fn();
 vi.mock("../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
@@ -65,7 +67,7 @@ describe("채팅방 검색", () => {
     expect(await screen.findByText("인프라 팀")).toBeInTheDocument();
     expect(screen.getByText("디자인 회의")).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("채팅방 이름으로 거르기"), "인프라");
+    await user.type(screen.getByLabelText("채팅방 이름 검색"), "인프라");
 
     await waitFor(() => expect(screen.queryByText("디자인 회의")).not.toBeInTheDocument());
     expect(screen.getByText("인프라 팀")).toBeInTheDocument();
@@ -77,7 +79,7 @@ describe("채팅방 검색", () => {
     const user = userEvent.setup();
     mount();
     expect(await screen.findByText("인프라 팀")).toBeInTheDocument();
-    const box = screen.getByLabelText("채팅방 이름으로 거르기");
+    const box = screen.getByLabelText("채팅방 이름 검색");
 
     for (const typed of ["인프라팀", " 인프라   팀 "]) {
       await user.clear(box);
@@ -92,7 +94,7 @@ describe("채팅방 검색", () => {
     const user = userEvent.setup();
     mount();
     expect(await screen.findByText("ClovirONE 운영")).toBeInTheDocument();
-    const box = screen.getByLabelText("채팅방 이름으로 거르기");
+    const box = screen.getByLabelText("채팅방 이름 검색");
 
     for (const typed of ["clovirone", "CLOVIRONE", "ＣｌｏｖｉｒＯＮＥ", "clovir one 운영"]) {
       await user.clear(box);
@@ -106,11 +108,11 @@ describe("채팅방 검색", () => {
     const user = userEvent.setup();
     mount();
     expect(await screen.findByText("인프라 팀")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("채팅방 이름으로 거르기"), "   ");
+    await user.type(screen.getByLabelText("채팅방 이름 검색"), "   ");
     expect(screen.getByText("인프라 팀")).toBeInTheDocument();
     expect(screen.getByText("디자인 회의")).toBeInTheDocument();
     expect(screen.getByText("ClovirONE 운영")).toBeInTheDocument();
-    expect(screen.queryByText("검색과 맞는 채팅방이 없습니다")).not.toBeInTheDocument();
+    expect(screen.queryByText("검색 조건에 맞는 채팅방이 없습니다.")).not.toBeInTheDocument();
   });
 });
 

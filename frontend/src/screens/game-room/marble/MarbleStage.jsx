@@ -27,7 +27,7 @@ import { spawnPosition } from "./engine/layout.js";
  * - 종료: 서버가 확정한 결과는 결과 대화 상자(`ResultDialog`)가 발표하고, 판은 결승선 아래 마지막 장면(당첨 구슬 고리)으로 남는다.
  * 전체 화면은 방 루트의 일이다(`useFullscreen`) — 여기서는 판 틀의 크기가 바뀌면 캔버스만 다시 잰다. 워커 · 경주는 그대로다. */
 
-const VIEW_OPTIONS = [{ value: "follow", label: "따라가기" }, { value: "full", label: "전체 보기" }];
+const VIEW_OPTIONS = [{ value: "follow", label: "따라가기" }, { value: "full", label: "전체 맵 보기" }];
 const raf = typeof requestAnimationFrame === "function" ? (fn) => requestAnimationFrame(fn) : (fn) => setTimeout(() => fn(Date.now()), 16);
 const caf = typeof cancelAnimationFrame === "function" ? (h) => cancelAnimationFrame(h) : (h) => clearTimeout(h);
 const now = () => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());

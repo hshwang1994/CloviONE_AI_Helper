@@ -15,6 +15,8 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
  *  2) 「오늘 논의할 항목」이 유형별이고, 프로젝트 필터는 그 목록만 좁힌다.
  *  3) 회의록이 저장되고, 적다 만 글이 회차별로 남는다.
  *  4) 티켓을 확인하는 일이 회의를 떠나지 않는다(미리보기).
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -444,7 +446,7 @@ describe("스프린트 회의 — 견고성", () => {
     await userEvent.click(await screen.findByRole("option", { name: "B팀" }));
     await waitFor(() => expect(screen.getByTestId("here").textContent).toContain("team=d-b"));
     expect(screen.getByTestId("here").textContent).not.toContain("sprint=sp-now");
-    expect(await screen.findByText("아직 만든 회차가 없습니다.")).toBeTruthy();
+    expect(await screen.findByText("등록된 회차가 없습니다.")).toBeTruthy();
     // B 팀은 편성할 수 없다 — 「회차 추가」가 서지 않는다.
     expect(screen.queryByRole("button", { name: "회차 추가" })).toBeNull();
   });

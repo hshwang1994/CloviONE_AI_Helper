@@ -56,7 +56,7 @@ export function Composer({
                 <Box component="img" src={"data:" + (a.media_type || "image/png") + ";base64," + a.data} alt=""
                   sx={{ width: "1.75rem", height: "1.75rem", objectFit: "cover", borderRadius: "50%", flexShrink: 0 }} />
                 <Typography sx={{ fontSize: FONT_SIZE.caption, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.filename}</Typography>
-                <IconButton size="small" aria-label={"첨부 제거: " + a.filename}
+                <IconButton size="small" aria-label={"첨부 삭제: " + a.filename}
                   onClick={() => setPending((p) => p.filter((_, j) => j !== i))}
                   sx={{ flexShrink: 0 }}>
                   <CloseRoundedIcon sx={{ fontSize: "0.9375rem" }} />

@@ -29,7 +29,7 @@ const TOOL_LABELS = {
   my_work: "내 티켓",
   search_tickets: "티켓",
   search_projects: "프로젝트",
-  my_approvals: "결재",
+  my_approvals: "승인 요청",
   my_notifications: "알림",
   my_activity: "내 최근 활동",
 };
@@ -166,8 +166,8 @@ function ResultList({ block, messageId, compact, hideAuthor }) {
   const start = block.offset || 0;
   const end = Math.max(pages.next || 0, start + shown);
   const count = total == null ? `${shown}건`
-    : start > 0 ? `${total}건 중 ${start + 1}~${end}번째`
-    : total > shown ? `${total}건 중 ${shown}건` : `${total}건`;
+    : start > 0 ? `전체 ${total}건 중 ${start + 1}~${end}번째`
+    : total > shown ? `전체 ${total}건 중 ${shown}건 표시` : `전체 ${total}건`;
   const remaining = total == null ? null : Math.max(0, total - end);
   // 한 쪽의 크기는 도구마다 다르다(문서 검색 8 · 나머지 10) — 처음 받은 쪽의 크기를 쓴다.
   const pageSize = block.returned || 10;
@@ -202,7 +202,7 @@ function ResultList({ block, messageId, compact, hideAuthor }) {
           ))}
         </Box>
       ) : (
-        <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>조건에 맞는 항목이 없습니다.</Typography>
+        <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>검색 조건에 맞는 항목이 없습니다.</Typography>
       )}
       {pages.error ? <Callout tone="danger" compact>{pages.error}</Callout> : null}
       {(pages.truncated || (remaining && remaining > 0)) && messageId ? (

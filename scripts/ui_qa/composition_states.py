@@ -155,7 +155,7 @@ def _pick_combobox(page, label: str, skip_all: bool = True) -> None:
 
 def st_my_tickets_default(page, base, settle):
     _goto(page, base, "/my-tickets", settle)
-    return "기본 조건(종료 제외)"
+    return "기본 조건(종료된 티켓 제외)"
 
 
 def st_my_tickets_multi(page, base, settle):

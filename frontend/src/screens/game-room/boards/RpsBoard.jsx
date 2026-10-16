@@ -73,7 +73,7 @@ export function RpsBoard({ c }) {
   }
   return (
     <BoardFrame.Centered data-rps-board="playing">
-      <Typography component="p" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.title, textAlign: "center", ...KO_WORD_BREAK }}>가위, 바위, 보 중 하나를 몰래 내세요</Typography>
+      <Typography component="p" sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.title, textAlign: "center", ...KO_WORD_BREAK }}>가위, 바위, 보 중 하나를 몰래 내세요.</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", ...KO_WORD_BREAK }}>
         방장이 공개하면 판정합니다. 지금 {gstate.submitted_count || 0}명이 냈습니다.
       </Typography>

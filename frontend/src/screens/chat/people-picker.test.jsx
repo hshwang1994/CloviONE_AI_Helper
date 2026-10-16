@@ -12,6 +12,8 @@ import { PeopleFilter, filterPeople } from "./peoplePicker.jsx";
  * 훑을 수 있지만 삼백 명이면 이름을 알면서도 눈으로 찾아야 한다 — `EntityCombobox` 를 만든
  * 것과 정확히 같은 이유다. 여기서 Combobox 를 쓰지 않는 이유는 **여러 명**을 고르는 자리라
  * 고른 사람이 목록에 체크로 남아야 하기 때문이다. 문제는 같고 답의 모양만 다르다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const PEOPLE = [
@@ -98,18 +100,18 @@ describe("PeopleFilter — 조건과 결과의 관계를 말한다", () => {
 
   it("칸 안내 글자는 자리마다 받는다 — 기본은 「이름, 이메일로 좁히기」이고 대조 규칙은 한 벌이다", () => {
     const { unmount } = render(<PeopleFilter value="" onChange={() => {}} count={3} total={3} />);
-    expect(screen.getByRole("searchbox", { name: "사람 좁히기" })).toHaveAttribute("placeholder", "이름, 이메일로 좁히기");
+    expect(screen.getByRole("searchbox", { name: "사람 검색" })).toHaveAttribute("placeholder", "이름, 이메일 검색");
     unmount();
     // 채팅방 참여자 명단은 줄에 이메일이 없고 부서가 보인다(`ChatRoomMembers.jsx::MemberRoster`).
-    render(<PeopleFilter value="" onChange={() => {}} count={9} total={9} placeholder="이름, 부서로 좁히기" />);
-    expect(screen.getByRole("searchbox", { name: "사람 좁히기" })).toHaveAttribute("placeholder", "이름, 부서로 좁히기");
+    render(<PeopleFilter value="" onChange={() => {}} count={9} total={9} placeholder="이름, 부서 검색" />);
+    expect(screen.getByRole("searchbox", { name: "사람 검색" })).toHaveAttribute("placeholder", "이름, 부서 검색");
   });
 
   it("검색 상자에는 이름이 있다 — 스크린리더가 부를 수 있어야 한다", async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
     render(<PeopleFilter value="" onChange={onChange} count={3} total={3} />);
-    const box = screen.getByRole("searchbox", { name: "사람 좁히기" });
+    const box = screen.getByRole("searchbox", { name: "사람 검색" });
     await user.type(box, "김");
     expect(onChange).toHaveBeenCalledWith("김");
   });

@@ -11,7 +11,9 @@ import "@testing-library/jest-dom/vitest";
  *   - 머리는 무엇의 목록인지와 「전체 N건 중 보인 M건」이다. 내 문서는 줄마다 작성자를 되풀이하지 않는다.
  *   - 「N건 더 보기」는 모델을 부르지 않고 다음 쪽을 덧붙인다(남은 수만큼). 실패는 그 자리의 문장이고 줄은 남는다.
  *   - 정렬을 바꾸면 처음부터 다시 받는다. 「전체 목록 열기」는 허용한 화면 경로일 때만 선다.
- *   - 줄의 링크는 앱 안 출처 경로일 때만이다. */
+ *   - 줄의 링크는 앱 안 출처 경로일 때만이다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 const apiMock = vi.fn();
 vi.mock("../../../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
@@ -45,9 +47,9 @@ beforeEach(() => {
 });
 
 describe("결과 목록", () => {
-  it("머리는 「내 문서 · 25건 중 10건」이고, 내 문서는 줄마다 작성자를 되풀이하지 않는다", () => {
+  it("머리는 「내 문서 · 전체 25건 중 10건 표시」이고, 내 문서는 줄마다 작성자를 되풀이하지 않는다", () => {
     renderBlock(MINE);
-    expect(screen.getByRole("region", { name: "내 문서 25건 중 10건" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "내 문서 전체 25건 중 10건 표시" })).toBeInTheDocument();
     expect(rows()).toHaveLength(10);
     expect(screen.getByRole("link", { name: "문서 0" })).toHaveAttribute("href", "#/knowledge/d0");
     expect(document.querySelector("[data-result-block]").textContent).not.toContain("황형섭");
@@ -70,16 +72,16 @@ describe("결과 목록", () => {
     await user.click(screen.getByRole("button", { name: "10건 더 보기" }));
     await waitFor(() => expect(rows()).toHaveLength(20));
     expect(apiMock.mock.calls[0][0]).toBe("/api/messages/m1/results/r1?offset=10&sort=recent");
-    expect(screen.getByRole("region", { name: "내 문서 25건 중 20건" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "내 문서 전체 25건 중 20건 표시" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "5건 더 보기" }));
     await waitFor(() => expect(rows()).toHaveLength(25));
     expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
-    expect(screen.getByRole("region", { name: "내 문서 25건" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "내 문서 전체 25건" })).toBeInTheDocument();
   });
 
   it("이어 묻기의 블록(11번째부터)은 몇 번째인지 말하고 남은 수를 그 끝에서 센다", () => {
     renderBlock({ ...MINE, offset: 10, items: Array.from({ length: 10 }, (_, i) => doc(i + 10)) });
-    expect(screen.getByRole("region", { name: "내 문서 25건 중 11~20번째" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "내 문서 전체 25건 중 11~20번째" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "5건 더 보기" })).toBeInTheDocument();
   });
 
@@ -120,7 +122,7 @@ describe("결과 목록", () => {
     renderBlock({ id: "r2", tool: "my_work", kind: "ticket", shown: true, total: 1, offset: 0, returned: 1,
       items: [{ ref: "t1", key: "ZCYMPW-542", title: "스토리지 증설 검토", status: "진행", assignees: ["황형섭"], due: "2026-10-20", route: "/tickets/t1" }] });
     const block = document.querySelector("[data-result-block]");
-    expect(screen.getByRole("region", { name: "내 티켓 1건" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "내 티켓 전체 1건" })).toBeInTheDocument();
     expect(block.textContent).toContain("ZCYMPW-542");
     expect(block.textContent).toContain("담당 황형섭");
     expect(block.textContent).toContain("마감 2026-10-20");
@@ -129,7 +131,7 @@ describe("결과 목록", () => {
 
   it("항목이 없으면 그 사실을 말한다", () => {
     renderBlock({ ...MINE, items: [], total: 0, returned: 0 });
-    expect(screen.getByText("조건에 맞는 항목이 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("검색 조건에 맞는 항목이 없습니다.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /더 보기/ })).toBeNull();
   });
 });

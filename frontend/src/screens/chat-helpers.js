@@ -111,7 +111,7 @@ export function pollDelayMs(fails) {
 export const QUICK_PROMPTS = [
   "오늘 내가 할 일을 정리해 줘",
   "내가 담당하는 미완료 티켓을 알려 줘",
-  "내가 결재할 건이 있는지 알려 줘",
+  "내가 처리할 승인 요청이 있는지 알려 줘",
   "내 프로젝트 진행 상황을 알려 줘",
   "휴가 신청 방법을 사내 문서에서 찾아 줘",
   "내가 작성한 문서가 몇 개야?",
@@ -558,8 +558,8 @@ export function toolCountLabel(tool) {
   const total = tool && typeof tool.total === "number" && Number.isFinite(tool.total) ? tool.total : null;
   if (total == null) return null;
   const count = typeof tool.count === "number" && Number.isFinite(tool.count) ? tool.count : 0;
-  if (total > count) return `${total}건 중 ${count}건`;
-  if (total === count && total > 0) return `${total}건`;
+  if (total > count) return `전체 ${total}건 중 ${count}건`;
+  if (total === count && total > 0) return `전체 ${total}건`;
   return null;
 }
 
@@ -642,7 +642,7 @@ export const MASCOT_PHASE_TEXT = {
   responding: "답변이 도착했습니다.",
   success: "요청한 결과를 찾았습니다.",
   listening: "무엇이든 물어보세요.",
-  idle: "대화를 시작해 보세요.",
+  idle: "질문을 입력해 대화를 시작하세요.",
 };
 
 /** 머리 클로비 옆 한 줄. 쓸 수 없으면 그 사실을, 대화가 오간 뒤 쉬는 때는 「이어서 물어보세요.」를, 나머지는 단계 문구를 말한다 —

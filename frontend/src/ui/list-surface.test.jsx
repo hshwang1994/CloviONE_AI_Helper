@@ -18,7 +18,9 @@ import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
  *   3. 무한 스크롤 센티널은 **표 끝 흐름**이다 — sticky 발 안에 두면 늘 보이는 자리라 자동 로딩이 멈추지 않는다.
  *   4. 불러오는 중 · 빈 목록은 판 안(여백 20)이다. card 는 판 여백을 거슬러 가장자리까지, plain 은 판을 안 그린다.
  * 실제 기하(머리가 판 윗변에 붙는가 · 발 높이 44 · sticky 발이 행 초점을 가리는가)는 실브라우저
- * `composition_checks.py::list_surface` 와 keyboard 하네스가 잰다. */
+ * `composition_checks.py::list_surface` 와 keyboard 하네스가 잰다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 function ui(node) {
   return render(<ThemeModeProvider>{node}</ThemeModeProvider>);
@@ -184,7 +186,7 @@ describe("발 — 선택 묶음", () => {
     expect(toolbar.hasAttribute("data-list-selection")).toBe(true);
     expect(toolbar).toHaveTextContent("2개 선택");
     expect(within(toolbar).getByRole("button", { name: "선택 삭제" })).toBeInTheDocument();
-    await userEvent.click(within(toolbar).getByRole("button", { name: "해제" }));
+    await userEvent.click(within(toolbar).getByRole("button", { name: "선택 해제" }));
     expect(onClear).toHaveBeenCalledTimes(1);
   });
 

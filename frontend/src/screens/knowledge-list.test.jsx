@@ -1,4 +1,6 @@
-/* qa-contract-change: UI 3차 조합 계약 C-1 — 사람이 고른 프로젝트도 조건이라 칩을 갖고(조건 수 = 칩 수), 목록 위 단독 「전체 N건」 줄을 걷었다. 결과 수 단언을 조건 줄로 옮기고 칩 목록 · 지우기가 프로젝트까지 푸는지 · 정렬 자리를 더한다. */
+/* qa-contract-change: UI 3차 조합 계약 C-1 — 사람이 고른 프로젝트도 조건이라 칩을 갖고(조건 수 = 칩 수), 목록 위 단독 「전체 N건」 줄을 걷었다. 결과 수 단언을 조건 줄로 옮기고 칩 목록 · 지우기가 프로젝트까지 푸는지 · 정렬 자리를 더한다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 /* qa-contract-replaced-by: frontend/src/screens/teamdocs-view.test.jsx
  * qa-contract-replaced-by: frontend/src/screens/doc-create-form.test.jsx
  *
@@ -531,7 +533,7 @@ describe("실패는 그 자리의 메시지 박스다 (핸드오프 RULES §1 ·
  * 옛 문서 화면에서 실제로 그랬다: 서버는 소유자 칸을 받는데 폼에 그 칸이 없어서, 포털에서
  * 만든 문서는 그 값을 채울 방법이 아예 없었고 상세 화면은 빈 줄을 보여 줬다.
  */
-describe("새 문서 만들기", () => {
+describe("새 문서 추가", () => {
   /** 필수 셋을 채운다 — 제목·분류·태그. 프로젝트는 선택이라 안 건드린다. */
   async function fillRequired(dialog, title) {
     await userEvent.type(within(dialog).getByLabelText(/문서 제목/), title);
@@ -549,7 +551,7 @@ describe("새 문서 만들기", () => {
     await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
     const dialog = await screen.findByRole("dialog");
     await fillRequired(dialog, "인수인계 메모");
-    await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "추가" }));
 
     await waitFor(() => {
       const post = apiMock.mock.calls.find(
@@ -580,7 +582,7 @@ describe("새 문서 만들기", () => {
     await userEvent.click(await screen.findByRole("option", { name: /알파 프로젝트/ }));
     // 폴더 칸은 아예 없다 — 폴더 축이 화면에서 걷혔다.
     expect(within(dialog).queryByLabelText(/폴더/)).toBeNull();
-    await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "추가" }));
 
     await waitFor(() => {
       const post = apiMock.mock.calls.find(
@@ -600,7 +602,7 @@ describe("새 문서 만들기", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
     const dialog = await screen.findByRole("dialog");
-    const submit = () => within(dialog).getByRole("button", { name: "만들기" });
+    const submit = () => within(dialog).getByRole("button", { name: "추가" });
 
     await userEvent.type(within(dialog).getByLabelText(/문서 제목/), "제목만 있는 문서");
     expect(submit().hasAttribute("disabled"), "분류와 태그가 비었는데 만들 수 있다").toBe(true);
@@ -620,7 +622,7 @@ describe("새 문서 만들기", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "새 문서" }));
     const dialog = await screen.findByRole("dialog");
-    const submit = within(dialog).getByRole("button", { name: "만들기" });
+    const submit = within(dialog).getByRole("button", { name: "추가" });
     expect(submit.hasAttribute("disabled")).toBe(true);
   });
 });
@@ -750,7 +752,7 @@ describe("분류 관리 — 태그 탭", () => {
     // MUI Autocomplete 의 옵션 목록은 Portal 로 document.body 에 붙는다 — dialog DOM
     // 서브트리 밖이라 within(dialog) 로는 못 찾는다.
     await userEvent.click(await screen.findByRole("option", { name: /^인프라/ }));
-    await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "추가" }));
 
     await waitFor(() => {
       const post = apiMock.mock.calls.find(
@@ -861,7 +863,7 @@ describe("새 문서의 분류", () => {
     /* qa-contract-change: 태그도 필수가 됐다. */
     await userEvent.click(within(dialog).getByLabelText(/^태그/));
     await userEvent.click(await screen.findByRole("option", { name: /^인프라/ }));
-    await userEvent.click(within(dialog).getByRole("button", { name: "만들기" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "추가" }));
 
     await waitFor(() => {
       const post = apiMock.mock.calls.find(

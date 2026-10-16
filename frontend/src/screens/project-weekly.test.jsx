@@ -13,6 +13,8 @@ import { MemoryRouter } from "react-router-dom";
  *  3. 저장본이 AI 요약(source:"llm")이면 그 문장을 보여주고, 규칙 요약이면 규칙 문장을 보여준다.
  *
  * 만 확인한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -96,7 +98,7 @@ describe("AI 요약 생성 버튼", () => {
     }));
     expect(screen.getByText("AI가 다듬은 문장입니다.")).toBeInTheDocument();
     expect(screen.queryByText("규칙이 계산한 이번 주 요약입니다.")).not.toBeInTheDocument();
-    expect(screen.getByText(/AI 가 쓴 요약입니다/)).toBeInTheDocument();
+    expect(screen.getByText(/AI가 쓴 요약입니다/)).toBeInTheDocument();
   });
 
   it("저장본이 규칙 요약이면(또는 없으면) 지금 계산한 규칙 문장을 보여준다", () => {

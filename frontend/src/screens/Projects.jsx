@@ -66,7 +66,7 @@ const PROJECT_SPEC = {
  * 이 목록을 쓰는 자리가 셋이다: 조건이 걸렸는지 판정하는 곳(빈 화면의 갈래), 결과 줄이
  * 세는 곳, 그리고 「필터 초기화」가 지우는 곳. 셋이 각자 적으면 갈라진다 — 실제로
  * 갈라져 있었다: 앞의 둘은 여섯 축을 다 셌는데 지우는 쪽은 `archived` 와 `dept` 만 되돌려
- * 놓았다. 그래서 검색어로 0건이 된 화면에서 「필터 지우기」를 눌러도 **주소가 한 글자도
+ * 놓았다. 그래서 검색어로 0건이 된 화면에서 「필터 초기화」를 눌러도 **주소가 한 글자도
  * 안 바뀌었고**, 같은 빈 화면이 같은 버튼을 달고 그대로 남았다. 바로 그 화면의 안내가
  * 「조건(검색어, 부서, 상태)을 지우면 전체를 볼 수 있습니다」라고 적혀 있었다.
  *
@@ -145,7 +145,7 @@ export function overdueSentence(overdue, today) {
     .map((m) => ({ ...m, late: daysBetween(m.due_on, today) }))
     .filter((m) => typeof m.late === "number")
     .sort((a, b) => b.late - a.late)[0];
-  if (!worst) return "마일스톤 " + count + "건이 예정일을 넘겼습니다.";
+  if (!worst) return "마일스톤 " + count + "건이 기한을 넘겼습니다.";
   // 가운뎃점을 안 쓴다(`scripts/check_user_text.py`) — 프로젝트 이름과 마일스톤 이름 사이는 여백이다.
   const name = worst.project_name ? worst.project_name + " " + worst.name : worst.name;
   return "가장 오래 밀린 것은 " + worst.late + "일 지난 「" + name + "」입니다.";
@@ -195,7 +195,7 @@ function Summary({ query, filters, onFilter }) {
         onSelect={(key) => onFilter({ status: filters.status === key ? "" : key, trouble: false, overdue: false })}
         risks={[
           { key: "trouble", label: "건강도 낮음", value: trouble.count || 0, kind: "danger", ariaLabel: "건강도가 낮은 프로젝트만 보기" },
-          { key: "overdue", label: "지연 마일스톤", value: overdue.count || 0, kind: "warn", ariaLabel: "지연 마일스톤이 있는 프로젝트만 보기" },
+          { key: "overdue", label: "지연된 마일스톤", value: overdue.count || 0, kind: "warn", ariaLabel: "지연된 마일스톤이 있는 프로젝트만 보기" },
         ]}
         /* 빈 글자는 「아무것도 안 골랐다」다 — 위험 칩이 늘 `aria-pressed` 를 들게 한다(누르면 켜지고 다시 누르면 꺼지는 단추). */
         riskValue={filters.trouble ? "trouble" : (filters.overdue ? "overdue" : "")}
@@ -206,7 +206,7 @@ function Summary({ query, filters, onFilter }) {
         notes={[
           { key: "progress", label: "평균 진행률", text: progressSummarySentence(progress) },
           { key: "health", label: "건강도", text: healthNote },
-          { key: "overdue", label: "지연 마일스톤", text: overdueSentence(overdue, d.today) },
+          { key: "overdue", label: "지연된 마일스톤", text: overdueSentence(overdue, d.today) },
         ]}
       />
     </Box>
@@ -301,9 +301,9 @@ export function progressSummarySentence(progress) {
   const pending = progress.pending != null ? progress.pending : (progress.not_counted || 0);
   const noTasks = progress.no_tasks || 0;
   if (!counted && !pending && !noTasks) return "아직 셀 프로젝트가 없습니다.";
-  let text = counted ? "프로젝트 " + counted + "건의 평균입니다." : "평균을 낼 프로젝트가 아직 없습니다.";
-  if (pending) text += " " + pending + "건은 아직 계산하지 않았습니다.";
-  if (noTasks) text += " " + noTasks + "건은 셀 작업이 없습니다.";
+  let text = counted ? "프로젝트 " + counted + "개의 평균입니다." : "평균을 낼 프로젝트가 아직 없습니다.";
+  if (pending) text += " " + pending + "개는 아직 계산하지 않았습니다.";
+  if (noTasks) text += " " + noTasks + "개는 셀 작업이 없습니다.";
   return text;
 }
 
@@ -311,10 +311,10 @@ export function progressSummarySentence(progress) {
 export function healthSummarySentence(health, scored) {
   const pending = health.pending != null ? health.pending : (health.unscored || 0);
   const unknown = health.unknown || 0;
-  if (!pending && !unknown) return "프로젝트 " + (scored || 0) + "건을 모두 쟀습니다.";
-  let text = "프로젝트 " + (scored || 0) + "건을 쟀습니다.";
-  if (pending) text += " " + pending + "건은 아직 계산하지 않았습니다.";
-  if (unknown) text += " " + unknown + "건은 판정할 규칙이 없습니다.";
+  if (!pending && !unknown) return "프로젝트 " + (scored || 0) + "개를 모두 쟀습니다.";
+  let text = "프로젝트 " + (scored || 0) + "개를 쟀습니다.";
+  if (pending) text += " " + pending + "개는 아직 계산하지 않았습니다.";
+  if (unknown) text += " " + unknown + "개는 판정할 규칙이 없습니다.";
   return text;
 }
 
@@ -384,7 +384,7 @@ export function Projects() {
     filters.dept ? { key: "dept", label: `부서: ${names[filters.dept] || unmatchedLabel(filters.dept, !q.first)}`, onDelete: () => setFilters({ dept: "" }) } : null,
     filters.status ? { key: "status", label: `상태: ${PROJECT_STATUS_KO[filters.status] || filters.status}`, onDelete: () => setFilters({ status: "" }) } : null,
     filters.trouble ? { key: "trouble", label: "건강도 낮음", onDelete: () => setFilters({ trouble: false }) } : null,
-    filters.overdue ? { key: "overdue", label: "지연 마일스톤", onDelete: () => setFilters({ overdue: false }) } : null,
+    filters.overdue ? { key: "overdue", label: "지연된 마일스톤", onDelete: () => setFilters({ overdue: false }) } : null,
     /* 칩 낱말은 켬/끔 단추 낱말과 다르게 「이름: 값」이다 — 같은 이름의 누를 것이 둘이면 낭독기가 가르지 못한다. */
     filters.archived ? { key: "archived", label: "보관한 프로젝트: 포함", onDelete: () => setFilters({ archived: false }) } : null,
   ].filter(Boolean);
@@ -392,7 +392,7 @@ export function Projects() {
   async function submitCreate(body) {
     const created = await create.mutateAsync(body);
     setCreating(false);
-    toast("프로젝트를 만들었습니다.", "success");
+    toast("프로젝트를 추가했습니다.", "success");
     // 방금 만든 것을 바로 열어 준다. 목록으로 돌려보내면 사용자가 22건 중에서 자기가 방금
     // 만든 것을 다시 찾아야 한다.
     const made = created && created.project;
@@ -478,14 +478,14 @@ export function Projects() {
               <ListEmptyState
                 filtered={hasProjectFilter}
                 onClear={clearProjectFilters}
-                filteredTitle="조건에 맞는 프로젝트가 없습니다"
-                filteredHelp="지금 걸린 조건(검색어, 부서, 상태)에 맞는 프로젝트가 없습니다. 조건을 지우면 전체를 볼 수 있습니다."
+                filteredTitle="검색 조건에 맞는 프로젝트가 없습니다."
+                filteredHelp="검색어나 다른 조건을 바꾸거나 '필터 초기화'를 누르세요."
                 art="tickets"
-                title="프로젝트가 없습니다"
-                situation={filters.archived ? undefined : "지금 진행 중인 프로젝트가 없거나, 있는 프로젝트가 전부 보관돼 있습니다."}
+                title="프로젝트가 없습니다."
+                situation={filters.archived ? undefined : "아직 프로젝트가 없거나, 있는 프로젝트가 모두 보관돼 있습니다."}
                 help={filters.archived
                   ? "보관한 것까지 포함해도 볼 수 있는 프로젝트가 없습니다."
-                  : "보관한 프로젝트까지 보려면 위의 스위치를 켜세요."}
+                  : "보관한 프로젝트까지 보려면 위의 '보관한 프로젝트 포함'을 누르세요."}
               />
             )}
             sort={{ key: filters.sort, dir: filters.order }}

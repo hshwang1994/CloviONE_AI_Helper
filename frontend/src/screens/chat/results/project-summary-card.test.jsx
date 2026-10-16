@@ -8,7 +8,9 @@ import { ResultBlock } from "./ResultList.jsx";
 import { ThemeModeProvider } from "../../../ui/ThemeModeProvider.jsx";
 
 /* 프로젝트 현황 카드(AI 채팅 개선 회차) — 서버가 센 값 그대로다(모델이 옮겨 적은 수가 아니다). 진행률 · 건강도 · 열린 티켓 ·
- * 마감 지남 · 막힘 · 상태별 수 · 최근 끝낸 일 셋을 보이고, 앱 안 경로일 때만 「프로젝트 열기」가 선다. */
+ * 마감 지남 · 막힘 · 상태별 수 · 최근 끝낸 일 셋을 보이고, 앱 안 경로일 때만 「프로젝트 열기」가 선다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 const PROJECT = {
   name: "SK하이닉스 클라우드 전환", code: "SFVHJG", status: "진행", route: "/projects/p1",
@@ -36,7 +38,7 @@ describe("프로젝트 현황 카드", () => {
     expect(card.textContent).toContain("(24/29)");
     expect(card.textContent).toContain("상태별 티켓 계획 2, 진행 3, 완료 24");
     expect(card.textContent).toContain("건강도 근거: 마감 지난 티켓 2건");
-    for (const [label, value] of [["건강도", "71"], ["열린 티켓", "5"], ["마감 지남", "2"], ["막힘", "1"]]) {
+    for (const [label, value] of [["건강도", "71"], ["미완료 티켓", "5"], ["지연", "2"], ["막힘", "1"]]) {
       const name = screen.getByText(label);
       expect(name.nextSibling).toHaveTextContent(value);
     }
@@ -44,7 +46,7 @@ describe("프로젝트 현황 카드", () => {
 
   it("최근 끝낸 일은 셋까지이고 전체 수를 함께 말한다", () => {
     renderCard(PROJECT);
-    expect(screen.getByText("최근 끝낸 일 (7건 중 3건)")).toBeInTheDocument();
+    expect(screen.getByText("최근 끝낸 일 (전체 7건 중 3건)")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "스토리지 이관 점검" })).toHaveAttribute("href", "#/tickets/t31");
     expect(screen.queryByText("넷째 항목은 보이지 않는다")).toBeNull();
   });
@@ -55,7 +57,7 @@ describe("프로젝트 현황 카드", () => {
       { ref: "d2", title: "포털 연동 가이드", route: "/knowledge/d2", updated_at: "2026-09-01T00:00:00" },
       { ref: "d3", title: "바깥 주소", route: "https://evil.example/d3" },
     ] } });
-    expect(screen.getByText("연결 문서 (8건 중 3건)")).toBeInTheDocument();
+    expect(screen.getByText("연결 문서 (전체 8건 중 3건)")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "하이닉스" })).toHaveAttribute("href", "#/knowledge/d1");
     expect(screen.queryByRole("link", { name: "바깥 주소" })).toBeNull();
     expect(screen.getByText("바깥 주소")).toBeInTheDocument();
@@ -73,7 +75,7 @@ describe("프로젝트 현황 카드", () => {
     renderCard({ name: "인프라 정비", code: "QRDNXF", status: "진행", progress: { percent: 25, done_tasks: 2, counted_tasks: 8 },
       health: { score: 33 }, starts_on: "2026-06-01", ends_on: "2026-12-31" });
     expect(screen.getByText("건강도").nextSibling).toHaveTextContent("33");
-    expect(screen.queryByText("열린 티켓")).toBeNull();
+    expect(screen.queryByText("미완료 티켓")).toBeNull();
     expect(screen.queryByText("막힘")).toBeNull();
     expect(screen.getByText("기간 2026-06-01 ~ 2026-12-31")).toBeInTheDocument();
     // 진행률 머리는 한 번이다(막대가 제 머리를 따로 그리지 않는다).

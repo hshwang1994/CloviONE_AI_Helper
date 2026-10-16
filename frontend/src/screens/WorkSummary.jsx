@@ -65,7 +65,7 @@ import { FONT_WEIGHT, KO_WORD_BREAK, MOTION } from "../ui/theme.js";
  * **같은 화면에서 같은 문장을 두 번 말하지 않는다.** 바로 위 스프린트 도넛이 이미 "티켓
  * 소스를 읽지 못해 …" 를 말하는 자리다. 원인은 그쪽이 말하고, 여기서는 **이 묶음에만
  * 해당하는 사실**만 말한다. AssistantPanel 이 같은 이유로 짧게 참조만 한다. */
-export const WORK_UNKNOWN = "같은 이유로 최근 완료 추이도 셀 수 없습니다. 프로젝트와 마일스톤은 다른 소스라 정상 집계됩니다.";
+export const WORK_UNKNOWN = "같은 이유로 최근 완료 추이도 셀 수 없습니다. 프로젝트와 마일스톤은 따로 읽으므로 정상 집계됩니다.";
 
 // 완료 추이의 기준. 소스에 '상태가 완료로 바뀐 시각'이 없다(app/projects/weekly.py 와
 // app/sprints/burndown.py 가 같은 사정을 적어 뒀다). 없는 이력을 추정해 선을 그으면 그건
@@ -175,12 +175,12 @@ export function WorkSection() {
             <TechDetail label="이 수에 안 들어간 프로젝트가 있습니다">
               {projects.unscored ? (
                 <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-                  건강도 점수가 없는 프로젝트 {fmtNum(projects.unscored)}건은 이 판정에 들어가지 않았습니다.
+                  건강도 점수가 없는 프로젝트 {fmtNum(projects.unscored)}개는 이 판정에 들어가지 않았습니다.
                 </Typography>
               ) : null}
               {projects.low_confidence ? (
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, ...KO_WORD_BREAK }}>
-                  일부 항목만으로 계산한 프로젝트 {fmtNum(projects.low_confidence)}건이 있어 그만큼은 덜 정확합니다.
+                  일부 항목만으로 계산한 프로젝트 {fmtNum(projects.low_confidence)}개가 있어 그만큼은 덜 정확합니다.
                 </Typography>
               ) : null}
               {projects.truncated ? (
@@ -205,7 +205,7 @@ export function WorkSection() {
               question="주차별 마감 티켓의 완료 현황입니다."
               items={rows}
               revealKey={trendKey}
-              emptyLabel="완료 추이를 만들 표본이 없습니다"
+              emptyLabel="완료 추이를 만들 표본이 없습니다."
               emptyRowLabel="마감 없음"
               formatRow={(r) => `마감 ${fmtNum(r.total)}건 중 ${fmtNum(r.value)}건 완료`}
             />

@@ -297,14 +297,14 @@ export function TicketEmptyState({ filtered, onClear, title, help }) {
     return (
       <EmptyState
         art="search"
-        title="조건에 맞는 티켓이 없습니다"
-        help="지금 걸린 필터에 맞는 티켓이 없습니다. 검색어나 필터를 지우면 더 많은 티켓이 보입니다."
+        title="검색 조건에 맞는 티켓이 없습니다."
+        help="검색어나 필터를 지우면 더 많은 티켓이 보입니다."
         /* 조건 0건의 지우기는 30 보조 단추다 — 화면의 채움은 머리 동작 하나다(RULES §1 · §3, 조합 계약 C-4). */
-        action={onClear ? <Button size="sm" onClick={onClear}>필터 지우기</Button> : null}
+        action={onClear ? <Button size="sm" onClick={onClear}>필터 초기화</Button> : null}
       />
     );
   }
-  return <EmptyState art="tickets" title={title || "표시할 티켓이 없습니다"} help={help} />;
+  return <EmptyState art="tickets" title={title || "표시할 티켓이 없습니다."} help={help} />;
 }
 
 /** 담당자 후보 행(`/api/tickets/assignees`) → 칸 후보. 동명이인을 가르려고 소속을 괄호로 붙인다. 필터 줄 밖에서 같은
@@ -416,7 +416,7 @@ export function TicketFilterBar({
          상태마다 칩을 하나씩 펴면(계획·진행·검증·보류 넷) "조건 4개를 걸었다"로 읽히는데,
          실제로 사용자는 아무것도 안 걸었다 — 그저 기본값이 종료 상태를 뺄 뿐이다.
          하나의 칩으로 그 사실 하나만 말하고, 지우면 (기본이 하던 대로) 전체를 본다. */
-      pushChip("status:default", "종료 제외(기본값)", () => onChange({ status: [], all_status: true }));
+      pushChip("status:default", "종료된 티켓 제외(기본값)", () => onChange({ status: [], all_status: true }));
     } else {
       for (const s of effectiveStatus) {
         pushChip(`status:${s}`, `상태: ${optionLabel(statusOpts, s)}`, () => {
@@ -491,7 +491,7 @@ export function TicketFilterBar({
         total,
         onClearAll: (filtered && !atDefault) || tail.length ? clear : null,
         clearLabel: resetLabel,
-        extraAction: onShowAll && !allStatus ? { label: "전체 보기", onClick: onShowAll } : null,
+        extraAction: onShowAll && !allStatus ? { label: "전체 상태 보기", onClick: onShowAll } : null,
       }}
     >
       {/* scope 가 먼저다 — 「어느 범위를 볼 것인가」는 나머지 조건의 전제다. */}
@@ -542,7 +542,7 @@ export function TicketFilterBar({
           value={asList(value.status)}
           onChange={set("status")}
           options={statusOpts}
-          allLabel={usingDefaultStatus ? "종료 제외" : undefined}
+          allLabel={usingDefaultStatus ? "종료된 티켓 제외" : undefined}
         />
       ) : null}
       {show("priority") ? (

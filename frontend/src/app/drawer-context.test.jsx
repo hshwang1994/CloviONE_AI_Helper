@@ -5,6 +5,8 @@
  * 옛 시험은 「현재 문맥: 내 티켓」 같은 화면 이름 표의 계약을 지켰다. 그 이름은 서버가 쓰지 않는 장식이었다 — 목록 화면을
  * 기준으로 답한다고 약속할 근거가 없다. 이제 문맥 줄은 대상이 있을 때만 서고, 그 대상이 메시지와 함께 서버로 가며(서버가
  * 권한으로 다시 읽는다), AI 를 쓸 수 없는 사람에게는 서랍 단추 자체가 없다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -130,7 +132,7 @@ describe("서랍", () => {
     renderShell("/my-tickets");
     const box = await openDrawer();
     expect(await screen.findByText("AI 가 아직 연결되지 않았습니다.")).toBeInTheDocument();
-    expect(screen.getByText("관리자가 AI 를 연결하면 쓸 수 있습니다.")).toBeInTheDocument();
+    expect(screen.getByText("관리자가 AI를 연결하면 쓸 수 있습니다.")).toBeInTheDocument();
     await waitFor(() => expect(box).toBeDisabled());
     expect(screen.queryByRole("link", { name: "AI 연결 열기" })).toBeNull();
   });

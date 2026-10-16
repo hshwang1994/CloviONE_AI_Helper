@@ -142,14 +142,14 @@ export function ProjectDocuments({ projectId, projectName = "" }) {
           /* 만드는 단추는 30 보조다 — 탭 머리의 「새 문서」가 이 화면의 채움 하나다(핸드오프 RULES §1 · §3). */
           <EmptyState
             layout="region"
-            title="이 프로젝트에 문서가 아직 없습니다."
+            title="이 프로젝트에 등록된 문서가 없습니다."
             help="회의록이나 설계 문서를 여기에 모아 두면 프로젝트 안에서 바로 찾을 수 있습니다."
             action={<Button size="sm" onClick={() => { createDocument.reset(); setNewDoc(true); }}>이 프로젝트 문서 추가</Button>}
           />
         )}
         note={hidden
-          ? "총 " + total + "건 가운데 " + rows.length + "건을 보여 줍니다. 나머지는 문서 화면에서 찾을 수 있습니다."
-          : "총 " + total + "건"}
+          ? "전체 " + total + "건 중 " + rows.length + "건만 표시합니다. 나머지는 문서 화면에서 찾을 수 있습니다."
+          : "전체 " + total + "건"}
       />
       <NewDocumentModal
         open={newDoc}

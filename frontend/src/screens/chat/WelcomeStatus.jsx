@@ -49,7 +49,7 @@ export function unavailableHelp(assistant) {
   if (assistant && assistant.reason === "blocked") {
     return admin ? "AI 연결 화면에서 연결 상태를 확인하세요." : "관리자에게 AI 연결 상태를 알려 주세요.";
   }
-  return admin ? "AI 연결 화면에서 제공자를 연결하고 AI 사용을 켜세요." : "관리자가 AI 를 연결하면 쓸 수 있습니다.";
+  return admin ? "AI 연결 화면에서 제공자를 연결하고 AI 사용을 켜세요." : "관리자가 AI를 연결하면 쓸 수 있습니다.";
 }
 
 /* AI 를 지금 쓸 수 없는 판 — 「찾지 못함」(정상 답)과 다른 상태다. 입력 칸은 담는 쪽이 막는다.

@@ -13,6 +13,8 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
  *      '데이터 없음' 그림을 쓰면 사용자는 데이터가 사라졌다고 생각한다.
  *   2) **유형별 그룹을 서버 응답 그대로** 그린다 — 화면에 유형별 if 가 없다.
  *   3) **짧은 검색어를 숨기지 않는다.** mode:"like" 를 사용자에게 말해 준다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -76,10 +78,10 @@ beforeEach(() => {
 });
 
 describe("통합 검색 결과 화면", () => {
-  it("검색어가 없으면 '검색 결과 없음'이 아니라 안내를 보여 준다", async () => {
+  it("검색어가 없으면 '검색 조건에 맞는 항목이 없습니다.'이 아니라 안내를 보여 준다", async () => {
     renderAt("/search");
     expect(await screen.findByText("무엇을 찾을까요?")).toBeInTheDocument();
-    expect(screen.queryByText("검색 결과 없음")).not.toBeInTheDocument();
+    expect(screen.queryByText("검색 조건에 맞는 항목이 없습니다.")).not.toBeInTheDocument();
     // 아직 묻지 않았으므로 서버에 물어보지도 않는다.
     expect(apiMock).not.toHaveBeenCalled();
   });
@@ -92,7 +94,7 @@ describe("통합 검색 결과 화면", () => {
     expect(screen.getByRole("heading", { name: "문서" })).toBeInTheDocument();
     expect(screen.getByText("스프린트 회의록 정리")).toBeInTheDocument();
     expect(screen.getByText("회의록 초안")).toBeInTheDocument();
-    expect(screen.getByText(/총 3건/)).toBeInTheDocument();
+    expect(screen.getByText(/검색 결과 3건/)).toBeInTheDocument();
   });
 
   it("검색어를 q 파라미터로 서버에 넘긴다", async () => {
@@ -121,11 +123,11 @@ describe("통합 검색 결과 화면", () => {
     expect(await screen.findByText("티켓 상세 화면")).toBeInTheDocument();
   });
 
-  it("결과가 0건이면 '검색 결과 없음'을 보여 주고 검색어를 지울 수 있다", async () => {
+  it("결과가 0건이면 '검색 조건에 맞는 항목이 없습니다.'을 보여 주고 검색어를 지울 수 있다", async () => {
     apiMock.mockResolvedValue({ query: "없는말", mode: "fts", total: 0, truncated: false, groups: [] });
     renderAt("/search?q=" + encodeURIComponent("없는말"));
 
-    expect(await screen.findByText("검색 결과 없음")).toBeInTheDocument();
+    expect(await screen.findByText("검색 조건에 맞는 항목이 없습니다.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "검색어 지우기" }));
     // 검색어가 사라지면 '아직 안 쳤다' 상태로 돌아간다(두 상태가 다르다는 증거).
     expect(await screen.findByText("무엇을 찾을까요?")).toBeInTheDocument();
@@ -153,7 +155,7 @@ describe("통합 검색 결과 화면", () => {
     apiMock.mockRejectedValue(Object.assign(new Error("서버 오류"), { status: 500 }));
     renderAt("/search?q=" + encodeURIComponent("회의록"));
     expect(await screen.findByRole("button", { name: "다시 시도" })).toBeInTheDocument();
-    expect(screen.queryByText("검색 결과 없음")).not.toBeInTheDocument();
+    expect(screen.queryByText("검색 조건에 맞는 항목이 없습니다.")).not.toBeInTheDocument();
   });
 
   it("그룹 전체 건수보다 적게 보여 줄 때 그 사실을 적는다", async () => {

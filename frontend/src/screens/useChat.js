@@ -375,12 +375,13 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
     if (cidRef.current !== startCid) return;   // 인코딩 도중 다른 대화로 전환됨 — 이 결과는 버린다
     setPending(next);
     const reasons = [];
-    if (badType.length) reasons.push("PNG, JPEG, WebP 이미지만 첨부할 수 있습니다(" + badType.join(", ") + ")");
-    if (tooBig.length) reasons.push("축소 후에도 3MB를 넘어 제외(" + tooBig.join(", ") + ")");
-    if (hitCount) reasons.push("이미지는 최대 " + MAX_ATTACH_COUNT + "장까지 첨부할 수 있습니다");
-    if (hitTotal) reasons.push("첨부 이미지 전체 용량은 6MB를 넘을 수 없습니다");
-    if (failed.length) reasons.push("처리하지 못한 이미지(" + failed.join(", ") + ")");
-    if (reasons.length) setComposerFailure(reasons.join(", "));
+    /* 까닭마다 완전한 문장이다 — 쉼표로 이으면 「…있습니다(a.png), 이미지는…」처럼 문장이 꼬리를 물었다(r23 문구 대장). */
+    if (badType.length) reasons.push("PNG, JPEG, WebP 이미지만 첨부할 수 있습니다(" + badType.join(", ") + ").");
+    if (tooBig.length) reasons.push("축소 후에도 3MB를 넘는 이미지는 뺐습니다(" + tooBig.join(", ") + ").");
+    if (hitCount) reasons.push("이미지는 최대 " + MAX_ATTACH_COUNT + "장까지 첨부할 수 있습니다.");
+    if (hitTotal) reasons.push("첨부 이미지 전체 용량은 6MB를 넘을 수 없습니다.");
+    if (failed.length) reasons.push("처리하지 못한 이미지가 있습니다(" + failed.join(", ") + ").");
+    if (reasons.length) setComposerFailure(reasons.join(" "));
   }
   pickFilesRef.current = pickFiles;
   // 재시도는 전용 엔드포인트로 같은 메시지를 다시 처리한다(새 메시지 생성·첨부 유실 방지).
@@ -445,7 +446,7 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
   });
   // team_chat의 같은 기능(ChatPane.jsx)과 같은 이유로 확인을 받는다 — 되돌릴 수 없다.
   async function doDeleteMessage(m) {
-    const ok = await confirm("이 메시지를 지울까요? 되돌릴 수 없습니다.",
+    const ok = await confirm("이 메시지를 삭제할까요? 되돌릴 수 없습니다.",
       { danger: true, title: "메시지 삭제", confirmLabel: "삭제" });
     if (ok) deleteMsg.mutate({ messageId: m.id, conversationId: cid });
   }
@@ -465,9 +466,9 @@ export function useChat({ pasteEnabled = true, screenContext = null, dataEnabled
       || (e.status === 503 && e.body && e.body.error && e.body.error.code === "maintenance_mode"));
     if ((last === retry || last === regenerate) && handledElsewhere) return null;
     if (last === regenerate) {
-      return e && e.status === 409 ? "그 사이 대화가 이어져 다시 생성할 수 없습니다." : ((e && e.message) || "다시 생성하지 못했습니다.");
+      return e && e.status === 409 ? "그 사이 대화가 이어져 답을 다시 만들 수 없습니다." : ((e && e.message) || "답을 다시 만들지 못했습니다.");
     }
-    const fallback = last === retry ? "다시 시도하지 못했습니다." : last === deleteMsg ? "메시지를 지우지 못했습니다." : "피드백을 저장하지 못했습니다.";
+    const fallback = last === retry ? "다시 시도하지 못했습니다." : last === deleteMsg ? "메시지를 삭제하지 못했습니다." : "피드백을 저장하지 못했습니다.";
     return (e && e.message) || fallback;
   })();
   function doFeedback(m, feedback) {

@@ -137,11 +137,11 @@ export function Activity() {
           <EmptyState
             layout="page"
             art="notify"
-            title={kind ? "이 종류의 활동이 없습니다" : "아직 활동 기록이 없습니다"}
+            title={kind ? "이 종류의 활동이 없습니다." : "활동 기록이 없습니다."}
             situation={kind
-              ? "고른 종류에는 기록이 없습니다. 다른 종류를 보거나 전체로 되돌려 보세요."
+              ? "다른 종류를 선택하거나 '전체 활동 보기'를 누르세요."
               : "로그인, 티켓 수정, 받은 알림 같은 일이 생기면 여기에 시간순으로 쌓입니다."}
-            action={kind ? <Button onClick={() => setKind("")}>전체 보기</Button> : null}
+            action={kind ? <Button onClick={() => setKind("")}>전체 활동 보기</Button> : null}
           />
         </Card>
       ) : (

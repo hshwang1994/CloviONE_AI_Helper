@@ -20,6 +20,8 @@ import "@testing-library/jest-dom/vitest";
  *
  * 그리고 댓글의 soft-delete가 화면에서 **툼스톤으로 보이는지** — 행이 조용히 사라지면
  * 사용자는 자기가 잘못 봤다고 생각한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -411,7 +413,7 @@ describe("VIS-135 — 헤더 '수정'과 '본문 수정'의 범위를 툴팁으�
     wrap();
     await screen.findByText("배경");
     const btn = screen.getByRole("button", { name: "수정" });
-    expect(btn).toHaveAttribute("title", expect.stringContaining("본문 텍스트는 아래 '본문 수정'에서 고칩니다"));
+    expect(btn).toHaveAttribute("title", expect.stringContaining("본문 텍스트는 아래 '본문 수정'에서 수정합니다"));
   });
 
   it("'본문 수정'은 이름은 그대로이고, 본문 텍스트만 고친다는 설명이 붙는다", async () => {
@@ -422,7 +424,7 @@ describe("VIS-135 — 헤더 '수정'과 '본문 수정'의 범위를 툴팁으�
     wrap();
     await screen.findByText("배경");
     const btn = screen.getByRole("button", { name: "본문 수정" });
-    expect(btn).toHaveAttribute("title", expect.stringContaining("상태, 담당자 등 속성은 위 '수정' 버튼에서 고칩니다"));
+    expect(btn).toHaveAttribute("title", expect.stringContaining("상태, 담당자 등 속성은 위 '수정' 버튼에서 수정합니다"));
   });
 });
 

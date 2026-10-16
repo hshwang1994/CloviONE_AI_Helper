@@ -128,7 +128,7 @@ function VocabularyPanel({
 
       {canManage ? null : (
         <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-          이름을 고치거나 지우는 것은 운영자만 할 수 있습니다. 새로 추가하는 것은 누구나 할 수 있습니다.
+          이름을 수정하거나 삭제하는 것은 운영자만 할 수 있습니다. 새로 추가하는 것은 누구나 할 수 있습니다.
         </Typography>
       )}
     </Stack>
@@ -198,7 +198,7 @@ function TemplatePanel({
   return (
     <Stack spacing={2}>
       <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-        틀은 새 문서가 시작할 뼈대입니다. 틀을 고치거나 지워도 그 틀로 이미 만든 문서는
+        틀은 새 문서가 시작할 뼈대입니다. 틀을 수정하거나 삭제해도 그 틀로 이미 추가한 문서는
         그대로 남습니다.
       </Typography>
       {/* 🔴 만들기는 **누구나**다. 서버가 그렇게 정해 뒀다 — 만들기는 `DOCUMENT_UPDATE`,
@@ -246,7 +246,7 @@ function TemplatePanel({
 
       {canManage ? null : (
         <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-          틀을 고치거나 지우는 것은 운영자만 할 수 있습니다. 새로 만드는 것은 누구나 할 수 있습니다.
+          틀을 수정하거나 삭제하는 것은 운영자만 할 수 있습니다. 새로 추가하는 것은 누구나 할 수 있습니다.
         </Typography>
       )}
     </Stack>
@@ -316,7 +316,7 @@ export function TaxonomyManager({
           busy={busy}
           addLabel="새 분류"
           helpText="분류는 문서의 큰 갈래입니다. 문서 하나가 분류 하나에 속합니다."
-          emptyText="아직 분류가 없습니다. 회사에 맞는 갈래를 여기서 만듭니다."
+          emptyText="등록된 분류가 없습니다. 회사에 맞는 분류를 여기서 추가할 수 있습니다."
           onAdd={onAddCategory}
           onRename={onRenameCategory}
           onRemove={onRemoveCategory}
@@ -328,7 +328,7 @@ export function TaxonomyManager({
           busy={busy}
           addLabel="새 태그"
           helpText="태그는 자유 분류입니다. 문서 하나에 여러 태그를 붙일 수 있습니다."
-          emptyText="아직 태그가 없습니다. 문서를 쓰면서 적은 태그도 여기에 모입니다."
+          emptyText="등록된 태그가 없습니다. 문서를 쓰면서 적은 태그도 여기에 모입니다."
           onAdd={onAddTag}
           onRename={onRenameTag}
           onRemove={onRemoveTag}

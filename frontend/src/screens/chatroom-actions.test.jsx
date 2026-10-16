@@ -14,6 +14,8 @@ import "@testing-library/jest-dom/vitest";
  *
  * 그리고 파하기와 숨기기는 다른 일이다: 그룹은 모두에게서 사라지고(soft delete), 1:1 은
  * 파할 수 없어(dm_key unique) 내 목록에서만 숨긴다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -71,10 +73,10 @@ describe("방 파하기 버튼", () => {
     const user = userEvent.setup();
     mount(meta({ role: "owner", can_disband: true }));
 
-    const btn = await screen.findByRole("button", { name: "방 파하기" });
+    const btn = await screen.findByRole("button", { name: "채팅방 삭제" });
     await user.click(btn);
     // 되돌릴 수 없는 동작이라 확인을 받는다.
-    await user.click(await screen.findByRole("button", { name: "파하기" }));
+    await user.click(await screen.findByRole("button", { name: "삭제" }));
 
     await waitFor(() => expect(posted("/api/team-chat/rooms/r1/disband")).toHaveLength(1));
   });
@@ -82,13 +84,13 @@ describe("방 파하기 버튼", () => {
   it("can_disband 가 false 면 버튼 자체가 없다(1:1·전체·비방장)", async () => {
     mount(meta({ role: "member", can_disband: false }));
     await screen.findByRole("heading", { name: /채팅|대화|방/ });
-    expect(screen.queryByRole("button", { name: "방 파하기" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "채팅방 삭제" })).toBeNull();
   });
 
   it("확인 창에서 취소하면 아무 요청도 나가지 않는다", async () => {
     const user = userEvent.setup();
     mount(meta({ role: "owner", can_disband: true }));
-    await user.click(await screen.findByRole("button", { name: "방 파하기" }));
+    await user.click(await screen.findByRole("button", { name: "채팅방 삭제" }));
     await user.click(await screen.findByRole("button", { name: "취소" }));
     expect(posted("/api/team-chat/rooms/r1/disband")).toHaveLength(0);
   });
@@ -101,7 +103,7 @@ describe("1:1 숨기기 버튼", () => {
                { kind: "direct", title: "상대이름", member_count: 2 }));
 
     expect(await screen.findByRole("button", { name: "숨기기" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "방 파하기" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "채팅방 삭제" })).toBeNull();
     // 1:1 은 '나가기'도 없다(그룹 전용).
     expect(screen.queryByRole("button", { name: "나가기" })).toBeNull();
 
@@ -148,7 +150,7 @@ describe("전체 채팅 방", () => {
     mount(meta({ role: null, is_member: false, can_disband: false, can_hide: false },
                { is_global: true, title: "전체 채팅", member_count: 0 }));
     await screen.findByRole("heading", { name: /채팅|대화|방/ });
-    expect(screen.queryByRole("button", { name: "방 파하기" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "채팅방 삭제" })).toBeNull();
     expect(screen.queryByRole("button", { name: "나가기" })).toBeNull();
     expect(screen.queryByRole("button", { name: "숨기기" })).toBeNull();
   });
@@ -179,8 +181,8 @@ describe("머리 동작의 실패는 머리 바로 아래 메시지 박스다 (�
         </ConfirmProvider></ToastProvider></ThemeModeProvider>
       </QueryClientProvider>,
     );
-    await user.click(await screen.findByRole("button", { name: "방 파하기" }));
-    await user.click(await screen.findByRole("button", { name: "파하기" }));
+    await user.click(await screen.findByRole("button", { name: "채팅방 삭제" }));
+    await user.click(await screen.findByRole("button", { name: "삭제" }));
     const box = await screen.findByText("아직 파할 수 없는 방입니다.");
     const head = document.querySelector("[data-room-head]");
     expect(head.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -188,8 +190,8 @@ describe("머리 동작의 실패는 머리 바로 아래 메시지 박스다 (�
     expect(screen.queryByText("채팅방 목록")).toBeNull();
 
     fail = false;
-    await user.click(screen.getByRole("button", { name: "방 파하기" }));
-    await user.click(await screen.findByRole("button", { name: "파하기" }));
+    await user.click(screen.getByRole("button", { name: "채팅방 삭제" }));
+    await user.click(await screen.findByRole("button", { name: "삭제" }));
     await waitFor(() => expect(screen.queryByText("아직 파할 수 없는 방입니다.")).toBeNull());
   });
 });

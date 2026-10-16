@@ -138,12 +138,12 @@ describe("내 활동", () => {
   it("고른 종류에 기록이 없을 때와 아예 없을 때를 다르게 말한다", async () => {
     apiMock.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 });
     renderActivity();
-    expect(await screen.findByText("아직 활동 기록이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("활동 기록이 없습니다.")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "내가 한 일" }));
-    expect(await screen.findByText("이 종류의 활동이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("이 종류의 활동이 없습니다.")).toBeInTheDocument();
     // 필터 때문에 비었을 때만 되돌릴 길을 준다.
-    expect(screen.getByRole("button", { name: "전체 보기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "전체 활동 보기" })).toBeInTheDocument();
   });
 
   it("조회가 실패하면 다시 시도할 길을 준다", async () => {

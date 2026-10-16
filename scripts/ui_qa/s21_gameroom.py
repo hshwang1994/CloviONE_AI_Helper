@@ -283,7 +283,7 @@ flow("FF-0342", "user_games-id", "create", "방 안 채팅으로 메시지를 �
 def _room_permission(r, ctx):
     hash_path = _ensure_room(r, ctx)
     mine = {label: r.in_main("button", label).count()
-            for label in ("시작", "방 파하기", "나가기", "준비")}
+            for label in ("시작", "게임방 종료", "나가기", "준비")}
     got = r.as_role("user", hash_path, "/", lambda p: p.evaluate(
         """() => {
              const main = document.querySelector('#main-content');
@@ -292,7 +292,7 @@ def _room_permission(r, ctx):
                      body: (main ? main.innerText : '').replace(/\\s+/g,' ').trim().slice(0,180)};
            }"""))
     theirs = {label: sum(1 for n in got["buttons"] if label in n)
-              for label in ("시작", "방 파하기", "나가기", "준비")}
+              for label in ("시작", "게임방 종료", "나가기", "준비")}
     return {"ui_action": "같은 방을 방장이 아닌 사용자로 연다",
             "frontend_state": "방장 여부·관전 여부로 진행 버튼이 갈린다",
             "observed": {"as_host": mine, "as_guest": theirs, "body": got["body"]},
@@ -300,7 +300,7 @@ def _room_permission(r, ctx):
             "expected": {"source": "derived-check",
                          "rule": "진행 버튼(시작·파하기)은 방장에게만 있다",
                          "as_guest": theirs},
-            "failed": None if theirs.get("방 파하기", 0) == 0
+            "failed": None if theirs.get("게임방 종료", 0) == 0
                       else "방장이 아닌 사람에게도 «방 파하기» 가 보인다"}
 
 
@@ -345,9 +345,9 @@ flow("FF-0343", "user_games-id", "navigation", "'나가기'로 방을 떠난다"
 def _disband(r, ctx):
     ctx.pop("gameroom_hash", None)
     _ensure_room(r, ctx)
-    button = r.in_main("button", "방 파하기")
+    button = r.in_main("button", "게임방 종료")
     if not button.count():
-        stop("«방 파하기» 버튼이 없다")
+        stop("«게임방 종료» 버튼이 없다")
     r.rec.reset()
     button.first.click()
     r.settle(1200)

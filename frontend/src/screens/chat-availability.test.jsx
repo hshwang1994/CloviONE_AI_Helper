@@ -12,6 +12,8 @@ import "@testing-library/jest-dom/vitest";
  * 판 전체에 세우며 입력 칸을 닫는다. 시스템 관리자에게만 「AI 연결 열기」가 있다. 보내는 순간 409 `ai_unavailable` 이 오면
  * 실패 문장 대신 상태를 다시 읽어 판을 그린다. 첫 화면은 할 수 있는 일만 약속한다. `/ai` 의 「AI 도우미에게 묻기」는
  * `?ask=` 로 와서 새 대화로 한 번만 보내진다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -89,7 +91,7 @@ describe("AI 도우미 — 쓸 수 있을 때의 첫 화면", () => {
   it("할 수 있는 일만 약속하고 시작 예시를 보인다", async () => {
     renderChat();
     // 찾는 범위를 이름으로 말하고, 팀 채팅은 찾지 않는다는 사실을 함께 말한다(A8 · 사용자 결정 2026-10-15).
-    expect(await screen.findByText("문서, 티켓, 프로젝트, 결재, 알림, 회의록을 내 권한 안에서 찾아 답합니다. 팀 채팅 대화는 찾지 않습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("문서, 티켓, 프로젝트, 승인 요청, 알림, 회의록을 내 권한 안에서 찾아 답합니다. 팀 채팅 대화는 찾지 않습니다.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "내가 담당하는 미완료 티켓을 알려 줘" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "내가 작성한 문서가 몇 개야?" })).toBeInTheDocument();
     expect(screen.queryByText(/티켓 생성/)).toBeNull();
@@ -102,7 +104,7 @@ describe("AI 도우미 — 쓸 수 없을 때", () => {
     assistant = OFF;
     renderChat();
     expect(await screen.findByText("AI 가 아직 연결되지 않았습니다.")).toBeInTheDocument();
-    expect(screen.getByText("관리자가 AI 를 연결하면 쓸 수 있습니다.")).toBeInTheDocument();
+    expect(screen.getByText("관리자가 AI를 연결하면 쓸 수 있습니다.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "AI 연결 열기" })).toBeNull();
     // 문서 찾기는 모델을 부르지 않으므로 그대로 권한다(머리의 단추 + 판 안의 단추).
     expect(screen.getAllByRole("link", { name: "문서에서 찾기" }).length).toBeGreaterThanOrEqual(2);

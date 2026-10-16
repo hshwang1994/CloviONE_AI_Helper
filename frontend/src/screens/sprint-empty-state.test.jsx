@@ -11,6 +11,8 @@ import { vi } from "vitest";
  *
  * §8.3 은 이 빈 상태가 layout="page" 로 서고 「회차 추가」·「백로그 보기」 둘을 준다고
  * 못 박는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -65,7 +67,7 @@ describe("스프린트 회의 — 회차 0건", () => {
   it("안내 문장이 실제로 보이고, 추가/백로그 두 행동이 있다", async () => {
     renderSprint();
     await waitFor(() =>
-      expect(screen.getByText("아직 만든 회차가 없습니다.")).toBeTruthy(),
+      expect(screen.getByText("등록된 회차가 없습니다.")).toBeTruthy(),
     );
     expect(screen.getByText(/번다운과 건강, 담당자별 남은 일/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "회차 추가" })).toBeTruthy();
@@ -129,7 +131,7 @@ describe("스프린트 회의 — 볼 수 있는 팀이 없다", () => {
   it("소속이 없는 사람에게는 팀이 없다고 말한다 — 빈 회차 안내가 아니다", async () => {
     renderSprint();
     await screen.findByText("회차를 볼 수 있는 팀이 없습니다.");
-    expect(screen.queryByText("아직 만든 회차가 없습니다.")).toBeNull();
+    expect(screen.queryByText("등록된 회차가 없습니다.")).toBeNull();
     expect(screen.queryByRole("button", { name: "회차 추가" })).toBeNull();
   });
 });

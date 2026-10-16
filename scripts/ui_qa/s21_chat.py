@@ -855,7 +855,7 @@ flow("FF-0219", "user_chat-rooms-id", "modal_action",
      _room_top_action("나가기", "/leave"), api="/api/team-chat/")
 
 flow("FF-0220", "user_chat-rooms-id", "delete", "방을 파해 모든 참여자 목록에서 없앤다(확인 후)",
-     _room_top_action("파하기", "/disband"), api="/api/team-chat/")
+     _room_top_action("채팅방 삭제", "/disband"), api="/api/team-chat/")
 
 
 def _room_permission(r, ctx):
@@ -863,7 +863,7 @@ def _room_permission(r, ctx):
         _goto_room(r)
     rid = ctx.get("room_id") or _room_id(r)
     mine = {label: r.in_main("button", label).count()
-            for label in ("관리", "숨기기", "나가기", "파하기")}
+            for label in ("관리", "숨기기", "나가기", "채팅방 삭제")}
     got = r.as_role("user", "/chat-rooms/%s" % rid, "/", lambda p: p.evaluate(
         """() => {
              const main = document.querySelector('#main-content');
@@ -872,7 +872,7 @@ def _room_permission(r, ctx):
                      body: (main ? main.innerText : '').replace(/\\s+/g,' ').trim().slice(0,160)};
            }"""))
     theirs = {label: sum(1 for n in got["buttons"] if label in n)
-              for label in ("관리", "숨기기", "나가기", "파하기")}
+              for label in ("관리", "숨기기", "나가기", "채팅방 삭제")}
     return {"ui_action": "같은 방을 그 방에 없는 사용자로 연다",
             "frontend_state": "you.can_* 로만 그린다",
             "observed": {"as_owner": mine, "as_other": theirs, "body": got["body"]},
@@ -880,7 +880,7 @@ def _room_permission(r, ctx):
             "expected": {"source": "derived-check",
                          "rule": "관리·숨기기·파하기는 서버가 준 권한 플래그로만 나온다",
                          "as_other": theirs},
-            "failed": None if theirs.get("파하기", 0) == 0
+            "failed": None if theirs.get("채팅방 삭제", 0) == 0
                       else "방에 없는 사용자에게도 «파하기» 가 보인다"}
 
 

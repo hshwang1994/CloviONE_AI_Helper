@@ -243,6 +243,6 @@ describe("자동 영구 삭제 정책", () => {
     renderScreen();
     await screen.findByText("서버 인프라 리소스 현황");
     expect(screen.getByText("자동 삭제 안 함")).toBeTruthy();
-    expect(screen.getByText(/문서는 자동으로 지워지지 않으며/)).toBeTruthy();
+    expect(screen.getByText(/문서는 자동으로 삭제되지 않으며/)).toBeTruthy();
   });
 });

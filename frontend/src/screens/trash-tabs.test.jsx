@@ -21,6 +21,8 @@ import "@testing-library/jest-dom/vitest";
  *   본문     티켓과 옛 미러 문서는 제목 말고 볼 것이 없었다 — 영구 삭제는 되돌릴 수 없는데도.
  *
  * 각 시험에 반례를 붙인다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -120,7 +122,7 @@ describe("종류 탭", () => {
     stub([TICKET]);
     renderScreen("/team-docs/trash?kind=document");
 
-    expect(await screen.findByText("이 종류에는 항목이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("휴지통에 문서가 없습니다.")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /전체/ })).toBeInTheDocument();
     expect(screen.queryByText("아직 지운 티켓이나 문서가 없습니다")).toBeNull();
 

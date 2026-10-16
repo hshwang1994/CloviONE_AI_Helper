@@ -91,14 +91,14 @@ export const MILESTONE_FORM_FIELDS = [
 /* 트리에 못 넣은 작업의 이유. 두 경우의 **고칠 곳이 다르다** — 순환은 노션에서 상위 작업을
  * 고쳐야 하고, 깊이 초과는 대개 데이터가 이상하다는 신호다(app/projects/wbs.py). */
 export const WBS_UNPLACED_KO = {
-  cycle: "상위 작업이 서로를 가리켜 트리에 넣지 못했습니다. 상위 작업을 고쳐 주세요.",
+  cycle: "상위 작업이 서로를 가리켜 트리에 넣지 못했습니다. 상위 작업을 수정해 주세요.",
   too_deep: "계층이 너무 깊어 트리에 넣지 못했습니다. 계층을 줄여 주세요.",
 };
 
-export const NO_PROGRESS_CACHE = "아직 계산하지 않았습니다";
-export const NO_PROGRESS_SAMPLE = "작업이 아직 없습니다";
-export const NO_HEALTH_SCORE = "점수를 낼 수 없습니다";
-export const NO_HEALTH_CACHE = "건강도를 아직 계산하지 않았습니다";
+export const NO_PROGRESS_CACHE = "아직 계산하지 않았습니다.";
+export const NO_PROGRESS_SAMPLE = "작업이 아직 없습니다.";
+export const NO_HEALTH_SCORE = "점수를 낼 수 없습니다.";
+export const NO_HEALTH_CACHE = "건강도를 아직 계산하지 않았습니다.";
 
 /* 목록 칸에 들어가는 **짧은 낱말** (계획 3.1).
  *
@@ -189,18 +189,18 @@ export function sampleText(basis) {
   const n = (v) => (v == null ? 0 : v);
   return "작업 " + n(b.sample_tasks) + "건 중 " + n(b.counted_tasks) + "건을 셌습니다. "
     + "부모 작업 " + n(b.parent_tasks_excluded) + "건, 취소 " + n(b.cancelled_excluded)
-    + "건은 뺐습니다. 완료 " + n(b.done_tasks) + "건.";
+    + "건은 뺐습니다. 완료한 작업은 " + n(b.done_tasks) + "건입니다.";
 }
 
 /** 가중 방식. 섞였으면 섞였다고 말한다 - 모르면 두 값이 갈렸을 때 어느 쪽이 맞는지 못 고른다. */
 export function weightModeText(basis) {
   const b = basis || {};
-  if (b.weight_mode === "est_wd") return "예상 WD 로 가중해서 셌습니다.";
+  if (b.weight_mode === "est_wd") return "예상 WD로 가중해서 셌습니다.";
   if (b.weight_mode === "mixed") {
-    return "예상 WD 로 가중해서 셌습니다. 예상 WD 가 없는 " + (b.est_wd_missing || 0)
+    return "예상 WD로 가중해서 셌습니다. 예상 WD가 없는 " + (b.est_wd_missing || 0)
       + "건은 1건으로 셌습니다.";
   }
-  if (b.weight_mode === "count") return "예상 WD 가 적힌 작업이 없어 건수로 셌습니다.";
+  if (b.weight_mode === "count") return "예상 WD가 적힌 작업이 없어 건수로 셌습니다.";
   return "셀 작업이 없어 가중 방식을 정하지 않았습니다.";
 }
 
@@ -209,7 +209,7 @@ export function periodText(startsOn, endsOn) {
   if (startsOn && endsOn) return startsOn + " ~ " + endsOn;
   if (startsOn) return startsOn + " 부터";
   if (endsOn) return endsOn + " 까지";
-  return "기간이 정해지지 않았습니다";
+  return "기간이 정해지지 않았습니다.";
 }
 
 /* 부서 이름.

@@ -160,13 +160,13 @@ export function GroupModal({ open, onClose }) {
         <FieldLabel>초대할 사람 (선택)</FieldLabel>
         {dir.isPending ? <Skeleton lines={4} />
           : dir.isError ? <ErrorState layout="region" error={dir.error} onRetry={() => dir.refetch()} />
-          : users.length === 0 ? <EmptyState size="compact" title="초대할 다른 사용자가 없습니다" />
+          : users.length === 0 ? <EmptyState size="compact" title="초대할 다른 사용자가 없습니다." />
           : (
             <>
             <PeopleFilter value={pick_q} onChange={setPickQ} count={shownUsers.length} total={users.length} />
             {shownUsers.length === 0 ? (
               /* 「사람이 없다」와 「조건 때문에 0명」은 다른 사실이다(C1). */
-              <EmptyState size="compact" title="조건에 맞는 사람이 없습니다" help="이름이나 이메일 일부로 다시 찾아보세요." />
+              <EmptyState size="compact" title="검색 조건에 맞는 사람이 없습니다." help="이름이나 이메일의 일부로 다시 검색하세요." />
             ) : (
             <Box sx={PICKER_SX}>
               {/* 체크박스도 제품의 것을 쓴다 — 맨 `<input type=checkbox>` 는 테마의 높이·
@@ -208,12 +208,12 @@ function DirectModal({ open, onClose }) {
     <Modal open={open} onClose={onClose} title="1:1 대화 시작" footer={<Button onClick={onClose}>닫기</Button>}>
       {dir.isPending ? <Skeleton lines={5} />
         : dir.isError ? <ErrorState layout="region" error={dir.error} onRetry={() => dir.refetch()} />
-        : users.length === 0 ? <EmptyState size="compact" title="대화할 다른 사용자가 없습니다" />
+        : users.length === 0 ? <EmptyState size="compact" title="대화할 다른 사용자가 없습니다." />
         : (
           <>
           <PeopleFilter value={pick_q} onChange={setPickQ} count={shownUsers.length} total={users.length} />
           {shownUsers.length === 0 ? (
-            <EmptyState size="compact" title="조건에 맞는 사람이 없습니다" help="이름이나 이메일 일부로 다시 찾아보세요." />
+            <EmptyState size="compact" title="검색 조건에 맞는 사람이 없습니다." help="이름이나 이메일의 일부로 다시 검색하세요." />
           ) : (
           <Box sx={PICKER_SX}>
             {shownUsers.map((u) => (
@@ -317,7 +317,7 @@ export function ChatRooms() {
             규칙이다). 목록을 글자마다 바로 거르므로 디바운스하지 않는다(`immediate`). */}
         <SearchBox
           layout="fill" immediate value={roomQuery} onSearch={setRoomQuery}
-          placeholder="채팅방 검색" ariaLabel="채팅방 이름으로 거르기"
+          placeholder="채팅방 검색" ariaLabel="채팅방 이름 검색"
         />
       </Box>
       {/* 목록은 **자기 안에서** 스크롤한다 — 페이지가 통째로 스크롤되면 대화창이 같이 밀린다. */}
@@ -339,9 +339,9 @@ export function ChatRooms() {
                   filtered={!!needle}
                   onClear={() => setRoomQuery("")}
                   clearLabel="검색어 지우기"
-                  filteredTitle="검색과 맞는 채팅방이 없습니다"
-                  filteredHelp={`'${roomQuery.trim()}' 으로 찾은 결과가 없습니다.`}
-                  title="참여 중인 채팅방이 없습니다"
+                  filteredTitle="검색 조건에 맞는 채팅방이 없습니다."
+                  filteredHelp={`'${roomQuery.trim()}' 대신 다른 채팅방 이름으로 검색하세요.`}
+                  title="참여 중인 채팅방이 없습니다."
                   help="위의 ‘새 그룹’ 또는 ‘1:1’로 대화를 시작하세요. 전체 채팅은 누구나 참여할 수 있습니다."
                 />
               ) : items.map((r) => (
@@ -355,7 +355,7 @@ export function ChatRooms() {
 
   const detailPanel = activeId ? <RoomDetailPanel key={activeId} id={activeId} /> : (
     <Box sx={{ display: "grid", placeItems: "center", p: 4, minHeight: 0 }}>
-      <EmptyState title="대화를 고르세요" help="왼쪽에서 방을 고르면 여기에 대화가 열립니다." />
+      <EmptyState title="대화를 고르세요." help="왼쪽에서 방을 고르면 여기에 대화가 열립니다." />
     </Box>
   );
 

@@ -982,14 +982,14 @@ function WorkBoardScreen() {
     if (!sprintId) {
       const scopeLine = showAll
         ? "완료와 취소를 포함한 이 팀의 전체 티켓을 보여 줍니다."
-        : "이 팀의 실행 중인 업무만 보여 줍니다.";
+        : "이 팀의 남은 일만 보여 줍니다.";
       const noneOpen =
         sprintRows.length > 0 && !sprintRows.some((s) => s && (s.active || s.state === "active"));
       if (noneOpen) {
         return {
           title: "진행 중인 회차가 없습니다.",
           body: canPlan
-            ? `${scopeLine} 위에서 지난 회차를 고르거나 「회차 추가」로 새 회차를 만들 수 있습니다.`
+            ? `${scopeLine} 위에서 지난 회차를 고르거나 「회차 추가」로 새 회차를 추가할 수 있습니다.`
             : `${scopeLine} 위 회차 칸에서 지난 회차를 골라 볼 수 있습니다.`,
         };
       }
@@ -1070,7 +1070,7 @@ function WorkBoardScreen() {
     <EmptyState
       title={title}
       help={help}
-      action={<Button variant="secondary" onClick={clearFilters}>필터 지우기</Button>}
+      action={<Button variant="secondary" onClick={clearFilters}>필터 초기화</Button>}
     />
   );
   const emptyByMine = (
@@ -1250,12 +1250,12 @@ function WorkBoardScreen() {
           {tab === TAB_BOARD && board.data ? (
             boardEmpty ? (
               filtersActive
-                ? emptyByFilter("조건에 맞는 티켓이 없습니다.", "필터를 지우면 이 회차의 티켓을 전부 볼 수 있습니다.")
+                ? emptyByFilter("검색 조건에 맞는 티켓이 없습니다.", "필터를 지우면 이 회차의 티켓을 전부 볼 수 있습니다.")
                 : mine ? emptyByMine : (
                   <EmptyState
                     title={
                       sprint && sprint.state === "planned"
-                        ? "아직 담긴 티켓이 없습니다."
+                        ? "담긴 티켓이 없습니다."
                         : sprintId
                           ? "남은 일이 없습니다."
                           : "보여 줄 티켓이 없습니다."
@@ -1309,7 +1309,7 @@ function WorkBoardScreen() {
           {tab === TAB_BACKLOG && backlogPages.length ? (
             backlogRows.length === 0 ? (
               filtersActive
-                ? emptyByFilter("조건에 맞는 백로그 티켓이 없습니다.", "필터를 지우면 이 팀의 백로그를 전부 볼 수 있습니다.")
+                ? emptyByFilter("검색 조건에 맞는 백로그 티켓이 없습니다.", "필터를 지우면 이 팀의 백로그를 전부 볼 수 있습니다.")
                 : mine ? emptyByMine : (
                   <EmptyState
                     title="백로그가 비어 있습니다."

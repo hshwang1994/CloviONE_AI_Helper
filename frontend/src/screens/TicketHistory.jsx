@@ -39,7 +39,7 @@ export function TicketHistory({ ticketId }) {
       {!q.isPending && !q.isError && items.length === 0 ? (
         <EmptyState
           layout="inline"
-          title="아직 기록이 없습니다"
+          title="활동 이력이 없습니다."
           help="상태, 담당자, 마감이 바뀌면 언제 누가 바꿨는지 여기에 쌓입니다."
         />
       ) : null}

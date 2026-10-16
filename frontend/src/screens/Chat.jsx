@@ -252,11 +252,11 @@ export function Chat() {
   const emptyNode = !cid
     ? (unavailable ? <AssistantUnavailable assistant={assistant} />
       : <Welcome mode={mascot} title="무엇을 도와드릴까요?" busy={starting} onPick={prefillFromPrompt}
-          help="문서, 티켓, 프로젝트, 결재, 알림, 회의록을 내 권한 안에서 찾아 답합니다. 팀 채팅 대화는 찾지 않습니다." />)
+          help="문서, 티켓, 프로젝트, 승인 요청, 알림, 회의록을 내 권한 안에서 찾아 답합니다. 팀 채팅 대화는 찾지 않습니다." />)
     : thread.isLoading ? <Skeleton lines={3} />
     : notFound ? (
-      <ErrorState layout="region" error={thread.error} title="대화를 찾을 수 없습니다"
-        help="지워졌거나 열 수 없는 대화입니다. 새 대화를 시작해 주세요."
+      <ErrorState layout="region" error={thread.error} title="대화를 찾을 수 없습니다."
+        help="삭제되었거나 열 수 없는 대화입니다. 새 대화를 시작해 주세요."
         action={<Button onClick={() => onOpen(null)}>새 대화 시작</Button>} />
     )
     : thread.isError && !items.length ? <ErrorState layout="region" error={thread.error} onRetry={() => thread.refetch()} />
@@ -330,7 +330,7 @@ export function Chat() {
               <Box sx={{ px: { xs: 1.5, sm: 2.5 }, pt: 1.5, flexShrink: 0 }}>
                 <Callout tone="info" compact
                   action={<Button size="sm" onClick={() => archiveConv.mutateAsync({ id: cid, archived: false }).then(qcRefresh, () => {})}>보관함에서 꺼내기</Button>}>
-                  보관한 대화입니다. 꺼내면 대화 목록에 다시 섭니다.
+                  보관한 대화입니다. 보관함에서 꺼내면 대화 목록에 다시 표시됩니다.
                 </Callout>
               </Box>
             ) : null}

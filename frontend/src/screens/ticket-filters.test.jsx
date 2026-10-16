@@ -16,6 +16,8 @@
  * 비어야 한다. 이게 없으면 "주소가 바뀐다" 검사는 아무 값이나 실려도 통과한다.
  *
  * qa-contract-change: 필터 바의 켬/끔 스위치 · 체크박스를 34 중립 단추(FilterToggle, aria-pressed)로 옮겼다(핸드오프 RULES §3, 계획 P-14). 스위치 · 체크박스 역할로 찾던 단언을 같은 이름의 단추로 옮기고, 눌림 상태(aria-pressed)를 더 단언한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -155,7 +157,7 @@ describe("내 티켓 — 조건이 주소에 남는다", () => {
     // C6 재검수 — 기본값(종료 제외)은 사용자가 건 조건이 아니다. 상태마다 칩을 하나씩
     // 펴면("상태: 계획"·"상태: 이슈"·"상태: 진행"·"상태: 검증") "조건 4개"로 읽히는데
     // 실제로는 아무것도 안 골랐다 — 칩 하나로 그 사실 하나만 말한다.
-    expect(screen.getByText("종료 제외(기본값)")).toBeInTheDocument();
+    expect(screen.getByText("종료된 티켓 제외(기본값)")).toBeInTheDocument();
     expect(screen.queryByText("상태: 계획")).not.toBeInTheDocument();
   });
 
@@ -319,25 +321,25 @@ describe("내 티켓 — 검색 입력", () => {
 });
 
 describe("빈 목록의 두 가지 뜻", () => {
-  it("필터가 걸려 있으면 지우기 버튼이 있는 '조건에 맞는 티켓이 없습니다'", async () => {
+  it("필터가 걸려 있으면 지우기 버튼이 있는 '검색 조건에 맞는 티켓이 없습니다.'", async () => {
     listPayload = { configured: true, ok: true, mapped: true, items: [], total: 0, page: 1, page_size: 20 };
     renderScreen(MyTickets, "/my-tickets?status=검증");
-    expect(await screen.findByText("조건에 맞는 티켓이 없습니다")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "필터 지우기" }).length).toBeGreaterThan(0);
+    expect(await screen.findByText("검색 조건에 맞는 티켓이 없습니다.")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "필터 초기화" }).length).toBeGreaterThan(0);
   });
 
-  /* 빈 상태 안의 '필터 지우기'는 필터 줄의 것과 별개 버튼이다(EmptyState의 `action`, onClear=
+  /* 빈 상태 안의 '필터 초기화'는 필터 줄의 것과 별개 버튼이다(EmptyState의 `action`, onClear=
    * 화면이 만든 clearFilters). 화면이 `clearTicketFilters` 를 import 하지 않으면 필터 줄의
    * 버튼(자기 것을 따로 import 하는 TicketFilterBar.jsx 안 버튼)은 멀쩡히 동작해 이 회귀를
    * 가리고, 오직 **빈 상태 쪽** 버튼을 눌러야만 `ReferenceError: clearTicketFilters is not
    * defined`가 난다 — 그래서 반드시 두 번째(빈 상태) 버튼을 짚어 누른다. */
-  it("빈 상태의 '필터 지우기'를 눌러도 주소가 비워진다 (clearTicketFilters 참조 누락 회귀)", async () => {
+  it("빈 상태의 '필터 초기화'를 눌러도 주소가 비워진다 (clearTicketFilters 참조 누락 회귀)", async () => {
     const user = userEvent.setup();
     listPayload = { configured: true, ok: true, mapped: true, items: [], total: 0, page: 1, page_size: 20 };
     renderScreen(MyTickets, "/my-tickets?status=검증");
-    await screen.findByText("조건에 맞는 티켓이 없습니다");
+    await screen.findByText("검색 조건에 맞는 티켓이 없습니다.");
 
-    const clearButtons = screen.getAllByRole("button", { name: "필터 지우기" });
+    const clearButtons = screen.getAllByRole("button", { name: "필터 초기화" });
     expect(clearButtons.length).toBeGreaterThanOrEqual(1);
     await user.click(clearButtons[clearButtons.length - 1]);
 
@@ -347,15 +349,15 @@ describe("빈 목록의 두 가지 뜻", () => {
   it("필터가 없으면 '정말 없다'고 말한다 (필터를 지우라고 하지 않는다)", async () => {
     listPayload = { configured: true, ok: true, mapped: true, items: [], total: 0, page: 1, page_size: 20 };
     renderScreen(MyTickets, "/my-tickets");
-    expect(await screen.findByText("담당한 티켓이 없습니다")).toBeInTheDocument();
-    expect(screen.queryByText("조건에 맞는 티켓이 없습니다")).toBeNull();
-    expect(screen.queryByRole("button", { name: "필터 지우기" })).toBeNull();
+    expect(await screen.findByText("담당한 티켓이 없습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("검색 조건에 맞는 티켓이 없습니다.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "필터 초기화" })).toBeNull();
   });
 
   it("연동이 없으면 필터 줄 자체를 그리지 않는다", async () => {
     listPayload = { configured: false, ok: false, tickets: [] };
     renderScreen(MyTickets, "/my-tickets");
-    expect(await screen.findByText("지금은 티켓 목록을 불러올 수 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("지금은 티켓 목록을 불러올 수 없습니다.")).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "상태" })).toBeNull();
     expect(screen.queryByRole("searchbox", { name: "검색어" })).toBeNull();
   });

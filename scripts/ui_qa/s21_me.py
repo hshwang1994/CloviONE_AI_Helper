@@ -1130,9 +1130,9 @@ def _activity_clear(r, ctx):
         button.first.click()
         r.settle(2000)
     empty_body = r.main_text(200)
-    clear = r.in_main("button", "전체 보기")
+    clear = r.in_main("button", "전체 활동 보기")
     if not clear.count():
-        return {"ui_action": "«전체 보기» 를 찾는다",
+        return {"ui_action": "«전체 활동 보기» 를 찾는다",
                 "observed": {"button": 0, "body": empty_body},
                 "rendered": "«전체 보기» 없음 — 고른 종류가 비지 않았다",
                 "expected": {"source": "known-data",

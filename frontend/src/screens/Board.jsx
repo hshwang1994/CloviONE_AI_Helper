@@ -395,7 +395,7 @@ export const COPY = {
     area: "자유게시판",
     title: "자유게시판",
     lead: "팀원과 자유롭게 이야기를 나눕니다.",
-    empty: "아직 게시글이 없습니다",
+    empty: "등록된 게시글이 없습니다.",
     emptyHelp: "‘글쓰기’로 팀원과 나누고 싶은 첫 이야기를 남길 수 있습니다.",
     writeLabel: "글쓰기",
     route: "/board/",
@@ -403,9 +403,9 @@ export const COPY = {
   idea: {
     area: "기능 개선 제안",
     title: "기능 개선 제안",
-    lead: "불편한 점이나 있으면 좋겠는 기능을 올리고, 공감으로 순서를 정합니다.",
-    empty: "아직 제안이 없습니다",
-    emptyHelp: "‘제안하기’로 불편한 점이나 있으면 좋겠는 기능을 남길 수 있습니다.",
+    lead: "불편한 점이나 있으면 좋을 기능을 올리고, 공감으로 순서를 정합니다.",
+    empty: "등록된 제안이 없습니다.",
+    emptyHelp: "‘제안하기’로 불편한 점이나 있으면 좋을 기능을 남길 수 있습니다.",
     writeLabel: "제안하기",
     route: "/board/",
   },
@@ -519,7 +519,7 @@ function BoardScreen({ kind = "free" }) {
     /* 좁은 화면(900~1200)에서 먼저 접히는 둘. 분류는 바로 위 칩이 이미 말하고, 조회 수는
        어느 글을 열지 정하는 데 가장 덜 쓰인다 — 행을 열면 둘 다 상세에 있다. */
     { key: "view_count", label: "조회", type: "count", sortable: true, hideNarrow: true },
-    { key: "created_at", label: "작성", type: "datetime", sortable: true, render: (p) => <DateCell value={p.created_at} /> },
+    { key: "created_at", label: "작성일", type: "datetime", sortable: true, render: (p) => <DateCell value={p.created_at} /> },
   ];
 
   const writeBtn = <Button variant="primary" onClick={() => setComposing(true)}>{copy.writeLabel}</Button>;
@@ -605,8 +605,8 @@ function BoardScreen({ kind = "free" }) {
                30 단추다 — 화면의 채운 단추는 머리의 「글쓰기」 하나다(핸드오프 RULES §1 · §3). */
             <EmptyState
               layout="region"
-              title="검색 결과가 없습니다"
-              help="조건에 맞는 게시글이 없습니다. 검색어를 지우거나 카테고리를 ‘전체’로 되돌려 보세요."
+              title="검색 조건에 맞는 게시글이 없습니다."
+              help="다른 검색어를 입력하거나 '검색 조건 초기화'를 누르세요."
               action={<Button size="sm" onClick={clearFilters}>검색 조건 초기화</Button>}
             />
           ) : (

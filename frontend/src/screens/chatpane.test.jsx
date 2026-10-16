@@ -1,4 +1,6 @@
-/* qa-contract-change: 채팅방 대화 로그의 정렬이 아래 정렬(flex-end)에서 위 정렬(flex-start, 로그 상한 45rem 걷음)로 옮겼다 — 소유자 결정 「위 정렬 + 입력창 바닥」(UI 3차 조합 계약 C-6). 「full 로그는 flex-end」 단언을 「full 은 flex-start · 상한 없음 · 첫 진입과 새 메시지에 맨 아래로 굴림」으로 옮기고, compact 의 아래 정렬 · 입력 도킹 영역(위 실선 · 입력 영역 표식) · 공통 날짜 구분선 폭을 더 잰다. */
+/* qa-contract-change: 채팅방 대화 로그의 정렬이 아래 정렬(flex-end)에서 위 정렬(flex-start, 로그 상한 45rem 걷음)로 옮겼다 — 소유자 결정 「위 정렬 + 입력창 바닥」(UI 3차 조합 계약 C-6). 「full 로그는 flex-end」 단언을 「full 은 flex-start · 상한 없음 · 첫 진입과 새 메시지에 맨 아래로 굴림」으로 옮기고, compact 의 아래 정렬 · 입력 도킹 영역(위 실선 · 입력 영역 표식) · 공통 날짜 구분선 폭을 더 잰다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, act, fireEvent } from "@testing-library/react";
@@ -62,9 +64,9 @@ beforeEach(() => {
 describe("빈 방 안내", () => {
   it("메시지가 없으면 아이콘 있는 안내를 보여준다(예전엔 아이콘 없는 회색 한 줄이었다)", async () => {
     mount(messagesPayload({ messages: [] }));
-    await screen.findByText("아직 메시지가 없습니다");
+    await screen.findByText("메시지가 없습니다.");
     expect(screen.getByText("💬")).toBeInTheDocument();
-    expect(screen.getByText("먼저 인사해 보세요.")).toBeInTheDocument();
+    expect(screen.getByText("첫 메시지를 보내 대화를 시작하세요.")).toBeInTheDocument();
   });
 });
 
@@ -280,7 +282,7 @@ describe("메시지 로그 정렬", () => {
   // C15 — 빈 방 안내는 로그 상자의 하나뿐인 자식이라 아래로 붙이면 안내가 화면 맨 아래로 밀려나고 위가 통째로 빈다.
   it("메시지가 없을 때도 flex-end 를 쓰지 않는다 — 안내가 맨 아래로 밀려나 위가 비면 안 된다", async () => {
     const { container } = mount(messagesPayload({ messages: [] }));
-    await screen.findByText("아직 메시지가 없습니다");
+    await screen.findByText("메시지가 없습니다.");
     expect(getComputedStyle(logBoxOf(container)).justifyContent).not.toBe("flex-end");
   });
 

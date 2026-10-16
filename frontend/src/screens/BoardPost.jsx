@@ -184,7 +184,7 @@ function CommentTombstone({ comment, isReply }) {
       }}
     >
       <Typography variant="body2" color="text.disabled" sx={{ fontStyle: "italic" }}>
-        {comment.author_name || "알 수 없음"}, 삭제된 댓글입니다
+        {comment.author_name || "알 수 없음"}, 삭제된 댓글입니다.
       </Typography>
     </Card>
   );
@@ -578,7 +578,7 @@ export function BoardPost() {
         <Box component="section" sx={{ minWidth: 0 }}>
             <SectionTitle component="h2" title={`댓글 ${comments.length}`} />
             {tops.length === 0 ? (
-              <Typography color="text.secondary">아직 댓글이 없습니다. 첫 댓글을 남겨 보세요.</Typography>
+              <Typography color="text.secondary">등록된 댓글이 없습니다. 아래 입력 칸에서 첫 댓글을 남길 수 있습니다.</Typography>
             ) : (
               /* 레일이 아주 넓어지는 4K에서는 댓글 묶음을 두 갈래로 접는다 — 한 줄이 2,000px가
                  되는 대신 폭을 실제로 쓴다. 답글은 자기 최상위 댓글 안에 중첩된 목록으로 남는다. */

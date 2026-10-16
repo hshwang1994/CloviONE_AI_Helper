@@ -7,6 +7,8 @@
  *
  * 걸린 시간은 서버가 잰 한 차례의 시간(`elapsed_ms`)이고, 「찾지 못함」은 정상 답(오류색 아님)에 찾아본 검색어와 다음 길이
  * 붙는다. 글 속 티켓 키는 그 답의 출처에 있을 때만 링크다 — 모델이 지어낸 키는 링크가 되지 않는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 import React from "react";
 import { describe, it, expect } from "vitest";
@@ -131,8 +133,8 @@ describe("답 안의 출처 링크와 확인한 수", () => {
     ] }));
     await user.click(screen.getByRole("button", { name: "답 더 보기" }));
     await user.click(screen.getByRole("menuitem", { name: "확인한 내용 보기" }));
-    expect(screen.getByText("사내 문서 검색에서 「연차」를 찾았습니다. (25건 중 8건)")).toBeInTheDocument();
-    expect(screen.getByText("내 문서를 확인했습니다. (3건)")).toBeInTheDocument();
+    expect(screen.getByText("사내 문서 검색에서 「연차」를 찾았습니다. (전체 25건 중 8건)")).toBeInTheDocument();
+    expect(screen.getByText("내 문서를 확인했습니다. (전체 3건)")).toBeInTheDocument();
     expect(screen.getByText("내 업무를 확인했습니다.")).toBeInTheDocument();
   });
 });

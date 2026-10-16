@@ -36,7 +36,7 @@ function NodeProgress({ progress }) {
     <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
       {text
         ? text + " (" + (basis.counted_tasks || 0) + "건 중 " + (basis.done_tasks || 0) + "건 완료)"
-        : "셀 작업이 없습니다"}
+        : "셀 작업이 없습니다."}
     </Typography>
   );
 }
@@ -145,7 +145,7 @@ export function ProjectWbs({ data }) {
       <Card>
         <EmptyState
           art="tickets"
-          title="작업 계층을 그릴 자료가 없습니다"
+          title="작업 계층을 그릴 자료가 없습니다."
           help="이 프로젝트에 걸린 작업이 아직 없습니다."
         />
       </Card>
@@ -161,7 +161,7 @@ export function ProjectWbs({ data }) {
         {/* PA-RC-0001: 24px — game-room/GameStage.jsx·charts/Donut.jsx와 같은 값+굵기(의도된
             예외, 세부 사유는 GameStage.jsx 참고 — 전용 토큰 신설은 검토 후 보류함, D-78). */}
         <Typography sx={{ fontSize: "1.5rem", fontWeight: FONT_WEIGHT.extrabold }}>
-          {percentText(d.progress && d.progress.percent) || "작업이 아직 없습니다"}
+          {percentText(d.progress && d.progress.percent) || "작업이 아직 없습니다."}
         </Typography>
         <ProgressBasis basis={d.progress && d.progress.basis} />
       </Card>

@@ -20,7 +20,7 @@ function CardRows({ heading, total, rows, lead, stamp }) {
   return (
     <Box sx={{ display: "grid", gap: 0.5 }}>
       <Typography component="h5" sx={{ fontSize: FONT_SIZE.caption, fontWeight: FONT_WEIGHT.semibold, color: "text.secondary" }}>
-        {heading}{total > rows.length ? ` (${total}건 중 ${rows.length}건)` : ""}
+        {heading}{total > rows.length ? ` (전체 ${total}건 중 ${rows.length}건)` : ""}
       </Typography>
       <Box component="ul" role="list" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 0.25 }}>
         {rows.map((row, i) => {
@@ -72,8 +72,8 @@ export function ProjectSummaryCard({ project, compact = false }) {
   const docRows = documents ? documents.items : [];
   const figures = [
     { key: "health", label: "건강도", value: health.score },
-    { key: "open", label: "열린 티켓", value: tickets.open },
-    { key: "overdue", label: "마감 지남", value: tickets.overdue_open, tone: "warn" },
+    { key: "open", label: "미완료 티켓", value: tickets.open },
+    { key: "overdue", label: "지연", value: tickets.overdue_open, tone: "warn" },
     { key: "blocked", label: "막힘", value: tickets.blocked, tone: "warn" },
   ].filter((f) => f.value != null);
   const period = project.starts_on || project.ends_on ? `${project.starts_on || ""} ~ ${project.ends_on || ""}` : null;

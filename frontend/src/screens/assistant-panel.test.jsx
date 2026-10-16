@@ -16,6 +16,8 @@ import { MemoryRouter } from "react-router-dom";
  * 상단 카드와 같은 값입니다」라고 스스로 적고 있었다. 지금은 같은 사실에서 **무엇이 가장
  * 급한가**를 뽑아 한 문장으로 낸다 — 아래 `briefingFocus` 단위 시험이 그 규칙 자체를
  * 값으로 고정한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -227,7 +229,7 @@ describe("AI 도우미 패널", () => {
     await screen.findByText("마감이 지난 티켓 1건이 오늘 가장 급합니다.");
 
     await userEvent.click(screen.getByRole("tab", { name: "담당자 지정 필요" }));
-    expect(await screen.findByText("담당자를 지정할 티켓이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("미할당 티켓이 없습니다.")).toBeInTheDocument();
   });
 
   it("SEM-02: 패널 제목은 h2, 안의 소제목(TicketLines)은 h3다", async () => {

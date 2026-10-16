@@ -225,7 +225,7 @@ export function Trash() {
     if (failure) return { tone: "danger", text: failure };
     const last = latestMutation(bulkRestore, bulkPurge, restore, purge);
     if (!last || !last.isSuccess) return null;
-    if (last === purge) return { tone: "warn", text: "영구 삭제했습니다. 원본이 보관처리됐습니다." };
+    if (last === purge) return { tone: "warn", text: "영구 삭제했습니다. 원본은 보관 처리됐습니다." };
     if (last === bulkRestore || last === bulkPurge) {
       const res = last.data || {};
       const failed = res.failed || [];
@@ -389,7 +389,7 @@ export function Trash() {
               onClick: async () => {
                 const trashName = r.title || "제목 없음";
                 const ok = await confirm(
-                  `‘${trashName}’${objectParticle(trashName)} 지금 영구 삭제하면 댓글과 첨부까지 함께 지워지고 되돌릴 수 없습니다. 계속할까요?`,
+                  `‘${trashName}’${objectParticle(trashName)} 지금 영구 삭제하면 댓글과 첨부까지 함께 삭제되고 되돌릴 수 없습니다. 계속할까요?`,
                   { title: "영구 삭제", confirmLabel: "영구 삭제", danger: true });
                 if (ok) purge.mutate(r);
               },
@@ -465,7 +465,7 @@ export function Trash() {
         description={
           docAuto
             ? `삭제한 티켓은 ${days}일, 문서는 ${docDays}일 동안 보관합니다. 그 전에 복원하면 원래 목록으로 돌아옵니다. 기간이 지나면 문서는 영구 삭제됩니다.`
-            : `삭제한 티켓을 ${days}일 동안 보관합니다. 문서는 자동으로 지워지지 않으며, 영구 삭제는 사람이 누를 때만 실행됩니다.`
+            : `삭제한 티켓을 ${days}일 동안 보관합니다. 문서는 자동으로 삭제되지 않으며, 영구 삭제는 사람이 누를 때만 실행됩니다.`
         }
       />
       {trashNotice ? <Callout tone={trashNotice.tone} compact>{trashNotice.text}</Callout> : null}
@@ -478,10 +478,10 @@ export function Trash() {
           <EmptyState
             layout="page"
             art="trash"
-            title="휴지통이 비어 있습니다"
+            title="휴지통이 비어 있습니다."
             // WF1 R5 — 예전엔 여기서 "{days}일 동안 여기 보관됩니다"를 또 말했다, 바로 위
             // 상시 안내문(항상 보임, 빈 상태여도 사라지지 않는다)이 이미 같은 사실을 말한다.
-            help="아직 지운 티켓이나 문서가 없습니다. 실수로 지웠다면 이 화면에서 되돌릴 수 있습니다."
+            help="삭제한 티켓이나 문서가 없습니다. 실수로 삭제했다면 이 화면에서 복원할 수 있습니다."
           />
         ) : (
           <>
@@ -499,8 +499,8 @@ export function Trash() {
                 /* 조건 때문에 비었다 — 조건을 풀 자리를 함께 준다. 탭 줄은 위에 그대로 있다. 판 안 빈 칸이라 region 이다. */
                 <ListEmptyState
                   layout="region" filtered onClear={() => setState({ kind: "" })} clearLabel="전체 결과 보기"
-                  filteredTitle="이 종류에는 항목이 없습니다"
-                  filteredHelp="지금 고른 종류의 항목이 휴지통에 없습니다. 전체를 보면 다른 종류가 있는지 알 수 있습니다."
+                  filteredTitle={kind === "document" ? "휴지통에 문서가 없습니다." : kind === "ticket" ? "휴지통에 티켓이 없습니다." : "휴지통에 항목이 없습니다."}
+                  filteredHelp="'전체 결과 보기'를 누르면 다른 종류의 항목을 볼 수 있습니다."
                 />
               )}
               /* 🔴 여기만 **자동 로딩을 안 켠다**(`autoMaxRows: 0`) — 문서화된 예외다.

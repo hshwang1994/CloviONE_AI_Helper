@@ -16,6 +16,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
  *   6) 미리 확인에 실패가 있으면 적용 단추가 꺼진다. 적용은 한 번 묻고, 개인키는 PEM 방식일 때만 실린다.
  *   7) 성공은 「새 주소에서 다시 로그인하세요.」와 새 주소 링크, 실패는 되돌렸다는 문장이다.
  *   8) DNS · 프록시 줄은 도우미가 읽어 준 실제 값을 보이고, 호스트 이름 설명이 접속 주소와 섞이지 않는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -229,7 +231,7 @@ describe("서비스 주소 카드", () => {
     await waitFor(() => expect(checks.querySelector('[data-check="dns"]')).toHaveAttribute("data-check-state", "ok"));
     expect(within(checks).getAllByText(/정상$/)).toHaveLength(4);
     const row = rowOf(screen.getByTestId("service-address"), "상태");
-    expect(within(row).getByText(/DNS 는 사내 해석기\(이 서버가 쓰는 해석기\) 기준입니다\. 공개 DNS 8\.8\.8\.8의 답은 203\.0\.113\.10입니다\./))
+    expect(within(row).getByText(/DNS는 사내 해석기\(이 서버가 쓰는 해석기\) 기준입니다\. 공개 DNS 8\.8\.8\.8의 답은 203\.0\.113\.10입니다\./))
       .toBeInTheDocument();
     expect(within(checks).queryByText(/공개/)).toBeNull();
   });
@@ -254,7 +256,7 @@ describe("서비스 주소 카드", () => {
     ] });
     renderScreen();
     expect(await screen.findByText("새 주소로 접속하는 확인을 통과하지 못했습니다. 바꾸기 전 설정으로 되돌렸습니다.")).toBeInTheDocument();
-    expect(screen.getByText(`대표 주소를 ${OLD}로 바꿨습니다. 관리자 님이 적용했습니다.`)).toBeInTheDocument();
+    expect(screen.getByText(`대표 주소를 ${OLD}로 바꿨습니다. 관리자님이 적용했습니다.`)).toBeInTheDocument();
   });
 });
 
@@ -292,7 +294,7 @@ describe("서비스 주소 바꾸기 대화 상자", () => {
     await user.click(within(dialog).getByRole("button", { name: "미리 확인" }));
     const checks = await within(dialog).findByTestId("domain-checks");
     expect(checks.querySelector('[data-check="web"]')).toHaveAttribute("data-check-state", "fail");
-    expect(within(dialog).getByText("실패한 확인이 있어 적용할 수 없습니다. 그 항목을 고친 뒤 다시 확인하세요.")).toBeInTheDocument();
+    expect(within(dialog).getByText("실패한 확인이 있어 적용할 수 없습니다. 그 항목을 수정한 뒤 다시 확인하세요.")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "적용" })).toBeDisabled();
     const sent = apiMock.mock.calls.map(([p]) => String(p)).find((p) => p.startsWith("/api/admin/system/domain?"));
     expect(sent).toBe(`/api/admin/system/domain?host=${NEW}&aliases=${OLD}`);

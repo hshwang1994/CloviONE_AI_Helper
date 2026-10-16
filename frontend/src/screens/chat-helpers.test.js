@@ -1,4 +1,6 @@
-/* qa-contract-change: 옛 실행기 시절의 카드 번호 · 본문 목록 걷기 · 응답 시간(timing) 헬퍼를 걷었다 — 서버가 그 구조를 더는 싣지 않아 화면에서 닿을 수 없는 코드였다(D-535). 그 자리의 시험은 도우미 답의 구조(걸린 시간 · 확인한 내용 · 찾아본 검색어)와 시작 예시가 할 수 있는 일만 약속하는지를 잰다. 우선순위 어휘 시험은 정의가 있는 lib/priority.js 에서 그대로 가져와 지킨다. */
+/* qa-contract-change: 옛 실행기 시절의 카드 번호 · 본문 목록 걷기 · 응답 시간(timing) 헬퍼를 걷었다 — 서버가 그 구조를 더는 싣지 않아 화면에서 닿을 수 없는 코드였다(D-535). 그 자리의 시험은 도우미 답의 구조(걸린 시간 · 확인한 내용 · 찾아본 검색어)와 시작 예시가 할 수 있는 일만 약속하는지를 잰다. 우선순위 어휘 시험은 정의가 있는 lib/priority.js 에서 그대로 가져와 지킨다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import * as helpers from "./chat-helpers.js";
 import { priorityKo, priorityKind } from "../lib/priority.js";
@@ -318,9 +320,9 @@ describe("parseInline (A8)", () => {
 });
 
 describe("toolCountLabel (A8, D-567)", () => {
-  it("전체가 더 많으면 「N건 중 M건」, 같으면 「N건」이다", () => {
-    expect(toolCountLabel({ total: 25, count: 8 })).toBe("25건 중 8건");
-    expect(toolCountLabel({ total: 8, count: 8 })).toBe("8건");
+  it("전체가 더 많으면 「전체 N건 중 M건」, 같으면 「전체 N건」이다", () => {
+    expect(toolCountLabel({ total: 25, count: 8 })).toBe("전체 25건 중 8건");
+    expect(toolCountLabel({ total: 8, count: 8 })).toBe("전체 8건");
   });
   it("전체 수를 모르거나 0건이면 붙이지 않는다", () => {
     expect(toolCountLabel({ total: null, count: 3 })).toBeNull();

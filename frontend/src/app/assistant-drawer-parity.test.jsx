@@ -16,6 +16,8 @@ import "@testing-library/jest-dom/vitest";
  *   AI-26: '새 대화' 버튼이 없어 한 스레드에 영구히 갇혔다.
  *   AI-28: 붙여넣은 이미지가 안 보이고 안 지워지고, 이미지만 있으면 전송이 막혔다.
  *   AI-29: 429/503 잠금 안내·해제 버튼이 전체화면에만 있어 드로어는 새로고침 전엔 안 풀렸다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -171,7 +173,7 @@ describe("AI-28 — 붙여넣은 이미지가 보이고, 이미지만으로도 �
     pasteImage();
 
     expect(await screen.findByText("shot.png")).toBeInTheDocument();
-    const removeBtn = screen.getByRole("button", { name: /첨부 제거: shot\.png/ });
+    const removeBtn = screen.getByRole("button", { name: /첨부 삭제: shot\.png/ });
     expect(removeBtn).toBeInTheDocument();
 
     // 텍스트를 하나도 안 쳤는데도(이미지만 있음) 전송 버튼이 잠겨 있지 않다.

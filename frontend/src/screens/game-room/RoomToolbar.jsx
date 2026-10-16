@@ -73,7 +73,7 @@ export function RoomToolbar({ c, fs, onOpenSettings }) {
   const leaveInMenu = narrow && !fullscreen;
   const menu = !fullscreen ? [
     leaveInMenu ? { key: "leave", label: "나가기", onClick: () => mutations.leave.mutate(), disabled: mutations.leave.isPending } : null,
-    actions.disband ? { key: "disband", label: "방 파하기", tone: "danger", onClick: c.disbandWithConfirm, disabled: mutations.disband.isPending } : null,
+    actions.disband ? { key: "disband", label: "게임방 종료", tone: "danger", onClick: c.disbandWithConfirm, disabled: mutations.disband.isPending } : null,
   ].filter(Boolean) : [];
 
   const buttons = (

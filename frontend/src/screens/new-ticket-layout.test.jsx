@@ -7,7 +7,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 
-/* qa-contract-change: 새 티켓 바깥 2열이 뷰포트 lg(1200) 문턱의 화면 사본(NEW_TICKET_GRID)에서 정본 내용 폭 짝 트랙(본문 칸 64rem 컨테이너 질의, density.js::contentPairTracks — UI 3차 조합 계약 C-5)으로 옮겼다. 「lg 에서 기준선 two」 단언을 「컨테이너 질의로 기준선 two · 뷰포트 @media 0」으로 옮기고, 두 판이 화면 아래까지 서는 표식 · 폼 판 세로 흐름과 넘침 풀기 · 편집기 상자 · 따라오는 판 발 · FAB 여백 없는 발 끝을 더 잰다. 1200 실측 행은 레일 옆 1칸(502px)에서 레일이 폼 아래로 간 1열 본문 폭 12칸(862px)으로 옮기고, 좁은 칸 1칸 판정은 폭 값으로 남긴다. */
+/* qa-contract-change: 새 티켓 바깥 2열이 뷰포트 lg(1200) 문턱의 화면 사본(NEW_TICKET_GRID)에서 정본 내용 폭 짝 트랙(본문 칸 64rem 컨테이너 질의, density.js::contentPairTracks — UI 3차 조합 계약 C-5)으로 옮겼다. 「lg 에서 기준선 two」 단언을 「컨테이너 질의로 기준선 two · 뷰포트 @media 0」으로 옮기고, 두 판이 화면 아래까지 서는 표식 · 폼 판 세로 흐름과 넘침 풀기 · 편집기 상자 · 따라오는 판 발 · FAB 여백 없는 발 끝을 더 잰다. 1200 실측 행은 레일 옆 1칸(502px)에서 레일이 폼 아래로 간 1열 본문 폭 12칸(862px)으로 옮기고, 좁은 칸 1칸 판정은 폭 값으로 남긴다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 /* qa-contract-change: 새 티켓 칸 격자가 화면 사본(NT_FIELD_GRID 1·2·3열, 제목은 격자 밖 노치 라벨)에서 정본 12칸 격자(density.js::FORM_FIELD_GRID_12 + kit FormFieldCell)로 옮겨(핸드오프 계획 C · 표 8), 열 수 · 칸 차지 · 칸 폭 하한 · 실측표 · 라벨 계약을 새 구조로 옮기고 검증 오류 줄과 저장 실패 상자의 수명 시험을 더한다. */
 
 /* '새 티켓' 폼의 칸 격자가 **뷰포트가 아니라 자기가 놓인 칸의 폭**으로 열 수를 정하는지 본다.
@@ -485,7 +487,7 @@ describe("새 티켓 — 칸 이름 · 도움말 · 오류는 칸의 세 줄에 
 
     const wd = screen.getByLabelText(/예상 WD/);
     expect(wd).toHaveAttribute("aria-describedby", "nt-wd-help");
-    expect(document.getElementById("nt-wd-help")).toHaveTextContent("사람이 며칠 붙는 일인가요. 0 도 됩니다.");
+    expect(document.getElementById("nt-wd-help")).toHaveTextContent("사람 한 명이 며칠 동안 할 일인지 입력합니다. 0도 입력할 수 있습니다.");
 
     // 날짜 조각 묶음 — 낭독기가 실제로 들어가는 자리에도 이름과 도움말 줄이 이어진다.
     await waitFor(() => {
@@ -500,7 +502,7 @@ describe("새 티켓 — 칸 이름 · 도움말 · 오류는 칸의 세 줄에 
     expect(assignee).toBeDisabled();
     expect(assignee).toHaveAttribute("aria-describedby", "nt-assignee-help");
     expect(document.getElementById("nt-assignee-help"))
-      .toHaveTextContent("프로젝트를 먼저 고르세요. 그 프로젝트에 닿을 수 있는 사람만 담당자가 될 수 있습니다.");
+      .toHaveTextContent("프로젝트를 먼저 고르세요. 그 프로젝트에 접근할 수 있는 사람만 담당자가 될 수 있습니다.");
   });
 
   it("검증에 걸리면 그 칸 아래 오류 줄이 서고 포커스가 그 칸으로 가며, 칸을 고치면 걷힌다(토스트였다)", async () => {

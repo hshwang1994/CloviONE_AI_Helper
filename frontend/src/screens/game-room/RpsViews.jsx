@@ -105,7 +105,7 @@ export function RpsTournamentLive({ gstate, onPick, pending, canPlay, people }) 
       </FlatBadgeSurface>
       {ym ? (
         <Box sx={{ display: "grid", gap: 1, justifyItems: "center", width: "100%", pt: 1.5, borderTop: 1, borderColor: "divider" }}>
-          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.title }}>내 상대는 {ym.opponent}입니다</Typography>
+          <Typography sx={{ fontWeight: FONT_WEIGHT.bold, fontSize: FONT_SIZE.title }}>내 상대는 {ym.opponent}입니다.</Typography>
           {canPlay ? (
             <RpsChoices labels={RPS_LABELS} emojis={RPS_EMOJI} chosen={ym.your_choice} disabled={pending} onPick={onPick} />
           ) : null}

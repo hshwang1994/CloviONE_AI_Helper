@@ -23,6 +23,8 @@ import { MemoryRouter } from "react-router-dom";
  * 「미완료」가 됐다. 빈 판 문장은 칸마다 완전한 문장이고(「7일 안에 마감인 티켓이 없습니다.」), 티켓이 하나도 없으면 판은 다음 행동을
  * 말한다(그 사실은 위 요약이 말한다). 티켓을 못 읽으면 요약이 「없다」를 말하지 않는다는 단언을 더한다. 재는 것(다섯 칸 · 값 ·
  * 누르면 아래가 바뀜 · 못 읽으면 «-»)은 그대로다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -165,7 +167,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     expect(apiMock.mock.calls.length).toBe(before);
   });
 
-  it("고른 칸만 비면 '검색 결과 없음'으로 안내한다(데이터 없음과 구분)", async () => {
+  it("고른 칸만 비면 '검색 조건에 맞는 항목이 없습니다.'으로 안내한다(데이터 없음과 구분)", async () => {
     routeApi();
     renderHome();
     await screen.findByText("오늘 마감");
@@ -369,7 +371,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
 
     expect(await screen.findByText("Notion 조회에 실패했습니다.")).toBeInTheDocument();
     expect(screen.getByText("회의록 초안")).toBeInTheDocument();      // 최근 문서는 살아 있다
-    expect(screen.getByText(/이번 주 진척을 계산할 수 없습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/티켓을 읽지 못해 이번 주 진척을 계산할 수 없습니다/)).toBeInTheDocument();
   });
 
   // VIS-34: 스프린트 카드(SprintProgress)와 AI 도우미의 '오늘 요약'(AssistantPanel의
@@ -394,7 +396,7 @@ describe("홈 '오늘' — 커맨드 센터", () => {
     // "티켓 소스를 읽지 못해"로 시작하는 전체 문장이 두 번 나오지는 않는다(딱 한 곳,
     // 스프린트 카드에만). 0060 에서 '내 업무' 구역이 이 화면으로 옮겨왔는데, 그 구역도
     // 원인을 다시 설명하지 않고 "같은 이유로 …"라고 참조한다(WorkSummary.jsx::WORK_UNKNOWN).
-    expect(screen.getAllByText(/티켓 소스를 읽지 못해/)).toHaveLength(1);
+    expect(screen.getAllByText(/^티켓을 읽지 못해/)).toHaveLength(1);
   });
 
   it("옛 sync 블록이 error 로 되돌아와도 신선도 안내를 안 그린다", async () => {

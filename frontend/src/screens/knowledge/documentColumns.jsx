@@ -31,7 +31,7 @@ const TAG_LIMIT = 4;
 export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, confirm }) {
   return [
     {
-      key: "star", label: "별", type: "select", min: "3rem",
+      key: "star", label: "즐겨찾기", type: "select", min: "3rem",
       render: (doc) => (
         <Box
           component="button"
@@ -167,7 +167,7 @@ export function buildDocumentColumns({ onToggleFavorite, onOpen, onArchive, conf
               label: "휴지통으로 보내기",
               onClick: async () => {
                 const ok = await confirm(
-                  "휴지통에서 되살릴 수 있습니다. 판 이력과 댓글은 그대로 남습니다.",
+                  "휴지통에서 복원할 수 있습니다. 판 이력과 댓글은 그대로 남습니다.",
                   { title: `${doc.title}${objectParticle(doc.title)} 휴지통으로 보낼까요?`, confirmLabel: "보내기" },
                 );
                 if (ok) onArchive(doc);

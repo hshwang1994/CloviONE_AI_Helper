@@ -23,7 +23,7 @@ export function TicketComments({ ticketId }) {
       queryKey={["ticket-comments", ticketId]}
       listUrl={"/api/tickets/" + ticketId + "/comments"}
       itemUrl={(id) => "/api/tickets/comments/" + id}
-      emptyHint="아직 댓글이 없습니다. 이 티켓에 대한 논의를 여기에 남기세요."
+      emptyHint="등록된 댓글이 없습니다. 이 티켓에 대한 논의를 여기에 남기세요."
     />
   );
 }

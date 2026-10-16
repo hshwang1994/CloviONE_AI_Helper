@@ -116,9 +116,9 @@ export function Ticket() {
             절차를 안내하지는 않는다. */}
         <EmptyState
           art="tickets"
-          title="지금은 이 티켓을 열 수 없습니다"
+          title="지금은 이 티켓을 열 수 없습니다."
           situation="서버가 티켓을 읽지 못했습니다."
-          steps={["잠시 뒤 이 화면을 새로고침해 보세요.", "계속 같으면 관리자에게 문의하세요."]}
+          steps={["잠시 뒤 이 화면을 새로고침하세요.", "계속 같으면 관리자에게 문의하세요."]}
           expected="다시 열면 제목, 속성, 본문이 이 자리에 표시됩니다."
           action={<Button variant="primary" onClick={() => nav(backToList)}>내 티켓으로</Button>}
         />
@@ -146,7 +146,7 @@ export function Ticket() {
           화면에 설명 없이는 안 보였다. 이 버튼은 상태·우선순위·담당자·마감 같은 속성을
           여는 것이라는 것을 툴팁으로 밝힌다 — 본문 텍스트는 이 모달이 안 건드린다. */}
       {data.can_edit === false ? null : (
-        <Tooltip describeChild title="상태, 담당자, 마감 등 속성을 수정합니다. 본문 텍스트는 아래 '본문 수정'에서 고칩니다.">
+        <Tooltip describeChild title="상태, 담당자, 마감 등 속성을 수정합니다. 본문 텍스트는 아래 '본문 수정'에서 수정합니다.">
           <Button variant="primary" onClick={() => setEditing(true)}>수정</Button>
         </Tooltip>
       )}
@@ -162,8 +162,8 @@ export function Ticket() {
           {
             key: "trash", label: "삭제", tone: "danger", disabled: trash.isPending,
             onClick: async () => {
-              const ok = await confirm("이 티켓을 휴지통으로 옮깁니다. 보관기간이 지나면 원본이 삭제됩니다. 계속할까요?",
-                { title: "티켓 삭제", confirmLabel: "휴지통으로", danger: true });
+              const ok = await confirm("이 티켓을 휴지통으로 옮깁니다. 보관 기간이 지나면 원본이 삭제됩니다. 계속할까요?",
+                { title: "티켓 삭제", confirmLabel: "휴지통으로 보내기", danger: true });
               if (ok) trash.mutate();
             },
           },

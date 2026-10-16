@@ -79,7 +79,7 @@ export function sprintPhaseNote({ state, phase, canPlan }) {
   if (state === "planned") {
     if (phase === "after") {
       return canPlan
-        ? "기간이 지나도록 열지 않은 회차입니다. 기간을 고쳐서 열거나, 잘못 만든 회차라면 삭제할 수 있습니다."
+        ? "기간이 지나도록 열지 않은 회차입니다. 기간을 수정해서 열거나, 잘못 추가한 회차라면 삭제할 수 있습니다."
         : "기간이 지나도록 열지 않은 회차입니다. 회차 정리는 운영자가 할 수 있습니다.";
     }
     if (phase === "during") {
@@ -152,14 +152,14 @@ function CloseDialog({ open, onClose, sprint, sprints, busy, onSubmit }) {
     >
       <Stack spacing={1.5}>
         <Typography variant="body2">
-          {`«${(sprint && sprint.name) || ""}» 를 닫습니다. 아직 안 끝난 티켓을 어디로 보낼지 고르세요.`}
+          {`이 회차를 닫습니다(«${(sprint && sprint.name) || ""}»). 아직 안 끝난 티켓을 어디로 보낼지 고르세요.`}
         </Typography>
         <FilterSelect
           label="안 끝난 티켓"
           value={target}
           onChange={setTarget}
           options={[
-            ...later.map((s) => ({ value: s.id, label: `${s.name} 로 이월` })),
+            ...later.map((s) => ({ value: s.id, label: `${s.name}에 이월` })),
             { value: CARRY_BACKLOG, label: "백로그로 되돌림" },
           ]}
         />
@@ -187,7 +187,7 @@ export function sprintEditFields(sprint, teamOptions) {
   if (sprint && !closed && !sprint.department_id && Array.isArray(teamOptions) && teamOptions.length) {
     base.splice(1, 0, {
       name: "department_id", label: "팀", type: "entity", required: true,
-      options: teamOptions, emptyLabel: "팀을 고르세요",
+      options: teamOptions, emptyLabel: "팀 선택",
       help: "팀이 정해지지 않은 회차입니다. 팀을 정하면 티켓을 담고 회차를 열 수 있습니다.",
     });
   }
@@ -223,9 +223,9 @@ export function SprintLifecycle({ sprint, sprints, size = "sm", onDeleted, canPl
     onSuccess: () => {
       refresh();
       setEditing(false);
-      toast("회차를 고쳤습니다.", "success");
+      toast("회차를 수정했습니다.", "success");
     },
-    onError: (e) => toast((e && e.message) || "회차를 고치지 못했습니다.", "error"),
+    onError: (e) => toast((e && e.message) || "회차를 수정하지 못했습니다.", "error"),
   });
 
   const remove = useMutation({
@@ -310,7 +310,7 @@ export function SprintLifecycle({ sprint, sprints, size = "sm", onDeleted, canPl
                 label: "회차 삭제",
                 onClick: async () => {
                   const ok = await confirm(
-                    "삭제한 회차는 되살릴 수 없습니다. 담겨 있던 티켓은 백로그로 돌아갑니다. 이 회차를 삭제할까요?",
+                    "삭제한 회차는 되돌릴 수 없습니다. 담겨 있던 티켓은 백로그로 돌아갑니다. 이 회차를 삭제할까요?",
                     { danger: true, confirmLabel: "삭제" },
                   );
                   if (ok) remove.mutate();

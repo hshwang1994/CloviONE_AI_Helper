@@ -11,7 +11,9 @@ import "@testing-library/jest-dom/vitest";
  * 결과 화면만 렌더한다 — GameStage.jsx의 quick_vote/waiting 분기, RoomRail/MembersList/
  * ChatPanel은 그 테스트로는 한 번도 렌더되지 않는다. 이 파일에서 값 변경 없이 GameRoom.jsx를
  * game-room/ 아래 여러 파일로 옮기며 조립 배선(누구에게 어떤 prop을 넘기는지)이 가장 틀리기
- * 쉬운 지점이었다 — 그 배선이 살아있는지 최소한으로 확인한다. */
+ * 쉬운 지점이었다 — 그 배선이 살아있는지 최소한으로 확인한다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 const apiMock = vi.fn();
 vi.mock("../../lib/api.js", () => ({
@@ -83,8 +85,8 @@ describe("게임방 구조 분리 스모크", () => {
     expect(screen.getAllByText("방장").length).toBeGreaterThan(0);
 
     // 채팅 레일(RoomRail → ChatPanel) — 메시지가 없을 때의 안내문(kit EmptyState, DS-14).
-    expect(screen.getByText("아직 메시지가 없습니다")).toBeInTheDocument();
-    expect(screen.getByText("먼저 인사해 보세요.")).toBeInTheDocument();
+    expect(screen.getByText("메시지가 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("첫 메시지를 보내 대화를 시작하세요.")).toBeInTheDocument();
 
     // 방장 + 대기 상태 → 툴바의 시작 버튼 · 나가기 · 넘침(방 파하기).
     expect(screen.getByRole("button", { name: "투표 시작" })).toBeInTheDocument();

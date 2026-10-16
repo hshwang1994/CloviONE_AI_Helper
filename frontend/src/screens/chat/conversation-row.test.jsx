@@ -17,7 +17,9 @@ import { fmtListStamp } from "../../lib/format.js";
  *   - 제목은 두 줄까지이고 전체 제목은 `title` 이다. 시각은 마지막 대화 시각(목록 순서와 같은 값)이다.
  *   - 보조 동작은 「대화 동작: <제목>」 메뉴 하나다(툴팁이 이웃 줄을 가리지 않는다).
  *   - 이름 바꾸기는 줄 안 입력이다. 한글 조합 중 Enter 는 저장하지 않고, 끝나면 초점이 줄 링크로 돌아온다.
- *   - 줄에 주석 글이 새지 않는다. */
+ *   - 줄에 주석 글이 새지 않는다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 function renderRow(props) {
   const all = {
@@ -143,7 +145,7 @@ describe("대화 목록 판", () => {
   it("대화도 검색어도 없으면 검색 칸이 없고, 보관함이 비면 그 사실을 말한다", () => {
     renderSidebar({ convItems: [], showArchived: true });
     expect(screen.queryByRole("searchbox", { name: "대화 목록 검색" })).toBeNull();
-    expect(screen.getByText("보관한 대화가 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("보관한 대화가 없습니다.")).toBeInTheDocument();
   });
 
   it("삭제는 확인한 뒤에만 한다", async () => {

@@ -657,7 +657,7 @@ export function KnowledgeDoc() {
       setMoving(false);
       toast(
         variables.project_id && variables.project_id !== doc.data?.project?.id
-          ? "문서를 다른 프로젝트로 옮겼습니다. 그 프로젝트를 볼 수 있는 사람만 이제 이 문서를 봅니다."
+          ? "문서를 다른 프로젝트로 옮겼습니다. 이제 그 프로젝트를 볼 수 있는 사람만 이 문서를 볼 수 있습니다."
           : "문서를 옮겼습니다. 볼 수 있는 사람은 그대로입니다.",
       );
     },
@@ -667,7 +667,7 @@ export function KnowledgeDoc() {
     mutationFn: () => api(`/api/knowledge/documents/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["knowledge", "documents"] });
-      toast("문서를 휴지통으로 보냈습니다. 휴지통에서 되살릴 수 있습니다.");
+      toast("문서를 휴지통으로 보냈습니다. 휴지통에서 복원할 수 있습니다.");
       navigate(backTo);
     },
   });
@@ -796,7 +796,7 @@ export function KnowledgeDoc() {
               {data.legacy_author_name
                 && data.legacy_author_name !== data.author?.display_name ? (
                   <Typography variant="caption" color="text.secondary">
-                    원본 기록 {data.legacy_author_name}
+                    원래 작성자 {data.legacy_author_name}
                   </Typography>
                 ) : null}
             </Stack>
@@ -930,7 +930,7 @@ export function KnowledgeDoc() {
                   label: "휴지통으로 보내기",
                   onClick: async () => {
                     const ok = await confirm(
-                      "휴지통에서 되살릴 수 있습니다. 판 이력과 댓글은 그대로 남습니다.",
+                      "휴지통에서 복원할 수 있습니다. 판 이력과 댓글은 그대로 남습니다.",
                       { title: "이 문서를 휴지통으로 보낼까요?", confirmLabel: "보내기" },
                     );
                     if (ok) archive.mutate();
@@ -950,7 +950,7 @@ export function KnowledgeDoc() {
       {trashed ? (
         <Callout
           tone="warn"
-          title="이 문서는 휴지통에 있습니다"
+          title="이 문서는 휴지통에 있습니다."
          
           /* 메시지 박스의 동작은 30 보조다(핸드오프 RULES §1) — 같은 「복원」이 페이지 머리의 채움으로 이미 서 있어, 여기까지 채움이면
              한 화면에 같은 일의 채움이 둘이었다(조합 계약 C-4). */
@@ -960,9 +960,9 @@ export function KnowledgeDoc() {
           ) : null}
         >
           {data.archiver?.display_name
-            ? `${data.archiver.display_name}님이 ${fmtDateTimeCompact(data.archived_at)}에 버렸습니다. 보관기간이 지나면 판 이력과 댓글까지 함께 영구 삭제됩니다.`
-            : "보관기간이 지나면 판 이력과 댓글까지 함께 영구 삭제됩니다. 계속 쓰려면 먼저 복원하세요."}
-          {canRestore ? "" : " 되살리려면 이 문서를 버린 사람이나 운영자에게 요청하세요."}
+            ? `${data.archiver.display_name}님이 ${fmtDateTimeCompact(data.archived_at)}에 휴지통으로 보냈습니다. 보관 기간이 지나면 판 이력과 댓글까지 함께 영구 삭제됩니다.`
+            : "보관 기간이 지나면 판 이력과 댓글까지 함께 영구 삭제됩니다. 계속 쓰려면 먼저 복원하세요."}
+          {canRestore ? "" : " 복원하려면 이 문서를 휴지통으로 보낸 사람이나 운영자에게 요청하세요."}
         </Callout>
       ) : null}
 
@@ -1030,7 +1030,7 @@ export function KnowledgeDoc() {
                 )}
                 {!versions.isLoading && versionRows.length === 0 && (
                   <EmptyState
-                    title="아직 판이 없습니다."
+                    title="저장된 판이 없습니다."
                     help="본문을 저장하면 판이 하나씩 쌓입니다."
                   />
                 )}

@@ -55,7 +55,7 @@ function drawModel(c) {
   const pool = drawPool(c);
   const winners = c.drawWinners.map((w) => ({ id: w.user_id, name: w.name, user_id: w.user_id, person: people(c, w.user_id, w.name), kind: "person" }));
   return {
-    mood: "win", winnerLabel: "당첨", heroTitle: "당첨을 축하합니다!", headline: "당첨자를 발표합니다",
+    mood: "win", winnerLabel: "당첨", heroTitle: "당첨을 축하합니다!", headline: "당첨자를 발표합니다.",
     sentence: `${pool.length}명 중 ${winners.length}명을 뽑았습니다.`,
     winners, size: winners.length > 6 ? "lg" : "md",
     copyText: `랜덤 추첨 결과\n당첨: ${winners.map((w) => w.name).join(", ")}`,
@@ -65,7 +65,7 @@ function drawModel(c) {
 function teamModel(c) {
   const total = c.teams.reduce((n, t) => n + t.length, 0);
   return {
-    mood: "calm", headline: "팀을 나눴습니다", sentence: `${total}명을 ${c.teams.length}팀으로 나눴습니다.`,
+    mood: "calm", headline: "팀을 나눴습니다.", sentence: `${total}명을 ${c.teams.length}팀으로 나눴습니다.`,
     detail: <TeamColumns teams={c.teams} people={c.people} youId={c.you.user_id} maxWidth="none" />,
     detailLabel: "팀 구성", detailDefaultOpen: true, size: c.teams.length > 3 ? "lg" : "md",
     copyText: c.teams.map((team, ti) => `${ti + 1}팀: ${team.map((m) => m.name).join(", ")}`).join("\n"),
@@ -107,8 +107,8 @@ function voteModel(c) {
   }
   return {
     ...base, mood: "win", winners, winnerLabel: "선택됨",
-    heroTitle: "투표 결과가 나왔습니다",
-    headline: winners.length > 1 ? "같은 표를 받은 보기가 여럿입니다" : "투표 결과가 나왔습니다",
+    heroTitle: "투표 결과가 나왔습니다.",
+    headline: winners.length > 1 ? "같은 표를 받은 보기가 여럿입니다." : "투표 결과가 나왔습니다.",
     sentence: winners.length > 1 ? `${total}표 중 ${top}표씩 받았습니다.` : `${total}표 중 ${top}표를 받았습니다.`,
   };
 }
@@ -119,7 +119,7 @@ function numberModel(c) {
   const n = (r.picks || []).length;
   const detail = <NumberPicks numResult={r} people={c.people} youId={c.you.user_id} />;
   const copyText = (r.picks || []).map((p) => `${p.name}: ${p.number}`).join("\n");
-  if (!w) return { mood: "calm", winners: [], headline: "승자가 없습니다", sentence: "유일한 숫자가 없어 승자가 없습니다.", detail, detailLabel: "공개된 숫자", detailDefaultOpen: true, copyText, size: n > 8 ? "lg" : "md" };
+  if (!w) return { mood: "calm", winners: [], headline: "승자가 없습니다.", sentence: "유일한 숫자가 없어 승자가 없습니다.", detail, detailLabel: "공개된 숫자", detailDefaultOpen: true, copyText, size: n > 8 ? "lg" : "md" };
   return {
     mood: "win", winnerLabel: "승리", heroTitle: "승리를 축하합니다!", headline: "가장 낮은 유일한 숫자",
     winners: [{ id: w.user_id, name: w.name, user_id: w.user_id, person: people(c, w.user_id, w.name), note: `낸 숫자 ${w.number}`, kind: "person" }],
@@ -135,7 +135,7 @@ function rpsModel(c) {
     const rounds = (r.rounds || []).length;
     const detail = <RpsTournamentResult result={r} people={c.people} />;
     const copyText = champ ? `가위바위보 토너먼트 우승: ${champ.name}` : "우승자 없음";
-    if (!champ) return { mood: "calm", winners: [], headline: "우승자가 없습니다", sentence: "대진이 남지 않았습니다.", detail, detailLabel: "대진표", detailDefaultOpen: true, copyText, size: "md" };
+    if (!champ) return { mood: "calm", winners: [], headline: "우승자가 없습니다.", sentence: "대진이 남지 않았습니다.", detail, detailLabel: "대진표", detailDefaultOpen: true, copyText, size: "md" };
     return {
       mood: "win", winnerLabel: "우승", heroTitle: "우승을 축하합니다!", headline: "우승자",
       winners: [{ id: champ.user_id, name: champ.name, user_id: champ.user_id, person: people(c, champ.user_id, champ.name), kind: "person" }],
@@ -146,10 +146,10 @@ function rpsModel(c) {
   const n = (r.reveal || []).length;
   const detail = <RpsHands rpsResult={r} people={c.people} youId={c.you.user_id} />;
   const copyText = (r.reveal || []).map((p) => `${p.name}: ${p.choice}`).join("\n");
-  if (r.outcome !== "win") return { mood: "calm", winners: [], headline: "비겼습니다", sentence: "같은 손만 나왔거나 셋이 다 나왔습니다.", detail, detailLabel: "낸 손", detailDefaultOpen: true, copyText, size: n > 8 ? "lg" : "md" };
+  if (r.outcome !== "win") return { mood: "calm", winners: [], headline: "비겼습니다.", sentence: "같은 손만 나왔거나 셋이 다 나왔습니다.", detail, detailLabel: "낸 손", detailDefaultOpen: true, copyText, size: n > 8 ? "lg" : "md" };
   const winners = (r.winners || []).map((w) => ({ id: w.user_id, name: w.name, user_id: w.user_id, person: people(c, w.user_id, w.name), kind: "person" }));
   return {
-    mood: "win", winnerLabel: "승리", heroTitle: "승리를 축하합니다!", headline: `${r.win_choice}를 낸 사람이 이겼습니다`,
+    mood: "win", winnerLabel: "승리", heroTitle: "승리를 축하합니다!", headline: `${r.win_choice}를 낸 사람이 이겼습니다.`,
     winners,
     sentence: winners.length > 1 ? `${n}명 중 ${winners.length}명이 ${r.win_choice}를 내서 이겼습니다.` : `${n}명 중 ${r.win_choice}를 내서 이겼습니다.`,
     detail, detailLabel: "낸 손", detailDefaultOpen: false, copyText, size: winners.length > 6 || n > 8 ? "lg" : "md",
@@ -165,10 +165,10 @@ function quizModel(c) {
   const copyText = board.map((s, i) => `${i + 1}. ${s.name} ${s.score}/${r.total_rounds}`).join("\n");
   const winners = board.filter((s) => ids.has(s.user_id)).map((s) => ({ id: s.user_id, name: s.name, user_id: s.user_id, person: people(c, s.user_id, s.name), note: `${s.score}점`, kind: "person" }));
   const size = board.length > 8 ? "lg" : "md";
-  if (!winners.length) return { mood: "calm", winners: [], headline: "맞힌 사람이 없습니다", sentence: `${r.total_rounds}문제 중 맞힌 문제가 없습니다.`, detail, detailLabel: "최종 순위", detailDefaultOpen: true, copyText, size };
+  if (!winners.length) return { mood: "calm", winners: [], headline: "맞힌 사람이 없습니다.", sentence: `${r.total_rounds}문제 중 맞힌 문제가 없습니다.`, detail, detailLabel: "최종 순위", detailDefaultOpen: true, copyText, size };
   const score = board.find((s) => ids.has(s.user_id)).score;
   return {
-    mood: "win", winnerLabel: "우승", heroTitle: "우승을 축하합니다!", headline: winners.length > 1 ? "공동 우승입니다" : "우승자",
+    mood: "win", winnerLabel: "우승", heroTitle: "우승을 축하합니다!", headline: winners.length > 1 ? "공동 우승입니다." : "우승자",
     winners,
     sentence: winners.length > 1 ? `${r.total_rounds}문제 중 ${score}문제씩 맞혀 함께 우승했습니다.` : `${r.total_rounds}문제 중 ${score}문제를 맞혀 우승했습니다.`,
     detail, detailLabel: "최종 순위", detailDefaultOpen: false, copyText, size,
@@ -215,7 +215,7 @@ function marbleModel(c, palette) {
   else sentence = k > 1 ? `${n}명 중 ${k}명이 먼저 결승선을 통과했습니다.` : `${n}명 중 가장 먼저 결승선을 통과했습니다.`;
   const noteOf = INTEGRITY_NOTES[m.integrity.status];
   return {
-    mood: "win", winnerLabel: "당첨", heroTitle: "당첨을 축하합니다!", headline: "당첨자를 발표합니다",
+    mood: "win", winnerLabel: "당첨", heroTitle: "당첨을 축하합니다!", headline: "당첨자를 발표합니다.",
     winners, ranked: k > 1, sentence, note: noteOf ? noteOf(m.integrity.agree || 0) : null,
     detail: <MarbleRanking ranking={ranking} finishSteps={finishSteps} byKey={m.byKey} winnerKeys={m.winnerKeys} palette={palette} />,
     detailLabel: "전체 순위", detailDefaultOpen: false, size: k > 6 ? "lg" : "md",

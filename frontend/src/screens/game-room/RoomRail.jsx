@@ -34,7 +34,7 @@ export function RoomRail({ c, panes, defaultPane }) {
   const current = top.find((p) => p.key === currentKey) || top[0];
 
   const head = top.length > 1 ? (
-    <Segmented ariaLabel="레일 보기" value={current.key} onChange={setPicked}
+    <Segmented ariaLabel="참여자와 순위 보기" value={current.key} onChange={setPicked}
       options={top.map((p) => ({ value: p.key, label: p.label }))} sx={{ alignSelf: "flex-start", mb: 1.25, flexShrink: 0 }} />
   ) : (
     <Typography component="h2" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1, flexShrink: 0 }}>{current.label}</Typography>

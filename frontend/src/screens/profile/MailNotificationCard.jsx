@@ -181,7 +181,7 @@ export function MailNotificationCard({ mail, save }) {
         </SettingRows>
         {mail.address ? <AddressBlock address={mail.address} mailOff={off} /> : null}
       </FormSection>
-      <FormSection titleAs="h2" title="받을 알림">
+      <FormSection titleAs="h2" title="메일로 받을 알림">
         {catalog.length ? (
           <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, "& > li:first-of-type .k-settingrow": { borderTop: 0, pt: 0 } }}>
             {catalog.map((row) => (

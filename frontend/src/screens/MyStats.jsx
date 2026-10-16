@@ -66,7 +66,7 @@ function SourceNotice({ source }) {
   if (source.ok === false) {
     return (
       <Callout tone="warn">
-        {source.error || "티켓을 불러오지 못했습니다. 아래 숫자는 비어 있을 수 있습니다. 새로고침해 보세요."}
+        {source.error || "티켓을 불러오지 못했습니다. 아래 숫자는 비어 있을 수 있습니다. 화면을 새로고침하세요."}
       </Callout>
     );
   }
@@ -180,7 +180,7 @@ function WeeklyLoad({ load }) {
           />
           <Box sx={{ minWidth: 0, display: "grid", rowGap: 0.375 }}>
             <Typography sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_WORD_BREAK }}>
-              {`${span} 마감인 티켓이 ${soon}건입니다`}
+              {`${span} 마감인 티켓이 ${soon}건입니다.`}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ ...KO_WORD_BREAK }}>
               {later ? `남은 ${later}건은 그 뒤에 마감입니다.` : "그 뒤에 마감인 티켓은 없습니다."}
@@ -244,7 +244,7 @@ export function MyStats() {
     <div className="c-screen">
       <PageHeader
         area="내 정보"
-        title="내 업무량, 완료 통계"
+        title="내 업무량과 완료 통계"
         crumbRoot=""
 
         /* 기간은 **세그먼티드**다(확정 규약 §2). 셋뿐이고 서로 배타적이라, 열어서 고르는
@@ -315,7 +315,7 @@ export function MyStats() {
                   thickness={12}
                   color="ok"
                   centerText={false}
-                  emptyLabel="아직 잴 수 없습니다"
+                  emptyLabel="아직 잴 수 없습니다."
                 />
                 <Box sx={{ display: "grid", rowGap: 0.25, minWidth: 0 }}>
                   <Typography sx={{ fontSize: FONT_SIZE.title, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
@@ -339,9 +339,9 @@ export function MyStats() {
             <Card>
               <EmptyState
                 art="tickets"
-                title="아직 집계할 티켓이 없습니다"
+                title="집계할 티켓이 없습니다."
                 situation="내가 담당인 티켓이 하나도 없어서 그릴 숫자가 없습니다."
-                help="티켓을 맡거나 새로 만들면 여기에 업무량과 완료 추이가 쌓입니다."
+                help="티켓을 맡거나 새로 추가하면 여기에 업무량과 완료 추이가 쌓입니다."
                 relatedLink={{ href: "#/my-tickets", label: "내 티켓으로" }}
               />
             </Card>
@@ -371,7 +371,7 @@ export function MyStats() {
                       색은 완료 하나만 쓴다. 배정은 중립 선색이라 완료 막대의 **배경**으로
                       읽히고, 둘의 차이가 곧 남은 몫이다. */}
                   <ColumnSeries
-                    question="달마다 얼마나 맡았고 얼마나 끝냈는지 봅니다. 배정이 없던 달은 값이 «-» 이고, 완료율은 아래 표가 답합니다."
+                    question="달마다 얼마나 맡았고 얼마나 끝냈는지 봅니다. 배정이 없던 달은 값이 «-»이고, 완료율은 아래 표에서 볼 수 있습니다."
                     items={data.months.map((m) => (m.assigned
                       ? {
                         key: m.month, label: m.month.slice(2), hint: m.month,
@@ -384,7 +384,7 @@ export function MyStats() {
                     barWidth="0.875rem"
                     barGap="0.25rem"
                     unit="건"
-                    emptyLabel="집계할 달이 없습니다"
+                    emptyLabel="집계할 달이 없습니다."
                   />
                   <Box sx={{ mt: 2, minWidth: 0 }}>
                     <DataTable
@@ -408,7 +408,7 @@ export function MyStats() {
                         wd: `${m.est_wd} / ${m.act_wd}`,
                       }))}
                       rowKey={(r) => r.month}
-                      empty="집계할 달이 없습니다"
+                      empty="집계할 달이 없습니다."
                     />
                   </Box>
                 </Card>
@@ -435,7 +435,7 @@ export function MyStats() {
                     }))}
                     unit="건"
                     centerLabel="티켓"
-                    emptyLabel="티켓이 없습니다"
+                    emptyLabel="티켓이 없습니다."
                   />
                 </Card>
                 <Card>
@@ -467,7 +467,7 @@ export function MyStats() {
                        목록마다 다른 폭이면 값과 막대의 시작선이 세로로 어긋난다. */
                     tracks="4.5rem 2.5rem minmax(0,1fr)"
                     unit="건"
-                    emptyLabel="남은 일이 없습니다"
+                    emptyLabel="남은 일이 없습니다."
                   />
                 </Card>
                 <Card>

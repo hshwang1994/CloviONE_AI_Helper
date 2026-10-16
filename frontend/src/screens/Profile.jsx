@@ -171,11 +171,11 @@ function IdentityHeader({ profile, prefs, onChanged }) {
   }
 
   async function remove() {
-    if (!(await confirm("사진을 지우면 기본 아바타로 돌아갑니다.", { title: "프로필 사진 삭제", confirmLabel: "삭제" }))) return;
+    if (!(await confirm("사진을 삭제하면 기본 아바타로 돌아갑니다.", { title: "프로필 사진 삭제", confirmLabel: "삭제" }))) return;
     setBusy(true);
     try {
       await api("/api/me/avatar", { method: "DELETE" });
-      toast("프로필 사진을 지웠습니다.", "success");
+      toast("프로필 사진을 삭제했습니다.", "success");
       onChanged();
     } catch (e) {
       toast(e.message, "error");
@@ -192,7 +192,7 @@ function IdentityHeader({ profile, prefs, onChanged }) {
       });
       toast(
         avatarUrl
-          ? "기본 아바타를 저장했습니다. 지금은 올린 사진이 보이므로, 기본 그림을 보려면 사진을 지우세요."
+          ? "기본 아바타를 저장했습니다. 지금은 올린 사진이 보이므로, 기본 그림을 보려면 사진을 삭제하세요."
           : (key ? "기본 아바타를 저장했습니다." : "기본 아바타를 자동으로 되돌렸습니다."),
         "success",
       );
@@ -287,7 +287,7 @@ function IdentityHeader({ profile, prefs, onChanged }) {
 
       {avatarUrl ? (
         <Callout tone="info" compact>
-          지금은 올린 사진이 보입니다. 기본 아바타에서 고른 그림은 사진을 지운 뒤에 쓰입니다.
+          지금은 올린 사진이 보입니다. 기본 아바타에서 고른 그림은 사진을 삭제한 뒤에 쓰입니다.
         </Callout>
       ) : null}
 
@@ -415,7 +415,7 @@ function DndCard({ prefs, save }) {
 
       {dnd.quiet_now ? (
         <Callout tone="info" compact>
-          지금 조용한 상태입니다({dnd.reason === "manual" ? "직접 켬" : "조용시간"}).
+          지금 방해금지 중입니다({dnd.reason === "manual" ? "직접 켬" : "정한 시간"}).
           {dnd.until ? ` ${fmtDateTime(dnd.until)}에 자동으로 풀립니다.` : ""}
           {" "}알림은 계속 쌓이고 있습니다.
         </Callout>
@@ -426,7 +426,7 @@ function DndCard({ prefs, save }) {
       <Box>
         <SettingRow
           compact
-          label="지금 조용히 하기"
+          label="지금부터 방해금지"
           description={dnd.enabled ? (dnd.until ? `${fmtRelative(dnd.until)} 자동 해제` : "직접 끌 때까지") : undefined}
           controlId="pref-dnd-now"
           action={(
@@ -454,15 +454,15 @@ function DndCard({ prefs, save }) {
 
         <SettingRow
           compact
-          label="매일 같은 시간대에 조용히 하기"
-          description="한국 시간 기준입니다. 자정을 넘겨도 됩니다(예: 22:00 에서 08:00)."
+          label="매일 정한 시간에 방해금지"
+          description="한국 시간 기준입니다. 자정을 넘겨도 됩니다(예: 22:00에서 08:00)."
           controlId="pref-dnd-quiet"
           action={(
             <Switch
               id="pref-dnd-quiet"
               checked={!!dnd.quiet_hours_enabled}
               onChange={(e) => save({ quiet_hours_enabled: e.target.checked })}
-              slotProps={{ input: { "aria-label": "조용시간" } }}
+              slotProps={{ input: { "aria-label": "매일 정한 시간에 방해금지" } }}
             />
           )}
         />
@@ -541,7 +541,7 @@ function DeviceRow({ session, onRevoke, busy }) {
       </Box>
       {s.current ? (
         <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.micro, whiteSpace: "nowrap" }}>
-          유지됩니다
+          로그인 유지
         </Typography>
       ) : (
         <Button size="sm" disabled={busy} onClick={() => onRevoke(s.id)}>이 기기 로그아웃</Button>
@@ -602,7 +602,7 @@ function SessionsCard() {
     mutationFn: (id) => api("/api/me/sessions/" + id, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-sessions"] });
-      toast("해당 기기의 로그인을 해제했습니다.", "success");
+      toast("선택한 기기의 로그인을 해제했습니다.", "success");
     },
     onError: (e) => toast(e.message, "error"),
   });
@@ -650,13 +650,13 @@ function SessionsCard() {
       {q.isLoading ? <Skeleton lines={3} /> : q.isError ? (
         <ErrorState layout="region" error={q.error} onRetry={() => q.refetch()} />
       ) : items.length === 0 ? (
-        <EmptyState title="표시할 세션이 없습니다" />
+        <EmptyState title="표시할 기기가 없습니다." />
       ) : (
         <>
           {/* 총계를 먼저 말한다 — 아래 목록은 높이가 묶여 있어 일부만 보인다. 숫자를 안 쓰면
               "몇 개인지"를 스크롤해서 세어야 하고, 잘린 마지막 줄이 오류처럼 보인다. */}
           <Typography color="text.secondary" sx={{ fontSize: FONT_SIZE.micro }}>
-            총 {items.length}개, 다른 기기 {others.length}개{items.length > 6 ? " (목록은 스크롤됩니다)" : ""}
+            전체 {items.length}개, 다른 기기 {others.length}개{items.length > 6 ? " (목록은 스크롤됩니다)" : ""}
           </Typography>
           {/* 목록 높이를 묶고 안에서 스크롤한다 — 오래 쓴 계정은 세션이 수십 개까지 쌓여
               카드 하나가 화면 스무 개 길이가 된다(QA 캡처에서 실제로 22개였다). */}

@@ -23,8 +23,8 @@ export function DocComments({ documentId, readOnly = false }) {
       itemUrl={(id) => "/api/knowledge/comments/" + id}
       readOnly={readOnly}
       emptyHint={readOnly
-        ? "댓글이 없습니다."
-        : "아직 댓글이 없습니다. 이 문서에 대한 논의를 여기에 남기세요."}
+        ? "등록된 댓글이 없습니다."
+        : "등록된 댓글이 없습니다. 이 문서에 대한 논의를 여기에 남기세요."}
     />
   );
 }

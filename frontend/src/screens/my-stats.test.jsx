@@ -104,7 +104,7 @@ describe("내 업무량 · 완료 통계", () => {
     renderStats();
     await screen.findByText("남은 일");
 
-    expect(screen.getByRole("heading", { level: 1, name: "내 업무량, 완료 통계" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "내 업무량과 완료 통계" })).toBeInTheDocument();
     const level2Names = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     for (const title of ["달별 배정과 완료", "앞으로의 부하(주별)", "상태 구성", "남은 일의 우선순위", "공수(WD)"]) {
       expect(level2Names).toContain(title);
@@ -128,7 +128,7 @@ describe("내 업무량 · 완료 통계", () => {
       totals: { all: 0, active: 0, done: 0, cancelled: 0, overdue: 0, due_today: 0, due_soon: 0, blocked: 0, no_due: 0, completion_rate: null },
     }));
     renderStats();
-    expect(await screen.findByText("아직 집계할 티켓이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("집계할 티켓이 없습니다.")).toBeInTheDocument();
     expect(screen.getByText("내 티켓으로")).toBeInTheDocument();
   });
 
@@ -153,7 +153,7 @@ describe("내 업무량 · 완료 통계", () => {
     });
     renderStats();
     expect(await screen.findByText("티켓을 읽지 못했습니다.")).toBeInTheDocument();
-    expect(screen.getByText("아직 집계할 티켓이 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("집계할 티켓이 없습니다.")).toBeInTheDocument();
     /* 판독 칸이 상태 칩으로 바뀌었다 — 재는 것은 그대로다: **0 이 아니라 「모른다」**를
        그리는가. 티켓을 못 읽으면 0건이 아니라 값 자체를 모르는 것이고, 그것을 0으로
        그리면 없는 사실을 만든다. */

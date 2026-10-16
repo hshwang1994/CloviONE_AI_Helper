@@ -32,7 +32,7 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, people, draft, setDraft, 
         {chatMsgs.length === 0 ? (
           // VIS-90 — ChatPane.jsx(팀 채팅)의 같은 빈 상태와 아이콘·문구를 맞춘다(둘이 다르면
           // 사용자는 "다른 채팅 기능"이라고 오해한다).
-          <EmptyState size="compact" icon="💬" title="아직 메시지가 없습니다" help="먼저 인사해 보세요." />
+          <EmptyState size="compact" icon="💬" title="메시지가 없습니다." help="첫 메시지를 보내 대화를 시작하세요." />
         ) : chatMsgs.map((e) => {
           if (e.kind === "system") {
             return (
@@ -78,7 +78,7 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, people, draft, setDraft, 
           놀이 판의 채움(「투표 시작」 같은 진행 단추)과 따로 센다(조합 계약 C-4). */}
       <Stack data-form-scope="" direction="row" gap={1} alignItems="center" sx={{ flexShrink: 0 }}>
         <TextField
-          size="small" fullWidth value={draft} placeholder="메시지 입력"
+          size="small" fullWidth value={draft} placeholder="메시지를 입력하세요"
           inputProps={{ maxLength: 500, "aria-label": "메시지 입력" }}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); sendChat(); } }}

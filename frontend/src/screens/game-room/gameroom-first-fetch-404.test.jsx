@@ -15,7 +15,9 @@ import "@testing-library/jest-dom/vitest";
  * 대비되는 "중간 폴링 404"(방장이 파한 직후 남은 참여자의 다음 폴링)는 react-query가 이전
  * 성공 데이터를 그대로 들고 있어 이 경로를 타지 않는다 — 이미 정상 동작해서 여기서는 다루지
  * 않는다(gameroom-host-handoff.test.jsx 등 다른 방 상태 폴링 흐름과 겹치지 않게, 첫 fetch부터
- * 404인 경우만 재현한다). */
+ * 404인 경우만 재현한다).
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 const apiMock = vi.fn();
 vi.mock("../../lib/api.js", () => ({
@@ -68,7 +70,7 @@ describe("사라진 방으로 첫 진입", () => {
     renderRoom();
 
     // 고치기 전에는 렌더 도중 state.data를 구조분해하다 던져서 이 지점에 닿지 못했다.
-    expect(await screen.findByText("방이 사라졌습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("게임방이 종료됐습니다.")).toBeInTheDocument();
     expect(await screen.findByText("게임 목록")).toBeInTheDocument();
   });
 });

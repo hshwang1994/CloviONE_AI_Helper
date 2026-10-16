@@ -216,7 +216,7 @@ export function Knowledge() {
   const renameTag = useMutation({
     mutationFn: ({ id, name }) =>
       api(`/api/knowledge/tags/${id}`, { method: "PATCH", body: { name } }),
-    onSuccess: () => { invalidateTags(); toast("태그 이름을 고쳤습니다."); },
+    onSuccess: () => { invalidateTags(); toast("태그 이름을 수정했습니다."); },
   });
 
   const removeTag = useMutation({
@@ -225,8 +225,8 @@ export function Knowledge() {
       invalidateTags();
       toast(
         result.detached
-          ? `태그를 지웠고 문서 ${result.detached}건에서 뗐습니다.`
-          : "태그를 지웠습니다.",
+          ? `태그를 삭제하고 문서 ${result.detached}건에서 뗐습니다.`
+          : "태그를 삭제했습니다.",
       );
     },
   });
@@ -239,7 +239,7 @@ export function Knowledge() {
   const renameCategory = useMutation({
     mutationFn: ({ id, name }) =>
       api(`/api/knowledge/categories/${id}`, { method: "PATCH", body: { name } }),
-    onSuccess: () => { invalidateCategories(); toast("분류 이름을 고쳤습니다."); },
+    onSuccess: () => { invalidateCategories(); toast("분류 이름을 수정했습니다."); },
   });
 
   const removeCategory = useMutation({
@@ -248,8 +248,8 @@ export function Knowledge() {
       invalidateCategories();
       toast(
         result.detached
-          ? `분류를 지웠고 문서 ${result.detached}건이 미분류가 됐습니다.`
-          : "분류를 지웠습니다.",
+          ? `분류를 삭제했고 문서 ${result.detached}건이 미분류가 됐습니다.`
+          : "분류를 삭제했습니다.",
       );
       /* 지운 분류가 지금 조건이면 조건도 푼다 — 남겨 두면 영원히 0건인 화면이 된다. */
       if (category && category === deletedId) setQuery({ category: null });
@@ -258,7 +258,7 @@ export function Knowledge() {
 
   const createTemplate = useMutation({
     mutationFn: (body) => api("/api/knowledge/templates", { method: "POST", body }),
-    onSuccess: () => { invalidateTemplates(); setTemplateId(null); toast("틀을 만들었습니다."); },
+    onSuccess: () => { invalidateTemplates(); setTemplateId(null); toast("틀을 추가했습니다."); },
   });
 
   const saveTemplate = useMutation({
@@ -267,7 +267,7 @@ export function Knowledge() {
     onSuccess: () => {
       invalidateTemplates();
       setTemplateId(null);
-      toast("틀을 고쳤습니다. 이 틀로 이미 만든 문서는 그대로입니다.");
+      toast("틀을 수정했습니다. 이 틀로 이미 추가한 문서는 그대로입니다.");
     },
   });
 
@@ -276,7 +276,7 @@ export function Knowledge() {
     onSuccess: () => {
       invalidateTemplates();
       setTemplateId(null);
-      toast("틀을 지웠습니다. 이 틀로 만든 문서는 그대로 남습니다.");
+      toast("틀을 삭제했습니다. 이 틀로 추가한 문서는 그대로 남습니다.");
     },
   });
 
@@ -304,7 +304,7 @@ export function Knowledge() {
     mutationFn: (id) => api(`/api/knowledge/documents/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       invalidate();
-      toast("문서를 휴지통으로 보냈습니다. 휴지통에서 되살릴 수 있습니다.");
+      toast("문서를 휴지통으로 보냈습니다. 휴지통에서 복원할 수 있습니다.");
     },
   });
 
@@ -471,10 +471,10 @@ export function Knowledge() {
                   filtered={hasFilter}
                   onClear={clearFilters}
                   clearLabel="검색 조건 초기화"
-                  filteredTitle="조건에 맞는 문서가 없습니다"
+                  filteredTitle="검색 조건에 맞는 문서가 없습니다."
                   filteredHelp="검색어와 분류, 태그, 작성자 조건을 풀면 전체 문서가 다시 나타납니다."
-                  title="문서가 아직 없습니다."
-                  help="위의 새 문서로 만들면 이 목록에 나타납니다."
+                  title="등록된 문서가 없습니다."
+                  help="위의 '새 문서'로 문서를 추가하면 이 목록에 나타납니다."
                 />
               )}
               /* 제목 · 요약 · 태그가 서는 두 줄 행 — 바닥 76(핸드오프 ACCEPTANCE E1 · J2). */
@@ -526,7 +526,7 @@ export function Knowledge() {
         onSaveTemplate={(id, body) => saveTemplate.mutate({ id, body })}
         onRemoveTemplate={async (row) => {
           const ok = await confirm(
-            "이 틀로 이미 만든 문서는 그대로 남습니다. 앞으로 새 문서에서 고를 수 없습니다.",
+            "이 틀로 이미 추가한 문서는 그대로 남습니다. 앞으로 새 문서에서 고를 수 없습니다.",
             { title: `${row.name} 틀을 삭제할까요?`, confirmLabel: "삭제", danger: true },
           );
           if (ok) removeTemplate.mutate(row.id);

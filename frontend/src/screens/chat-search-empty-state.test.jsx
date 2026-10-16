@@ -9,10 +9,12 @@ import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 /* AI-70: 검색어가 있는데 결과가 0건이면 "검색 결과가 없습니다"를 말해야 하는데, 예전엔
  * 그 분기가 죽은 코드였다 — `filtered`가 `convItems`의 단순 별칭(AI-38로 서버 검색 전환
  * 후)이라 `filtered.length`는 바깥 `!convItems.length` 분기가 이미 걸러낸 뒤에는 항상
- * 참이었다. 그래서 검색 결과 0건도 늘 "아직 대화가 없습니다"(또는 "보관된 대화가
+ * 참이었다. 그래서 검색 결과 0건도 늘 "대화가 없습니다."(또는 "보관된 대화가
  * 없습니다")로 잘못 나왔다 — 오류는 아니지만 "검색 중이었다"는 맥락을 잃는 UX 정확도
  * 문제. `convFilter`를 직접 보고 분기하도록 고쳤다(chat-conversation-load-more.test.jsx와
  * 같은 직접-props 렌더 방식).
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 function baseProps(overrides = {}) {
@@ -42,24 +44,24 @@ function renderSidebar(overrides) {
 describe("대화 목록 검색 빈 상태 (AI-70)", () => {
   it("검색어가 있고 결과가 0건이면 '검색 결과가 없습니다'를 말한다", () => {
     renderSidebar({ convFilter: "존재안함", convItems: [] });
-    expect(screen.getByText("검색 결과가 없습니다")).toBeInTheDocument();
-    expect(screen.queryByText("아직 대화가 없습니다")).toBeNull();
+    expect(screen.getByText("검색 조건에 맞는 대화가 없습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("대화가 없습니다.")).toBeNull();
   });
 
   it("검색어가 있으면 보관 필터가 켜져 있어도 '검색 결과가 없습니다'가 우선한다", () => {
     renderSidebar({ convFilter: "존재안함", convItems: [], showArchived: true });
-    expect(screen.getByText("검색 결과가 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("검색 조건에 맞는 대화가 없습니다.")).toBeInTheDocument();
     expect(screen.queryByText("보관된 대화가 없습니다")).toBeNull();
   });
 
-  it("검색어가 없으면 기존대로 '아직 대화가 없습니다'다(회귀 없음)", () => {
+  it("검색어가 없으면 기존대로 '대화가 없습니다.'다(회귀 없음)", () => {
     renderSidebar({ convFilter: "", convItems: [] });
-    expect(screen.getByText("아직 대화가 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("대화가 없습니다.")).toBeInTheDocument();
     expect(screen.queryByText("검색 결과가 없습니다")).toBeNull();
   });
 
   it("검색어가 공백뿐이면(trim 후 빈 문자열) 검색 중으로 안 친다", () => {
     renderSidebar({ convFilter: "   ", convItems: [] });
-    expect(screen.getByText("아직 대화가 없습니다")).toBeInTheDocument();
+    expect(screen.getByText("대화가 없습니다.")).toBeInTheDocument();
   });
 });

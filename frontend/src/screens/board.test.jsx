@@ -1,4 +1,6 @@
-/* qa-contract-change: UI 3차 조합 계약 C-1 — 목록 위 단독 결과 줄(「전체 N건」)을 걷어 결과 수를 필터 면 안 조건 줄과 목록 끝 줄이 말하게 됐다. 건수 단언을 끝 줄 문장으로 옮기고 단독 줄이 되살아나지 않음을 더한다. */
+/* qa-contract-change: UI 3차 조합 계약 C-1 — 목록 위 단독 결과 줄(「전체 N건」)을 걷어 결과 수를 필터 면 안 조건 줄과 목록 끝 줄이 말하게 됐다. 건수 단언을 끝 줄 문장으로 옮기고 단독 줄이 되살아나지 않음을 더한다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -67,23 +69,23 @@ async function pickOption(user, comboName, optionName) {
   await user.click(await screen.findByRole("option", { name: optionName }));
 }
 
-describe("빈 화면은 '아직 글이 없음'과 '검색 결과 없음'을 구분한다", () => {
+describe("빈 화면은 '아직 글이 없음'과 '검색 조건에 맞는 항목이 없습니다.'을 구분한다", () => {
   it("필터가 없으면 첫 글을 쓰라고 안내한다", async () => {
     mockApi(() => ({ items: [] }));
     renderBoard();
-    expect(await screen.findByRole("heading", { name: "아직 게시글이 없습니다" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "검색 결과가 없습니다" })).toBeNull();
+    expect(await screen.findByRole("heading", { name: "등록된 게시글이 없습니다." })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "검색 조건에 맞는 게시글이 없습니다." })).toBeNull();
   });
 
   it("카테고리를 고른 뒤 0건이면 '검색 결과가 없습니다' + 지우기 CTA", async () => {
     mockApi((url) => (url.includes("category=") ? { items: [] } : { items: [] }));
     const user = userEvent.setup();
     renderBoard();
-    await screen.findByRole("heading", { name: "아직 게시글이 없습니다" });
+    await screen.findByRole("heading", { name: "등록된 게시글이 없습니다." });
 
     await pickOption(user, "카테고리", "질문");
 
-    expect(await screen.findByRole("heading", { name: "검색 결과가 없습니다" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "검색 조건에 맞는 게시글이 없습니다." })).toBeInTheDocument();
     // 걸린 조건은 조건 칩으로 선다 — 칸이 닫혀도 무엇으로 좁혔는지 보인다.
     expect(screen.getByText("카테고리: 질문")).toBeInTheDocument();
     const clear = screen.getByRole("button", { name: "검색 조건 초기화" });
@@ -91,7 +93,7 @@ describe("빈 화면은 '아직 글이 없음'과 '검색 결과 없음'을 구�
 
     // CTA를 누르면 실제로 필터가 풀려 원래의 온보딩 빈 상태로 돌아온다.
     await user.click(clear);
-    expect(await screen.findByRole("heading", { name: "아직 게시글이 없습니다" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "등록된 게시글이 없습니다." })).toBeInTheDocument();
   });
 });
 
@@ -117,7 +119,7 @@ describe("카테고리 선택은 서버 쿼리에 반영된다", () => {
     mockApi(() => ({ items: [] }));
     const user = userEvent.setup();
     renderBoard();
-    await screen.findByRole("heading", { name: "아직 게시글이 없습니다" });
+    await screen.findByRole("heading", { name: "등록된 게시글이 없습니다." });
 
     await pickOption(user, "카테고리", "공지");
 
@@ -134,7 +136,7 @@ describe("필터 순서 — 다른 화면과 같은 관용(왼쪽 검색 먼저)
   it("검색창이 카테고리 칩보다 DOM에서 먼저 온다", async () => {
     mockApi(() => ({ items: [] }));
     renderBoard();
-    await screen.findByRole("heading", { name: "아직 게시글이 없습니다" });
+    await screen.findByRole("heading", { name: "등록된 게시글이 없습니다." });
 
     const search = screen.getByRole("searchbox", { name: "검색" });
     const categoryGroup = screen.getByRole("combobox", { name: "카테고리" });
@@ -145,7 +147,7 @@ describe("필터 순서 — 다른 화면과 같은 관용(왼쪽 검색 먼저)
     mockApi(() => ({ items: [] }));
     const user = userEvent.setup();
     renderBoard();
-    await screen.findByRole("heading", { name: "아직 게시글이 없습니다" });
+    await screen.findByRole("heading", { name: "등록된 게시글이 없습니다." });
 
     await user.click(screen.getByRole("combobox", { name: "정렬" }));
     const names = (await screen.findAllByRole("option")).map((o) => o.textContent);

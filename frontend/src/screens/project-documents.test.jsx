@@ -3,6 +3,8 @@
  * 새 API 를 안 만들고 GET /api/knowledge/documents?project_id= 를 그대로 쓴다(§11.4).
  * 여기서 보는 것은 그 사실 하나다: 화면이 실제로 그 파라미터로 묻고, 빈 목록에서 "이
  * 프로젝트 문서 추가"로 바로 이어지는가(§14.3, 동사는 PA-RC-0002 §3 표준 동사표를 따른다).
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
@@ -78,7 +80,7 @@ describe("ProjectDocuments", () => {
     await user.click(await screen.findByRole("option", { name: "회의 기록" }));
     await user.click(within(dialog).getByLabelText(/^태그/));
     await user.click(await screen.findByRole("option", { name: /^인프라/ }));
-    await user.click(screen.getByRole("button", { name: "만들기" }));
+    await user.click(screen.getByRole("button", { name: "추가" }));
 
     await waitFor(() => {
       const post = apiMock.mock.calls.find(([p, o]) => p === "/api/knowledge/documents" && o?.method === "POST");
@@ -101,7 +103,7 @@ describe("ProjectDocuments", () => {
     });
     renderTab();
 
-    expect(await screen.findByText(/총 137건 가운데 1건을 보여 줍니다/)).toBeInTheDocument();
+    expect(await screen.findByText(/전체 137건 중 1건만 표시합니다/)).toBeInTheDocument();
   });
 
   it("다 보여 준 때는 건수만 말한다 (없는 잘림을 있다고 하지 않는다)", async () => {
@@ -116,7 +118,7 @@ describe("ProjectDocuments", () => {
     });
     renderTab();
 
-    expect(await screen.findByText("총 1건")).toBeInTheDocument();
+    expect(await screen.findByText("전체 1건")).toBeInTheDocument();
     expect(screen.queryByText(/가운데/)).toBeNull();
   });
 });

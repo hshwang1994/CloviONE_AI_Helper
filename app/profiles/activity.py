@@ -218,11 +218,12 @@ ACTION_SENTENCES: dict[str, str] = {
     "profile.notify_email.verified": "알림 받을 메일 주소를 확인했습니다",
     "profile.notify_email.cleared": "알림 받을 메일 주소를 계정 이메일로 되돌렸습니다",
     # 채팅방을 파하는 동작은 방을 지운다(`team_chat.service.disband_room`, soft delete) — 화면 낱말도 「삭제」다.
-    # 참여자 추가는 초대(수락 절차)가 아니라 바로 더하는 일이다.
+    # 참여자를 더하는 동작은 화면 이름이 「초대」다(관리 창 단추 · 「N명을 초대했습니다.」 알림). 수락 절차 없이 바로 들어오는
+    # 메신저의 관용과 같은 말이라 기록도 같은 낱말을 쓴다.
     "team_chat.create_group": "채팅방을 추가했습니다",
     "team_chat.disband": "채팅방을 삭제했습니다",
     "team_chat.rename": "채팅방 이름을 바꿨습니다",
-    "team_chat.add_members": "채팅방에 참여자를 추가했습니다",
+    "team_chat.add_members": "채팅방에 참여자를 초대했습니다",
     "team_chat.remove_member": "채팅방에서 참여자를 내보냈습니다",
     "team_chat.transfer_owner": "채팅방 방장을 넘겼습니다",
     # r23 — 아래는 「대상 + 동사」로 이으면 목적어가 겹치거나 동사가 표에 없는 동작이다. 빠지면 내 활동에 원문

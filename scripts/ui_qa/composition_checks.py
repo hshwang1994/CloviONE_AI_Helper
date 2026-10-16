@@ -855,7 +855,7 @@ def selftest_html() -> str:
           <div data-filter-actions=""><button style="height:34px">필터 지우기</button></div>
         </div>
       </div>
-      <div><span class="MuiChip-root" style="display:inline-flex;height:26px">종료 제외(기본값)</span></div>
+      <div><span class="MuiChip-root" style="display:inline-flex;height:26px">종료된 티켓 제외(기본값)</span></div>
       <div data-result-line="">조건 1개에 맞는 결과가 14건입니다.</div>
       <div class="MuiCard-root" style="background:#fff;border:1px solid #dcdfec;border-radius:8px;padding:20px">
         ${table('surface', true, 0, false, false, '<button style="height:30px;width:30px;margin-left:10px"><svg width="20" height="20"></svg></button><svg width="12" height="12" style="margin-left:12px"></svg>', true)}
