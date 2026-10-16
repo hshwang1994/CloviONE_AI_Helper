@@ -10,6 +10,8 @@ import { MemoryRouter } from "react-router-dom";
  * ops-maintenance.test.jsx/ops-tenant-config.test.jsx는 모든 컴포넌트가 "up"인 정상 경로만
  * 렌더했다 — 실패 상태(서비스 중단, 백업 실패)가 실제로 화면에 다른 톤·다른 배지·다른 안내로
  * 나타나는지는 어느 테스트도 확인하지 않았다. 이 파일은 그 gap을 메운다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -208,7 +210,7 @@ describe("진단 — 수동 수집 액션", () => {
     const user = userEvent.setup();
     renderDiagnostics();
 
-    await screen.findByText("시스템 정상, 지금 확인이 필요한 항목이 없습니다.");
+    await screen.findByText("시스템이 정상이고 조치가 필요한 항목이 없습니다.");
     const before = apiMock.mock.calls.filter(([p]) => p === "/api/admin/diagnostics/bundle").length;
 
     await user.click(screen.getByRole("button", { name: "진단 수집" }));

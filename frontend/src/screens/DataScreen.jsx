@@ -1493,7 +1493,7 @@ export function DataScreen({ config, embedded = false, inSplitView = false }) {
        * 정확히 보여주므로, 이 경고를 함께 띄우면 마치 데이터가 숨겨진 것처럼 오해를 준다 — 그런
        * 화면에서는 억제한다(진짜로 total 없이 자르기만 하는 화면에서만 뜬다). */}
       {config.capWarning && items.length >= config.capWarning && !(config.paginated && total != null) ? (
-        <Callout tone="warn">{"결과가 " + config.capWarning + "건으로 제한되어 일부 항목이 보이지 않을 수 있습니다. 검색, 필터로 좁혀 보세요."}</Callout>
+        <Callout tone="warn">{"결과가 " + config.capWarning + "건으로 제한되어 일부 항목이 보이지 않을 수 있습니다. 검색어나 필터로 범위를 좁히세요."}</Callout>
       ) : null}
       {/* clientFilter는 이미 받아 온 현재 페이지만 거른다, paginated 화면에서 함께 쓰면 다른 페이지의
        * 일치 항목이 안 보여 '골랐는데 결과가 잘못된' 오해를 준다(예: Notion 연결의 '출처' 필터).

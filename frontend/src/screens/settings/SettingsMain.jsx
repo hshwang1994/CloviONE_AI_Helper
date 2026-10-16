@@ -205,7 +205,7 @@ export function Settings({ embedded = false } = {}) {
            응답이 비정상(빈 형태)일 때를 위한 방어적 폴백으로만 남긴다. */
         /* effective_settings()가 항상 전 키를 돌려주므로 이 빈 상태는 비정상 응답에서만 뜬다 -
            막다른 안내 대신 원인(비어 있음)과 다시 불러오기 경로를 준다(오류에 가깝게 취급). */
-        : rows.length === 0 ? <EmptyState title="설정을 표시할 수 없습니다" help="설정을 불러왔지만 항목이 비어 있습니다. 일시적인 문제일 수 있습니다." action={<Button size="sm" onClick={() => q.refetch()}>다시 불러오기</Button>} />
+        : rows.length === 0 ? <EmptyState title="설정을 표시할 수 없습니다." help="설정을 불러왔지만 항목이 비어 있습니다. 일시적인 문제일 수 있습니다." action={<Button size="sm" onClick={() => q.refetch()}>다시 불러오기</Button>} />
         : <>
             <HeaderActions fallback={<Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>{keyToggle}</Box>}>
               {keyToggle}

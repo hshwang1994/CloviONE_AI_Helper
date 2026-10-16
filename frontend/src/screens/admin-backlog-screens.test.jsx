@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: 프롬프트 · 정책 사용 탭을 걷어(D-543) 레지스트리 계약의 그 두 줄을 프롬프트(기능 목록) · 정책 목록 경로로 바꾸고, 「프롬프트 사용 통계」 화면 시험을 「프롬프트 기능 목록」 화면 시험으로 옮겼다 — 지금 쓰는 지시문과 호출 기록에서 센 수를 보인다는 성질은 그대로다. */
+/* qa-contract-change: 프롬프트 · 정책 사용 탭을 걷어(D-543) 레지스트리 계약의 그 두 줄을 프롬프트(기능 목록) · 정책 목록 경로로 바꾸고, 「프롬프트 사용 통계」 화면 시험을 「프롬프트 기능 목록」 화면 시험으로 옮겼다 — 지금 쓰는 지시문과 호출 기록에서 센 수를 보인다는 성질은 그대로다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 /* qa-contract-change: 감사 로그 머리의 「이상 징후 보기」 단추를 걷었다(D-501) — 두 화면은 한 그릇(`/audit`)의 형제 탭이라 바로 옆 탭이 같은 곳으로
    간다. 「그 단추가 있다」 · 「머리 이동이 이상 징후를 가리킨다」 두 단언은 「그릇 안에서 두 탭이 짝이다 · 머리에 그 단추가 없다」로 옮겼다. */
 /* 관리자 백로그 잔여 화면(PLAN Phase 6) — registry.js 설정으로만 만든 여덟 화면.
@@ -240,7 +242,7 @@ describe("새 관리자 화면 — 레지스트리 계약", () => {
       return Promise.resolve({ items: [], command: "…", note: "…" });
     });
     renderScreen("restore-drills");
-    expect(await screen.findByText("복구 리허설 기록이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("복구 리허설 기록이 없습니다.")).toBeInTheDocument();
     expect(await screen.findByText("한 번도 안 함")).toBeInTheDocument();
   });
 

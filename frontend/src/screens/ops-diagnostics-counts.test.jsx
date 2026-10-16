@@ -1,6 +1,8 @@
-/* qa-contract-change: 진단 화면의 «현재 리소스» 타일 셋 중 둘(활성 워크플로·추가된 러너)이 S11 로 사라졌다. 남은 하나(활성 스케줄)는 숫자뿐 아니라 **라벨까지** 단언하도록 바꿔, 줄어든 개수만큼 남은 것을 더 세게 못 박았다. */
+/* qa-contract-change: 진단 화면의 «현재 리소스» 타일 셋 중 둘(활성 워크플로·추가된 러너)이 S11 로 사라졌다. 남은 하나(활성 스케줄)는 숫자뿐 아니라 **라벨까지** 단언하도록 바꿔, 줄어든 개수만큼 남은 것을 더 세게 못 박았다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 /* qa-contract-change: 「현재 리소스」 구획(값 하나를 든 전폭 판)이 「대시보드에서 보기」와 같은 주석 줄 한 문장으로 옮긴다(D-501). 크래시하지 않고 수를
-   보인다는 단언은 그대로이고, 라벨 단언은 그 문장(「지금 켜져 있는 스케줄은 5개입니다.」)과 실행 일정으로 가는 길로 잰다. 같은 회차의 진단 정리(디스크 두
+   보인다는 단언은 그대로이고, 라벨 단언은 그 문장(「지금 활성화된 실행 일정은 5개입니다.」)과 실행 일정으로 가는 길로 잰다. 같은 회차의 진단 정리(디스크 두
    값은 속성 줄, 작업 지표는 24시간 측정만, 백로그는 판정 줄에서 거른 작업 큐로)를 재는 시험을 이 파일에 더한다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -90,7 +92,7 @@ describe("진단 — 현재 리소스(counts) 섹션", () => {
     renderDiagnostics();
 
     // S11 이 워크플로·러너 타일을 걷어내 활성 스케줄 하나가 남았고, D-501 이 그 하나를 주석 줄 한 문장으로 옮겼다.
-    expect(await screen.findByText("지금 켜져 있는 스케줄은 5개입니다.")).toBeInTheDocument();
+    expect(await screen.findByText("지금 활성화된 실행 일정은 5개입니다.")).toBeInTheDocument();
     // 값 하나를 든 전폭 판(「현재 리소스」 구획)은 없다.
     expect(screen.queryByText("현재 리소스")).toBeNull();
     expect(document.querySelector("[data-summary-single]")).toBeNull();
@@ -100,8 +102,8 @@ describe("진단 — 현재 리소스(counts) 섹션", () => {
     withBundle({ counts: { active_schedules: 2 } });
     const user = userEvent.setup();
     renderDiagnostics();
-    const line = (await screen.findByText("지금 켜져 있는 스케줄은 2개입니다.")).closest("p");
-    await user.click(within(line).getByRole("button", { name: "스케줄에서 보기 →" }));
+    const line = (await screen.findByText("지금 활성화된 실행 일정은 2개입니다.")).closest("p");
+    await user.click(within(line).getByRole("button", { name: "실행 일정에서 보기 →" }));
     expect(screen.getByTestId("location-probe")).toHaveTextContent("/schedules");
   });
 
@@ -139,8 +141,8 @@ describe("진단 — 작업 지표는 24시간 측정만 든다 (D-501)", () => 
     renderDiagnostics();
     const group = await screen.findByLabelText("작업 지표");
     expect(within(group).getByText("처리 요청")).toBeInTheDocument();
-    expect(within(group).getByText("성공률(종료 작업 대비)")).toBeInTheDocument();
-    expect(within(group).getByText("평균 처리")).toBeInTheDocument();
+    expect(within(group).getByText("성공률(종료된 작업 기준)")).toBeInTheDocument();
+    expect(within(group).getByText("평균 처리 시간")).toBeInTheDocument();
     expect(within(group).queryByText(/\(전체\)/)).toBeNull();
     expect(screen.queryByText("대기 중(전체)")).toBeNull();
     expect(screen.queryByText("미해결 실패(전체)")).toBeNull();
@@ -152,7 +154,7 @@ describe("진단 — 작업 지표는 24시간 측정만 든다 (D-501)", () => 
     const group = await screen.findByRole("group", { name: "작업 지표" });
     expect(group).toHaveClass("k-metabar");
     expect(within(group).getByText("처리 요청")).toBeInTheDocument();
-    expect(within(group).queryByText("성공률(종료 작업 대비)")).toBeNull();
+    expect(within(group).queryByText("성공률(종료된 작업 기준)")).toBeNull();
     expect(within(group).queryByText("-")).toBeNull();
   });
 

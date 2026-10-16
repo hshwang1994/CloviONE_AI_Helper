@@ -11,6 +11,8 @@ import { MemoryRouter } from "react-router-dom";
  * 저장 실패, 보안 완화 확인, 버전 롤백, 미저장 변경 보호는 어느 테스트도 거치지 않은 채였다.
  * 이 파일은 그 네 가지를 컴포넌트 렌더로 확인한다(coerce()가 export되지 않아 SettingEditor를
  * 통해서만 검증할 수 있다는 점은 settings-coerce.test.jsx와 동일).
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -125,7 +127,7 @@ describe("보안 완화 확인 — 허용 이메일 도메인 비우기", () => 
     const user = userEvent.setup();
     renderSettings();
     await openEditor(user, "계정 추가 허용 도메인");
-    await user.click(await screen.findByRole("button", { name: "example.com 제거" }));
+    await user.click(await screen.findByRole("button", { name: "example.com 삭제" }));
     await user.click(screen.getByRole("button", { name: "저장" }));
 
     const dialog = await screen.findByRole("dialog", { name: "보안 설정 변경 확인" });
@@ -144,11 +146,11 @@ describe("보안 완화 확인 — 허용 이메일 도메인 비우기", () => 
     const user = userEvent.setup();
     renderSettings();
     await openEditor(user, "계정 추가 허용 도메인");
-    await user.click(await screen.findByRole("button", { name: "example.com 제거" }));
+    await user.click(await screen.findByRole("button", { name: "example.com 삭제" }));
     await user.click(screen.getByRole("button", { name: "저장" }));
 
     const dialog = await screen.findByRole("dialog", { name: "보안 설정 변경 확인" });
-    await user.click(within(dialog).getByRole("button", { name: "변경" }));
+    await user.click(within(dialog).getByRole("button", { name: "저장" }));
 
     expect(await screen.findByText("설정을 저장했습니다.")).toBeInTheDocument();
     const putCall = apiMock.mock.calls.find(([p, o]) => p === "/api/admin/settings/allowed_email_domains" && o && o.method === "PUT");
@@ -169,10 +171,10 @@ describe("유효성 검사 — 도메인 추가 입력", () => {
     await user.type(domainInput, "invalid");
     await user.click(screen.getByRole("button", { name: "추가" }));
 
-    expect(await screen.findByText("도메인 형식이 아닙니다(예: example.com), 점(.)을 포함해야 합니다.")).toBeInTheDocument();
+    expect(await screen.findByText("도메인 형식이 아닙니다. 점(.)을 포함해야 합니다(예: example.com).")).toBeInTheDocument();
     // 잘못된 값은 칩으로 추가되지 않았다 — 기존 도메인만 그대로 있다.
     expect(screen.queryByRole("button", { name: "invalid 제거" })).toBeNull();
-    expect(screen.getByRole("button", { name: "example.com 제거" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "example.com 삭제" })).toBeInTheDocument();
   });
 });
 

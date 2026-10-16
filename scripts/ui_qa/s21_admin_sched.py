@@ -126,14 +126,14 @@ flow("FF-0709", "admin_schedules__schedules", "read",
 
 flow("FF-0710", "admin_schedules__schedules", "create",
      "'스케줄 추가'로 주기·대상·페이로드·정책을 정해 일정을 만든다",
-     ds_create("스케줄 추가", {"이름": "S21 점검 일정"}), route=S, shell=ADMIN, api=SCHED,
+     ds_create("실행 일정 추가", {"이름": "S21 점검 일정"}), route=S, shell=ADMIN, api=SCHED,
      cross=("/schedules?tab=schedules", ADMIN))
 
 
 def _target_picker(r, ctx):
-    button = r.in_main("button", "스케줄 추가")
+    button = r.in_main("button", "실행 일정 추가")
     if not button.count():
-        stop("«스케줄 추가» 버튼이 없다")
+        stop("«실행 일정 추가» 버튼이 없다")
     button.first.click()
     r.settle(1400)
     if not open_dialogs(r):
@@ -163,7 +163,7 @@ flow("FF-0711", "admin_schedules__schedules", "combobox",
 
 flow("FF-0712", "admin_schedules__schedules", "form_validation",
      "이름·대상을 비우거나 페이로드 JSON 형식이 틀리면 제출 전에 막힌다",
-     ds_required("스케줄 추가"), route=S, shell=ADMIN, server=False)
+     ds_required("실행 일정 추가"), route=S, shell=ADMIN, server=False)
 
 flow("FF-0713", "admin_schedules__schedules", "edit",
      "상세에서 '수정'으로 일정 정의를 전체 교체한다(PUT)",
@@ -186,14 +186,14 @@ def _preview(r, ctx):
     if not open_dialogs(r):
         stop("상세가 안 열렸다")
     detail = open_dialog(r)
-    target = detail.get_by_role("button", name="미리보기", exact=False)
+    target = detail.get_by_role("button", name="미리 보기", exact=False)
     if not target.count():
         more = detail.get_by_role("button", name="더 보기", exact=False)
         if more.count():
             more.first.click()
             r.settle(700)
             target = r.page.locator('[role="menu"]').get_by_role(
-                "menuitem", name="미리보기", exact=False)
+                "menuitem", name="미리 보기", exact=False)
     if not target.count():
         said = dialog_says(r, 240)
         r.dismiss_overlays()
@@ -291,7 +291,7 @@ flow("FF-0722", "admin_schedules__schedules", "refresh", "조회 실패 시 '다
 
 flow("FF-0723", "admin_schedules__schedules", "permission_state",
      "라우트 역할 가드 + 추가·수정은 쓰기 역할, 지금 실행·미리보기·재시도는 운영 역할",
-     ds_permission(("스케줄 추가",), SCHED,
+     ds_permission(("실행 일정 추가",), SCHED,
                    payload={"name": "권한 시험", "target_type": "system",
                             "target_ref": "noop"}),
      route=S, shell=ADMIN, server=False)
@@ -718,7 +718,7 @@ _pair(("FF-0637", "FF-0828"), DEL_SURFACES, "overflow_action",
 
 _pair(("FF-0638", "FF-0829"), DEL_SURFACES, "navigation", "'승인 큐 보기'로 승인 목록으로 이동한다",
       # registry 는 이것을 `actions:` 에 뒀다 — 머리가 아니라 **행의 상세**에 있다.
-      ds_navigate("승인 큐 보기", "approvals"), server=False)
+      ds_navigate("승인 요청 보기", "approvals"), server=False)
 
 _pair(("FF-0639", "FF-0830"), DEL_SURFACES, "navigation",
       "'감사 로그에서 보기'로 이 위임의 감사 기록으로 이동한다",

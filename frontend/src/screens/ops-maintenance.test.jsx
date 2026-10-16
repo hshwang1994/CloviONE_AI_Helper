@@ -87,7 +87,7 @@ describe("유지보수 — 쓰기 권한이 없는 역할", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
 
     // 비활성 이유는 눈에 보이는 글자로 남아야 한다 — 판이 하나라 이유 문장도 하나다.
-    expect(screen.getAllByText(/관리자, 시스템 관리자만 변경할 수 있습니다/)).toHaveLength(1);
+    expect(screen.getAllByText(/관리자, 시스템 관리자만 바꿀 수 있습니다/)).toHaveLength(1);
     // 그 이유가 스크린리더에도 닿도록 두 쓰기 단추가 같은 이유 문장을 가리킨다.
     expect(toggleBtn).toHaveAttribute("aria-describedby", "maint-locked-reason");
     expect(editBtn).toHaveAttribute("aria-describedby", "maint-locked-reason");
@@ -106,7 +106,7 @@ describe("유지보수 — 쓰기 권한이 없는 역할", () => {
 
     const toggleBtn = await screen.findByRole("button", { name: "유지보수 모드 활성화" });
     expect(toggleBtn).toBeEnabled();
-    expect(screen.queryByText(/관리자, 시스템 관리자만 변경할 수 있습니다/)).toBeNull();
+    expect(screen.queryByText(/관리자, 시스템 관리자만 바꿀 수 있습니다/)).toBeNull();
     // 「수정」이 창을 열고, 창 안에서 미리 검증 · 입력이 살아 있다.
     await user.click(screen.getByRole("button", { name: "점검 공지 수정" }));
     const dialog = await screen.findByRole("dialog", { name: "점검 공지 수정" });

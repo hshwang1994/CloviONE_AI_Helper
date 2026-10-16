@@ -67,7 +67,7 @@ export const OBJTYPE_OPTS = [
   ["app_setting", "설정"], ["system_setting", "서버 설정"], ["secret", "비밀 값"], ["feature_flag", "기능 플래그"],
   ["llm_config", "AI 모델 설정(옛 기능)"], ["ai_config", "AI 설정"], ["ai_quota", "AI 사용 한도"], ["announcement", "공지 배너"],
   ["prompts", "프롬프트"], ["policies", "정책"], ["ai_action_request", "AI 초안"],
-  ["schedule", "스케줄"], ["schedule_run", "예약 실행"], ["job", "작업"],
+  ["schedule", "실행 일정"], ["schedule_run", "예약 실행"], ["job", "작업"],
   ["backup", "백업"], ["storage_provider", "파일 저장소"], ["mail_delivery", "메일 발송"],
   ["mail_settings", "메일 설정"], ["integrity_check", "조직 정합성 검사"],
   ["search_index", "검색 색인"], ["integration", "외부 연동"],
@@ -185,8 +185,8 @@ export const SCHEDT_OPTS = opt([["cron", "Cron 반복"], ["once", "1회 실행"]
 // 간편 주기 — 고르면 백엔드가 Cron 식을 생성한다(cron.PRESETS). 빈 값은 '직접 입력'.
 export const SCHED_PRESET_OPTS = opt([["", "사용 안 함(직접 입력)"], ["daily", "매일"], ["weekly", "매주"], ["monthly", "매월"]]);
 // 스케줄 고급 정책 — 백엔드 허용값과 정확히 일치(misfire: skip/run_once, concurrency: skip/allow).
-export const MISFIRE_OPTS = opt([["skip", "건너뛰기(skip)"], ["run_once", "한 번만 실행(run_once)"]]);
-export const CONCURRENCY_OPTS = opt([["skip", "건너뛰기(skip)"], ["allow", "동시 실행 허용(allow)"]]);
+export const MISFIRE_OPTS = opt([["skip", "건너뛰기"], ["run_once", "한 번만 실행"]]);
+export const CONCURRENCY_OPTS = opt([["skip", "건너뛰기"], ["allow", "동시 실행 허용"]]);
 // 대상은 시스템 하나뿐이다 — 워크플로 대상은 S11 이 n8n 과 함께 걷어냈다.
 export const SCHED_TARGET_OPTS = opt([["system", "시스템"]]);
 // 상태 변경(쓰기) 액션 role 게이트 — 백엔드 RBAC와 일치시켜 읽기 전용 역할(operator/auditor)에게

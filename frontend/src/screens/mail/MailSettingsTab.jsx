@@ -140,7 +140,7 @@ function ValueLine({ word, tone, rest }) {
 
 function verifyValue(h, verifying) {
   if (verifying) return <ValueLine word="확인하는 중" tone="info" />;
-  if (h.state === "disabled" || h.state === "unconfigured") return "메일 발송을 켜고 설정을 마친 뒤에 확인할 수 있습니다.";
+  if (h.state === "disabled" || h.state === "unconfigured") return "메일 발송을 활성화하고 설정을 마친 뒤에 확인할 수 있습니다.";
   if (!h.checked_at) return "아직 확인하지 않았습니다.";
   if (h.state === "ok") return <ValueLine word="통과" tone="ok" rest={fmtListStamp(h.checked_at)} />;
   if (h.state === "failing") return <ValueLine word="실패" tone="danger" rest={fmtListStamp(h.checked_at)} />;
@@ -192,7 +192,7 @@ function MailChecks({ status, checks, verify, dirty, relayLocal, onOpenAdvanced 
     onSuccess: (res, received) => {
       if (res && res.status) qc.setQueryData(STATUS_KEY, res.status);
       else qc.invalidateQueries({ queryKey: STATUS_KEY });
-      toast(received ? "받은 편지함 확인을 기록했습니다. 메일 설정이 끝났습니다." : "받지 못했다고 기록했습니다. 진단을 확인하세요.",
+      toast(received ? "받은 편지함 확인을 기록했습니다. 메일 설정이 끝났습니다." : "받은 편지함에 없다고 기록했습니다. 진단을 확인하세요.",
         received ? "success" : "info");
     },
   });
@@ -203,11 +203,11 @@ function MailChecks({ status, checks, verify, dirty, relayLocal, onOpenAdvanced 
     inboxValue = `${fmtDateTime(test.sent_at || test.created_at)}에 보낸 시험 메일을 ${remote === "delivered" ? "받는 쪽 메일 서버로 전달했습니다" : "메일 서버가 접수했습니다"}. 받은 편지함(정크함 포함)에서 확인했습니까?`;
   } else if (recorded) {
     inboxValue = (
-      <ValueLine word={inbox.received ? "받았다고 기록함" : "받지 못했다고 기록함"} tone={inbox.received ? "ok" : "warn"}
+      <ValueLine word={inbox.received ? "받은 편지함에서 확인함" : "받은 편지함에 없음"} tone={inbox.received ? "ok" : "warn"}
         rest={inbox.at ? fmtListStamp(inbox.at) : null} />
     );
   } else if (rejected) {
-    inboxValue = "수신측이 시험 메일을 거부해 받은 편지함을 확인할 수 없습니다. 문제 해결의 요청문을 담당자에게 보내세요.";
+    inboxValue = "수신측이 시험 메일을 거부해 받은 편지함을 확인할 수 없습니다. ‘문제 해결과 고급’의 요청 내용을 담당자에게 보내세요.";
   } else if (test && (["queued", "retrying"].includes(test.status) || remote === "deferred")) {
     inboxValue = "시험 메일이 아직 전달되는 중입니다.";
   } else {
@@ -222,8 +222,8 @@ function MailChecks({ status, checks, verify, dirty, relayLocal, onOpenAdvanced 
   if (operate && asking) {
     inboxAction = (
       <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-        <Button variant={primary === "inbox" ? "primary" : undefined} loading={record.isPending} onClick={() => record.mutate(true)}>받았습니다</Button>
-        <Button disabled={record.isPending} onClick={() => record.mutate(false)}>못 받았습니다</Button>
+        <Button variant={primary === "inbox" ? "primary" : undefined} loading={record.isPending} onClick={() => record.mutate(true)}>받은 편지함에서 확인함</Button>
+        <Button disabled={record.isPending} onClick={() => record.mutate(false)}>받은 편지함에 없음</Button>
       </Box>
     );
   } else if (showDiagnosis) {
@@ -377,8 +377,8 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
     if (clearRelayPassword && !relayPassword) body.clear_relay_password = true;
     if (!local && base.tls_verify !== false && body.tls_verify === false && body.security !== "none") {
       const ok = await confirm(
-        "서버 인증서 확인을 끕니다. 중간에서 메일과 로그인 비밀번호를 가로챌 수 있게 됩니다. 사설 인증서라면 CA 인증서를 붙여 넣는 쪽이 안전합니다. 계속할까요?",
-        { danger: true, title: "인증서 확인 끄기", confirmLabel: "끄고 저장" },
+        "서버 인증서 확인을 비활성화합니다. 중간에서 메일과 로그인 비밀번호를 가로챌 수 있게 됩니다. 사설 인증서라면 CA 인증서를 붙여 넣는 쪽이 안전합니다. 계속할까요?",
+        { danger: true, title: "인증서 확인 비활성화", confirmLabel: "비활성화하고 저장" },
       );
       if (!ok) return;
     }
@@ -398,9 +398,9 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
   const relay = relayQuery.data || null;
   const relaySummary = local ? readinessSummary(relay && relay.readiness) : null;
   let advancedSummary;
-  if (check.running) advancedSummary = "바깥으로 보내기 준비를 점검하는 중입니다.";
+  if (check.running) advancedSummary = "외부 발송 준비 상태를 점검하는 중입니다.";
   else if (local && relaySummary) advancedSummary = <span data-testid="relay-summary">{relaySummary}</span>;
-  else if (local && relay) advancedSummary = "아직 바깥으로 보내기 준비를 점검하지 않았습니다.";
+  else if (local && relay) advancedSummary = "아직 외부 발송 준비 상태를 점검하지 않았습니다.";
   else if (local) advancedSummary = null;
   else advancedSummary = hasIconHelp(status.help)
     ? "받은 편지함 아이콘 조건을 보고 사설 CA 인증서와 응답 대기 시간을 정합니다."
@@ -421,7 +421,7 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
           <SettingRows>
             <SettingRow
               compact label="메일 발송 사용" controlId="mail-enabled"
-              description="끄면 ClovirAssist 가 메일을 보내지 않습니다. 저장해야 적용됩니다."
+              description="비활성화하면 ClovirAssist가 메일을 보내지 않습니다. 저장해야 적용됩니다."
               action={(
                 <Checkbox id="mail-enabled" checked={Boolean(values.enabled)} onChange={(e) => set({ enabled: e.target.checked })}
                   slotProps={{ input: { "aria-label": "메일 발송 사용" } }} />
@@ -429,10 +429,10 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
             />
           </SettingRows>
           {/* 로컬 릴레이가 먼저다(D-560) - 설치에 포함된 구성 요소라 계정이 필요 없다. */}
-          <Field label="보내는 방법" labelId="mail-mode-label"
-            help="메일 계정이 없어도 로컬 릴레이로 보낼 수 있습니다. 회사 계정이나 Gmail 같은 외부 계정이 있으면 외부 SMTP 를 고릅니다.">
+          <Field label="발송 방식" labelId="mail-mode-label"
+            help="메일 계정이 없어도 로컬 릴레이로 보낼 수 있습니다. 회사 계정이나 Gmail 같은 외부 계정이 있으면 외부 SMTP를 고릅니다.">
             <ChoiceCards
-              name="mail-mode" ariaLabel="보내는 방법" value={values.mode} onChange={(next) => set({ mode: next })}
+              name="mail-mode" ariaLabel="발송 방식" value={values.mode} onChange={(next) => set({ mode: next })}
               options={[
                 {
                   value: "local_relay", label: "ClovirAssist 로컬 릴레이",
@@ -537,7 +537,7 @@ function EditableSettings({ status, verify, onDirtyChange, checks }) {
                   compact label="서버 인증서 확인" controlId="mail-tls-verify"
                   description={values.security === "none"
                     ? "보안 연결을 쓰지 않아 인증서를 확인하지 않습니다."
-                    : "끄면 중간에서 메일과 로그인 비밀번호를 가로챌 수 있습니다. 사설 인증서는 문제 해결과 고급에 CA 를 넣으세요."}
+                    : "비활성화하면 중간에서 메일과 로그인 비밀번호를 가로챌 수 있습니다. 사설 인증서라면 ‘문제 해결과 고급’에 CA 인증서를 넣으세요."}
                   action={(
                     <Checkbox id="mail-tls-verify" checked={values.tls_verify !== false} disabled={values.security === "none"}
                       onChange={(e) => set({ tls_verify: e.target.checked })}
@@ -629,7 +629,7 @@ function ReadOnlySettings({ status, verify, checks }) {
         <FormSection titleAs="h2" title={<SectionTitleText id={SECTION_IDS.basics}>기본 설정</SectionTitleText>}>
           <FieldRow>
             <ReadOnlyValue span={FIELD_SPAN.half} label="메일 발송" value={s.enabled ? "사용" : "사용 안 함"} />
-            <ReadOnlyValue span={FIELD_SPAN.half} label="보내는 방법" value={local ? "ClovirAssist 로컬 릴레이" : "외부 SMTP 사용"} />
+            <ReadOnlyValue span={FIELD_SPAN.half} label="발송 방식" value={local ? "ClovirAssist 로컬 릴레이" : "외부 SMTP 사용"} />
           </FieldRow>
           <FieldRow>
             <ReadOnlyValue span={FIELD_SPAN.half} label="보내는 주소" value={s.from_address} />
@@ -642,7 +642,7 @@ function ReadOnlySettings({ status, verify, checks }) {
               <RelayReadOnly summary={s} />
               {direct ? (
                 <FieldRow>
-                  <ReadOnlyValue span={FIELD_SPAN.main} label="서버 이름(HELO)" value={relay.helo_name} />
+                  <ReadOnlyValue span={FIELD_SPAN.main} label="메일 서버 이름(HELO)" value={relay.helo_name} />
                   <ReadOnlyValue span={FIELD_SPAN.side} label="DKIM 서명" value={relay.dkim_enabled ? `사용, 선택자 ${relay.dkim_selector || "-"}` : "사용 안 함"} />
                 </FieldRow>
               ) : (
@@ -670,7 +670,7 @@ function ReadOnlySettings({ status, verify, checks }) {
         <MailChecks status={status} checks={checks} verify={verify} dirty={false} relayLocal={false} />
         <AdvancedSection
           open={advancedOpen} onToggle={setAdvancedOpen}
-          summary={local ? "비교할 공개 DNS 와 받는 도메인별 전달 서버를 봅니다." : "사설 CA 인증서와 응답 대기 시간을 봅니다."}
+          summary={local ? "비교할 공개 DNS와 받는 도메인별 전달 서버를 봅니다." : "사설 CA 인증서와 응답 대기 시간을 봅니다."}
         >
           <InboxIconHelp help={status.help} />
           <Box component="section" aria-labelledby="mail-advanced-fields-title" sx={{ display: "grid", gap: 2, minWidth: 0 }}>

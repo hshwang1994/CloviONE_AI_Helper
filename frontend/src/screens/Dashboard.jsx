@@ -153,9 +153,9 @@ export function buildAlerts(d, role) {
   // success_rate_pct의 분모는 최근 24시간에 '종료된'(성공+실패+취소) 작업만이다 — 접수만
   // 몰린 순간에는 이 값이 영향받지 않는다. headlineStats의 80/95 경계와 맞춘다.
   if (jobs.success_rate_pct != null && jobs.total > 0 && jobs.success_rate_pct < 80)
-    alerts.push({ src: "job:rate", label: "성공률 낮음(종료 작업 대비)" + jobsNote, value: jobs.success_rate_pct + "%", kind: "danger", to: jobsTo });
+    alerts.push({ src: "job:rate", label: "성공률 낮음(종료된 작업 기준)" + jobsNote, value: jobs.success_rate_pct + "%", kind: "danger", to: jobsTo });
   else if (jobs.success_rate_pct != null && jobs.total > 0 && jobs.success_rate_pct < 95)
-    alerts.push({ src: "job:rate", label: "성공률 저하(종료 작업 대비)" + jobsNote, value: jobs.success_rate_pct + "%", kind: "warn", to: jobsTo });
+    alerts.push({ src: "job:rate", label: "성공률 저하(종료된 작업 기준)" + jobsNote, value: jobs.success_rate_pct + "%", kind: "warn", to: jobsTo });
 
   /* 필수 서비스. 예전에는 `worker` 와 `scheduler` 두 이름을 손으로 적어 두고 있었다 —
      그래서 켠 설치에만 실리는 대화형 워커 레인(`worker_conversational`)이 죽으면 이 목록에
@@ -241,7 +241,7 @@ export function systemVerdict(alerts) {
     };
   }
   if (warn) {
-    return { tone: "warn", label: "주의", text: `제품은 돌고 있습니다. 지켜볼 것이 ${warn}건 있습니다.` };
+    return { tone: "warn", label: "주의", text: `제품은 정상적으로 동작하고 있습니다. 지켜볼 것이 ${warn}건 있습니다.` };
   }
   return { tone: "ok", label: "정상", text: "지금 조치가 필요한 문제가 없습니다." };
 }
@@ -719,7 +719,7 @@ function DashboardBody({ d, nav, role, stale }) {
               </StatusTile>
             ))}
           </StatusList>
-        ) : <EmptyState layout="inline" title="서비스 정보 없음" />}
+        ) : <EmptyState layout="inline" title="서비스 정보가 없습니다." />}
       </Section>
 
       <Section titleAs="h2"
@@ -741,7 +741,7 @@ function DashboardBody({ d, nav, role, stale }) {
             ))}
           </StatusList>
         ) : (
-          <EmptyState layout="inline" title="추가된 외부 연동이 없습니다." help="이 설치는 바깥으로 나가는 호출을 쓰지 않습니다." />
+          <EmptyState layout="inline" title="설정된 외부 연동이 없습니다." help="외부 연동이 없어도 제품은 정상적으로 동작합니다." />
         )}
       </Section>
       </Box>
@@ -800,7 +800,7 @@ function DashboardBody({ d, nav, role, stale }) {
               <>
                 <Fact label="처리 요청" value={fmtNum(jobs.total)} />
                 <Fact label="성공" value={fmtNum(jobs.succeeded != null ? jobs.succeeded : 0)} />
-                <Fact label="평균 처리" value={fmtProcessingTime(jobs.avg_processing_seconds)} />
+                <Fact label="평균 처리 시간" value={fmtProcessingTime(jobs.avg_processing_seconds)} />
               </>
             )}
             <OpsLink label="작업 큐" onClick={jobsTo ? goto(jobsTo) : undefined} />
@@ -836,7 +836,7 @@ function RecentChanges({ rows, role, nav, revealedId, onCopyId }) {
         {/* 비어 보이는 두 경우(실제로 없음 / 권한이 없어 서버가 아예 안 내려줌)를 구분한다 —
             안 그러면 감사 로그 열람 권한이 없는 역할은 '아무 변경도 없었다'로 오해한다. */}
         <Note sx={{ mt: 0 }}>
-          {canAudit ? "최근 주요 변경 이력이 없습니다." : "감사 로그 열람 권한이 없어 숨겨졌습니다."}
+          {canAudit ? "최근 주요 변경 이력이 없습니다." : "감사 로그 열람 권한이 없어 이 목록을 볼 수 없습니다."}
         </Note>
       </Section>
     );
@@ -845,7 +845,7 @@ function RecentChanges({ rows, role, nav, revealedId, onCopyId }) {
     <Section titleAs="h2"
       title="최근 주요 변경"
       action={canAudit
-        ? <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/audit")}>전체 보기 →</Link>
+        ? <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/audit")}>감사 로그 전체 보기 →</Link>
         : null}
     >
       {/* 공용 표다 — 예전에는 머리글 줄과 격자 행을 손으로 그린 표였고, 그래서 열 폭·정렬·

@@ -64,7 +64,7 @@ function methodWord(summary) {
 export function mailFacts({ summary, latestTest, inbox }) {
   const word = testWord(latestTest);
   const items = [
-    { key: "method", label: "보내는 방법", value: methodWord(summary) },
+    { key: "method", label: "발송 방식", value: methodWord(summary) },
     { key: "from", label: "보내는 주소", value: (summary && summary.from_address) || null },
     {
       key: "test", label: "최근 시험 메일",

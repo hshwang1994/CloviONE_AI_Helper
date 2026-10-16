@@ -22,8 +22,8 @@ describe("StructuredObjectFields — allowed_email_domains 칩 제거", () => {
         canWrite
       />
     );
-    const removeA = screen.getByRole("button", { name: "a.example.com 제거" });
-    const removeB = screen.getByRole("button", { name: "b.example.com 제거" });
+    const removeA = screen.getByRole("button", { name: "a.example.com 삭제" });
+    const removeB = screen.getByRole("button", { name: "b.example.com 삭제" });
     // 진짜 <button>이면 그 자체로 탭 순서에 들어간다 — tabIndex를 따로 주지 않아도 된다는 것이
     // 바로 "키보드로 닿는다"는 뜻이다(MUI Chip의 deleteIcon span은 이 속성이 없어서 문제였다).
     expect(removeA.tagName).toBe("BUTTON");
@@ -44,6 +44,6 @@ describe("StructuredObjectFields — allowed_email_domains 칩 제거", () => {
         canWrite={false}
       />
     );
-    expect(screen.queryByRole("button", { name: "a.example.com 제거" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "a.example.com 삭제" })).not.toBeInTheDocument();
   });
 });

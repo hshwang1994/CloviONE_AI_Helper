@@ -1,4 +1,6 @@
-/* qa-contract-change: 프롬프트 화면이 기능 단위가 되어(D-541) 확인을 받는 동작이 「보관」에서 「초안 버리기 · 기본 제공으로 되돌리기」로 바뀌었고, 프롬프트 사용 통계 탭의 열 수 단언은 기능 목록의 열 수로 옮겼다. 위험 동작이 확인을 받는다는 성질은 그대로다. */
+/* qa-contract-change: 프롬프트 화면이 기능 단위가 되어(D-541) 확인을 받는 동작이 「보관」에서 「초안 버리기 · 기본 제공으로 되돌리기」로 바뀌었고, 프롬프트 사용 통계 탭의 열 수 단언은 기능 목록의 열 수로 옮겼다. 위험 동작이 확인을 받는다는 성질은 그대로다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 /* qa-contract-change: 조직·부서·조직도가 registry 를 떠나 조직 콘솔(screens/org/)의 선택 반응형 상세 판으로 재구성됐다 — 조직 비활성화 confirm·부서 primary·조직 clientFilter·org-tree 필터 메타 단언을 org-console-actions.test.jsx 로 이관하거나 표와 함께 걷었다. */
 /* qa-contract-change: S11 이 n8n·러너 서브시스템을 걷어내면서 이 파일이 고정하던 화면 셋이 사라졌다 — 문서 발행 승인 액션(document.publish), 문서 생성 화면의 clientFilter 경고, 프롬프트의 러너 ID 필드. 단언이 줄어든 만큼이 정확히 그 셋이고, 남은 단언은 한 글자도 안 약해졌다(기대값·형태 그대로). «documents 만 예외» 였던 단언은 «예외가 하나도 없다» 로 **더 세졌다**. */
 /* 관리 콘솔 28화면 전수조사(9-1) — 확인·필터·문구가 실제 동작과 맞는가.
@@ -158,7 +160,7 @@ describe("위험 액션 확인", () => {
   it("공지 배너 '중요도'는 서버 요청에 실려 나간다(페이지 안에서만 거르지 않는다)", async () => {
     apiMock.mockImplementation(() => Promise.resolve({ items: [], total: 0, page: 1, page_size: 20 }));
     renderScreen("announcements");
-    await findText("추가된 공지가 없습니다");
+    await findText("등록된 공지 배너가 없습니다.");
 
     await userEvent.click(screen.getByRole("combobox", { name: /중요도/ }));
     await userEvent.click(await screen.findByRole("option", { name: "긴급" }, WAIT));

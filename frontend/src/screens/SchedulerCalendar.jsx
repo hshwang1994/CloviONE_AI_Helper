@@ -206,7 +206,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
     if (!selected) return;
     const ok = await confirm(
       "이 실행을 취소할까요? 대기 중이거나 실행 중인 작업이 중단됩니다.",
-      { title: "실행 취소", confirmLabel: "취소하기" },
+      { title: "실행 취소", confirmLabel: "예약 실행 취소" },
     );
     if (ok) cancelRun.mutate(selected.run_id);
   }
@@ -307,7 +307,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
       ) : schedules.length === 0 ? (
         <EmptyState
           art="search"
-          title="추가된 실행 일정이 없습니다"
+          title="등록된 실행 일정이 없습니다."
           help="‘실행 일정’ 화면에서 일정을 추가하고 활성화하면 이 달력에 표시됩니다."
           relatedLink={{ href: "#/schedules", label: "실행 일정으로 이동" }}
         />
@@ -319,7 +319,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
         // 분기의 형식을 그대로 재사용).
         <EmptyState
           art="search"
-          title="예정된 실행이 없습니다"
+          title="예정된 실행이 없습니다."
           situation={`등록된 일정 ${schedules.length}개가 모두 비활성 상태입니다.`}
           help="비활성 일정은 예정을 만들지 않습니다. 실행 일정 화면에서 활성화하면 이 달력에 다시 표시됩니다."
           relatedLink={{ href: "#/schedules", label: "실행 일정에서 활성화" }}

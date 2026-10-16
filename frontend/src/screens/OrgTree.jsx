@@ -153,10 +153,10 @@ export function OrgTree({ rows = [], loading, error, onRetry, selectedId, onSele
       <ListEmptyState
         filtered={searching || activeOnly}
         onClear={onClearSearch}
-        filteredTitle="조건에 맞는 조직이나 부서가 없습니다."
-        filteredHelp="이름이나 식별자의 일부로 다시 찾아보세요."
-        title="아직 부서가 없습니다."
-        help="조직을 고른 뒤 「부서 추가」로 부서를 만들면 여기에 계층으로 나타납니다."
+        filteredTitle="검색 조건에 맞는 조직이나 부서가 없습니다."
+        filteredHelp="이름이나 식별자의 일부로 다시 검색하세요."
+        title="등록된 부서가 없습니다."
+        help="조직을 고른 뒤 「부서 추가」를 누르면 부서가 여기에 계층으로 나타납니다."
       />
     );
   }

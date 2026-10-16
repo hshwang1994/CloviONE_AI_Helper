@@ -31,7 +31,7 @@ const APPROVAL_REQUEST_TYPES = [
  * 위에서 그 축의 존재와 각 값의 뜻을 설명한다. */
 function adminScopeTooltip(scopes) {
   const lines = (scopes || []).map((s) => s.label + ": " + s.help).join(", ");
-  return "admin 역할은 관리 범위로 추가로 좁혀질 수 있습니다(사용자 관리에서 설정). " + lines;
+  return "관리자 역할은 관리 범위로 더 좁힐 수 있습니다(사용자 화면에서 정합니다). " + lines;
 }
 
 export const GOVERNANCE_SCREENS = {
@@ -47,7 +47,7 @@ export const GOVERNANCE_SCREENS = {
     /* 기본 조건(대기)만 걸린 0건은 「처리할 승인 요청이 없습니다.」다(D-587) — 사람이 건 조건이 없는데 「검색 조건에 맞는」이라고
        말하지 않는다. 단추는 「전체 결과 보기」(DataScreen)라 처리된 · 만료된 요청까지 본다. */
     noun: "승인 요청", emptyDefaultTitle: "처리할 승인 요청이 없습니다.",
-    emptyTitle: "승인 요청이 없습니다.", emptyHelp: "스케줄 활성화, 연동 설정 변경, 역할 변경처럼 승인이 필요한 작업이 요청되면 여기에서 승인, 거절, 취소합니다.",
+    emptyTitle: "승인 요청이 없습니다.", emptyHelp: "실행 일정 활성화, 연동 설정 변경, 역할 변경처럼 승인이 필요한 작업이 요청되면 여기에서 승인, 거절, 취소합니다.",
     emptyRelatedLink: { href: "#/approval-delegations", label: "부재 시 대리 승인자 설정" },
     // 다른 화면/미래의 딥링크가 ?id=로 특정 승인 건을 곧바로 열 수 있게 한다(다른 화면들과 동일한
     // 패턴 — 백엔드 GET /api/admin/approvals/{id}가 이미 존재하는데 지금까지 아무 화면도 호출하지 않았다).
@@ -114,8 +114,8 @@ export const GOVERNANCE_SCREENS = {
       personField("requested_by", "요청자", "requester_name", "requester_email"),
       // 위임으로 결재된 건은 '누구를 대신했는가'가 남는다(0033) — 이 줄이 없으면 운영자가
       // 어떻게 승인할 수 있었는지 화면 어디에도 설명이 없다.
-      { key: "decided_on_behalf_of", label: "대리 결재", render: (r) => r.decided_on_behalf_of
-        ? (r.decided_on_behalf_of_name || r.decided_on_behalf_of) + "님의 위임으로 결재"
+      { key: "decided_on_behalf_of", label: "대리 처리", render: (r) => r.decided_on_behalf_of
+        ? (r.decided_on_behalf_of_name || r.decided_on_behalf_of) + "님의 위임으로 처리"
         : "-" },
       // user.role_change 요청은 role/previous_role을 raw 값(예: 'admin')으로 담아 온다 — Users.jsx의
       // ROLE_KO가 화면 곳곳에서 이미 한국어 라벨로 보여주는 값인데, 여기만 generic objectField가
@@ -176,13 +176,13 @@ export const GOVERNANCE_SCREENS = {
     smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "approval-delegations", area: "사용자와 권한", title: "승인 위임",
     endpoint: "/api/admin/approval-delegations",
-    help: "결재자가 자리를 비우는 동안 다른 사람이 대신 승인할 수 있게 합니다. 위임을 받은 사람은 평소 승인 권한이 없어도 위임 기간에만 결재할 수 있고, 그 결재에는 누구를 대신했는지가 함께 기록됩니다. 기간이 지나면 저절로 닫힙니다.",
-    emptyTitle: "추가된 위임이 없습니다",
+    help: "승인자가 자리를 비우는 동안 다른 사람이 대신 승인할 수 있게 합니다. 위임을 받은 사람은 평소 승인 권한이 없어도 위임 기간에만 승인 요청을 처리할 수 있고, 그 처리에는 누구를 대신했는지가 함께 기록됩니다. 기간이 지나면 저절로 닫힙니다.",
+    emptyTitle: "등록된 위임이 없습니다.",
     emptyHelp: writerEmptyHelp("‘위임 추가’로 부재 기간과 대리 승인자를 지정하세요.", "위임은 관리자가 추가합니다."),
-    emptySituation: "결재자가 휴가를 가면 승인 큐가 그동안 멈춥니다.",
-    emptyPrerequisite: "위임하는 사람(승인 권한이 있는 계정)과 대신할 사람의 사용자 ID가 필요합니다.",
-    emptySteps: ["‘위임 추가’에 두 사람의 ID와 기간을 적습니다.", "기간이 시작되면 상태가 ‘진행 중’이 됩니다.", "일찍 끝내려면 ‘위임 거두기’를 누릅니다."],
-    emptyExpected: "위임 기간에는 대리 승인자가 승인하거나 거절하고, 결재 기록에 대신한 사람이 남습니다.",
+    emptySituation: "승인자가 휴가를 가면 승인 요청 처리가 그동안 멈춥니다.",
+    emptyPrerequisite: "위임하는 사람(승인 권한이 있는 계정)과 대신 승인할 사람을 정해 두어야 합니다.",
+    emptySteps: ["‘위임 추가’에서 두 사람과 기간을 고릅니다.", "기간이 시작되면 상태가 ‘진행 중’이 됩니다.", "일찍 끝내려면 ‘위임 거두기’를 누릅니다."],
+    emptyExpected: "위임 기간에는 대리 승인자가 승인하거나 거절하고, 처리 기록에 대신한 사람이 남습니다.",
     createLabel: "위임 추가",
     searchFields: ["delegator_name", "delegate_name", "reason"],
     searchPlaceholder: "이름으로 검색",
@@ -237,8 +237,8 @@ export const GOVERNANCE_SCREENS = {
     actions: [
       { label: "위임 거두기", variant: "danger", roles: WRITE_ROLES, when: (r) => r.state === "active" || r.state === "scheduled",
         path: (r) => "/api/admin/approval-delegations/" + r.id + "/revoke",
-        confirm: "이 위임을 지금 거둘까요? 대리 승인자는 즉시 결재할 수 없게 됩니다." },
-      { label: "승인 큐 보기", navigate: () => "#/approvals" },
+        confirm: "이 위임을 지금 거둘까요? 대리 승인자는 즉시 승인 요청을 처리할 수 없게 됩니다." },
+      { label: "승인 요청 보기", navigate: () => "#/approvals" },
       // approval_delegation은 감사 로그의 유효한 object_type이고(app/approvals/router.py
       // delegations_router) 이제 OBJ_ROUTE에도 있다 — 다른 쓰기 화면들과 동일한 딥링크를
       // 추가한다(MEGA CYCLE G).
@@ -272,7 +272,7 @@ export const GOVERNANCE_SCREENS = {
       /* 「이상 징후 보기」 머리 단추를 걷었다(D-501) — 이 화면은 언제나 「감사 로그」 그릇의 탭이라 바로 옆
          「이상 징후」 탭이 같은 곳으로 간다. */
     ],
-    emptyTitle: "감사 기록이 없습니다", emptyHelp: "사용자, 설정, 연동 등에 변경이 생기면 누가 무엇을 언제 바꿨는지 여기에 기록됩니다.",
+    emptyTitle: "감사 기록이 없습니다.", emptyHelp: "사용자, 설정, 연동 등에 변경이 생기면 누가 무엇을 언제 바꿨는지 여기에 기록됩니다.",
     // 다른 화면(예: 사용자 상세의 '감사 로그에서 보기')에서 넘어온 ?object_type=&object_id= 쿼리를
     // 필터로 소비한다(DataScreen의 open:'filter' 인텐트). 백엔드가 object_id를 이미 지원한다
     // (app/audit/router.py) — 이 화면이 그 필터를 실제로 적용하지 않아 늘 무필터 목록만 보여줬었다.
@@ -421,8 +421,8 @@ export const GOVERNANCE_SCREENS = {
     key: "audit-anomalies", area: "감사", title: "감사 이상 징후",
     endpoint: "/api/admin/audit/anomalies",
     help: "감사 로그에서 눈여겨볼 만한 것을 규칙으로 골라냅니다. 통계 모델이나 AI가 아니라 셀 수 있는 사실만 봅니다. 그래서 같은 데이터면 언제 열어도 같은 결과가 나오고, 각 항목에 왜 걸렸는지(근거, 임계값)가 함께 표시됩니다. 여기 걸렸다고 곧바로 문제인 것은 아니며, 확인할 대상을 좁혀 주는 목록입니다.",
-    emptyTitle: "눈여겨볼 징후가 없습니다",
-    emptyHelp: "이 기간의 감사 로그에서 규칙에 걸린 항목이 없습니다. 기간을 늘려 다시 보세요.",
+    emptyTitle: "눈여겨볼 징후가 없습니다.",
+    emptyHelp: "이 기간의 감사 로그에서 규칙에 걸린 항목이 없습니다. 기간을 늘려 다시 확인하세요.",
     /* 기간에 「전체」는 없다. 서버는 언제나 창을 두고 세고 값을 안 보내면 24시간으로 답하므로,
        빈 값의 이름이 곧 「최근 24시간」이다(그래서 목록에 24시간을 다시 적지 않는다 — 같은 일을
        하는 항목이 둘이면 관리자는 둘이 다른 줄 안다). 최대는 서버가 30일로 자른다. */
@@ -475,9 +475,9 @@ export const GOVERNANCE_SCREENS = {
     // 추가로 좁혀질 수 있는데(app/core/scope.py), 그 축이 이 매트릭스 어디에도 안 보이면
     // "부서 관리자가 왜 남의 부서를 못 보는지" 이 화면만 봐서는 알 수 없다. 그 범위 설정
     // 자체는 사용자 관리(admin_scope 필드)에서 하므로 여기서는 안내만 한다.
-    help: "누가 무엇을 할 수 있는지 한 화면에서 봅니다. 이 표는 서버의 권한 정의(app/core/authz.py) 하나에서 그대로 옵니다. 화면이 따로 들고 있는 사본이 없으므로 규칙을 고치면 이 표도 함께 바뀝니다. "
-      + "이 표는 역할(role) 기준이며, admin 역할은 관리 범위(전체/조직/부서)로 추가로 좁혀질 수 있습니다. 범위는 여기가 아니라 '사용자 관리'의 대상 사용자 수정에서 설정합니다. '관리자' 열에 마우스를 올리면 범위별 설명을 볼 수 있습니다.",
-    emptyTitle: "권한 정의를 불러오지 못했습니다", emptyHelp: "잠시 후 다시 시도해 주세요.",
+    help: "누가 무엇을 할 수 있는지 한 화면에서 봅니다. 이 표는 서버의 권한 정의 하나에서 그대로 옵니다. 화면이 따로 들고 있는 사본이 없으므로 규칙을 고치면 이 표도 함께 바뀝니다. "
+      + "이 표는 역할 기준이며, 관리자 역할은 관리 범위(전체, 조직, 부서)로 더 좁힐 수 있습니다. 범위는 여기가 아니라 ‘사용자’ 화면에서 그 사용자를 수정할 때 정합니다. ‘관리자’ 열에 마우스를 올리면 범위별 설명을 볼 수 있습니다.",
+    emptyTitle: "권한 정의를 불러오지 못했습니다.", emptyHelp: "잠시 후 다시 시도해 주세요.",
     // 열이 곧 역할이라 서버 응답에서 만든다 — 여기에 역할 배열을 적으면 두 벌이 되고,
     // 백엔드에서 규칙을 고쳐도 이 표만 옛 열을 계속 보여 준다(tests/security/test_rbac_matrix.py가 고정).
     /* 「할 수 있는 일」이 그 행의 이름이라 제목 열이다(D-501) — 홀로 왼쪽에 서고 남는 폭을 갖는다. 예전에는 타입이
@@ -536,12 +536,12 @@ export const GOVERNANCE_SCREENS = {
     key: "impersonation", area: "사용자와 권한", title: "대리 보기",
     endpoint: "/api/admin/impersonation/sessions",
     help: "다른 사용자의 화면을 그 사람 눈으로 읽기만 합니다. 대리 보기 중에는 모든 쓰기가 서버에서 차단되고, 누가 누구를 언제 봤는지가 이 목록과 감사 로그에 남습니다. 시작하면 화면 위에 띠가 뜹니다.",
-    emptyTitle: "대리 보기 기록이 없습니다",
+    emptyTitle: "대리 보기 기록이 없습니다.",
     emptyHelp: "‘대리 보기 시작’으로 사용자를 지정하면 그 사람의 화면을 읽기 전용으로 볼 수 있습니다.",
     emptySituation: "지원 문의를 받았는데 그 사용자에게 무엇이 보이는지 확인할 방법이 없었습니다.",
-    emptyPrerequisite: "대상 사용자의 ID가 필요합니다(‘사용자’ 화면에서 확인).",
+    emptyPrerequisite: "대리 보기로 볼 대상 사용자를 정해 두어야 합니다.",
     emptySteps: [
-      "‘대리 보기 시작’에 대상 사용자 ID와 사유를 적습니다.",
+      "‘대리 보기 시작’에서 대상 사용자를 고르고 사유를 적습니다.",
       "화면 위 띠가 뜨면 그 사용자의 눈으로 보고 있는 상태입니다.",
       "확인이 끝나면 띠의 ‘대리 보기 종료’를 누릅니다(최대 30분 뒤 자동 종료).",
     ],

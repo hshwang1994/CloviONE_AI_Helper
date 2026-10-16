@@ -16,6 +16,8 @@ import "@testing-library/jest-dom/vitest";
  *   3) 검색과 「사용 중만」은 왼쪽 판 도구 줄에 있고 화면에서 거른다(조상은 남는다). 서버에 거르기 질의를 보내지 않는다.
  *   4) 대상 동작은 판 머리에 선다 — 조직이면 「부서 추가」, 부서면 「하위 부서 추가」가 이 화면의 채움 하나다.
  *   5) 평소 화면에 기술 정보(ID · 식별자 · 삭제 판정)가 없다 — 「더 보기 › 상세 정보」가 든다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -241,7 +243,7 @@ describe("수", () => {
     mockApi();
     renderConsole("/organizations");
     const notice = await within(panel()).findByText("부서도 조직 직속도 아닌 사람이 1명 있습니다.", {}, WAIT);
-    await userEvent.click(within(notice.closest(".k-callout")).getByRole("button", { name: "목록 보기" }));
+    await userEvent.click(within(notice.closest(".k-callout")).getByRole("button", { name: "소속 미지정 보기" }));
     expect(await within(panel()).findByText("무소속", {}, WAIT)).toBeInTheDocument();
     const call = usersCalls().find((q) => q.get("membership_kind") === "unassigned");
     expect(call, "미지정 목록을 조직으로 좁혀 받지 않았다").toBeTruthy();

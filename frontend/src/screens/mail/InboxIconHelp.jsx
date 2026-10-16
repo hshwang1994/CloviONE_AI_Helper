@@ -27,7 +27,7 @@ export function InboxIconHelp({ help }) {
     <Box component="section" aria-label="받은 편지함 아이콘" data-testid="mail-inbox-icon-help" sx={{ display: "grid", gap: 1, minWidth: 0 }}>
       <SubHeading>받은 편지함 아이콘</SubHeading>
       <Typography variant="body2" color="text.secondary" sx={KO_WORD_BREAK}>
-        받는 쪽 메일 프로그램이 보낸 사람 자리에 그림을 보이는 조건입니다. 외부 꼬리표가 붙은 일은 이 서버 밖의 담당자가 해야 합니다.
+        받는 쪽 메일 프로그램이 보낸 사람 자리에 아이콘을 보여 주는 조건입니다. ‘외부’ 표시가 붙은 일은 이 서버 밖의 담당자가 해야 합니다.
       </Typography>
       <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", minWidth: 0 }}>
         {items.map((it, i) => (

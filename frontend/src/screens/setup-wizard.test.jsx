@@ -22,6 +22,8 @@ import { MemoryRouter } from "react-router-dom";
  * `PUT /api/admin/setup/choices/{key}` 로 한 값만 보낸다. 지금 할 줄은 목록에서 할 일을 숨기지 않고 저절로 펼쳐진다 — 요약 띠의
  * 주 동작과 줄의 이동 단추가 같은 화면을 가리킨다(띠는 지름길, 줄은 모든 줄이 같은 모양). 끝난 줄은 단추를 세우지 않고 펼친 칸에
  * 이동 링크와 선택 되돌리기를 둔다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -367,7 +369,7 @@ describe("선택 값", () => {
     expect(apiMock.mock.calls.filter(([p]) => p === CHECKLIST)).toHaveLength(1);
     // 범용 설정 API 로 객체 전체를 덮지 않는다.
     expect(apiMock.mock.calls.some(([p]) => String(p).includes("/api/admin/settings/"))).toBe(false);
-    expect(await screen.findByText("메일 발송 항목을 사용하지 않음으로 두었습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("메일 발송 항목을 ‘사용하지 않음’으로 두었습니다.")).toBeInTheDocument();
   });
 
   it("TLS 의 「외부 프록시가 맡음」도 같은 선택 API 다", async () => {

@@ -17,6 +17,8 @@ import "@testing-library/jest-dom/vitest";
  *
  * **조직 이름 · 상태를 바꾸는 것 자체는 전체 관리자만 할 수 있다**(`require_global_management`). 서버가 그 답을 `can_edit` 로
  * 싣는다 — 서버 값이 화면의 추정보다 앞선다. 값을 모르는 옛 응답이면 전역 판정(`management.kind`)으로 떨어진다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -127,7 +129,7 @@ describe("자기 조직 비활성화", () => {
     actor.org_id = "org-3";
     const panel = await openOrg("org-3", "묵은회사");
     const items = await menuItems(panel, "묵은회사");
-    expect(pick(items, "다시 사용").disabled).toBe(false);
+    expect(pick(items, "활성화").disabled).toBe(false);
     expect(pick(items, "비활성화")).toBeUndefined();
   });
 });
@@ -138,7 +140,7 @@ describe("조직을 바꾸는 권한 — 서버의 can_edit", () => {
     const items = await menuItems(panel, "자회사");
     expect(pick(items, "수정")).toEqual({ name: "수정", disabled: true, help: "조직 이름과 상태는 전체 관리자만 바꿀 수 있습니다." });
     expect(pick(items, "비활성화")).toBeUndefined();
-    expect(pick(items, "다시 사용")).toBeUndefined();
+    expect(pick(items, "활성화")).toBeUndefined();
     // 부서를 만드는 것은 조직을 바꾸는 일이 아니다 — 그 입구는 그대로 선다.
     expect(within(panel.querySelector("[data-pane-head]")).getByRole("button", { name: "부서 추가" })).toBeInTheDocument();
   });
@@ -146,7 +148,7 @@ describe("조직을 바꾸는 권한 — 서버의 can_edit", () => {
   it("can_edit:false 인 정지 조직도 「다시 사용」을 세우지 않는다(음성)", async () => {
     const panel = await openOrg("org-3", "묵은회사", { canEdit: false });
     const items = await menuItems(panel, "묵은회사");
-    expect(pick(items, "다시 사용")).toBeUndefined();
+    expect(pick(items, "활성화")).toBeUndefined();
     expect(pick(items, "수정").disabled).toBe(true);
   });
 
@@ -170,7 +172,7 @@ describe("조직을 바꾸는 권한 — 서버의 can_edit", () => {
     actor.role = "system_admin";
     const panel = await openOrg("org-2", "자회사");
     expect(pick(await menuItems(panel, "자회사"), "삭제")).toEqual({
-      name: "삭제", disabled: true, help: "조직은 지울 수 없습니다. 비활성화하면 새 사용을 막을 수 있습니다.",
+      name: "삭제", disabled: true, help: "조직은 삭제할 수 없습니다. 대신 비활성화할 수 있습니다.",
     });
   });
 });

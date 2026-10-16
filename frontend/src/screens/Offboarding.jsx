@@ -97,7 +97,7 @@ export function Offboarding() {
         actions={targetId ? <Button onClick={() => setTargetId(null)}>다른 사람 고르기</Button> : null}
         help={<>
           <Box component="p" sx={{ m: 0 }}>
-            퇴사, 부서 이동 시 <strong>보유 티켓을 후임에게 옮기고</strong> 계정을 비활성화, 보관합니다.
+            퇴사나 부서 이동 때 <strong>보유 티켓을 후임에게 옮기고</strong> 계정을 비활성화하거나 보관합니다.
             실행 전에 무엇이 바뀌는지 먼저 보여 주고, 실행한 뒤에도 <strong>되돌릴 수 있습니다</strong>.
           </Box>
           {STEP_HELP.map((line) => (
@@ -179,10 +179,10 @@ function TargetPicker({ q, setQ, query, onPick }) {
               filtered={!!String(q || "").trim()}
               onClear={() => setQ("")}
               clearLabel="검색어 지우기"
-              filteredTitle="조건에 해당하는 사용자가 없습니다"
-              filteredHelp="검색어를 지우거나 다른 이름으로 찾아보세요."
+              filteredTitle="검색 조건에 맞는 사용자가 없습니다."
+              filteredHelp="검색어를 지우거나 다른 이름으로 검색하세요."
               art="search"
-              title="대상 사용자가 없습니다"
+              title="대상 사용자가 없습니다."
               help="퇴사 처리 대상이 될 계정이 아직 없습니다."
             />
           )}
@@ -190,7 +190,7 @@ function TargetPicker({ q, setQ, query, onPick }) {
              더 늘었을 수 있다)부터 page_size=20으로 조용히 잘렸다 — 총건수도 잘림 경고도
              없어 찾는 사람이 20번째 밖에 있으면 검색창을 쓰라는 단서조차 없었다.
              Search.jsx의 ResultGroup과 같은 관용을 재사용한다. 이 문장이 목록 판 발의 문장이다. */
-          note={total != null && total > items.length ? `${total}명 중 ${items.length}명을 보여 줍니다. 검색어로 좁혀 보세요.` : undefined}
+          note={total != null && total > items.length ? `전체 ${total}명 중 ${items.length}명만 표시합니다. 검색어로 범위를 좁히세요.` : undefined}
         />
       )}
     </>
@@ -295,7 +295,7 @@ function OffboardPlan({ preview, onDone, toast }) {
         <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))", xxl: "repeat(4, minmax(0,1fr))" } }}>
           {(preview.onboarding || []).map((check) => (
             <Box key={check.key} sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-              <Badge value={check.ok ? "완료" : "미완"} kind={check.ok ? "ok" : "warn"} />
+              <Badge value={check.ok ? "완료" : "미완료"} kind={check.ok ? "ok" : "warn"} />
               <Box sx={{ minWidth: 0 }}>
                 <Typography variant="body2">{check.label}</Typography>
                 <Typography variant="caption" color="text.secondary" sx={KO_WORD_BREAK}>{check.value}</Typography>
@@ -312,7 +312,7 @@ function OffboardPlan({ preview, onDone, toast }) {
       ) : null}
       {preview.tickets_error ? (
         <Box sx={{ mb: 2.5 }}>
-          <Callout tone="danger">보유 티켓을 불러오지 못했습니다: {preview.tickets_error}: 이 상태로 실행하면 옮기지 못한 티켓이 그대로 남습니다.</Callout>
+          <Callout tone="danger">보유 티켓을 불러오지 못했습니다(원인: {preview.tickets_error}). 이 상태로 실행하면 옮기지 못한 티켓이 그대로 남습니다.</Callout>
         </Box>
       ) : null}
 
@@ -320,7 +320,7 @@ function OffboardPlan({ preview, onDone, toast }) {
         {tickets.length ? (
           <DataTable placement="surface" columns={columns} rows={tickets} rowKey={(t) => t.id} />
         ) : (
-          <EmptyState size="compact" title="옮길 티켓이 없습니다" help="계정 처리만 진행합니다." />
+          <EmptyState size="compact" title="옮길 티켓이 없습니다." help="계정 처리만 진행합니다." />
         )}
       </Section>
 
@@ -338,9 +338,9 @@ function OffboardPlan({ preview, onDone, toast }) {
             candidates={preview.successor_candidates || []}
             value={successor}
             onChange={setSuccessor}
-            allLabel="(후임 없음. 미할당으로)"
+            allLabel="(후임 없음, 미할당으로 되돌림)"
             describe={(c) => [c.email, c.department].filter(Boolean).join(", ")}
-            helperText="비워 두면 선택한 티켓이 미할당으로 돌아갑니다(미할당 트리아지에서 다시 배정)."
+            helperText="비워 두면 선택한 티켓이 미할당으로 돌아가고, ‘미할당 티켓’ 화면에서 다시 배정할 수 있습니다."
           />
           <Box sx={{ minWidth: 0 }}>
             <FieldLabel htmlFor="offboarding-note">메모(선택)</FieldLabel>
@@ -348,7 +348,7 @@ function OffboardPlan({ preview, onDone, toast }) {
               size="small" fullWidth value={note}
               onChange={(e) => { setNote(e.target.value); if (noteError) setNoteError(""); }}
               error={!!noteError}
-              helperText={noteError || "왜 오프보딩하는지 남겨 두면 이력에서 바로 읽힙니다."}
+              helperText={noteError || "오프보딩 사유를 적어 두면 실행 이력에서 바로 볼 수 있습니다."}
               inputProps={noteMaxLength ? { maxLength: noteMaxLength } : undefined}
             />
           </Box>
@@ -369,7 +369,7 @@ function OffboardPlan({ preview, onDone, toast }) {
         </ActionFooter>
       </Card>
       <Card component="aside">
-        <SectionTitle component="h2" title="실행하면" />
+        <SectionTitle component="h2" title="실행하면 일어나는 일" />
         <Box component="ol" sx={{ m: 0, pl: 2.5, display: "grid", gap: 0.75 }}>
           {planLines.map((line) => (
             <Typography key={line} component="li" variant="body2" sx={KO_WORD_BREAK}>{line}</Typography>
@@ -452,7 +452,7 @@ function RunHistory() {
 
   async function undo(run) {
     const message = [
-      `${run.user_name || "대상"} 의 오프보딩을 되돌립니다.`,
+      `${run.user_name || "대상"}의 오프보딩을 되돌립니다.`,
       run.ticket_moved ? `옮긴 티켓 ${run.ticket_moved}건을 원래 담당자에게 되돌립니다.` : "",
       run.deactivated ? "계정을 다시 활성화합니다." : "",
       run.archived ? "계정 보관을 해제합니다." : "",
@@ -486,7 +486,7 @@ function RunHistory() {
       <Badge value={RUN_STATUS_KO[r.status] || r.status}
         kind={r.status === "completed" ? "ok" : r.status === "undone" ? "neutral" : "warn"} />
     ) },
-    { key: "ticket_moved", label: "티켓", type: "code", render: (r) => `${r.ticket_moved}/${r.ticket_total}` + (r.ticket_failed ? ` (실패 ${r.ticket_failed})` : "") },
+    { key: "ticket_moved", label: "티켓", type: "code", render: (r) => `${r.ticket_moved}/${r.ticket_total}` + (r.ticket_failed ? ` (실패 ${r.ticket_failed}건)` : "") },
     { key: "actor_name", label: "실행자", type: "name" },
   ];
 
@@ -507,7 +507,7 @@ function RunHistory() {
             loading={query.isLoading}
             columns={columns} rows={items} rowKey={(r) => r.id} onRow={(r) => { setUndoFailure(""); setSel(r); }} total={total}
             emptyState={(
-              <EmptyState layout="region" title="아직 실행한 오프보딩이 없습니다"
+              <EmptyState layout="region" title="아직 실행한 오프보딩이 없습니다."
                 help="위에서 대상을 고르고 실행하면 여기에 기록이 남고, 그 자리에서 되돌릴 수 있습니다." />
             )}
             list={{
@@ -545,7 +545,7 @@ function RunHistory() {
             <DetailGrid>
               {/* 이름이 없으면(탈퇴 계정 등) raw UUID 대신 '알 수 없음'을 보여준다(E-4 UUID 노출) */}
               <DetailRow label="대상">{detail.user_name || "알 수 없음"}</DetailRow>
-              <DetailRow label="후임">{detail.successor_name || "(없음. 미할당으로 되돌림)"}</DetailRow>
+              <DetailRow label="후임">{detail.successor_name || "(없음, 미할당으로 되돌림)"}</DetailRow>
               <DetailRow label="실행자">{detail.actor_name || "알 수 없음"}</DetailRow>
               <DetailRow label="상태">{RUN_STATUS_KO[detail.status] || detail.status}</DetailRow>
               <DetailRow label="티켓">{`${detail.ticket_moved}/${detail.ticket_total}건 이동, 실패 ${detail.ticket_failed}건`}</DetailRow>

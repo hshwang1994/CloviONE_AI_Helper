@@ -50,7 +50,7 @@ function isNarrowLayout() {
 
 const EDIT_DENIED = "조직 이름과 상태는 전체 관리자만 바꿀 수 있습니다.";
 const SELF_SUSPEND_DENIED = "자기 조직 비활성화는 시스템 관리자만 할 수 있습니다.";
-const ORG_DELETE_DENIED = "조직은 지울 수 없습니다. 비활성화하면 새 사용을 막을 수 있습니다.";
+const ORG_DELETE_DENIED = "조직은 삭제할 수 없습니다. 대신 비활성화할 수 있습니다.";
 
 export function OrgWorkspace() {
   const navigate = useNavigate();
@@ -148,12 +148,12 @@ export function OrgWorkspace() {
 
   const setDeptActive = useMutation({
     mutationFn: () => api("/api/admin/departments/" + deptId, { method: "PATCH", body: { active: true } }),
-    onSuccess: () => { invalidate(); toast("다시 사용하도록 바꿨습니다."); },
+    onSuccess: () => { invalidate(); toast("활성화했습니다."); },
     onError: (e) => handleApiError(e, toast),
   });
   const setOrgActive = useMutation({
     mutationFn: () => api("/api/admin/organizations/" + selectedOrgId, { method: "PATCH", body: { status: "active" } }),
-    onSuccess: () => { invalidate(); toast("다시 사용하도록 바꿨습니다."); },
+    onSuccess: () => { invalidate(); toast("활성화했습니다."); },
     onError: (e) => handleApiError(e, toast),
   });
 
@@ -221,7 +221,7 @@ export function OrgWorkspace() {
         { key: "edit", label: "수정", onClick: () => setDialog("dept-edit") },
         d.active
           ? { key: "deactivate", label: "비활성화", onClick: () => setDialog("deactivate") }
-          : { key: "activate", label: "다시 사용", disabled: setDeptActive.isPending, onClick: () => setDeptActive.mutate() },
+          : { key: "activate", label: "활성화", disabled: setDeptActive.isPending, onClick: () => setDeptActive.mutate() },
         { key: "delete", label: "삭제", tone: "danger", onClick: () => setDialog("delete") },
         { key: "audit", label: "감사 로그에서 보기", divider: true, href: "#/audit?object_type=department&object_id=" + encodeURIComponent(deptId) },
         { key: "users", label: "사용자 화면에서 보기", href: "#/users?department_id=" + encodeURIComponent(deptId) },
@@ -276,7 +276,7 @@ export function OrgWorkspace() {
           ? { key: "suspend", label: "비활성화", onClick: () => setDialog("suspend") }
           : { key: "suspend", label: "비활성화", disabled: true, help: SELF_SUSPEND_DENIED };
       } else if (canEdit) {
-        statusItem = { key: "activate", label: "다시 사용", disabled: setOrgActive.isPending, onClick: () => setOrgActive.mutate() };
+        statusItem = { key: "activate", label: "활성화", disabled: setOrgActive.isPending, onClick: () => setOrgActive.mutate() };
       }
       const menu = [
         canEdit

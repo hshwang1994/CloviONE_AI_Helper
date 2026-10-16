@@ -53,7 +53,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
       // 반응한다'는 보장이 깨졌다.
       if (!d) { setDomainErr(draft ? "공백만으로는 추가할 수 없습니다." : "도메인을 입력하세요."); return; }
       if (!d.includes(".") || d.startsWith(".") || d.endsWith(".")) {
-        setDomainErr("도메인 형식이 아닙니다(예: example.com), 점(.)을 포함해야 합니다.");
+        setDomainErr("도메인 형식이 아닙니다. 점(.)을 포함해야 합니다(예: example.com).");
         return;
       }
       if (domains.includes(d)) { setDomainErr("이미 추가된 도메인입니다."); return; }
@@ -77,7 +77,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
               <Tag label={d} />
               {canWrite ? (
                 /* 크기는 테마의 작은 아이콘 단추(30)다 — 여백을 손으로 줄이면 누를 자리가 24 아래로 줄었다. */
-                <IconButton size="small" aria-label={d + " 제거"} onClick={() => removeDomain(d)}>
+                <IconButton size="small" aria-label={d + " 삭제"} onClick={() => removeDomain(d)}>
                   <CloseRoundedIcon sx={{ fontSize: FONT_SIZE.body }} />
                 </IconButton>
               ) : null}
@@ -343,11 +343,11 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
         {preset === "monthly" ? (
           <Box sx={pairGrid}>
             <Box sx={{ minWidth: 0 }}>
-              <FieldLabel htmlFor={fieldId("cron-day")}>며칠(1~28)</FieldLabel>
+              <FieldLabel htmlFor={fieldId("cron-day")}>날짜(1~28일)</FieldLabel>
               <TextField
                 id={fieldId("cron-day")} type="number" size="small" fullWidth
                 disabled={!canWrite} error={!!invalid}
-                helperText="29~31일은 없는 달이 있어 그 달에는 안 돕니다."
+                helperText="29~31일은 없는 달이 있어 그 달에는 실행되지 않습니다."
                 inputProps={{ min: 1, max: 28, "aria-invalid": ariaInvalid, "aria-describedby": describedBy }}
                 value={day}
                 onChange={(e) => setCron(`${minute} ${hour} ${e.target.value || 1} * *`)}
@@ -360,7 +360,7 @@ export function StructuredObjectFields({ settingKey, val, onChange, canWrite, de
           <Box sx={pairGrid}>
             <Box>
               <Box sx={{ minWidth: 0 }}>
-                <FieldLabel htmlFor={fieldId("cron")}>cron 표현식</FieldLabel>
+                <FieldLabel htmlFor={fieldId("cron")}>Cron 식</FieldLabel>
                 <TextField
                   id={fieldId("cron")} size="small" fullWidth disabled={!canWrite}
                   error={!!invalid} placeholder="0 3 * * *"

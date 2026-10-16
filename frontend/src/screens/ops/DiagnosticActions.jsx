@@ -16,7 +16,7 @@ export function DiagnosticActions({ manualCollecting, onCollect, hasText, copied
           <Box sx={{ minWidth: "5.5rem", display: "inline-flex" }}>
             <Button onClick={onCopy} sx={{ width: "100%" }}>{copied || "복사"}</Button>
           </Box>
-          <Button onClick={onDownload}>JSON 다운로드</Button>
+          <Button onClick={onDownload}>JSON 내려받기</Button>
         </>
       ) : null}
       <Button variant="primary" onClick={onCollect} disabled={manualCollecting} loading={manualCollecting}>진단 수집</Button>

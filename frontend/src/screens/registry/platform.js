@@ -32,8 +32,8 @@ export const PLATFORM_SCREENS = {
     // 이 목록이 최근 50건까지만 온다는 사실(app/backups/router.py list_backups의 .limit(50))이
     // 화면 어디에도 없었다 — 51번째 백업부터는 조용히 사라진다. 필터를 붙이기 전에 그 경계부터
     // 밝힌다(안 그러면 '필터에 안 걸림'과 '애초에 안 옴'을 구별할 수 없다).
-    help: "데이터베이스를 백업합니다. 백업 하나는 덤프와 매니페스트가 함께 든 세트입니다. 오래된 백업은 정한 개수와 기간에 따라 정리됩니다. 복원은 시스템 관리자가 서버에서 별도 스크립트로 수행합니다. 목록에는 최근 50건까지만 표시됩니다.",
-    emptyTitle: "아직 백업이 없습니다",
+    help: "데이터베이스를 백업합니다. 백업 하나는 덤프와 매니페스트가 함께 든 세트입니다. 오래된 백업은 정한 개수와 기간에 따라 정리됩니다. 복원은 시스템 관리자가 서버에서 별도 스크립트로 합니다. 목록에는 최근 50건까지만 표시됩니다.",
+    emptyTitle: "아직 백업이 없습니다.",
     // 🔴 **거르는 자리는 서버다** (2026-09-01). 처음엔 두 필터가 `clientFilter` 였고, 그
     // 근거는 「받아 온 것이 곧 전부라 다른 쪽에 숨는 행이 없다」였다. 그 전제가 틀렸다 —
     // 이 목록은 최신 50건에서 **잘린다**(BACKUP_LIST_LIMIT). 그래서 「실패한 백업만」이
@@ -60,12 +60,12 @@ export const PLATFORM_SCREENS = {
     // 백업 실행·복원·검증은 모두 system_admin 전용(백엔드 RBAC). 그 외 역할에는 CTA 대신 읽기 전용 안내를 준다.
     emptyHelp: (role) => role === "system_admin"
       ? "‘백업 실행’으로 지금 데이터베이스를 백업하세요. 오래된 백업은 정한 개수와 기간에 따라 정리됩니다."
-      : "아직 백업이 없습니다. 백업은 시스템 관리자가 실행할 수 있습니다.",
+      : "백업은 시스템 관리자가 실행할 수 있습니다.",
     // 첫 실행 시스템 관리자에게 단계별 안내를 준다(canOnboard가 primary 헤더 작업 '백업 실행'을
     // 근거로 system_admin에만 보여준다). 다른 운영 화면(연동/러너)의 온보딩 패턴과 통일.
     emptySituation: "아직 데이터베이스 백업이 하나도 없습니다.",
-    emptyPrerequisite: "백업 세트는 서버에 만들어집니다. 복원은 서버에서 별도 스크립트로 수행합니다.",
-    emptySteps: ["‘백업 실행’으로 지금 세트를 만듭니다.", "상태가 ‘확인됨(verified)’이 되는지 확인합니다. 임시 데이터베이스에 실제로 복원해 본 상태입니다.", "필요하면 ‘내려받기’로 받아 두고, 받은 뒤에 ‘서버에서 삭제’를 고를 수 있습니다."],
+    emptyPrerequisite: "백업 세트는 서버에 만들어집니다. 복원은 서버에서 별도 스크립트로 합니다.",
+    emptySteps: ["‘백업 실행’으로 지금 세트를 만듭니다.", "상태가 ‘확인됨’으로 바뀌는지 봅니다. 임시 데이터베이스에 실제로 복원해 본 상태입니다.", "필요하면 ‘내려받기’로 받아 두고, 받은 뒤에 ‘서버에서 삭제’를 고를 수 있습니다."],
     emptyExpected: "실행한 백업이 상태, 크기와 함께 목록에 남고, 정한 개수와 기간만큼 보관됩니다.",
     headerActions: [
       { label: "복원 안내", method: "GET", roles: ["system_admin"], path: () => "/api/admin/backups/restore-instructions",
@@ -82,7 +82,7 @@ export const PLATFORM_SCREENS = {
       // 백업 실패 사유는 외부 도구(pg_dump/pg_restore)의 stderr 가 섞여 올 수 있다 —
       // 알려진 사유 코드만 한국어로 치환해 영어가 그대로 새지 않게 한다(backupReasonText).
       { label: "백업 실행", variant: "primary", primary: true, roles: ["system_admin"], path: () => "/api/admin/backups", confirm: "지금 데이터베이스 백업을 실행할까요?",
-        result: (res) => { const s = res.backup && res.backup.status; const ok = s === "verified" || s === "succeeded"; return { ok, msg: ok ? "백업 완료" : ("백업 실패: " + backupReasonText((res.backup && res.backup.error_message) || "확인 실패")) }; } },
+        result: (res) => { const s = res.backup && res.backup.status; const ok = s === "verified" || s === "succeeded"; return { ok, msg: ok ? "백업을 마쳤습니다." : ("백업 실패: " + backupReasonText((res.backup && res.backup.error_message) || "확인 실패")) }; } },
       /* 🔴 이 화면에서 **예약을 만질 길이 없었다** (2026-09-01). 이 화면은 「지금 한 번」만
          할 수 있었고 「매일 새벽 3시」는 관리 콘솔 설정 표 어딘가에 있었다 — 그래서
          `check_backup_health` 가 「백업 화면에서 예약을 켜세요」라고 알려도 그 화면에는
@@ -174,7 +174,7 @@ export const PLATFORM_SCREENS = {
       // 그 목적이다. 디스크에서 사라진 파일도 검증은 `file_missing` 이라는 답을 돌려주므로
       // (`verify_existing`) 누른 사람이 사실을 얻는다 — 받을 것이 없는 것과는 다르다.
       { label: "검증", roles: ["system_admin"], when: (r) => r.status !== "running" && r.file_state !== "removed", path: (r) => "/api/admin/backups/" + r.id + "/verify",
-        result: (res) => ({ ok: !!(res.verify && res.verify.ok), msg: (res.verify && res.verify.ok) ? "검증 완료: 정상" : "검증 실패: " + backupReasonText((res.verify && res.verify.reason) || "손상 가능성") }) },
+        result: (res) => ({ ok: !!(res.verify && res.verify.ok), msg: (res.verify && res.verify.ok) ? "검증을 마쳤습니다. 백업이 정상입니다." : "검증 실패: " + backupReasonText((res.verify && res.verify.reason) || "손상 가능성") }) },
       /* 내려받기 — `DataScreen.runDownload` 가 처리한다. 작은 산출물은 화면을 떠나지 않고
          fetch 로 받아 상태를 확인하고 Blob 으로 저장하며, 실패는 토스트로 말한다(파일 이름은
          응답의 `Content-Disposition` 을 직접 읽어서 붙인다). 큰 덤프는 `size_bytes` 를 보고
@@ -200,7 +200,7 @@ export const PLATFORM_SCREENS = {
         when: (r) => r.file_state === "present" && !!r.downloaded_at,
         confirm: "서버에 저장된 백업 파일을 삭제하시겠습니까? 내려받은 파일과 백업 저장소 사본은 그대로 남고, 이 서버에서는 이 백업으로 되돌릴 수 없게 됩니다.",
         path: (r) => "/api/admin/backups/" + r.id + "/discard-file",
-        result: () => ({ ok: true, msg: "서버에서 삭제했습니다" }) },
+        result: () => ({ ok: true, msg: "서버에서 삭제했습니다." }) },
       // operator는 백업 화면(READ_ROLES)엔 들어오지만 /audit 화면엔 못 들어간다(App.jsx SCREEN_ROLES)
       // — approvals.registry.js:990과 동일한 이유로 admin/system_admin/auditor에만 노출한다.
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=backup&object_id=" + r.id },
@@ -216,7 +216,7 @@ export const PLATFORM_SCREENS = {
     // 그대로 두면 situation/prerequisite/steps/expected 4종이 어떤 역할에서도 안 그려진다.
     // 화면 접근 자체는 이미 라우트 role 게이트로 걸려 있으니 안전하게 우회한다.
     forceOnboarding: true,
-    emptyTitle: "복구 리허설 기록이 없습니다",
+    emptyTitle: "복구 리허설 기록이 없습니다.",
     emptyHelp: "아직 한 번도 복원을 시험하지 않았습니다. 아래 순서로 실행하면 결과가 이 목록에 남습니다.",
     emptySituation: "백업 파일은 쌓이는데, 그것으로 실제 복원이 되는지는 아무도 확인한 적이 없습니다.",
     emptyPrerequisite: "서버에 접속할 수 있어야 합니다(웹에서 실행하지 않습니다).",
@@ -289,10 +289,10 @@ export const PLATFORM_SCREENS = {
     key: "announcements", area: "설정", title: "공지 배너",
     endpoint: "/api/admin/announcements",
     help: "모든 화면 위쪽에 띠로 뜨는 공지입니다. 사용자가 닫으면 그 사람에게는 다시 뜨지 않습니다(브라우저가 아니라 계정에 기록되므로 다른 PC에서도 닫힌 상태가 유지됩니다).",
-    emptyTitle: "추가된 공지가 없습니다",
+    emptyTitle: "등록된 공지 배너가 없습니다.",
     emptyHelp: writerEmptyHelp("‘공지 추가’로 점검 예고나 안내를 띄우세요.", "공지는 관리자가 추가합니다."),
     emptySituation: "점검이나 장애를 알릴 곳이 알림 벨밖에 없었습니다(놓치기 쉽습니다).",
-    emptySteps: ["‘공지 추가’로 제목과 내용을 적습니다.", "필요하면 노출 기간을 정합니다(비우면 ‘사용 안 함’으로 바꿀 때까지 계속).", "‘사용 안 함’으로 바꾸면 즉시 내려갑니다."],
+    emptySteps: ["‘공지 추가’로 제목과 내용을 적습니다.", "필요하면 노출 기간을 정합니다(비우면 ‘사용 안 함’으로 바꿀 때까지 계속 노출됩니다).", "‘사용 안 함’으로 바꾸면 즉시 내려갑니다."],
     emptyExpected: "활성 공지는 모든 화면 위쪽에 띠로 뜨고, 사용자가 닫으면 그 계정에는 다시 뜨지 않습니다.",
     createLabel: "공지 추가",
     paginated: true, searchable: true,
@@ -332,7 +332,7 @@ export const PLATFORM_SCREENS = {
       { name: "audience", label: "대상", type: "select", value: "all", options: opt([["all", "모든 사용자"], ["admin", "관리자군에게만(운영자 이상)"]]) },
       { name: "starts_at", label: "노출 시작(선택)", type: "datetime-local", help: "비우면 즉시 노출됩니다." },
       { name: "ends_at", label: "노출 종료(선택)", type: "datetime-local", help: "비우면 ‘사용 안 함’으로 바꿀 때까지 계속 노출됩니다." },
-      { name: "dismissible", label: "닫기 허용", type: "checkbox", value: true, checkLabel: "사용자가 닫을 수 있음", help: "비활성화하면 닫기 버튼이 없습니다. 그런 공지는 반드시 종료 시각을 정하세요." },
+      { name: "dismissible", label: "닫기 허용", type: "checkbox", value: true, checkLabel: "사용자가 닫을 수 있음", help: "선택하지 않으면 닫기 버튼이 없습니다. 그런 공지는 반드시 종료 시각을 정하세요." },
       { name: "link_url", label: "링크 주소(선택)", type: "text" },
       { name: "link_label", label: "링크 문구(선택)", type: "text" },
       { name: "active", label: "사용", type: "checkbox", value: true, checkLabel: "지금 사용" },
@@ -354,7 +354,7 @@ export const PLATFORM_SCREENS = {
       // 셋 다 위 create/edit 와 같은 서버 게이트를 지난다(`_ensure_may_touch_announcements`).
       { label: "사용", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => !r.active, method: "PATCH", path: (r) => "/api/admin/announcements/" + r.id, body: { active: true } },
       { label: "사용 안 함", roles: WRITE_ROLES, requiresGlobalScope: true, when: (r) => r.active, method: "PATCH", path: (r) => "/api/admin/announcements/" + r.id, body: { active: false }, confirm: "이 공지를 내릴까요? 모든 화면에서 즉시 사라집니다." },
-      { label: "삭제", variant: "danger", roles: WRITE_ROLES, requiresGlobalScope: true, method: "DELETE", path: (r) => "/api/admin/announcements/" + r.id, confirm: "이 공지를 지울까요? 되돌릴 수 없습니다(닫음 기록도 함께 의미를 잃습니다)." },
+      { label: "삭제", variant: "danger", roles: WRITE_ROLES, requiresGlobalScope: true, method: "DELETE", path: (r) => "/api/admin/announcements/" + r.id, confirm: "이 공지를 삭제할까요? 되돌릴 수 없습니다(닫음 기록도 함께 의미를 잃습니다)." },
       // announcement은 감사 로그의 유효한 object_type이고(app/announcements/router.py) 이제
       // OBJ_ROUTE에도 있다 — 조직·기능 플래그와 동일한 딥링크를 추가한다(MEGA CYCLE G).
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=announcement&object_id=" + r.id },
@@ -377,10 +377,10 @@ export const PLATFORM_SCREENS = {
     /* 지원 기준을 화면에 그대로 적는다(계획 3.10). 기본값은 사람마다 같은 수를 주는 것이지 전사 공용 풀이 아니고,
        조직이나 부서 단위의 공용 풀은 없다 - 없는 기능을 있는 것처럼 읽히지 않게 한 문장으로 밝힌다. */
     help: "AI 사용을 사람마다 하루 또는 한 달 단위로 제한합니다. 하루는 한국 시간 0시에, 한 달은 매월 1일 0시에 초기화됩니다. 기본값은 모든 사용자에게 같은 한도를 주고, 사용자별 한도가 기본값보다 우선합니다. 성공한 호출만 세고, 한도가 없으면 제한이 없으며, 0은 차단입니다. 위 요약 줄은 조직 전체 합계이고, 표의 ‘현재 사용’은 그 행의 한 사람이 쓴 수입니다. 조직이나 부서가 함께 나눠 쓰는 한도는 지원하지 않습니다.",
-    emptyTitle: "한도가 없으면 제한 없이 사용합니다",
+    emptyTitle: "설정된 사용 한도가 없습니다.",
     emptyHelp: writerEmptyHelp("‘한도 추가’로 하루 또는 한 달 한도를 정하세요. 아무것도 없으면 제한이 없습니다.", "한도는 관리자가 정합니다."),
     emptySituation: "AI 사용에 한도가 없어 한 사람이 많이 써도 막히지 않습니다.",
-    emptySteps: ["‘한도 추가’에서 ‘기본값(사용자별)’ 범위로 하루 한도를 정합니다.", "특정 사람만 늘리거나 줄이려면 ‘사용자’ 범위로 한 줄 더 만듭니다.", "목록의 ‘현재 사용’과 ‘남음’ 열로 소비 상황을 확인합니다."],
+    emptySteps: ["‘한도 추가’에서 ‘기본값(사용자별)’ 범위로 하루 한도를 정합니다.", "특정 사람만 늘리거나 줄이려면 ‘사용자’ 범위로 한 줄 더 추가합니다.", "목록의 ‘현재 사용’과 ‘남음’ 열로 소비 상황을 확인합니다."],
     emptyExpected: "한도에 닿으면 그 사람의 AI 요청이 거절되고, 언제 초기화되는지 안내됩니다.",
     createLabel: "한도 추가",
     // 필터가 하나도 없어 사용자별 상한이 쌓이면 '한 달 상한만' 같은 질문에 답할 방법이 없었다.
@@ -448,7 +448,7 @@ export const PLATFORM_SCREENS = {
       /* W5: 범위가 «사용자» 면 그 사용자를 **고른다** — ID 를 복사해 오는 자리가 아니다. */
       { name: "user_id", label: "사용자", type: "select", kind: "entity", optionsFromRefList: "people", showIf: (v) => v.scope_type === "user" },
       { name: "period", label: "기간", type: "select", value: "day", required: true, options: opt([["day", "하루"], ["month", "한 달"]]) },
-      { name: "max_calls", label: "한도(횟수)", type: "number", required: true, help: "0이면 차단입니다. 제한을 없애려면 이 줄을 지우세요. 기간 경계는 한국 시간입니다." },
+      { name: "max_calls", label: "한도(횟수)", type: "number", required: true, help: "0이면 차단입니다. 제한을 없애려면 이 줄을 삭제하세요. 기간 경계는 한국 시간입니다." },
       { name: "note", label: "메모", type: "text" },
     ] },
     editMethod: "PATCH",
@@ -464,7 +464,7 @@ export const PLATFORM_SCREENS = {
          범위 관리자가 자기 사람들의 상한까지 못 지운다. 행의 범위와 내 범위를 함께 본다. */
       { label: "삭제", variant: "danger", roles: WRITE_ROLES,
         when: (r, ctx) => r.scope_type !== "global" || !ctx || ctx.isGlobalAdmin !== false,
-        method: "DELETE", path: (r) => "/api/admin/ai-quotas/" + r.id, confirm: "이 한도를 지울까요? 지우면 이 범위와 기간에는 제한이 없어집니다." },
+        method: "DELETE", path: (r) => "/api/admin/ai-quotas/" + r.id, confirm: "이 한도를 삭제할까요? 삭제하면 이 범위와 기간에는 제한이 없어집니다." },
       // ai_quota는 감사 로그의 유효한 object_type이고(app/quotas/router.py) 이제 OBJ_ROUTE에도
       // 있다 — 조직·기능 플래그와 동일한 딥링크를 추가한다(MEGA CYCLE G).
       { label: "감사 로그에서 보기", roles: ["admin", "system_admin", "auditor"], navigate: (r) => "#/audit?object_type=ai_quota&object_id=" + r.id },
@@ -479,7 +479,7 @@ export const PLATFORM_SCREENS = {
     key: "feature-flags", area: "설정", title: "기능 플래그",
     endpoint: "/api/admin/feature-flags",
     help: "모듈을 활성화하고 비활성화하는 스위치입니다. ‘파일’ 소유 플래그는 여기서 바꾸면 재시작 없이 즉시 적용됩니다. ‘설정 화면’ 소유 플래그는 여기서 바꿀 수 없습니다. 값의 주인이 한 곳이어야 하기 때문입니다(‘설정’ 화면에서 바꾸세요).",
-    emptyTitle: "플래그 정의를 불러오지 못했습니다", emptyHelp: "잠시 후 다시 시도해 주세요.",
+    emptyTitle: "플래그 정의를 불러오지 못했습니다.", emptyHelp: "잠시 후 다시 시도해 주세요.",
     searchFields: ["name", "description"],
     searchPlaceholder: "플래그 이름으로 검색",
     filters: [{ key: "owner", type: "select", label: "값의 주인", clientFilter: true, options: opt([["file", "파일(여기서 수정)"], ["db", "설정 화면"]]) }],

@@ -78,7 +78,7 @@ export function ModelPicker({ config, method, onSave, saving = false, onAutoPick
         label="모델" htmlFor="ai-model" width="xl" help={help}
         action={(
           <Button disabled={!ready} loading={models.isFetching} onClick={() => models.refetch()}>
-            다시 불러오기
+            모델 목록 새로고침
           </Button>
         )}
       >

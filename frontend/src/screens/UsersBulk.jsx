@@ -71,7 +71,7 @@ export function useUserBulk({ selection, deptOptions, titleOptions, onDone }) {
   // 예전엔 여기서 무조건 true였다: 활성화·보관 복구·잠금 해제·부서/직책 지정처럼 되돌리기 쉬운 작업까지
   // 확인 버튼이 '위험' 스타일로 떠서, 정말 위험한 작업(비활성화·보관·세션 해제)과 구분이 안 됐다.
   async function apply(action, value, confirmMsg, danger) {
-    if (confirmMsg && !(await confirm(confirmMsg + `\n\n대상 ${ids.length}명.`, { danger: !!danger }))) return;
+    if (confirmMsg && !(await confirm(confirmMsg + ` 대상은 ${ids.length}명입니다.`, { danger: !!danger }))) return;
     setBusy(action);
     setNotice("");
     try {
@@ -99,8 +99,8 @@ export function useUserBulk({ selection, deptOptions, titleOptions, onDone }) {
   // 변경할까요?")만으로는 관리자가 무슨 값이 들어가는지 모른 채 확인을 누르게 된다.
   const chosenLabel = (assignOptions || []).find((o) => o.value === assign.value);
   const assignConfirmMsg = assign.action === "set_department"
-    ? `선택한 계정의 부서를 "${chosenLabel ? chosenLabel.label : ""}"(으)로 일괄 변경할까요?`
-    : `선택한 계정의 직책을 "${chosenLabel ? chosenLabel.label : ""}"(으)로 일괄 변경할까요?`;
+    ? `선택한 계정의 부서를 일괄 지정할까요? 지정할 부서는 "${chosenLabel ? chosenLabel.label : ""}"입니다.`
+    : `선택한 계정의 직책을 일괄 지정할까요? 지정할 직책은 "${chosenLabel ? chosenLabel.label : ""}"입니다.`;
 
   const actions = ids.length ? (
     <>
@@ -202,7 +202,7 @@ export function ImportModal({ onClose, onImported }) {
       setPreview(res);
       if (!dryRun) {
         // 실패한 행이 있으면 아래 결과 상자(오류 톤)가 이미 그 사실을 말한다 — 토스트로 겹쳐 말하지 않는다.
-        if (!res.failed) toast(`${res.created}명을 추가했습니다(건너뜀 ${res.skipped}, 실패 ${res.failed}).`, "success");
+        if (!res.failed) toast(`${res.created}명을 추가했습니다(건너뜀 ${res.skipped}명, 실패 ${res.failed}명).`, "success");
         onImported();
       }
     } catch (e) { setSendFailure(e.message); }
@@ -222,7 +222,7 @@ export function ImportModal({ onClose, onImported }) {
     preview && preview.dry_run === false ? {
       key: "invite", label: "초대 메일", type: "status",
       render: (r) => (r.invite_mail
-        ? <Badge value={r.invite_mail.queued ? "보냄" : "못 보냄"} kind={r.invite_mail.queued ? "ok" : "warn"} />
+        ? <Badge value={r.invite_mail.queued ? "발송 대기" : "보내지 못함"} kind={r.invite_mail.queued ? "ok" : "warn"} />
         : "-"),
       hint: (r) => (r.invite_mail && !r.invite_mail.queued ? r.invite_mail.reason || "" : ""),
     } : null,
@@ -250,7 +250,7 @@ export function ImportModal({ onClose, onImported }) {
             <Button variant="primary" disabled={!!busyAction || !preview || !preview.created}
               loading={busyAction === "create"}
               onClick={() => send(false)}>
-              {preview ? `${preview.created}명 추가` : "미리 보기를 먼저 하세요"}
+              {preview ? `${preview.created}명 추가` : "미리 보기 후 추가"}
             </Button>
           </>
         ) : null}
@@ -292,7 +292,7 @@ export function ImportModal({ onClose, onImported }) {
           {/* 적용했는데 실패한 행이 있으면 그 사실이 이 상자의 제목이다 — 예전에는 같은 문장이 토스트로 따로 떴다. */}
           <Callout
             tone={preview.failed ? "danger" : "info"}
-            title={!preview.dry_run && preview.failed ? `${preview.created}명을 추가했습니다(건너뜀 ${preview.skipped}, 실패 ${preview.failed}).` : undefined}
+            title={!preview.dry_run && preview.failed ? `${preview.created}명을 추가했습니다(건너뜀 ${preview.skipped}명, 실패 ${preview.failed}명).` : undefined}
           >
             {preview.dry_run ? "미리 보기: " : "적용 결과: "}
             총 {preview.total}행, {preview.dry_run ? "추가 예정" : "추가"} {preview.created}
@@ -301,10 +301,10 @@ export function ImportModal({ onClose, onImported }) {
           {/* 초대 메일이 못 나간 계정이 있으면 그 사실과 까닭을 말한다 — 조용히 넘기면 관리자는 초대가 나갔다고 믿는다. */}
           {invites && invites.not_queued ? (
             <Callout tone="warn" compact>
-              {`초대 메일 ${invites.not_queued}건을 보내지 못했습니다. ${invites.reason || ""} 메일 발송 화면에서 설정을 확인하세요.`}
+              {`초대 메일 ${invites.not_queued}건을 보내지 못했습니다. ${invites.reason || ""} ‘메일’ 화면의 ‘설정’ 탭에서 확인하세요.`}
             </Callout>
           ) : invites && invites.queued ? (
-            <Callout tone="success" compact>{`초대 메일 ${invites.queued}건을 보냈습니다.`}</Callout>
+            <Callout tone="success" compact>{`초대 메일 ${invites.queued}건을 발송 대기열에 넣었습니다.`}</Callout>
           ) : null}
           <Box sx={{ mt: 1.5 }}>
             <DataTable columns={columns} rows={preview.results} rowKey={(r) => r.line} />

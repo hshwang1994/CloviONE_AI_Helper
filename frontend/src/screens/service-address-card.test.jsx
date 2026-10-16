@@ -376,7 +376,7 @@ describe("OS와 서비스 — DNS · 프록시 · 호스트 이름 줄", () => {
     renderScreen();
     await screen.findByText("호스트 이름");
     const row = screen.getByText("호스트 이름").closest(".k-settingrow");
-    expect(row).toHaveTextContent("접속 주소, 인증서, 메일 서버 이름(HELO)과는 별개이며");
+    expect(row).toHaveTextContent("메일 서버 이름(HELO)은 메일 설정에서 따로 정합니다");
     expect(row).not.toHaveTextContent("인증서와 메일 발신 주소가 이 이름을 씁니다");
   });
 

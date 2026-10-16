@@ -124,7 +124,7 @@ export function AiUsageStats() {
     { key: "policy", label: "정책 차단", value: count(totals.blocked_policy) },
     { key: "in", label: "입력 토큰", value: tokens(totals.input_tokens) },
     { key: "out", label: "출력 토큰", value: tokens(totals.output_tokens) },
-    { key: "latency", label: "평균 응답", value: seconds(totals.avg_latency_ms) },
+    { key: "latency", label: "평균 응답 시간", value: seconds(totals.avg_latency_ms) },
   ];
   const columns = [
     {
@@ -139,20 +139,20 @@ export function AiUsageStats() {
     { key: "blocked_quota", label: "한도 초과", type: "count", render: (r) => count(r.blocked_quota) },
     { key: "input_tokens", label: "입력 토큰", type: "count", render: (r) => tokens(r.input_tokens) },
     { key: "output_tokens", label: "출력 토큰", type: "count", render: (r) => tokens(r.output_tokens) },
-    { key: "avg_latency_ms", label: "평균 응답", type: "number", render: (r) => seconds(r.avg_latency_ms) },
+    { key: "avg_latency_ms", label: "평균 응답 시간", type: "number", render: (r) => seconds(r.avg_latency_ms) },
     { key: "last_at", label: "최근 사용", type: "datetime", render: (r) => <DateCell value={r.last_at} /> },
   ];
   const empty = conditionCount
-    ? <EmptyState title="조건에 맞는 기록이 없습니다" action={(
+    ? <EmptyState title="검색 조건에 맞는 기록이 없습니다." action={(
       <Button size="sm" onClick={() => setQuery({ status: "", action: "", q: "" })}>필터 초기화</Button>
     )} />
-    : <EmptyState title="이 기간에 AI 요청이 없습니다" help="기간을 넓히거나 AI 연결 상태를 확인하세요." />;
+    : <EmptyState title="이 기간에 AI 요청이 없습니다." help="기간을 넓히거나 AI 연결 상태를 확인하세요." />;
 
   return (
     <Box className="c-screen" data-testid="ai-usage-stats">
       <FilterBar
         search={(
-          <SearchBox value={query.q} onSearch={(v) => setQuery({ q: v })} placeholder="사용자 이름, 이메일, 기능"
+          <SearchBox value={query.q} onSearch={(v) => setQuery({ q: v })} placeholder="사용자 이름, 이메일, 기능으로 검색"
             ariaLabel="사용자나 기능 검색" />
         )}
         end={(

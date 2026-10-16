@@ -14,6 +14,8 @@ import "@testing-library/jest-dom/vitest";
  * 적고 삭제 단추를 세웠다. 실제 응답은 409 «이 부서에 하위 부서 1건이(가) 연결되어 있어 삭제할 수 없습니다» 였다 — 화면이
  * 서버와 **정반대**를 약속했다. 그래서 지키는 성질은 「화면이 스스로 세지 않는다」다. 갈래 · 수 · 라벨은 `/impact` 의
  * `delete` 에서 오고(app/org/service.py::delete_precheck — 409 와 같은 함수), 창은 그것을 그리기만 한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -175,7 +177,7 @@ describe("서버가 막지 않는 부서(반례)", () => {
 
   it("연결만 끊는 갈래가 있으면 창이 그것을 미리 말한다 — 지운 뒤의 과거형이 아니다", async () => {
     const dlg = await openDelete("dep-rooms", "방있는부서");
-    expect(await within(dlg).findByText("삭제하면 아래 연결은 끊고 그대로 둡니다.", {}, WAIT)).toBeInTheDocument();
+    expect(await within(dlg).findByText("삭제하면 아래 항목은 이 부서와의 연결만 끊기고 그대로 남습니다.", {}, WAIT)).toBeInTheDocument();
     expect(lines(dlg)).toEqual(["팀 채팅방 1개", "닫힌 회차 2개"]);
     expect(dlg.textContent).not.toContain("그대로 두었습니다");
   });

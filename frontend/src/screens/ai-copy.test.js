@@ -14,6 +14,8 @@ import { REGISTRY } from "./registry.js";
  * qa-contract-change: 프롬프트 · 정책 사용 탭을 걷고 「사용 통계」를 전용 화면(`screens/ai/AiUsageStats.jsx`)으로 옮겼다(D-543) — 그
  * 화면의 빈 상태 문구 단언은 그 화면의 시험(`screens/ai/ai-usage-stats.test.jsx`)이 잰다. 레지스트리에 남은 AI 화면(프롬프트 · 정책 ·
  * 사용 한도 · 호출 기록)의 문구 성질은 그대로 잰다. 프롬프트 도움말은 「AI 기능마다 따르는 지시문」이다(D-541).
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const AI_SCREENS = ["prompts", "policies", "ai-quotas", "ai-usage-records"];
@@ -24,9 +26,9 @@ describe("AI 화면 문구", () => {
   it("도움말과 빈 화면이 지금의 동작을 말한다", () => {
     expect(REGISTRY.prompts.help).toContain("다음 AI 호출부터");
     expect(REGISTRY.policies.help).toContain("다음 AI 요청부터");
-    expect(REGISTRY["ai-quotas"].emptyTitle).toBe("한도가 없으면 제한 없이 사용합니다");
+    expect(REGISTRY["ai-quotas"].emptyTitle).toBe("설정된 사용 한도가 없습니다.");
     expect(REGISTRY.prompts.help).toContain("AI 기능마다 따르는 지시문");
-    expect(REGISTRY["ai-usage-records"].emptyTitle).toBe("아직 AI 호출 기록이 없습니다");
+    expect(REGISTRY["ai-usage-records"].emptyTitle).toBe("아직 AI 호출 기록이 없습니다.");
     expect(REGISTRY["ai-usage-records"].emptyHelp).toContain("AI 연결을 먼저 설정하세요");
     // AI 설정 탭은 「AI 연결」 화면이 됐다(D-539).
     expect(REGISTRY["ai-usage-records"].emptyRelatedLink.href).toBe("#/ai-connection");

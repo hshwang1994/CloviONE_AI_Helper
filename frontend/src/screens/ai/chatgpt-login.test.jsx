@@ -18,6 +18,8 @@ import "@testing-library/jest-dom/vitest";
  *      보이고, 만료되면 「다시 시작」이다.
  *   5) 연결되면 새 창을 닫고 단계 안내를 접어 「ChatGPT 계정으로 연결됨」 한 줄만 남긴다.
  *   6) 서버가 열린 시도를 알고 있으면(새로고침) 붙여 넣기 칸을 되찾는다. 서버가 `flow: "redirect"` 를 주면 같은 창이 승인으로 간다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -183,7 +185,7 @@ describe("ChatGPT 로그인 — 붙여 넣기", () => {
     const read = vi.fn().mockRejectedValueOnce(new Error("denied")).mockResolvedValueOnce(CALLBACK);
     Object.defineProperty(navigator, "clipboard", { value: { readText: read }, configurable: true });
     await user.click(screen.getByRole("button", { name: "붙여넣기" }));
-    expect(await screen.findByText("붙여넣기 단추를 쓸 수 없습니다. 칸을 누르고 Ctrl+V 를 누르세요.")).toBeInTheDocument();
+    expect(await screen.findByText("붙여넣기 단추를 쓸 수 없습니다. 칸을 누르고 Ctrl+V를 누르세요.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "붙여넣기" }));
     await waitFor(() => expect(onConnected).toHaveBeenCalled());
   });

@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: S20 이 「Notion 연결」 열과 그 열이 딸고 있던 안내 문장을 화면에서 걷었다(D-316) — 런타임이 없어진 뒤로 그 값을 만들 방법도, 그 값이 바꾸는 것도 없었다. 줄어든 단언 여섯은 정확히 그 열의 성질(미연결 배지 · 안내가 표 위에 1회만 · 행 안에는 없다 · 연결된 후보에는 없다)이고, 그 열이 없으므로 옮겨 담을 자리도 없다. 그 자리가 지키던 **진짜 계약**은 백엔드로 옮겨 갔고 그쪽에서 더 세게 잰다: `tests/integration/test_offboarding.py::test_a_post_cutover_account_can_be_chosen_as_the_successor` 가 옛 짝이 없는 계정도 후임으로 뽑히고 **실제로 티켓을 받는 것**까지 확인하고, `::test_the_checklist_only_asks_what_this_install_actually_enforces` 가 점검표에 그 항목이 없는 것을 못박는다. 이 파일의 나머지 단언은 한 글자도 안 약해졌다. */
+/* qa-contract-change: S20 이 「Notion 연결」 열과 그 열이 딸고 있던 안내 문장을 화면에서 걷었다(D-316) — 런타임이 없어진 뒤로 그 값을 만들 방법도, 그 값이 바꾸는 것도 없었다. 줄어든 단언 여섯은 정확히 그 열의 성질(미연결 배지 · 안내가 표 위에 1회만 · 행 안에는 없다 · 연결된 후보에는 없다)이고, 그 열이 없으므로 옮겨 담을 자리도 없다. 그 자리가 지키던 **진짜 계약**은 백엔드로 옮겨 갔고 그쪽에서 더 세게 잰다: `tests/integration/test_offboarding.py::test_a_post_cutover_account_can_be_chosen_as_the_successor` 가 옛 짝이 없는 계정도 후임으로 뽑히고 **실제로 티켓을 받는 것**까지 확인하고, `::test_the_checklist_only_asks_what_this_install_actually_enforces` 가 점검표에 그 항목이 없는 것을 못박는다. 이 파일의 나머지 단언은 한 글자도 안 약해졌다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 
 /* 오프보딩 화면 (PLAN Phase 6).
  *
@@ -341,7 +343,7 @@ describe("오프보딩 화면", () => {
     renderScreen();
 
     await screen.findByText("사용자0");
-    expect(screen.getByText(/25명 중 20명을 보여 줍니다/)).toBeInTheDocument();
+    expect(screen.getByText(/전체 25명 중 20명만 표시합니다/)).toBeInTheDocument();
   });
 
   it("대상 고르기 목록이 잘리지 않았으면 안내를 보여주지 않는다", async () => {

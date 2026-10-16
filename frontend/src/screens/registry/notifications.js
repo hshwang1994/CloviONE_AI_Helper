@@ -66,7 +66,7 @@ function notificationsScreen({ key, audience, area, title, help, emptyHelp }) {
     // 화면에서 필터링하면 total·안 읽음 수가 전부 어긋난다.
     endpoint: `/api/notifications?audience=${audience}`,
     help,
-    emptyTitle: "새 알림이 없습니다",
+    emptyTitle: "알림이 없습니다.",
     emptyHelp,
     paginated: true,
     smallSet: true, // 조건이 켬/끔 하나라 저장할 조합이 없다(저장된 뷰 기준, D-506)
@@ -173,7 +173,7 @@ export const ADMIN_NOTIFICATIONS_SCREEN = {
     audience: "admin",
     area: "운영",
     title: "관리 알림",
-    help: "백업 실패, 계정 잠금, 러너 장애처럼 관리 조치가 필요한 알림입니다. 개인 알림은 사용자 화면에 있습니다.",
+    help: "백업 실패, 계정 잠금처럼 관리 조치가 필요한 알림입니다. 개인 알림은 ‘내 업무’의 ‘알림’에서 봅니다.",
     emptyHelp: () => "관리 조치가 필요한 알림이 여기에 표시됩니다.",
   }),
 };

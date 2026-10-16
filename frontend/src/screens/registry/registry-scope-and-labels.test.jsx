@@ -12,6 +12,8 @@
  * 반례를 함께 둔다 — 고쳐야 할 것만 사라지고 멀쩡한 것은 그대로여야 한다.
  *
  * qa-contract-change: 프롬프트 화면이 기능마다 한 줄이 되며(D-541) 「만들기」 · 「발행」 · 「새 버전」 · 「보관」 · 「복제해서 수정」이 없어지고 그 자리에 「수정」(그 기능의 초안) · 「초안 발행」 · 「초안 버리기」 · 「기본 제공으로 되돌리기」가 섰다. 같은 성질 — 전사 지시문을 바꾸는 쓰기는 전역 범위만 — 을 새 동작 이름으로 계속 잰다. 정책 화면의 선언은 그대로다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 import { describe, it, expect } from "vitest";
 
@@ -167,7 +169,7 @@ describe("전역 자원의 쓰기 선언이 서버 게이트와 같다 (xa-07)",
 
   it("반례 — 「지금 실행」·「미리보기」는 서버가 운영 역할에 열어 두었으므로 가리지 않는다", () => {
     expect(actionByLabel(sched, "지금 실행").requiresGlobalScope).toBeUndefined();
-    expect(actionByLabel(sched, "미리보기").requiresGlobalScope).toBeUndefined();
+    expect(actionByLabel(sched, "미리 보기").requiresGlobalScope).toBeUndefined();
   });
 
   it("프롬프트·정책 — 만들기·고치기·상태 전이·새 버전", () => {

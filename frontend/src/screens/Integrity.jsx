@@ -65,7 +65,7 @@ export function Integrity() {
   })).concat([{
     key: "admins",
     label: "관리자 범위",
-    help: "조직이나 부서 관리자는 admin과 범위의 조합입니다.",
+    help: "조직 관리자와 부서 관리자는 관리자 역할에 관리 범위를 정한 계정입니다.",
     render: () => <AdminScopeList summary={data.admins} />,
   }]);
 
@@ -77,7 +77,7 @@ export function Integrity() {
       defaultTab={landing.current}
     >
       {data.total_issues === 0 ? (
-        <Callout tone="ok">정리할 것이 없습니다. 모든 자원의 소속을 판정할 수 있습니다.</Callout>
+        <Callout tone="ok">정리할 항목이 없습니다. 모든 자원의 소속을 판정할 수 있습니다.</Callout>
       ) : (
         <Callout tone="warn">
           정리할 항목이 모두 {data.total_issues}건 있습니다. 탭에서 항목을 골라 한 번에 고칠 수 있습니다.

@@ -38,7 +38,7 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
     const warnMsg = currentSetting ? securityDowngradeWarning(currentSetting, snapshotValue) : null;
     const ok = await confirm(
       warnMsg ? warnMsg + " (버전 " + version + "(으)로 롤백)" : "버전 " + version + "(으)로 롤백할까요? 현재 값을 이 버전의 값으로 되돌립니다.",
-      { danger: true, title: warnMsg ? "보안 설정 변경 확인" : "버전 롤백", confirmLabel: warnMsg ? "변경" : "롤백" });
+      { danger: true, title: warnMsg ? "보안 설정 변경 확인" : "버전 롤백", confirmLabel: "롤백" });
     if (!ok) return;
     setRollFailure("");
     try {
@@ -93,7 +93,7 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
       {!vq.isLoading && !vq.isError && items.length > 0 ? <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>{items.length}건</Typography> : null}
       {vq.isLoading ? <DataTable columns={columns} rows={[]} loading />
         : vq.isError ? <ErrorState layout="region" error={vq.error} onRetry={() => vq.refetch()} />
-        : items.length === 0 ? <EmptyState title="버전 기록이 없습니다" help="이 설정을 아직 변경한 적이 없습니다." />
+        : items.length === 0 ? <EmptyState title="버전 기록이 없습니다." help="이 설정을 아직 변경한 적이 없습니다." />
         /* 모달 안 표는 판을 새로 그리지 않는다(`placement` 기본 plain, 조합 계약 C-3) — 모달 판이 이미 경계다. */
         : <DataTable columns={columns} rows={items} rowKey={(r) => r.version} />}
     </Modal>

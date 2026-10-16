@@ -211,7 +211,7 @@ describe("그릇의 머리 — 제목 고정·탭별 도움말 (D-452 · D-453)"
     renderShell("/settings?tab=os");
     const toggle = await screen.findByRole("button", { name: "도움말 보기" });
     expect(toggle.closest(".k-page-head")).not.toBeNull();
-    expect(screen.getByText(/시스템 설정 도우미가 정해진 동작만 수행합니다/)).toBeInTheDocument();
+    expect(screen.getByText(/시스템 설정 도우미가 정해진 동작으로만 처리합니다/)).toBeInTheDocument();
   });
 
   it("시스템 정책 탭에는 도움말 문장이 없으므로 `?` 도 없다 — 반례", async () => {

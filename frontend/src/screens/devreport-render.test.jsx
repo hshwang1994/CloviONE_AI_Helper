@@ -24,6 +24,8 @@ import { MemoryRouter } from "react-router-dom";
  * 480px 판으로 서서 오른쪽 1,100px 가 비었다. 그래서 「'3건'이 카드와 도넛 범례 양쪽에 나온다(>1)」는 단언은 대상이 사라졌고, 같은 수가 **한 곳**
  * (합계 카드)에 있다는 단언으로 뒤집는다. 도넛이 하던 두 일(각주 · 막대의 색 범례)이 카드의 정의 목록과 구획 제목 줄로 옮겼는지, 합계에 안
  * 드는 취소가 사라지지 않았는지, 읽기 전용 보고서의 「새로고침」이 채움이 아닌지를 재는 시험을 더한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -73,8 +75,8 @@ describe("개발자 월간 리포트 — 담당자 0명", () => {
     });
     renderReport();
 
-    expect(await screen.findByText("이 달에 집계할 담당자가 없습니다")).toBeInTheDocument();
-    expect(screen.getByText("이 달에 담당한 티켓이 있는 사람이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("이 달에 집계할 담당자가 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("이 달에 담당한 티켓이 있는 사람이 없습니다.")).toBeInTheDocument();
     // 표 머리글만 남은 빈 표를 그리지 않는다(예전 회귀).
     expect(screen.queryByText("완료율")).toBeNull();
   });
@@ -86,7 +88,7 @@ describe("개발자 월간 리포트 — 담당자 0명", () => {
     });
     renderReport();
 
-    expect(await screen.findByText("이 달에 집계할 담당자가 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("이 달에 집계할 담당자가 없습니다.")).toBeInTheDocument();
     // 옛 막대의 빈 상태 문구가 유령으로 남아 있으면 안 된다.
     expect(screen.queryByText("이 달에 완료한 업무량이 없습니다")).toBeNull();
   });

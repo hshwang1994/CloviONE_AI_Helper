@@ -18,6 +18,8 @@ import "@testing-library/jest-dom/vitest";
  *   ③ 동명이인은 이메일 열이 가른다 — 이름 칸 둘째 줄의 이메일은 걷었다(두 번 보였다).
  *   ④ 칩은 기본과 다른 조건만 만들고, 「필터 초기화」는 기본으로 되돌린다.
  *   ⑤ 행은 그 사람의 사용자 상세로 가는 진짜 링크다. 수는 「구성원 N명」(서버 total)이 말한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -106,7 +108,7 @@ describe("조직 구성원", () => {
     const user = userEvent.setup();
     renderPane({ label: "클로비원", scope: { kind: "org", orgId: "org-1", unassigned: 3 } });
     const notice = await screen.findByText("부서도 조직 직속도 아닌 사람이 3명 있습니다.");
-    await user.click(within(notice.closest(".k-callout")).getByRole("button", { name: "목록 보기" }));
+    await user.click(within(notice.closest(".k-callout")).getByRole("button", { name: "소속 미지정 보기" }));
     await waitFor(() => expect(lastQuery().get("membership_kind")).toBe("unassigned"));
     expect(screen.queryByText("부서도 조직 직속도 아닌 사람이 3명 있습니다.")).toBeNull();
   });

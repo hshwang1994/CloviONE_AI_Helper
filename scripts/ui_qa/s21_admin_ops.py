@@ -175,7 +175,7 @@ flow("FF-0398", "admin_dashboard", "navigation", "백업 관리 버튼",
      click_to("백업", "backup", required=False), route=DASH, shell=ADMIN, server=False)
 
 flow("FF-0399", "admin_dashboard", "navigation", "최근 주요 변경의 전체 보기로 감사 로그 이동",
-     click_to("전체 보기", "audit", required=False), route=DASH, shell=ADMIN, server=False)
+     click_to("감사 로그 전체 보기", "audit", required=False), route=DASH, shell=ADMIN, server=False)
 
 flow("FF-0400", "admin_dashboard", "row_action", "최근 주요 변경 행의 대상 ID 전체 복사(실패 시 전체 ID 펼침)",
      copy_button("복사"), route=DASH, shell=ADMIN, server=False)
@@ -1032,14 +1032,14 @@ def _storage_check(r, ctx):
     # 「지금 확인」은 **행의 동작**이다(표의 행 메뉴). 화면 상단 버튼이 아니다.
     if not n_rows(r):
         stop("저장소가 한 행도 없다")
-    button = row_at(r, 0).get_by_role("button", name="지금 확인", exact=False)
+    button = row_at(r, 0).get_by_role("button", name="상태 확인", exact=False)
     if not button.count():
         more = row_at(r, 0).get_by_role("button").last
         if more.count():
             more.click()
             r.settle(600)
             button = r.page.locator('[role="menu"]').get_by_role(
-                "menuitem", name="지금 확인", exact=False)
+                "menuitem", name="상태 확인", exact=False)
     if not button.count():
         stop("«지금 확인» 을 못 찾았다 — 행의 동작: %s"
              % row_at(r, 0).get_by_role("button").all_inner_texts())
@@ -1070,9 +1070,9 @@ def _storage_toggle(confirm_only: bool):
         if not n_rows(r):
             stop("저장소가 한 행도 없다")
         row = row_at(r, 0)
-        button = row.get_by_role("button", name="사용 안 함으로", exact=False)
+        button = row.get_by_role("button", name="비활성화", exact=False)
         if not button.count():
-            button = row.get_by_role("button", name="사용으로", exact=False)
+            button = row.get_by_role("button", name="활성화", exact=False)
         if not button.count():
             more = row.get_by_role("button").last
             if more.count():

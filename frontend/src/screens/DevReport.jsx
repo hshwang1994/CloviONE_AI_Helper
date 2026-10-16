@@ -172,7 +172,7 @@ function devWorkloadColumns(defs) {
     { key: "act_done", label: "실제 WD", type: "number",
       help: "완료한 티켓에 실제로 든 공수입니다. 담당자가 직접 입력해야 채워지는 값이라, 아무도 안 적었으면 '-'로 보입니다.",
       render: (d) => (d.act_done ? d.act_done : <Zed>-</Zed>) },
-    { key: "act_per_done", label: "평균 실제WD/건", type: "number",
+    { key: "act_per_done", label: "건당 평균 실제 WD", type: "number",
       help: "완료한 티켓 1건당 평균 실제 공수입니다. 실제 WD를 완료 건수로 나눈 값입니다.",
       render: (d) => (d.act_per_done == null ? <Zed>-</Zed> : d.act_per_done) },
     { key: "estimate_accuracy_pct", label: "예상 정확도", type: "percent", help: defs.estimate_accuracy_pct,
@@ -207,7 +207,7 @@ function devCompletedColumns(defs) {
  * 표가 그 줄을 갖는다(`groupOf`)이라 위 두 표와 같은 부품이고, 폭·정렬·자릿수도 같은
  * 어휘표(`columnTypes.js`)에서 나온다. */
 const DEV_TICKET_COLUMNS = [
-  { key: "key", label: "번호", type: "code", help: "티켓 이름입니다(프로젝트 코드와 순번).",
+  { key: "key", label: "번호", type: "code", help: "티켓 번호입니다(프로젝트 코드와 순번).",
     render: (t) => t.key || "-" },
   { key: "title", label: "제목", type: "title", rowName: (t) => t.title },
   { key: "status", label: "상태", type: "status", help: "티켓의 진행 상태입니다.",
@@ -327,8 +327,8 @@ export function DevReport() {
               { key: "verify", label: "검증", text: "검토와 확인 단계" },
               { key: "plan", label: "계획", text: "아직 착수 전" },
               { key: "hold", label: "보류", text: "멈춰 둔 일" },
-              { key: "overdue", label: "지연", text: "마감이 지난 미완료" },
-              { key: "unassigned", label: "담당자 없음", text: "담당자가 지정되지 않음" },
+              { key: "overdue", label: "지연", text: "마감이 지났는데 끝나지 않은 일" },
+              { key: "unassigned", label: "담당자 없음", text: "담당자가 지정되지 않은 일" },
               team.cancel > 0 ? { key: "cancel", label: "취소", text: team.cancel + "건은 합계에서 뺐습니다." } : null,
               noDueTeam > 0 ? { key: "no_due", label: "마감 없음", text: "마감일이 없는 열린 티켓 " + noDueTeam + "건은 지금 기준으로 따로 셉니다." } : null,
               { key: "unit", label: "세는 법", text: "팀 합계는 티켓 단위로 셉니다. 담당자별 합계는 담당자가 둘인 티켓을 양쪽에 각각 세므로 이 합과 다를 수 있습니다." },
@@ -339,7 +339,7 @@ export function DevReport() {
             action={devs.length ? <StatusLegend /> : null}>
             {devs.length === 0 ? (
               /* 구획 하나가 빈 것이라 한 줄 띠다(D-530) — 큰 그림은 화면 전체가 빈 자리에만 선다. */
-              <EmptyState layout="band" title="이 달에 집계할 담당자가 없습니다"
+              <EmptyState layout="band" title="이 달에 집계할 담당자가 없습니다."
                 help="선택한 달에 마감일이 있는 티켓이 없거나 활성 사용자가 없습니다." />
             ) : (
               <TableWrap minWidth="60rem">
@@ -352,7 +352,7 @@ export function DevReport() {
           <Section titleAs="h2" title="업무량 분석 (완료 업무량 기준)" rule
             help={(
               <Box component="span" sx={{ display: "block", maxWidth: PROSE_MAX_WIDTH, ...KO_WORD_BREAK }}>
-                완료 건수와 완료 예상 WD는 마감일이 이 달인 일 가운데 마무리한 양입니다. 진행과 검증 건수가 많으면 지금 손에 쥔 일이 많다는 뜻입니다. 담당 건수가 적으면 완료율이 쉽게 높아지므로 담당 건수와 함께 보아야 공정합니다.
+                완료 건수와 완료 예상 WD는 마감일이 이 달인 일 가운데 끝낸 양입니다. 담당 건수가 적으면 완료율이 쉽게 높아지므로 담당 건수와 함께 봅니다.
               </Box>
             )}>
             <TableWrap minWidth="52rem">
@@ -372,7 +372,7 @@ export function DevReport() {
               </Callout>
             ) : null}
             {withCompleted.length === 0 ? (
-              <EmptyState layout="band" title="이 달에 끝낸 일이 없습니다"
+              <EmptyState layout="band" title="이 달에 끝낸 일이 없습니다."
                 help="끝낸 날짜가 이 달인 완료 티켓이 생기면 여기에 담당자별로 보입니다." />
             ) : (
               <TableWrap minWidth="40rem">
@@ -383,7 +383,7 @@ export function DevReport() {
 
           <Section titleAs="h2" title="담당자별 상세 티켓" rule>
             {withTickets.length === 0 ? (
-              <EmptyState layout="band" title="이 달에 담당한 티켓이 있는 사람이 없습니다"
+              <EmptyState layout="band" title="이 달에 담당한 티켓이 있는 사람이 없습니다."
                 help="선택한 달에 마감일이 있는 티켓이 배정되면 여기에 담당자별로 묶여 표시됩니다." />
             ) : (
               <TableWrap minWidth="56rem">

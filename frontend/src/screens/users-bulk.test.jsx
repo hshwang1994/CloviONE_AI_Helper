@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 
-/* qa-contract-change: 사용자 일괄 작업 줄을 필터 바와 목록 사이의 따로 선 구획(sr-only h2 「일괄 작업」)에서 목록 판 발의 선택 묶음(role=toolbar 「일괄 작업」, UI 3차 조합 계약 C-3)으로 옮긴다. 다른 목록(내 티켓 · 휴지통)의 선택 묶음과 같은 부품이 되어 제목 계층은 필터 · 목록 둘로 남고, 선택 묶음이 발 안에 서는지 · 「3명 선택」 · 일괄 동작 · 「선택 해제」를 드는지를 더 잰다. */
+/* qa-contract-change: 사용자 일괄 작업 줄을 필터 바와 목록 사이의 따로 선 구획(sr-only h2 「일괄 작업」)에서 목록 판 발의 선택 묶음(role=toolbar 「일괄 작업」, UI 3차 조합 계약 C-3)으로 옮긴다. 다른 목록(내 티켓 · 휴지통)의 선택 묶음과 같은 부품이 되어 제목 계층은 필터 · 목록 둘로 남고, 선택 묶음이 발 안에 서는지 · 「3명 선택」 · 일괄 동작 · 「선택 해제」를 드는지를 더 잰다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 /* 사용자 대량 작업 + CSV (PLAN Phase 6).
  *
  * 못박는 것:
@@ -272,7 +274,7 @@ describe("CSV", () => {
     await user.type(csv, "email,display_name{enter}new@goodmit.co.kr,신입");
 
     // 미리 보기를 하기 전에는 '만들기'가 아니라 안내 라벨이고 비활성이다.
-    const gate = within(dialog).getByRole("button", { name: "미리 보기를 먼저 하세요" });
+    const gate = within(dialog).getByRole("button", { name: "미리 보기 후 추가" });
     expect(gate).toBeDisabled();
 
     await user.click(within(dialog).getByRole("button", { name: "미리 보기" }));

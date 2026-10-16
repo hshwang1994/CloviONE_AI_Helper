@@ -23,6 +23,8 @@ import "@testing-library/jest-dom/vitest";
  *   8) 여섯 구획이 이 순서로 선다(D-574): 현재 상태 · 제공자와 인증 · 모델 · 실행 옵션 · AI 기능 · 확인과 오류. [지금 확인] 은 화면에
  *      하나뿐이고 ⑥ 에 있다. 막힌 까닭은 ⑥ 의 메시지 상자 하나다. 최근 확인 · 최근 성공 시각은 ⑥ 의 줄이고 ① 의 띠에 다시 서지 않는다.
  *   9) 의미 검색 줄은 서버가 지은 낱말(`index.embed_status_label`)을 그대로 쓰고, 없으면 예전 낱말(있음 · 없음)이다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -192,8 +194,8 @@ describe("AI 연결 — 여섯 구획 (D-574)", () => {
     const user = userEvent.setup();
     renderScreen();
     const card = await screen.findByTestId("ai-state");
-    expect(within(card).queryByRole("button", { name: "지금 확인" })).toBeNull();
-    const buttons = screen.getAllByRole("button", { name: "지금 확인" });
+    expect(within(card).queryByRole("button", { name: "연결 확인" })).toBeNull();
+    const buttons = screen.getAllByRole("button", { name: "연결 확인" });
     expect(buttons).toHaveLength(1);
     expect(checksSection().contains(buttons[0])).toBe(true);
     await user.click(buttons[0]);
@@ -363,7 +365,7 @@ describe("AI 연결 — 실행 옵션과 기능", () => {
       facts: [], next: { label: "AI 제공자를 아직 고르지 않았습니다.", action: "configure" } });
     renderScreen();
     expect(await screen.findByRole("switch", { name: "AI 사용" })).toBeDisabled();
-    expect(screen.getByText("제공자를 연결하면 켤 수 있습니다.")).toBeInTheDocument();
+    expect(screen.getByText("제공자를 연결하면 활성화할 수 있습니다.")).toBeInTheDocument();
   });
 
   it("기능 스위치는 설정 API 로 곧바로 간다", async () => {
@@ -406,8 +408,8 @@ describe("AI 연결 — 서버가 준 사실과 다음 할 일 (D-558 · D-566)"
     expect(within(card).getByText("다음 할 일")).toBeInTheDocument();
     expect(within(container.querySelector(".k-ai-next")).getByRole("button", { name: "ChatGPT 로그인" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "AI 사용" })).toBeDisabled();
-    expect(screen.getByText("제공자를 연결하면 켤 수 있습니다.")).toBeInTheDocument();
-    expect(within(checksSection()).getByRole("button", { name: "지금 확인" })).toBeDisabled();
+    expect(screen.getByText("제공자를 연결하면 활성화할 수 있습니다.")).toBeInTheDocument();
+    expect(within(checksSection()).getByRole("button", { name: "연결 확인" })).toBeDisabled();
     expect(within(checksSection()).getByText("제공자를 연결하고 모델을 고르면 확인할 수 있습니다.")).toBeInTheDocument();
   });
 
@@ -416,7 +418,7 @@ describe("AI 연결 — 서버가 준 사실과 다음 할 일 (D-558 · D-566)"
     const { container, unmount } = renderScreen();
     await screen.findByTestId("ai-state");
     expect(within(container.querySelector(".k-ai-next")).queryByRole("button")).toBeNull();
-    const verifyButtons = screen.getAllByRole("button", { name: "지금 확인" });
+    const verifyButtons = screen.getAllByRole("button", { name: "연결 확인" });
     expect(verifyButtons).toHaveLength(1);
     expect(verifyButtons[0].className).toMatch(/containedPrimary/);
     unmount();
@@ -424,7 +426,7 @@ describe("AI 연결 — 서버가 준 사실과 다음 할 일 (D-558 · D-566)"
       next: { label: "AI 사용을 켜면 도우미와 요약이 답을 만듭니다.", action: "enable" } });
     const second = renderScreen();
     await screen.findByTestId("ai-state");
-    await user.click(within(second.container.querySelector(".k-ai-next")).getByRole("button", { name: "AI 사용 켜기" }));
+    await user.click(within(second.container.querySelector(".k-ai-next")).getByRole("button", { name: "AI 사용 활성화" }));
     await waitFor(() => expect(calls("/api/admin/ai/config", "PUT").some(([, o]) => o.body.generation_enabled === true)).toBe(true));
   });
 

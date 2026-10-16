@@ -20,6 +20,8 @@ import "@testing-library/jest-dom/vitest";
  *   6) 준비 점검의 줄은 상태 · 지금 상태 · 할 일 · 고칠 곳을 말한다. 점검 결과 · 요청문 · 복사할 DNS 레코드는 「문제 해결과 고급」을
  *      열어야 보이고(처음에는 닫힘), 그 안에서는 펼치기 단추 없이 소제목으로만 나뉜다. 접기 머리의 요약이 준비 점검 한 문장이다.
  *   7) 상태 면은 「로컬 릴레이」 · 「바깥 전달」 두 줄을 더하고, 접수와 전달을 섞지 않는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -156,7 +158,7 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
     expect(within(form).queryByRole("heading", { name: "SMTP 서버" })).toBeNull();
     const start = await within(form).findByRole("button", { name: "로컬 릴레이 활성화" });
     expect(start).toBeDisabled();
-    expect(within(form).getByText("보내는 방법을 로컬 릴레이로 저장한 뒤에 활성화할 수 있습니다.")).toBeInTheDocument();
+    expect(within(form).getByText("발송 방식을 로컬 릴레이로 저장한 뒤에 활성화할 수 있습니다.")).toBeInTheDocument();
   });
 
   it("구성 요소 상태는 서버의 낱말이고, 일반 화면에 구성 요소의 제품 이름이 없다", async () => {
@@ -232,7 +234,7 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
     expect(requests).toHaveTextContent("mail.goodmit.co.kr 로 등록해 주세요.");
     const write = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText: write }, configurable: true });
-    await user.click(within(requests).getByRole("button", { name: "회선 또는 클라우드 업체 요청문 복사" }));
+    await user.click(within(requests).getByRole("button", { name: "회선 또는 클라우드 업체 요청 내용 복사" }));
     await waitFor(() => expect(write).toHaveBeenCalledWith(expect.stringContaining("역방향 이름(PTR 레코드)")));
   });
 
@@ -287,7 +289,7 @@ describe("로컬 릴레이 — 보내는 방법과 점진 공개", () => {
     expect(screen.queryByTestId("relay-helo-suggestion")).toBeNull();
     await user.click(screen.getByRole("button", { name: "문제 해결과 고급" }));
     const suggestion = await screen.findByTestId("relay-helo-suggestion");
-    expect(suggestion).toHaveTextContent("제안하는 서버 이름(HELO)은 clovirassist-mail.goodmit.co.kr입니다. 메일 전용 이름이 필요합니다.");
+    expect(suggestion).toHaveTextContent("제안하는 메일 서버 이름(HELO)은 clovirassist-mail.goodmit.co.kr입니다. 메일 전용 이름이 필요합니다.");
     expect(within(screen.getByTestId("relay-advice")).getByText(/DMARC 레코드는 이미 있으므로 새로 넣지 않습니다/)).toBeInTheDocument();
   });
 

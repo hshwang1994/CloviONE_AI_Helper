@@ -152,7 +152,7 @@ export function OrgMembersPane({ label, head, scope, emptyText, notice = null })
         ) : null}
       </FilterBar>
       {!isDept && scope.unassigned > 0 && membership !== "unassigned" ? (
-        <Callout tone="warn" compact action={<Button size="sm" onClick={() => setMembership("unassigned")}>목록 보기</Button>}>
+        <Callout tone="warn" compact action={<Button size="sm" onClick={() => setMembership("unassigned")}>소속 미지정 보기</Button>}>
           부서도 조직 직속도 아닌 사람이 {scope.unassigned.toLocaleString("ko-KR")}명 있습니다.
         </Callout>
       ) : null}

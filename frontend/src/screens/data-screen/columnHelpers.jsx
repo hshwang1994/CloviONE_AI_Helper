@@ -67,7 +67,7 @@ export const truncateCol = (key, label, max) => ({ key, label, type: "text", ren
   return s.length > max ? <span title={s}>{s.slice(0, max) + "…"}</span> : s;
 } });
 // 읽음 여부 — nullable 타임스탬프를 읽음/안읽음 배지로(원시 시각 노출 방지).
-export const readCol = (key, label) => ({ key, label, type: "status", render: (r) => <Badge value={r[key] ? "읽음" : "안읽음"} kind={r[key] ? "neutral" : "warn"} /> });
+export const readCol = (key, label) => ({ key, label, type: "status", render: (r) => <Badge value={r[key] ? "읽음" : "안 읽음"} kind={r[key] ? "neutral" : "warn"} /> });
 // 상세 전용: 객체/JSON 값을 보기 좋게 펼쳐 보여준다(정책 규칙·승인 payload·감사 전후 등).
 export const jsonField = (key, label) => ({ key, label, render: (r) => {
   const v = r[key];

@@ -22,7 +22,7 @@ export function OrgCreateModal({ open, onClose, onCreated }) {
         { name: "name", label: "조직 이름", type: "text", required: true,
           help: "화면에 보이는 이름입니다." },
         { name: "slug", label: "식별자", type: "text", required: true,
-          help: "영문 소문자, 숫자, 붙임표만 씁니다. 만든 뒤에는 바꿀 수 없습니다." },
+          help: "영문 소문자, 숫자, 붙임표만 씁니다. 추가한 뒤에는 바꿀 수 없습니다." },
       ]}
       initial={{ name: "", slug: "" }}
       submitLabel="추가"
@@ -47,7 +47,7 @@ export function OrgEditModal({ open, org, onClose }) {
       title="조직 수정"
       fields={[
         { name: "name", label: "조직 이름", type: "text", required: true,
-          help: "이 조직에 속한 모든 화면에 즉시 반영됩니다." },
+          help: "이 조직 이름이 보이는 모든 화면에 바로 반영됩니다." },
       ]}
       initial={{ name: org?.name || "" }}
       submitLabel="저장"
@@ -128,7 +128,7 @@ export function DeptCreateModal({
   const fields = [
     { name: "name", label: "부서 이름", type: "text", required: true,
       help: suspended
-        ? "이 조직은 미사용 상태라 여기에 만든 부서는 조직을 다시 활성화할 때까지 아무도 쓸 수 없습니다."
+        ? "이 조직은 미사용 상태라 여기에 추가한 부서는 조직을 다시 활성화할 때까지 아무도 쓸 수 없습니다."
         : "사용자 폼의 '부서' 목록에 바로 나타납니다." },
     { name: "parent_id", label: "상위 부서", type: "select", options,
       help: "비우면 최상위 부서가 됩니다. 이 조직에서 사용 중인 부서만 상위로 고를 수 있습니다." },

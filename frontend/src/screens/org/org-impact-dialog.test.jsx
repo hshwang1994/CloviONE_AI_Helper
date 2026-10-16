@@ -12,6 +12,8 @@ import "@testing-library/jest-dom/vitest";
  *   ② 답을 받기 전에는 확정 단추를 누를 수 없고, 못 받으면 창 안에서 다시 시도한다 — 모르는 상태로 「삭제」를 세우지 않는다.
  *   ③ 0 인 갈래는 줄을 세우지 않는다(시스템 관리자 0명이면 그 문장이 없다).
  *   ④ 「상세 정보」는 ID 를 복사하고, 복사가 막히면 직접 고르라고 말한다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -93,6 +95,6 @@ describe("상세 정보 창", () => {
     expect(within(dlg).getByText("없음")).toBeInTheDocument();
     await userEvent.click(within(dlg).getByRole("button", { name: "복사" }));
     expect(writeText).toHaveBeenCalledWith("dep-1");
-    expect(await screen.findByText("복사하지 못했습니다. ID 를 직접 골라 복사하세요.")).toBeInTheDocument();
+    expect(await screen.findByText("복사하지 못했습니다. ID를 직접 골라 복사하세요.")).toBeInTheDocument();
   });
 });

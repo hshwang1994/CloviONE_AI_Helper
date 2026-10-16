@@ -45,9 +45,9 @@ const POLL_MS = 1500;
 const VERIFY_LIMIT_MS = 90_000;
 
 const FEATURES = [
-  ["chat_enabled", "AI 도우미", "끄면 AI 도우미 화면과 대화 API 가 닫힙니다."],
-  ["assistant_narrative_enabled", "홈 문장 요약", "켜면 홈과 도우미가 숫자 옆에 한두 문장 요약을 붙입니다."],
-  ["game_ai_enabled", "게임 퀴즈 AI", "켜면 놀이 화면에서 AI 가 퀴즈 초안을 만듭니다."],
+  ["chat_enabled", "AI 도우미", "비활성화하면 AI 도우미 화면과 대화 API가 닫힙니다."],
+  ["assistant_narrative_enabled", "홈 문장 요약", "활성화하면 홈과 도우미가 숫자 옆에 한두 문장 요약을 붙입니다."],
+  ["game_ai_enabled", "게임 퀴즈 AI", "활성화하면 놀이 화면에서 AI가 퀴즈 초안을 만듭니다."],
 ];
 
 function withoutVerifyId(res) {
@@ -120,7 +120,7 @@ export function AiConnection() {
     mutationFn: ({ value }) => api("/api/admin/ai/config", { method: "PUT", body: { generation_enabled: value } }),
     apply: (old, { value }) => ({ ...old, config: { ...(old.config || {}), generation_enabled: value } }),
     fromResponse: (res) => withoutVerifyId(res),
-    onSaved: (_res, { value }) => toast(value ? "AI 사용을 켰습니다." : "AI 사용을 껐습니다.", "success"),
+    onSaved: (_res, { value }) => toast(value ? "AI 사용을 활성화했습니다." : "AI 사용을 비활성화했습니다.", "success"),
     onError: (e) => toast(e.message, "error"),
   });
   const feature = useInstantSave({
@@ -242,7 +242,7 @@ export function AiConnection() {
   const currentName = currentProvider && currentMethod ? `${currentProvider.label} ${currentMethod.label}` : null;
   return (
     <Box className="c-screen">
-      <PageHeader area="AI" title="AI 연결" help="AI 제공자에 연결하고 AI 기능을 켜고 끕니다." />
+      <PageHeader area="AI" title="AI 연결" help="AI 제공자에 연결하고 AI 기능을 활성화하거나 비활성화합니다." />
 
       <AiStatusCard data={data} onNext={goNext} timedOut={watch.timedOut} />
 
@@ -359,8 +359,8 @@ export function AiConnection() {
             <SettingRow
               compact label="AI 사용" controlId="ai-generation"
               description={configured
-                ? "끄면 모든 AI 기능이 답을 만들지 않습니다."
-                : (credentialsReady ? "모델을 고르면 켤 수 있습니다." : "제공자를 연결하면 켤 수 있습니다.")}
+                ? "비활성화하면 모든 AI 기능이 답을 만들지 않습니다."
+                : (credentialsReady ? "모델을 고르면 활성화할 수 있습니다." : "제공자를 연결하면 활성화할 수 있습니다.")}
               action={(
                 <Switch
                   id="ai-generation" checked={Boolean(config.generation_enabled)}
@@ -373,7 +373,7 @@ export function AiConnection() {
             {FEATURES.map(([key, label, description]) => (
               <SettingRow
                 key={key} compact label={label} controlId={`ai-feature-${key}`}
-                description={config.generation_enabled ? description : `${description} 지금은 AI 사용이 꺼져 있어 동작하지 않습니다.`}
+                description={config.generation_enabled ? description : `${description} 지금은 AI 사용이 비활성 상태라 동작하지 않습니다.`}
                 action={(
                   <Switch
                     id={`ai-feature-${key}`} checked={Boolean(features[key])}

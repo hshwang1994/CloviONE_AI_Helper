@@ -22,11 +22,11 @@ export function jobMeasures(jobs24) {
   return [
     j.total != null ? { key: "total", value: fmtNum(j.total), label: "처리 요청", primary: true } : null,
     rate != null ? {
-      key: "rate", value: rate + "%", label: "성공률(종료 작업 대비)",
+      key: "rate", value: rate + "%", label: "성공률(종료된 작업 기준)",
       kind: rate >= 95 ? "ok" : rate >= 80 ? "warn" : "danger",
     } : null,
     j.avg_processing_seconds != null
-      ? { key: "avg", value: fmtProcessingTime(j.avg_processing_seconds), label: "평균 처리" }
+      ? { key: "avg", value: fmtProcessingTime(j.avg_processing_seconds), label: "평균 처리 시간" }
       : null,
   ].filter(Boolean);
 }

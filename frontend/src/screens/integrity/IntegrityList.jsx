@@ -126,7 +126,7 @@ function FixControls({ finding, fix, ids, unit, onDone }) {
 /** 작업 결과 - 오류와 건너뛴 항목. 다음에 적용하거나 다른 검사로 옮기면 걷힌다. */
 function resultNotice(result, unit) {
   if (!result) return null;
-  if (result.error) return { tone: "danger", text: errorText(result.error, "고치지 못했습니다.") };
+  if (result.error) return { tone: "danger", text: errorText(result.error, "선택한 항목을 고치지 못했습니다. 잠시 후 다시 시도해 주세요.") };
   const skipped = Array.isArray(result.skipped) ? result.skipped : [];
   if (!skipped.length) return null;
   const first = skipped[0] || {};

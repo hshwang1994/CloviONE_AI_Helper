@@ -47,7 +47,7 @@ const CHECK_STATE = {
   ok: { label: "정상", tone: "ok" },
   warn: { label: "주의", tone: "warn" },
   fail: { label: "실패", tone: "danger" },
-  unknown: { label: "모름", tone: "neutral" },
+  unknown: { label: "알 수 없음", tone: "neutral" },
 };
 
 function Line({ children, muted = true }) {
@@ -74,11 +74,11 @@ export function SubHeading({ children, level = 3, action, id }) {
 function ComponentTechRows({ data }) {
   if (!data) return null;
   const rows = [
-    ["꾸러미", data.packages ? Object.entries(data.packages).map(([k, v]) => `${k} ${v || "없음"}`).join(", ") : null],
+    ["패키지", data.packages ? Object.entries(data.packages).map(([k, v]) => `${k} ${v || "없음"}`).join(", ") : null],
     ["다른 메일 발송 프로그램", (data.other_mta || []).join(", ") || null],
     ["설정 파일", data.config],
     ["서비스", data.services ? Object.entries(data.services).map(([k, v]) => `${k}=${v}`).join(", ") : null],
-    ["듣는 소켓", (data.listeners || []).join(", ") || (data.listeners ? "없음" : null)],
+    ["수신 대기 소켓", (data.listeners || []).join(", ") || (data.listeners ? "없음" : null)],
     ["큐", data.queue_count != null ? `${data.queue_count}통` : null],
     ["도우미", data.helper],
   ].filter(([, v]) => v);
@@ -105,7 +105,7 @@ function RelayComponent({ relay, savedLocal, dirty, verify }) {
     onSuccess: (res) => {
       after(res);
       if (res.result && res.result.ok) {
-        toast(res.result.message || "로컬 릴레이를 켰습니다.", "success");
+        toast(res.result.message || "로컬 릴레이를 활성화했습니다.", "success");
         if (res.verify && res.verify.job_id && verify) verify.watch(res.verify.job_id);
       }
     },
@@ -115,8 +115,8 @@ function RelayComponent({ relay, savedLocal, dirty, verify }) {
     onSuccess: (res) => { after(res); if (res.result && res.result.ok) toast("로컬 릴레이를 비활성화했습니다.", "success"); },
   });
   const refused = apply.data && apply.data.result && !apply.data.result.ok ? apply.data.result : null;
-  const error = failureText([apply, "로컬 릴레이를 켜지 못했습니다."]) || failureText([disable, "로컬 릴레이를 끄지 못했습니다."]);
-  const blockedWhy = !savedLocal ? "보내는 방법을 로컬 릴레이로 저장한 뒤에 활성화할 수 있습니다."
+  const error = failureText([apply, "로컬 릴레이를 활성화하지 못했습니다."]) || failureText([disable, "로컬 릴레이를 비활성화하지 못했습니다."]);
+  const blockedWhy = !savedLocal ? "발송 방식을 로컬 릴레이로 저장한 뒤에 활성화할 수 있습니다."
     : dirty ? "저장하지 않은 수정 내용이 있습니다. 저장한 뒤에 활성화할 수 있습니다." : null;
   const canStart = ["ready", "stopped"].includes(component.state);
   async function turnOff() {
@@ -202,10 +202,10 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
     onSuccess: (res) => {
       if (res.relay) qc.setQueryData(MAIL_RELAY_KEY, res.relay);
       qc.invalidateQueries({ queryKey: ["mail-settings"] });
-      toast(res.result && res.result.message ? res.result.message : "DKIM 키를 만들었습니다.", "success");
+      toast(res.result && res.result.message ? res.result.message : "DKIM 키를 추가했습니다.", "success");
     },
   });
-  const dkimError = failureText([dkim, "DKIM 키를 만들지 못했습니다."]);
+  const dkimError = failureText([dkim, "DKIM 키를 추가하지 못했습니다."]);
   const keyBlocked = !savedLocal || dirty;
   const publicKey = relay && relay.dkim ? relay.dkim.public : null;
   function changeSecurity(next) {
@@ -234,7 +234,7 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
       <Box data-testid="relay-direct-conditions">
         <Callout tone="info" compact>
           인터넷으로 직접 전달하려면 도메인 DNS 담당자가 필요합니다(SPF, DKIM, 공개 서버 이름). 역방향 이름(PTR)은 회선이나 클라우드 업체가
-          넣습니다. 담당자가 없다면 상위 SMTP 이용을 고르세요. 필요한 레코드와 요청문은 아래 문제 해결의 준비 점검이 채워 줍니다.
+          넣습니다. 담당자가 없다면 상위 SMTP 이용을 고르세요. 필요한 레코드와 요청 내용은 아래 ‘문제 해결과 고급’의 준비 점검이 채워 줍니다.
         </Callout>
       </Box>
 
@@ -281,12 +281,12 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
       ) : (
         <Box component="section" aria-labelledby="relay-direct-title" sx={{ display: "grid", gap: 2, minWidth: 0 }}>
           <Box sx={{ display: "grid", gap: 0.5, minWidth: 0 }}>
-            <SubHeading id="relay-direct-title">보내는 도메인과 서버 이름</SubHeading>
+            <SubHeading id="relay-direct-title">보내는 도메인과 메일 서버 이름</SubHeading>
             <Line>받는 쪽 메일 서버가 이 이름과 주소로 이 서버를 확인합니다.</Line>
           </Box>
           <FieldRow>
-            <Field span={FIELD_SPAN.main} label="서버 이름(HELO)" htmlFor="relay-helo" required={values.enabled}
-              help="공개 DNS 에 있는 이름이어야 합니다. 예: mail.example.com">
+            <Field span={FIELD_SPAN.main} label="메일 서버 이름(HELO)" htmlFor="relay-helo" required={values.enabled}
+              help="공개 DNS에 있는 이름이어야 합니다. 예: mail.example.com">
               <TextField id="relay-helo" size="small" fullWidth value={r.helo_name || ""} placeholder="mail.example.com"
                 onChange={(e) => setRelay({ helo_name: e.target.value })} inputProps={{ spellCheck: false, autoComplete: "off" }} />
             </Field>
@@ -297,11 +297,11 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
           </FieldRow>
           <SettingRows>
             <SettingRow
-              compact label="IPv4 만 쓰기" controlId="relay-ipv4"
-              description="이 서버에서 바깥으로 나가는 IPv6 가 없으면 켜 둡니다."
+              compact label="IPv4만 쓰기" controlId="relay-ipv4"
+              description="이 서버에서 외부로 나가는 IPv6가 없으면 선택합니다."
               action={(
                 <Checkbox id="relay-ipv4" checked={Boolean(r.ipv4_only)} onChange={(e) => setRelay({ ipv4_only: e.target.checked })}
-                  slotProps={{ input: { "aria-label": "IPv4 만 쓰기" } }} />
+                  slotProps={{ input: { "aria-label": "IPv4만 쓰기" } }} />
               )}
             />
             <SettingRow
@@ -316,8 +316,8 @@ export function RelayFields({ values, setRelay, relayPassword, setRelayPassword,
           {r.dkim_enabled ? (
             <FieldRow columns={["min(100%, 20rem)"]}>
               <Field label="선택자" htmlFor="relay-dkim-selector"
-                help={publicKey ? "키가 있습니다. 문제 해결의 준비 점검에 있는 DKIM 레코드를 도메인 DNS 에 넣으세요."
-                  : keyBlocked ? "저장한 뒤에 키를 만들 수 있습니다." : "키를 만들면 DNS 에 넣을 레코드가 생깁니다."}
+                help={publicKey ? "키가 있습니다. ‘문제 해결과 고급’의 준비 점검에 있는 DKIM 레코드를 도메인 DNS에 넣으세요."
+                  : keyBlocked ? "저장한 뒤에 키를 추가할 수 있습니다." : "키를 추가하면 DNS에 넣을 레코드가 생깁니다."}
                 action={(
                   <Button loading={dkim.isPending} disabled={keyBlocked} onClick={() => dkim.mutate()}>
                     {publicKey ? "키 확인" : "키 추가"}
@@ -346,7 +346,7 @@ export function RelayAdvancedFields({ values, setRelay }) {
         <Box component="section" aria-labelledby="relay-overrides-title" sx={{ display: "grid", gap: 1.5, minWidth: 0 }}>
           <Box sx={{ display: "grid", gap: 0.5, minWidth: 0 }}>
             <SubHeading level={4} id="relay-overrides-title">받는 도메인별 전달 서버</SubHeading>
-            <Line>이 서버의 DNS 가 받는 쪽 메일 서버를 모를 때(사내 분리 DNS) 도메인마다 보낼 서버를 정합니다.</Line>
+            <Line>이 서버의 DNS가 받는 쪽 메일 서버를 모를 때(사내 분리 DNS) 도메인마다 보낼 서버를 정합니다.</Line>
           </Box>
           <OverrideRows rows={r.transport_overrides} onChange={(rows) => setRelay({ transport_overrides: rows })} />
         </Box>
@@ -383,7 +383,7 @@ export function readinessSummary(readiness) {
     text += ` 지금 막는 것은 ${blocking.map((c) => c.label).join(", ")}입니다.`;
     if (owners.length) text += ` 담당은 ${owners.join(", ")}입니다.`;
   } else {
-    text += " 바깥으로 보낼 준비가 됐습니다.";
+    text += " 외부 발송 준비가 끝났습니다.";
   }
   return text;
 }
@@ -455,7 +455,7 @@ export function RelayReadiness({ relay, savedLocal, dirty, check }) {
           <Button loading={check.running} disabled={blocked} onClick={() => check.start.mutate()}>점검 다시 하기</Button>
         )}
       >
-        바깥으로 보내기 준비
+        외부 발송 준비 상태
       </SubHeading>
       <Line>{readiness && readiness.checked_at ? `최근 점검 ${fmtDateTime(readiness.checked_at)}` : "아직 점검하지 않았습니다."}</Line>
       {readiness && readiness.stale ? <Callout tone="info" compact>점검한 뒤 설정이 바뀌었습니다. 다시 점검하세요.</Callout> : null}
@@ -464,8 +464,8 @@ export function RelayReadiness({ relay, savedLocal, dirty, check }) {
       {heloChange ? (
         <Box data-testid="relay-helo-suggestion">
           <Callout tone="info" compact>
-            {[`제안하는 서버 이름(HELO)은 ${heloChange.name}입니다.`, heloChange.note,
-              "담당자가 이 이름을 DNS 에 넣은 뒤 전달 방법 설정의 서버 이름(HELO) 칸을 바꾸세요."].filter(Boolean).join(" ")}
+            {[`제안하는 메일 서버 이름(HELO)은 ${heloChange.name}입니다.`, heloChange.note,
+              "담당자가 이 이름을 DNS에 넣은 뒤 ‘전달 방법 설정’의 메일 서버 이름(HELO) 칸을 바꾸세요."].filter(Boolean).join(" ")}
           </Callout>
         </Box>
       ) : null}
@@ -478,7 +478,7 @@ export function RelayReadiness({ relay, savedLocal, dirty, check }) {
       {requests.length ? (
         <Box data-testid="relay-requests" sx={{ display: "grid", gap: 1.5, minWidth: 0 }}>
           <SubHeading level={4}>담당자에게 요청하기</SubHeading>
-          <Line>서버가 할 수 없는 일입니다. 담당자별 요청문을 그대로 복사해 보내고, 담당자가 넣은 뒤 점검을 다시 하세요.</Line>
+          <Line>서버가 할 수 없는 일입니다. 담당자별 요청 내용을 그대로 복사해 보내고, 담당자가 넣은 뒤 점검을 다시 하세요.</Line>
           {requests.map((req) => (
             <Box key={req.owner + req.title} data-request-owner={req.owner}
               sx={{ display: "grid", gap: 0.75, p: 1.5, bgcolor: "background.inset", borderRadius: `${RADIUS.sm}px`, minWidth: 0 }}>
@@ -486,7 +486,7 @@ export function RelayReadiness({ relay, savedLocal, dirty, check }) {
                 <Typography sx={{ fontWeight: FONT_WEIGHT.semibold, fontSize: FONT_SIZE.bodySm }}>{req.owner}</Typography>
                 <Typography sx={{ fontSize: FONT_SIZE.bodySm, color: "text.secondary" }}>{req.title}</Typography>
                 <Box sx={{ flex: 1 }} />
-                <Button size="sm" onClick={() => copy(req.text, "요청문을 복사했습니다.")} aria-label={`${req.owner} 요청문 복사`}>요청문 복사</Button>
+                <Button size="sm" onClick={() => copy(req.text, "요청 내용을 복사했습니다.")} aria-label={`${req.owner} 요청 내용 복사`}>요청 내용 복사</Button>
               </Box>
               <Line>{req.why}</Line>
               <Box component="pre" sx={{ m: 0, p: 1.25, bgcolor: "background.paper", borderRadius: `${RADIUS.sm}px`, fontSize: FONT_SIZE.caption,
@@ -558,7 +558,7 @@ export function RelayReadiness({ relay, savedLocal, dirty, check }) {
             ["발신 IP", readiness.egress_ip],
             ["웹 주소", readiness.web_host],
             ["웹 주소 IP", readiness.web_ip],
-            ["서버 이름 판정", helo ? `${helo.name || "-"} (${helo.reason}${helo.keep ? ", keep" : ""})` : null],
+            ["메일 서버 이름 판정", helo ? `${helo.name || "-"} (${helo.reason}${helo.keep ? ", keep" : ""})` : null],
             ["점검한 받는 도메인", readiness.probe_domain],
           ]} />
         </TechDetail>

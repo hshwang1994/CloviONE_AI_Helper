@@ -11,6 +11,7 @@ import {
 import { SettingList, SettingRow } from "../ui/adminKit.jsx";
 import { pairTracks } from "../ui/density.js";
 import { ServiceAddressCard } from "./system/ServiceAddressCard.jsx";
+import { objectParticle } from "../lib/format.js";
 
 /* 운영 콘솔 - OS와 서비스 (§S, 9-6/9-7/9-8 · 지시 33 · 34 · 43).
  *
@@ -80,7 +81,7 @@ const UNIT_ROLES = {
   "clovirassist-worker-conversational.service": "AI 도우미의 대화 요청을 처리합니다.",
   "clovirassist-scheduler.service": "예약된 작업을 정해진 시각에 시작합니다.",
   "clovirassist-index.service": "문서를 읽어 검색 색인을 갱신합니다.",
-  "clovirassist-privhelper.service": "이 화면이 요청한 시스템 설정 변경만 대신 수행합니다.",
+  "clovirassist-privhelper.service": "이 화면이 요청한 시스템 설정 변경만 대신 처리합니다.",
   "nginx.service": "바깥에서 들어오는 요청을 받아 포털로 넘깁니다.",
   "systemd-timesyncd.service": "서버 시각을 표준 시각에 맞춥니다.",
   "systemd-resolved.service": "도메인 이름을 주소로 바꿉니다.",
@@ -89,11 +90,11 @@ const UNIT_ROLES = {
 /* 도우미가 없을 때 서비스 한 줄의 설명 — 그 자리가 무엇을 다루는지만 말한다. 읽지 못한다는 사실은 안내 상자가 말한다. */
 const SERVICES_ROLE = "웹 서버와 백그라운드 작업처럼 포털을 이루는 서비스가 실행 중인지 보고 재시작합니다.";
 /* 도우미가 없을 때 서비스 주소 한 줄 — 무엇을 다루는 자리인지만 말한다(D-574). */
-const ADDRESS_ROLE = "알림 메일과 링크가 쓰는 대표 주소와 함께 쓰는 주소를 보고 바꿉니다.";
+const ADDRESS_ROLE = "알림 메일 속 링크가 가리키는 대표 웹 주소와 함께 쓰는 주소를 보고 바꿉니다.";
 
 /* 이 탭의 `?` 도움말 — 그릇(`settings/SettingsShell.jsx`)이 제목 옆에 그린다(D-453).
    예전에는 어디에도 안 쓰이는 상수였다. */
-export const HELP = "이 서버의 운영체제 설정과 서비스 상태를 봅니다. 실제 변경은 서버에 설치된 시스템 설정 도우미가 정해진 동작만 수행합니다.";
+export const HELP = "이 서버의 운영체제 설정과 서비스 상태를 봅니다. 실제 변경은 서버에 설치된 시스템 설정 도우미가 정해진 동작으로만 처리합니다.";
 
 // 이 화면에서 다루는 동작. 헬퍼의 표가 정본이고 여기서는 **그리는 순서와 폼**만 정한다.
 // 헬퍼가 모르는 동작은 서버가 404 로 거절하므로, 여기 목록이 낡아도 조용히 통하지 않는다.
@@ -125,7 +126,7 @@ const FORMS = {
       { name: "enabled", label: "사용", type: "checkbox",
         help: "비활성화하면 지정을 해제합니다." },
       { name: "servers", label: "서버 주소 (쉼표로 구분)",
-        help: "이름이 아니라 IP 주소만 받습니다. DNS 를 설정하는 중이라 이름을 풀 방법이 없습니다.",
+        help: "이름이 아니라 IP 주소만 받습니다. DNS를 설정하는 중이라 이름을 풀 방법이 없습니다.",
         showIf: (v) => !!v.enabled },
       { name: "search", label: "검색 도메인", showIf: (v) => !!v.enabled },
     ],
@@ -309,7 +310,7 @@ export function SystemOps({ embedded = false } = {}) {
       // React child"로 렌더 자체가 죽는다 — 인증서 교체처럼 되돌릴 수 없는 작업의 확인
       // 대화상자가 열리지 않는 셈이다.
       const ok = await confirm(
-        "검사에 실패하면 원래 인증서로 되돌립니다. 성공하면 nginx 를 다시 읽습니다.",
+        "검사에 실패하면 원래 인증서로 되돌립니다. 성공하면 웹 프록시(nginx)가 새 인증서를 다시 읽습니다.",
         { title: "인증서를 교체할까요?" },
       );
       if (!ok) return;
@@ -322,7 +323,8 @@ export function SystemOps({ embedded = false } = {}) {
     // 위 submit()의 cert.install과 같은 이유 — 문자열 message + opts 두 인자로 호출한다.
     const ok = await confirm(
       "재시작하는 동안 그 기능이 잠시 멈춥니다.",
-      { title: (UNIT_LABELS[unit] || unit) + "를 재시작할까요?" },
+      /* 조사는 서비스 이름의 받침을 따른다(웹 서버를 · 백그라운드 작업을). 예전 「를」 고정은 「백그라운드 작업를」이 됐다. */
+      { title: (UNIT_LABELS[unit] || unit) + objectParticle(UNIT_LABELS[unit] || unit) + " 재시작할까요?" },
     );
     if (ok) run.mutate({ action: "service.control", params: { unit, verb } });
   };
@@ -346,7 +348,7 @@ export function SystemOps({ embedded = false } = {}) {
       key: "hostname", label: "호스트 이름",
       value: known(info.hostname),
       tone: usable && info.hostname ? undefined : "muted",
-      description: "이 서버가 자신을 부르는 이름입니다. 접속 주소, 인증서, 메일 서버 이름(HELO)과는 별개이며, 접속 주소는 위 「서비스 주소」에서, 메일 서버 이름은 메일 설정에서 정합니다.",
+      description: "이 서버가 자신을 부르는 이름입니다. 접속 주소는 위 「서비스 주소」에서, 메일 서버 이름(HELO)은 메일 설정에서 따로 정합니다.",
       action: changeButton("hostname.set"),
     },
     {
@@ -448,7 +450,7 @@ export function SystemOps({ embedded = false } = {}) {
                               disabled={run.isPending} last={i === unitNames.length - 1} />
                 ))
               ) : (
-                <EmptyState size="compact" title="서비스 상태를 읽지 못했습니다" help="새로고침한 뒤 다시 시도해 주세요." />
+                <EmptyState size="compact" title="서비스 상태를 읽지 못했습니다." help="새로고침한 뒤 다시 시도해 주세요." />
               )}
             </SettingList>
           </Card>

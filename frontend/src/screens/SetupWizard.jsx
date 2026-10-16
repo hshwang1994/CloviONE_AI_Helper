@@ -35,8 +35,8 @@ import { SetupSummary } from "./setup/SetupSummary.jsx";
  */
 
 const DESCRIPTION = "처음 설치할 때 필요한 설정을 순서대로 안내합니다.";
-const HELP = "확인 필요는 설정은 됐지만 실제로 동작하는지 아직 확인하지 않았다는 뜻입니다. "
-  + "선택 기능은 쓰지 않는다면 사용하지 않음으로 둘 수 있고, 그것도 끝난 것으로 셉니다.";
+const HELP = "‘확인 필요’는 설정은 끝났지만 실제로 동작하는지 아직 확인하지 않았다는 뜻입니다. "
+  + "선택 기능은 쓰지 않으면 ‘사용하지 않음’으로 둘 수 있고, 그것도 끝난 것으로 셉니다.";
 
 /* 항목마다 "그래서 어디로 가면 되는가" - 서버가 링크를 주지 않을 때(옛 서버)만 쓰는 대체 표다.
  *
@@ -65,10 +65,10 @@ function hasInlineActions(item) {
 }
 
 function choiceToast(item, choice) {
-  if (choice.value === "unused") return `${item.label} 항목을 사용하지 않음으로 두었습니다.`;
+  if (choice.value === "unused") return `${item.label} 항목을 ‘사용하지 않음’으로 두었습니다.`;
   if (choice.value === "use") return `${item.label} 항목을 다시 사용합니다.`;
-  if (choice.value === "proxy") return "외부 프록시가 TLS 를 맡는다고 표시했습니다.";
-  if (choice.value === "app") return "이 서버의 인증서로 TLS 를 확인합니다.";
+  if (choice.value === "proxy") return "외부 프록시가 TLS를 맡는다고 표시했습니다.";
+  if (choice.value === "app") return "이 서버의 인증서로 TLS를 확인합니다.";
   return "선택을 바꿨습니다.";
 }
 
@@ -289,7 +289,7 @@ export function SetupWizard() {
           />
           <ChecklistSection
             title="선택"
-            description="쓰지 않는 기능은 사용하지 않음으로 둘 수 있습니다."
+            description="쓰지 않는 기능은 ‘사용하지 않음’으로 둘 수 있습니다."
             items={optional}
             expanded={expanded}
             onToggle={onToggle}

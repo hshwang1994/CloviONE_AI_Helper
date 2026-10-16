@@ -7,6 +7,8 @@ import { PEOPLE_ACTIVE_REF_LIST, PEOPLE_REF_LIST } from "./registry/shared.js";
 /* 관리 콘솔 registry 의 남은 잔여 넷 — 폼·문구·후보 목록·형식기.
  *
  * 하나씩은 작지만 전부 「화면이 사실이 아닌 말을 한다」는 같은 종류다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const schedules = AUTOMATION_SCREENS.schedules;
@@ -42,7 +44,7 @@ describe("실행 일정 수정 폼 — 저장된 대상을 후보에서 지우�
 });
 
 describe("실행 일정 미리보기 — 목록이 쉼표로 시작하지 않는다 (ops-15)", () => {
-  const preview = schedules.actions.find((a) => a.label === "미리보기");
+  const preview = schedules.actions.find((a) => a.label === "미리 보기");
 
   it("각 줄이 글머리표로 시작한다 — 문장 부호는 줄 앞에 오지 않는다", () => {
     const text = preview.info({

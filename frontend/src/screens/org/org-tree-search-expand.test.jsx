@@ -6,6 +6,8 @@
  *   ③ 「모두 접기 · 펼치기」 신호가 트리 전체에 닿는다.
  *   ④ 줄의 수는 이름이 아니라 설명이다(「구성원 N명」). 미사용 · 상위 관계 오류는 점 + 낱말이고 배지가 아니다.
  *   ⑤ 맞는 것이 없으면 조건 0건 상태와 「필터 초기화」가 선다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
@@ -68,7 +70,7 @@ describe("검색", () => {
   it("맞는 것이 없으면 조건 0건 상태이고 「필터 초기화」가 조건을 푼다", async () => {
     const onClearSearch = vi.fn();
     renderTree({ query: "없는부서", onClearSearch });
-    expect(await screen.findByText("조건에 맞는 조직이나 부서가 없습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("검색 조건에 맞는 조직이나 부서가 없습니다.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "필터 초기화" }));
     expect(onClearSearch).toHaveBeenCalled();
   });

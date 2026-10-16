@@ -49,7 +49,7 @@ export function NotificationMailTab({ status }) {
   return (
     <Card stack data-testid="mail-notification-tab">
       <FormSection titleAs="h2" title="메일로 보내는 알림"
-        description="여기서 허용한 알림만 사용자가 메일로 받을 수 있습니다. 사용자는 내 프로필에서 메일 알림을 켜고 받을 알림을 고릅니다.">
+        description="여기서 허용한 알림만 사용자가 메일로 받을 수 있습니다. 사용자는 내 프로필에서 메일 알림을 활성화하고 받을 알림을 고릅니다.">
         {/* 여러 단으로 흐르는 목록이라 줄 사이 윗선을 긋지 않는다 - 단마다 첫 줄만 선이 있거나 없으면 단끼리 어긋나 보인다. */}
         <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, columnWidth: "20rem", columnGap: 3,
           "& .k-settingrow": { borderTop: 0 } }}>

@@ -17,10 +17,10 @@ export const ORG_SCREENS = {
     smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "job-titles", area: "사용자와 권한", title: "직책 관리", endpoint: "/api/admin/job-titles",
     help: "직책 이름을 한 곳에서 관리합니다. 사용자 폼의 '직책'은 여기 목록에서 고릅니다.", createLabel: "직책 추가",
-    emptyTitle: "추가된 직책이 없습니다", emptyHelp: "‘직책 추가’로 직책을 추가하면 사용자 폼의 ‘직책’ 목록에 바로 나타납니다.",
+    emptyTitle: "등록된 직책이 없습니다.", emptyHelp: "‘직책 추가’로 직책을 추가하면 사용자 폼의 ‘직책’ 목록에 바로 나타납니다.",
     // 부서→직책→사용자 온보딩 체인(사용자 생성은 직책이 있어야 가능 — Users.jsx) — 연동→러너→워크플로
     // 체인처럼 다음 단계(사용자)로 이어 준다. 단계별 안내는 canOnboard가 쓰기 역할에만 보여준다.
-    emptySituation: "부서, 직책, 사용자 온보딩 체인의 한 단계입니다. 아직 직책이 하나도 없습니다.",
+    emptySituation: "부서, 직책, 사용자 순서로 준비하는 단계 가운데 하나입니다. 아직 직책이 하나도 없습니다.",
     emptySteps: ["‘직책 추가’로 필요한 직책을 추가합니다.", "사용할 직책을 모두 추가합니다.", "사용자 화면에서 계정을 추가할 때 이 직책을 배정합니다."],
     emptyExpected: "추가한 직책은 사용자 폼의 ‘직책’ 목록에 바로 나타납니다.",
     emptyRelatedLink: { href: "#/users", label: "다음: 사용자 추가로 이동" },
@@ -48,7 +48,7 @@ export const ORG_SCREENS = {
     actions: [
       ...activeToggle("/api/admin/job-titles"),
       // 사용 중(소속 인원>0)인 직책은 삭제가 항상 409 → 미사용일 때만 노출한다(대신 '비활성화').
-      { label: "삭제", variant: "danger", roles: WRITE_ROLES, when: (r) => !r.user_count, method: "DELETE", path: (r) => "/api/admin/job-titles/" + r.id, confirm: "이 직책을 지울까요? 되돌릴 수 없습니다." },
+      { label: "삭제", variant: "danger", roles: WRITE_ROLES, when: (r) => !r.user_count, method: "DELETE", path: (r) => "/api/admin/job-titles/" + r.id, confirm: "이 직책을 삭제할까요? 되돌릴 수 없습니다." },
       // job_title은 OBJTYPE_OPTS에 이미 있고 이 id를 감사 로그에서 대조할 수 있게 상세에 노출해
       // 두었다(위 detailFields 주석 참고) — 그런데 실제로 눌러서 갈 방법이 없었다. Users.jsx의
       // '감사 로그에서 보기' 버튼과 동일한 딥링크를 추가한다.

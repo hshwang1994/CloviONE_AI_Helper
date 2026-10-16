@@ -96,7 +96,7 @@ export function SettingEditor({ setting, canWrite, lockedReason, onClose, onSave
         if (!Array.isArray(parsed)) throw new Error("도메인 목록은 배열([...]) 형식이어야 합니다.");
         for (const d of parsed) {
           if (typeof d !== "string" || !d.includes(".") || d.startsWith(".") || d.endsWith("."))
-            throw new Error("도메인 형식이 올바르지 않습니다(예: example.com), 점(.)을 포함하고 앞뒤에 점이 없어야 합니다: " + JSON.stringify(d));
+            throw new Error("도메인 형식이 올바르지 않습니다. 점(.)을 포함하고 앞뒤에 점이 없어야 합니다(예: example.com): " + JSON.stringify(d));
         }
       }
       return parsed;
@@ -129,7 +129,7 @@ export function SettingEditor({ setting, canWrite, lockedReason, onClose, onSave
     // 보안 완화(도메인 제한 해제·비밀번호 정책 약화)는 저장 직전 한 번 더 확인받는다.
     const warnMsg = securityDowngradeWarning(setting, value);
     if (warnMsg) {
-      const ok = await confirm(warnMsg, { danger: true, title: "보안 설정 변경 확인", confirmLabel: "변경" });
+      const ok = await confirm(warnMsg, { danger: true, title: "보안 설정 변경 확인", confirmLabel: "저장" });
       if (!ok) return;
     }
     try { const res = await save.mutateAsync({ value }); onSaved(res); }

@@ -13,6 +13,8 @@ import "@testing-library/jest-dom/vitest";
  *   2) 보기 기준은 조건이 아니다 — 바꾸면 표의 첫 열 이름이 바뀌고, 조건 칩 · 「필터 지우기」에 들지 않는다.
  *   3) 기간은 세그먼티드이고, 서버가 쓴 기간을 문장으로 보인다(빈 칸인데 30일을 쓰는 일이 없다). 「직접 선택」은 날짜 둘을 고른 뒤에 묻는다.
  *   4) 검색은 서버로 간다(`q`). 행을 누르면 같은 기간 · 조건의 호출 기록으로 간다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -71,7 +73,7 @@ describe("AI 사용 통계 화면", () => {
     await screen.findByTestId("ai-usage-range");
     const metrics = screen.getByRole("group", { name: "이 기간의 지표" });
     for (const [name, value] of [["AI 요청", "1,284"], ["성공률", "98%"], ["실패", "31"], ["정책 차단", "3"],
-      ["입력 토큰", "2.1M"], ["출력 토큰", "640K"], ["평균 응답", "3.2초"]]) {
+      ["입력 토큰", "2.1M"], ["출력 토큰", "640K"], ["평균 응답 시간", "3.2초"]]) {
       expect(within(metrics).getByText(name)).toBeInTheDocument();
       expect(within(metrics).getByText(value)).toBeInTheDocument();
     }

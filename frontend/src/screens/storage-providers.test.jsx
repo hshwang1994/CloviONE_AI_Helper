@@ -14,6 +14,8 @@ import "@testing-library/jest-dom/vitest";
  *   ② 운영과 백업이 같은 장치면 그 경고가 뜬다. 장치가 죽는 순간 백업도 함께 죽는다.
  *   ③ 「지금 확인」은 마운트 유닛 이름까지 준다 — 안 붙어 있을 때 다음에 칠 명령이다.
  *   ④ 사용 안 함으로 바꾸는 것은 파괴적이라 파급을 말하고 확인을 받는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -83,7 +85,7 @@ describe("파일 저장소 — 지금 쓸 수 있는가", () => {
 
     const bkRow = screen.getByRole("row", { name: /백업 NAS/ });
     // 원문 슬러그(`not_mounted`)가 화면에 새면 관리자는 판정 다섯 가지를 추측해야 한다.
-    expect(within(bkRow).getByText("안 붙어 있음")).toBeInTheDocument();
+    expect(within(bkRow).getByText("마운트되지 않음")).toBeInTheDocument();
     expect(within(bkRow).queryByText("not_mounted")).not.toBeInTheDocument();
   });
 
@@ -130,7 +132,7 @@ describe("파일 저장소 — 다음에 할 일을 준다", () => {
     renderScreen();
     const bkRow = await screen.findByRole("row", { name: /백업 NAS/ }, WAIT);
     await user.click(within(bkRow).getByRole("button", { name: "백업 NAS 작업" }));
-    await user.click(await screen.findByRole("menuitem", { name: "지금 확인" }, WAIT));
+    await user.click(await screen.findByRole("menuitem", { name: "상태 확인" }, WAIT));
 
     await waitFor(() => expect(
       apiMock.mock.calls.some(([p, o]) => p === "/api/storage/providers/sp-bk/probe" && o && o.method === "POST")
@@ -154,7 +156,7 @@ describe("파일 저장소 — 다음에 할 일을 준다", () => {
     renderScreen();
     const opRow = await screen.findByRole("row", { name: /운영 디스크/ }, WAIT);
     await user.click(within(opRow).getByRole("button", { name: "운영 디스크 작업" }));
-    await user.click(await screen.findByRole("menuitem", { name: "지금 확인" }, WAIT));
+    await user.click(await screen.findByRole("menuitem", { name: "상태 확인" }, WAIT));
 
     await waitFor(() => expect(
       apiMock.mock.calls.some(([p]) => p === "/api/storage/providers/sp-op/probe")
@@ -170,7 +172,7 @@ describe("파일 저장소 — 되돌리기 어려운 일에는 확인을 받는
     renderScreen();
     const opRow = await screen.findByRole("row", { name: /운영 디스크/ }, WAIT);
     await user.click(within(opRow).getByRole("button", { name: "운영 디스크 작업" }));
-    await user.click(await screen.findByRole("menuitem", { name: "사용 안 함으로" }, WAIT));
+    await user.click(await screen.findByRole("menuitem", { name: "비활성화" }, WAIT));
 
     expect(await screen.findByText(/새 파일 업로드가 실패합니다/, {}, WAIT)).toBeInTheDocument();
     // 확인을 받기 전에는 아무것도 안 바꾼다.

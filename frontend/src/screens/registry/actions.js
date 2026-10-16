@@ -34,7 +34,7 @@ export const activeToggle = (base) => [
   // (0명이든 200명이든 똑같은 경고였다 — 사용 중인 부서/직책을 무심코 끄기 쉬웠다).
   { label: "비활성화", variant: "danger", roles: WRITE_ROLES, when: (r) => r.active, method: "PATCH", path: (r) => base + "/" + r.id, body: { active: false },
     confirm: (r) => r.user_count
-      ? "비활성화하면 이 항목을 쓰는 사용자 " + r.user_count + "명이 사용자 폼에서 더 이상 새로 고를 수 없게 됩니다. 계속할까요?"
+      ? "비활성화하면 사용자 폼에서 이 항목을 새로 고를 수 없게 됩니다. 지금 이 항목을 쓰는 사용자 " + r.user_count + "명은 그대로 남습니다. 계속할까요?"
       : "비활성화하면 사용자 폼에서 새로 고를 수 없게 됩니다. 계속할까요?" },
 ];
 // 사용 여부 필터 공통(부서·직책).
@@ -90,7 +90,7 @@ export const versionsAction = (base, extraCols, confirmFn, namedCreator) => ({
     columns: [col("version", "버전", "identifier"),
       namedCreator ? personField("created_by", "변경자", "created_by_name", "created_by_email") : col("created_by", "변경자 ID", "identifier"),
       dateCol("created_at", "시각"), ...(extraCols || [])],
-    emptyTitle: "버전 기록이 없습니다",
+    emptyTitle: "버전 기록이 없습니다.",
     rowAction: {
       label: "이 버전으로 롤백", variant: "danger", roles: WRITE_ROLES,
       path: (sub, r) => base + "/" + r.id + "/rollback",
@@ -119,7 +119,7 @@ export const nameVersionsAction = (base, title) => ({
     columns: [col("version", "버전", "identifier"), badgeCol("status", "상태"),
       { key: "created_by", label: "작성자", type: "name", render: (r) => r.created_by_name || r.created_by_email || r.created_by || "-" },
       dateCol("created_at", "생성")],
-    emptyTitle: "버전 기록이 없습니다",
+    emptyTitle: "버전 기록이 없습니다.",
     rowActions: [
       { label: "이 버전으로 롤백", variant: "danger", roles: WRITE_ROLES,
         path: () => base + "/rollback",
@@ -164,7 +164,7 @@ export const slotVersionsAction = () => ({
       { key: "created_by", label: "작성자", type: "name", render: (r) => r.created_by_name || r.created_by_email || "-" },
       dateCol("created_at", "만든 날"),
     ],
-    emptyTitle: "관리자가 쓴 버전이 없습니다",
+    emptyTitle: "관리자가 쓴 버전이 없습니다.",
     rowActions: [
       { label: "이 버전으로 되돌리기", variant: "danger", roles: WRITE_ROLES,
         path: () => "/api/admin/prompts/rollback",

@@ -37,7 +37,7 @@ const POLICY_TARGETS = [["*", "모든 기능"], ["assistant.chat", "AI 도우미
   ["game.quiz", "게임 퀴즈 만들기"]];
 /* 정책 화면의 종류별 구획(D-542). 구획 머리는 종류 이름과 그 종류가 런타임에서 하는 일 한 문장이다. */
 const POLICY_GROUPS = {
-  approval: { key: "approval", label: "승인 필요", note: "AI 가 만든 결과를 사람이 승인한 뒤에 씁니다." },
+  approval: { key: "approval", label: "승인 필요", note: "AI가 만든 결과를 사람이 승인한 뒤에 씁니다." },
   data_protection: { key: "data_protection", label: "개인정보 가리기", note: "모델에 보내기 전에 개인정보를 가립니다." },
   content: { key: "content", label: "응답 제한", note: "응답 길이와 링크를 제한합니다." },
 };
@@ -55,7 +55,7 @@ const RULE_FIELDS = {
     { name: "mask_emails", type: "checkbox", label: "이메일", checkLabel: "이메일 주소를 가립니다" },
   ],
   content: [
-    { name: "max_output_chars", type: "number", label: "답의 최대 글자 수", help: "비우면 기능마다 정해진 길이를 씁니다. 퀴즈처럼 JSON 으로 답하는 기능은 넘으면 자르지 않고 실패합니다." },
+    { name: "max_output_chars", type: "number", label: "답의 최대 글자 수", help: "비우면 기능마다 정해진 길이를 씁니다. 퀴즈처럼 JSON으로 답하는 기능은 넘으면 자르지 않고 실패합니다." },
     { name: "block_external_links", type: "checkbox", label: "제품 밖 링크", checkLabel: "제품 밖 링크를 누를 수 없게 바꿉니다" },
   ],
 };
@@ -109,10 +109,10 @@ function policyRuleSummary(r) {
   }
   if (r.kind === "data_protection") {
     const parts = [c.mask_phone_numbers ? "전화번호" : null, c.mask_resident_registration_numbers ? "주민등록번호" : null, c.mask_emails ? "이메일" : null].filter(Boolean);
-    return parts.length ? parts.join(", ") + "를 가립니다." : "가리는 항목이 없습니다.";
+    return parts.length ? parts.join(", ") + " 항목을 가립니다." : "가리는 항목이 없습니다.";
   }
   if (r.kind === "content") {
-    const cap = c.max_output_chars ? "답을 " + c.max_output_chars + "자까지 싣습니다." : "기능마다 정해진 길이를 씁니다.";
+    const cap = c.max_output_chars ? "답을 " + c.max_output_chars + "자로 제한합니다." : "기능마다 정해진 길이를 씁니다.";
     return cap + (c.block_external_links ? " 제품 밖 링크는 누를 수 없게 바꿉니다." : "");
   }
   return "옛 형식이라 적용하지 않습니다.";
@@ -127,7 +127,7 @@ export const AUTHORING_SCREENS = {
     /* 관리자는 행(버전)이 아니라 기능으로 생각한다(D-541) — 기능마다 한 줄이고, 행을 열면 지금 지시문 · 고정 틀 · 초안 ·
        버전 기록이 한 서랍에 있다. 0 회의 까닭은 「기능 상태」 칸이 말한다. */
     help: "AI 기능마다 따르는 지시문을 고칩니다. 발행한 지시문은 다음 AI 호출부터 쓰입니다.",
-    emptyTitle: "AI 기능이 없습니다",
+    emptyTitle: "AI 기능이 없습니다.",
     emptyHelp: "지시문을 고칠 수 있는 기능은 제품이 정합니다. 목록이 비었다면 서버 응답을 확인하세요.",
     // 옛 딥링크(`?id=<버전 id>` · `builtin:<기능>`)도 그 기능의 서랍을 연다 — 서버가 기능으로 풀어 준다.
     onQuery: (p) => p.id ? { open: "select", id: p.id } : null,
@@ -143,7 +143,7 @@ export const AUTHORING_SCREENS = {
     ],
     detailFields: [
       field("description", "설명"),
-      { key: "_state", label: "기능 상태", render: (r) => r.feature_note || "켜져 있습니다." },
+      { key: "_state", label: "기능 상태", render: (r) => r.feature_note || "활성화되어 있습니다." },
       { key: "_current", label: "지금 쓰는 지시문", render: (r) => (r.current ? r.current.instruction : "-") },
       { key: "_draft", label: "초안", render: (r) => (r.draft ? r.draft.content : "초안이 없습니다. ‘수정’을 누르면 지금 지시문에서 초안을 만듭니다.") },
       { key: "_role", label: "역할 문장(고정)", render: (r) => (r.frame ? r.frame.role : "-") },
@@ -184,7 +184,7 @@ export const AUTHORING_SCREENS = {
     groupOrder: ["approval", "data_protection", "content"],
     // 규칙이 없는 종류도 머리와 한 줄로 선다 — 「승인 필요 규칙이 없다」를 화면이 말한다(D-542).
     groupSlots: ["approval", "data_protection", "content"].map((k) => ({ ...POLICY_GROUPS[k], emptyText: "이 종류의 규칙이 없습니다." })),
-    emptyTitle: "조건에 맞는 정책이 없습니다",
+    emptyTitle: "등록된 정책이 없습니다.",
     emptyHelp: writerEmptyHelp("‘정책 추가’로 종류와 적용할 기능을 고르고 초안에서 발행하세요. 발행한 정책이 없으면 AI 요청에 아무 규칙도 걸리지 않습니다.", "정책은 관리자가 추가합니다. 추가되면 버전이 여기에 표시됩니다."),
     createLabel: "정책 추가",
     onQuery: (p) => p.id ? { open: "select", id: p.id } : null,
@@ -217,7 +217,7 @@ export const AUTHORING_SCREENS = {
       { key: "_applied", label: "최근 30일 적용", render: (r) => (r.applied_30d ? r.applied_30d + "건(성공한 요청과 이 정책이 막은 요청)" : "아직 걸린 요청이 없습니다.") },
       { key: "_migrated", label: "옮긴 정책", render: (r) => (r.migrated_from_id ? "업그레이드가 옛 정책에서 옮긴 초안입니다. 검토하고 발행해야 걸립니다." : "-") },
       { key: "created_by", label: "작성자", render: (r) => r.created_by_name || r.created_by_email || r.created_by || "-" },
-      { key: "_edit_note", label: "수정 안내", render: (r) => (r.status !== "draft" ? "이 버전은 초안이 아니라 고칠 수 없습니다. ‘새 버전’으로 초안을 만드세요." : "-") },
+      { key: "_edit_note", label: "수정 안내", render: (r) => (r.status !== "draft" ? "이 버전은 초안이 아니라 수정할 수 없습니다. ‘새 버전’으로 초안을 추가하세요." : "-") },
       dateCol("published_at", "발행 시각"),
       jsonField("content", "규칙(JSON)"),
       field("id", "정책 ID"),
@@ -225,7 +225,7 @@ export const AUTHORING_SCREENS = {
     /* 정책은 부서로 나뉘는 자원이 아니다 - 발행본이 전사 AI 요청에 걸린다. 서버가 쓰기를 전역 범위 관리자로 한정한다. */
     create: { roles: WRITE_ROLES, requiresGlobalScope: true, fields: [
       { name: "name", label: "이름", type: "text", required: true },
-      { name: "kind", label: "종류", type: "select", required: true, value: "data_protection", options: opt(POLICY_KINDS), help: "종류는 만든 뒤에 바꿀 수 없습니다." },
+      { name: "kind", label: "종류", type: "select", required: true, value: "data_protection", options: opt(POLICY_KINDS), help: "종류는 추가한 뒤에 바꿀 수 없습니다." },
       { ...targetField("approval"), showIf: (v) => v.kind === "approval" },
       { ...targetField("other"), showIf: (v) => v.kind !== "approval" },
       ...Object.entries(RULE_FIELDS).flatMap(([kind, fields]) => fields.map((f) => ({ ...f, showIf: (v) => v.kind === kind }))),
@@ -254,12 +254,12 @@ export const AUTHORING_SCREENS = {
     key: "ai-usage-records", area: "AI", title: "호출 기록",
     endpoint: "/api/admin/ai/usage/records",
     help: "AI 호출 한 번이 한 줄입니다. 누가, 언제, 어떤 기능으로, 어느 모델에 얼마나 썼고 어떻게 끝났는지만 남기고 질문과 답의 본문은 남기지 않습니다. 기록은 180일 동안 둡니다.",
-    emptyTitle: "아직 AI 호출 기록이 없습니다",
-    emptyHelp: "AI 연결을 먼저 설정하세요. 채팅이나 작업 공간에서 AI 를 쓰면 여기에 기록이 쌓입니다.",
+    emptyTitle: "아직 AI 호출 기록이 없습니다.",
+    emptyHelp: "AI 연결을 먼저 설정하세요. AI 기능을 쓰면 여기에 기록이 쌓입니다.",
     emptyRelatedLink: { href: "#/ai-connection", label: "AI 연결 열기" },
     paginated: true, pageSize: 50,
     // 검색은 서버가 한다(D-543) — 보이는 범위 안 사람의 이름 · 이메일과 기능 이름. 받은 쪽의 행 JSON 을 훑지 않는다.
-    searchable: true, searchPlaceholder: "사용자 이름, 이메일, 기능",
+    searchable: true, searchPlaceholder: "사용자 이름, 이메일, 기능으로 검색",
     filters: [
       { key: "status", type: "select", label: "결과", options: opt([["ok", "성공"], ["error", "실패"], ["blocked_policy", "정책 차단"], ["blocked_quota", "한도 초과"]]) },
       /* 기능은 분류 축이다 — 키 이름(`action`)이 그룹 표에 없어 「기타」로 떨어지면 기간 칸 뒤에 섰다(좁히는 순서: 분류 → 결과 → 기간).

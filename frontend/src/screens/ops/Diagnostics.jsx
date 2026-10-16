@@ -115,7 +115,7 @@ export function Diagnostics() {
       URL.revokeObjectURL(url);
       // 복사와 대칭으로 성공도 알린다 — 브라우저가 조용히 내려받는 경우 확인 신호가 없었다.
       toast("진단 번들을 내려받았습니다.", "success");
-    } catch (e) { setBundleFailure("다운로드에 실패했습니다. 다시 시도해 주세요."); }
+    } catch (e) { setBundleFailure("내려받지 못했습니다. 다시 시도해 주세요."); }
   }
 
   const dash = (bundle && bundle.dashboard) || {};
@@ -257,7 +257,7 @@ export function Diagnostics() {
                 // service.py build_dashboard), integration_errors는 그중 down/degraded만 거른 부분집합이다 -
                 // 그래서 integrations가 비어 있으면 그 부분집합도 항상 비어 있다. '등록된 연동은 없지만
                 // 오류만 있는' 중간 분기는 절대 일어나지 않아 제거하고, 곧장 빈 상태로 간다.
-                <EmptyState layout="inline" title="추가된 외부 연동이 없습니다." help="이 설치는 바깥으로 나가는 호출을 쓰지 않습니다. 연동이 추가되면 여기에 상태가 표시됩니다." />
+                <EmptyState layout="inline" title="설정된 외부 연동이 없습니다." help="외부 연동이 없어도 제품은 정상적으로 동작합니다. 연동이 추가되면 여기에 상태가 표시됩니다." />
               )}
             </Section>
               } />
@@ -305,9 +305,9 @@ export function Diagnostics() {
                 이상)은 언제나 그곳에 닿는다. 번들이 이 수를 안 주는 배포에서는 줄도 없다. */}
             {counts.active_schedules != null ? (
               <Note sx={{ mt: 0, mb: 0.75 }}>
-                {`지금 켜져 있는 스케줄은 ${fmtNum(counts.active_schedules)}개입니다.`}{" "}
+                {`지금 활성화된 실행 일정은 ${fmtNum(counts.active_schedules)}개입니다.`}{" "}
                 <Link component="button" type="button" variant="body2" underline="hover" onClick={() => nav("/schedules")}>
-                  스케줄에서 보기 →
+                  실행 일정에서 보기 →
                 </Link>
               </Note>
             ) : null}
@@ -342,7 +342,7 @@ export function Diagnostics() {
         ) : q.isFetched ? (
           // 자동 수집 전 첫 프레임에 이 안내가 번쩍이던 문제, 아직 fetch 전이면(아래 폴백) 스켈레톤을 보여
           // '수집을 눌러라'는 안내가 앱이 이미 자동으로 하는 일을 지시하지 않게 한다.
-          <EmptyState layout="page" art="settings" title="아직 수집한 진단이 없습니다"
+          <EmptyState layout="page" art="settings" title="아직 수집한 진단이 없습니다."
             help="‘진단 수집’을 눌러 현재 시스템 상태(서비스 상태, 디스크, 메모리, 인증서, 작업 오류)를 확인하세요." />
         ) : <Skeleton kind="page" lines={4} />}
     </Box>

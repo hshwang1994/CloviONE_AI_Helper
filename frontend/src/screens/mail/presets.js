@@ -13,7 +13,7 @@ export const SMTP_PRESETS = [
     description: "Google 계정의 앱 비밀번호로 보냅니다.",
     help: "Google 계정 › 보안 › 2단계 인증 › 앱 비밀번호에서 16자리 앱 비밀번호를 만들어 비밀번호 칸에 넣으세요. 계정 비밀번호는 쓸 수 없습니다.",
     link: { label: "앱 비밀번호 발급 안내", url: "https://myaccount.google.com/apppasswords" },
-    from_note: "보내는 주소는 그 Google 계정 주소입니다. 다른 주소를 적어도 Gmail 이 계정 주소로 바꿔 보냅니다.",
+    from_note: "보내는 주소는 그 Google 계정 주소입니다. 다른 주소를 적어도 Gmail이 계정 주소로 바꿔 보냅니다.",
   },
   {
     key: "m365", label: "Microsoft 365", host: "smtp.office365.com", port: 587, security: "starttls",

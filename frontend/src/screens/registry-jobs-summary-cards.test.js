@@ -12,6 +12,8 @@ import { FILTER_GROUP_ORDER, filterGroupOf } from "../ui/FilterBar.jsx";
  * qa-contract-change: 관리자 요약 규칙(D-501)으로 「실행 가능(ready)」은 대기와 수가 다를 때만 서고(같으면 같은 사실을 두 번 말한다),
  * 「가장 오래된 대기」는 반폭 측정 판이 아니라 카드 머리의 경보 칩(role risk)이 됐다. 전체는 겹치지 않는 상태 다섯의 합이다. 기존 카드
  * 목록 단언은 대기와 실행 가능이 갈리는 입력으로 옮겼고, 세 규칙을 각각 새로 잰다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 function ctx() {
   return { setFilter: vi.fn() };
@@ -38,15 +40,15 @@ describe("작업 큐 요약 카드 — 최근 24시간 신호 (VIS-120)", () => 
 
   it("평균 처리 시간이 60초 미만이면 초 단위로, 이상이면 분+초로 보여준다", () => {
     const fast = REGISTRY.jobs.summary.cards({ ...base, avg_processing_seconds_24h: 12.3 }, ctx());
-    expect(fast.find((c) => c.label === "평균 처리 시간(24h)").value).toBe("12.3초");
+    expect(fast.find((c) => c.label === "평균 처리 시간(최근 24시간)").value).toBe("12.3초");
 
     const slow = REGISTRY.jobs.summary.cards({ ...base, avg_processing_seconds_24h: 125 }, ctx());
-    expect(slow.find((c) => c.label === "평균 처리 시간(24h)").value).toBe("2분 5초");
+    expect(slow.find((c) => c.label === "평균 처리 시간(최근 24시간)").value).toBe("2분 5초");
   });
 
   it("평균 처리 시간을 잴 성공 이력이 없으면 0초가 아니라 null을 낸다(카드 아래 줄에 서지 않는다)", () => {
     const cards = REGISTRY.jobs.summary.cards({ ...base, avg_processing_seconds_24h: null }, ctx());
-    expect(cards.find((c) => c.label === "평균 처리 시간(24h)").value).toBeNull();
+    expect(cards.find((c) => c.label === "평균 처리 시간(최근 24시간)").value).toBeNull();
   });
 
   it("두 카드 다 큐 깊이 카드 옆에 추가될 뿐, 기존 큐 깊이 카드를 안 지운다", () => {
@@ -55,8 +57,8 @@ describe("작업 큐 요약 카드 — 최근 24시간 신호 (VIS-120)", () => 
     );
     const labels = cards.map((c) => c.label);
     expect(labels).toEqual(expect.arrayContaining([
-      "대기", "실행 중", "실행 가능(ready)", "실패", "완료", "취소됨",
-      "최근 24시간 실패", "평균 처리 시간(24h)",
+      "대기", "실행 중", "실행 가능", "실패", "완료", "취소됨",
+      "최근 24시간 실패", "평균 처리 시간(최근 24시간)",
     ]));
   });
 });
@@ -67,10 +69,10 @@ describe("작업 큐 요약 — 한 사실 한 자리 (D-501)", () => {
 
   it("실행 가능은 대기와 같은 수면 서지 않는다 — 「대기 7」 옆 「실행 가능 7」은 같은 사실이다", () => {
     const same = REGISTRY.jobs.summary.cards({ ...base, queued: 7, ready: 7 }, ctx());
-    expect(same.map((c) => c.label)).not.toContain("실행 가능(ready)");
+    expect(same.map((c) => c.label)).not.toContain("실행 가능");
     // 반례 — 예정 시각이 아직 안 온 대기가 있으면 실행 가능은 새 사실이라 경보 칩으로 선다.
     const differs = REGISTRY.jobs.summary.cards({ ...base, queued: 7, ready: 5 }, ctx());
-    const ready = differs.find((c) => c.label === "실행 가능(ready)");
+    const ready = differs.find((c) => c.label === "실행 가능");
     expect(ready.value).toBe(5);
     expect(ready.role).toBe("risk");
   });
@@ -115,7 +117,7 @@ describe("작업 큐 필터 줄 순서 (D-501)", () => {
       .map((f, i) => ({ f, i }))
       .sort((a, b) => (rank(a.f) - rank(b.f)) || (a.i - b.i))
       .map((x) => x.f.label);
-    expect(ordered).toEqual(["유형", "상태", "연결된 스케줄", "실행 건 ID"]);
+    expect(ordered).toEqual(["유형", "상태", "연결된 실행 일정", "실행 건 ID"]);
   });
 
   it("연결된 스케줄은 여전히 이름으로 고르는 칸이다 — 순서만 옮겼다", () => {

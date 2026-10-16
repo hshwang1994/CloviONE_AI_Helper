@@ -35,9 +35,9 @@ const STATUS_KIND = {
 export const MAIL_KIND_LABEL = {
   invite: "계정 초대",
   password_reset: "비밀번호 재설정",
-  approval_requested: "결재 요청 알림",
+  approval_requested: "승인 요청 알림",
   backup_failed: "백업 실패 알림",
-  test: "발송 시험",
+  test: "시험 메일",
   notification: "알림 메일",
   notify_email_verification: "주소 확인 코드",
 };
@@ -66,7 +66,7 @@ function reasonOf(r) {
 export const MAIL_DELIVERIES = {
   key: "mail-deliveries", area: "운영", title: "발송 기록", endpoint: "/api/admin/mail/deliveries",
   help: "이 포털이 보낸 메일과 보내지 못한 메일을 모두 봅니다. 「서버가 접수함」은 다음 메일 서버가 받았다는 뜻이고 받은 편지함 도착은 아닙니다. 접수 뒤에 오는 반송 메일은 보내는 주소의 메일함으로 갑니다.",
-  emptyTitle: "아직 보낸 메일이 없습니다",
+  emptyTitle: "아직 보낸 메일이 없습니다.",
   emptyHelp: "초대, 비밀번호 재설정, 승인 요청, 백업 실패, 알림 메일이 나가기 시작하면 여기에 쌓입니다.",
   selectKey: "delivery",
   paginated: true, pageSize: 50,
@@ -114,7 +114,7 @@ export const MAIL_DELIVERIES = {
       render: (r) => (r.relay
         ? [remoteOf(r) || "-", r.relay.remote_sentence, r.relay.remote_checked_at ? "최근 확인 " + fmtDateTimeCompact(r.relay.remote_checked_at) : null]
           .filter(Boolean).join(" ")
-        : "외부 SMTP 로 보냈습니다. 메일 서버가 접수한 뒤의 일은 추적하지 않습니다."),
+        : "외부 SMTP로 보냈습니다. 메일 서버가 접수한 뒤의 일은 추적하지 않습니다."),
     },
     { key: "failure_kind", label: "실패 종류", render: (r) => FAILURE_KIND_LABEL[r.failure_kind] || (r.failure_kind || "-") },
     { key: "failure_stage", label: "실패 단계", render: (r) => r.failure_stage_label || "-" },

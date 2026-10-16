@@ -49,8 +49,8 @@ const MOUNT_KO = {
   ok: "쓸 수 있음",
   missing: "경로 없음",
   not_dir: "디렉터리 아님",
-  not_mounted: "안 붙어 있음",
-  wrong_fstype: "다른 종류",
+  not_mounted: "마운트되지 않음",
+  wrong_fstype: "다른 파일 시스템",
   unreadable: "읽지 못함",
 };
 
@@ -71,16 +71,16 @@ const CREATE_FIELDS = [
     options: [{ value: "LOCAL", label: "로컬 디스크" }, { value: "NFS", label: "NFS" }, { value: "SMB", label: "SMB" }] },
   { name: "base_path", label: "경로", type: "text", required: true, help: PATH_HELP },
   { name: "mount_point", label: "마운트 지점", type: "text",
-    help: "NFS, SMB 는 반드시 적습니다. 로컬 디스크는 비웁니다." },
+    help: "NFS와 SMB는 반드시 적습니다. 로컬 디스크는 비워 둡니다." },
   { name: "source", label: "원본", type: "text",
-    help: "NFS 는 nas.example:/export, SMB 는 //nas.example/share 형식입니다." },
+    help: "NFS는 nas.example:/export, SMB는 //nas.example/share 형식입니다." },
   { name: "options", label: "마운트 옵션", type: "text" },
   // 비밀번호를 여기 적지 않는다는 사실은 입력 옆에 있어야 한다 — 폼을 채우는 사람이
   // 그 순간 실제로 값을 붙여 넣으려 하기 때문이다(불변규칙 §6-3).
   { name: "credentials_ref", label: "인증 정보 이름", type: "text",
     help: "서버 secrets 디렉터리의 파일 이름입니다. 비밀번호 자체를 적지 않습니다." },
   { name: "enabled", label: "사용", type: "checkbox", value: false,
-    checkLabel: "사용(먼저 추가하고 ‘지금 확인’으로 붙어 있는지 본 뒤 켤 수 있습니다)" },
+    checkLabel: "사용(먼저 추가하고 ‘상태 확인’으로 마운트되었는지 본 뒤 활성화할 수 있습니다)" },
 ];
 
 // 수정은 역할과 종류를 안 바꾼다 — 백엔드 `ProviderUpdate` 도 그 둘을 안 받는다. 이미
@@ -97,7 +97,7 @@ const EDIT_FIELDS = [
 
 function mountText(row) {
   const state = row.mount || {};
-  return MOUNT_KO[state.status] || state.status || "알 수 없습니다";
+  return MOUNT_KO[state.status] || state.status || "알 수 없음";
 }
 
 /** 용량 한 칸. 셋 다 못 읽는 환경(statvfs 없는 개발 머신)에서는 «모른다» 고 말한다. */
@@ -188,12 +188,12 @@ export function StorageProviders({ embedded = false }) {
   const toggle = useMutation({
     mutationFn: ({ id, enabled }) => api("/api/storage/providers/" + id, { method: "PATCH", body: { enabled } }),
     onSuccess: (_res, vars) => {
-      toast(vars.enabled ? "사용으로 바꿨습니다." : "사용 안 함으로 바꿨습니다.", "success");
+      toast(vars.enabled ? "저장소를 활성화했습니다." : "저장소를 비활성화했습니다.", "success");
       refresh();
     },
   });
   /* 확인 · 사용 전환의 실패는 표 바로 아래에 남는다 — 가장 나중에 누른 동작 하나만 말한다. */
-  const rowFailure = failureText([probe, "확인하지 못했습니다."], [toggle, "바꾸지 못했습니다."]);
+  const rowFailure = failureText([probe, "저장소 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."], [toggle, "저장소 설정을 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요."]);
 
   const data = query.data || {};
   const rows = data.providers || [];
@@ -220,7 +220,7 @@ export function StorageProviders({ embedded = false }) {
     { key: "enabled", label: "사용", type: "status", render: (r) => <Badge value={r.enabled ? "사용" : "사용 안 함"} kind={r.enabled ? "ok" : "neutral"} /> },
     { key: "base_path", label: "경로", type: "text" },
     { key: "capacity", label: "사용량", type: "number",
-      help: "이 경로가 올라앉은 파일시스템의 사용량과 전체 용량입니다.",
+      help: "이 경로가 있는 파일 시스템의 사용량과 전체 용량입니다.",
       render: capacityText },
     /* 행 동작은 `RowActions` 다 — 셋이라 30 「더 보기」 하나로 접힌다(핸드오프 RULES §5 · 조합 계약 C-4). 예전에는 34
        아이콘 단추가 행 높이를 밀었다. */
@@ -228,11 +228,11 @@ export function StorageProviders({ embedded = false }) {
       <RowActions
         ariaLabel={r.name + " 작업"}
         actions={[
-          { key: "probe", label: "지금 확인", disabled: busy, onClick: () => probe.mutate(r.id) },
+          { key: "probe", label: "상태 확인", disabled: busy, onClick: () => probe.mutate(r.id) },
           { key: "edit", label: "수정", disabled: busy, onClick: () => { setConflicted(false); setEditing(r); } },
           {
             key: "toggle",
-            label: r.enabled ? "사용 안 함으로" : "사용으로",
+            label: r.enabled ? "비활성화" : "활성화",
             // 운영 저장소를 끄면 업로드가 그 순간부터 실패한다 — 확인 문구가 그 파급을
             // 말해야 한다(연동 비활성화와 같은 관용).
             variant: r.enabled ? "danger" : undefined,
@@ -241,10 +241,10 @@ export function StorageProviders({ embedded = false }) {
               const ok = await confirm(
                 r.enabled
                   ? (r.role === "OPERATIONAL"
-                      ? "이 저장소를 사용 안 함으로 바꾸면 새 파일 업로드가 실패합니다. 계속할까요?"
-                      : "이 저장소를 사용 안 함으로 바꿀까요? 이 자리로 보내던 백업 사본이 멈춥니다.")
-                  : "이 저장소를 사용으로 바꿀까요?",
-                { danger: r.enabled, title: r.enabled ? "사용 안 함" : "사용", confirmLabel: r.enabled ? "사용 안 함" : "사용" }
+                      ? "이 저장소를 비활성화하면 새 파일 업로드가 실패합니다. 계속할까요?"
+                      : "이 저장소를 비활성화할까요? 이 저장소로 보내던 백업 사본이 멈춥니다.")
+                  : "이 저장소를 활성화할까요?",
+                { danger: r.enabled, title: r.enabled ? "비활성화" : "활성화", confirmLabel: r.enabled ? "비활성화" : "활성화" }
               );
               if (ok) toggle.mutate({ id: r.id, enabled: !r.enabled });
             },
@@ -279,9 +279,9 @@ export function StorageProviders({ embedded = false }) {
             <EmptyState
               layout="page"
               art="settings"
-              title="등록된 파일 저장소가 없습니다"
+              title="등록된 파일 저장소가 없습니다."
               help="파일 저장소를 추가하면 업로드한 파일과 백업이 쌓이는 자리를 여기서 관리할 수 있습니다."
-              situation="설치기가 기본 저장소를 만들어 둡니다. 하나도 없다면 설치가 끝나지 않았거나 행이 지워진 것입니다."
+              situation="설치기가 기본 저장소를 만들어 둡니다. 하나도 없다면 설치가 끝나지 않았거나 저장소 설정이 삭제된 것입니다."
               action={embedded ? addButton : null}
             />
           ) : (
@@ -315,7 +315,7 @@ export function StorageProviders({ embedded = false }) {
                   {probed.mount && probed.mount.detail ? " " + probed.mount.detail : ""}
                   {/* 안 붙어 있을 때 다음에 칠 명령을 준다. 유닛 이름은 이 응답에만 있다. */}
                   {!probed.writable && probed.mount_unit
-                    ? " 서버에서 systemctl start " + probed.mount_unit + " 로 붙일 수 있습니다."
+                    ? " 서버에서 systemctl start " + probed.mount_unit + " 로 마운트할 수 있습니다."
                     : ""}
                 </Callout>
               ) : null}

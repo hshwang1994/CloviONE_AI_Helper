@@ -13,6 +13,8 @@ import "@testing-library/jest-dom/vitest";
  *     9시간 어긋나 첫날/마지막날 실행이 통째로 빠진다.
  *   - 지난 실행과 앞으로의 예정을 **눈으로 구별**할 수 있다(색만이 아니라 표기로).
  *   - 서버가 "잘렸다"고 하면 그 사실을 숨기지 않는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -152,7 +154,7 @@ describe("실행 달력", () => {
   it("일정이 하나도 없으면 만들라고 안내한다", async () => {
     mockApi(() => Promise.resolve(body({ schedules: [] })));
     renderCalendar();
-    expect(await screen.findByText("추가된 실행 일정이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("등록된 실행 일정이 없습니다.")).toBeInTheDocument();
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
   });
 
@@ -163,7 +165,7 @@ describe("실행 달력", () => {
       items: [], schedules: [{ id: "s-1", name: "매일 리포트", enabled: false, timezone: "Asia/Seoul" }],
     })));
     renderCalendar();
-    expect(await screen.findByText("예정된 실행이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("예정된 실행이 없습니다.")).toBeInTheDocument();
     expect(screen.getByText(/등록된 일정 1개가 모두 비활성 상태입니다/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "실행 일정에서 활성화" })).toHaveAttribute("href", "#/schedules");
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
@@ -179,7 +181,7 @@ describe("실행 달력", () => {
     })));
     renderCalendar();
     expect(await screen.findByRole("grid")).toBeInTheDocument();
-    expect(screen.queryByText("예정된 실행이 없습니다")).not.toBeInTheDocument();
+    expect(screen.queryByText("예정된 실행이 없습니다.")).not.toBeInTheDocument();
   });
 });
 
@@ -249,7 +251,7 @@ describe("실행 상세의 재시도 액션 (M9)", () => {
     const cancelBtn = await screen.findByRole("button", { name: "취소" });
     await userEvent.click(cancelBtn);
     // 되돌릴 수 없는 부수효과(대기/실행 중인 작업을 실제로 중단)라 확인창을 거친다.
-    const buttons = await screen.findAllByRole("button", { name: "취소하기" });
+    const buttons = await screen.findAllByRole("button", { name: "예약 실행 취소" });
     await userEvent.click(buttons[buttons.length - 1]);
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith(
       "/api/admin/schedules/runs/r-1/cancel",

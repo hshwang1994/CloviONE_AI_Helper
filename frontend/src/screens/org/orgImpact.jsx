@@ -112,7 +112,7 @@ export function DeptDeleteDialog({ dept, open, onClose, onDeleted, onDeactivate,
       key="blocked"
       onCancel={onClose} cancelLabel="닫기"
       onSubmit={dept && dept.active && onDeactivate ? () => { onClose(); onDeactivate(); } : undefined}
-      submitLabel="비활성화하기" submitVariant="default"
+      submitLabel="비활성화" submitVariant="default"
     />
   );
   return (
@@ -126,7 +126,7 @@ export function DeptDeleteDialog({ dept, open, onClose, onDeleted, onDeactivate,
               <Box sx={{ display: "grid", gap: 1.5 }}>
                 {detach.length ? (
                   <>
-                    <Typography sx={KO_WORD_BREAK}>삭제하면 아래 연결은 끊고 그대로 둡니다.</Typography>
+                    <Typography sx={KO_WORD_BREAK}>삭제하면 아래 항목은 이 부서와의 연결만 끊기고 그대로 남습니다.</Typography>
                     <ImpactLines items={detach} />
                   </>
                 ) : null}
@@ -180,14 +180,14 @@ export function DeptDeactivateDialog({ dept, open, onClose }) {
           ].filter((k) => k.count);
           return (
             <Box sx={{ display: "grid", gap: 1.5 }}>
-              <Typography sx={KO_WORD_BREAK}>비활성화하면 이 부서에 새로 사람을 배치하거나 하위 부서를 만들 수 없습니다.</Typography>
+              <Typography sx={KO_WORD_BREAK}>비활성화하면 이 부서에 새로 사람을 배치하거나 하위 부서를 추가할 수 없습니다.</Typography>
               {kept.length ? (
                 <>
                   <Typography sx={KO_WORD_BREAK}>지금 연결된 것은 그대로 남습니다.</Typography>
                   <ImpactLines items={kept} />
                 </>
               ) : null}
-              <Typography color="text.secondary" sx={KO_WORD_BREAK}>「다시 사용」으로 언제든 되돌릴 수 있습니다.</Typography>
+              <Typography color="text.secondary" sx={KO_WORD_BREAK}>「활성화」로 언제든 되돌릴 수 있습니다.</Typography>
             </Box>
           );
         }}
@@ -224,7 +224,7 @@ export function OrgSuspendDialog({ org, open, onClose }) {
               {s.exempt_system_admins ? (
                 <Typography sx={KO_WORD_BREAK}>시스템 관리자 {countText(s.exempt_system_admins, "명")}은 로그아웃되지 않습니다.</Typography>
               ) : null}
-              <Typography color="text.secondary" sx={KO_WORD_BREAK}>사용자와 부서 데이터는 지워지지 않으며 「다시 사용」으로 되돌릴 수 있습니다.</Typography>
+              <Typography color="text.secondary" sx={KO_WORD_BREAK}>사용자와 부서 데이터는 지워지지 않으며 「활성화」로 되돌릴 수 있습니다.</Typography>
             </Box>
           );
         }}
@@ -238,9 +238,9 @@ export function OrgDetailsDialog({ open, onClose, item, kind, childCount }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(item.id);
-      toast("ID 를 복사했습니다.");
+      toast("ID를 복사했습니다.");
     } catch (e) {
-      toast("복사하지 못했습니다. ID 를 직접 골라 복사하세요.");
+      toast("복사하지 못했습니다. ID를 직접 골라 복사하세요.");
     }
   };
   if (!item) return null;

@@ -21,7 +21,7 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js
 const STEPS_FOUR_REM = 40;
 const STEPS_SEVEN_REM = 82;
 
-export const STEP_STATE_LABEL = { done: "끝남", current: "지금 할 일", todo: "아직", blocked: "막힘" };
+export const STEP_STATE_LABEL = { done: "끝남", current: "지금 할 일", todo: "아직 안 함", blocked: "막힘" };
 
 /* 작은 글자는 강한 쪽 잉크다 — `primary.main` 은 두 모드가 같은 값이라 어두운 면 위 「지금 할 일」이 2.54:1 이었다(캡처 m4-1 대비
    프로브). `primary.dark` 는 모드마다 강한 쪽으로 민 값이다(light 는 더 어둡게, dark 는 더 밝게). */

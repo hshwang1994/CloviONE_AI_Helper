@@ -11,7 +11,9 @@ import "@testing-library/jest-dom/vitest";
  * 「설정 JSON 에 칸 이름을 적지 않는다」로 옮긴다.
  * qa-contract-change: 메일 서버 설정(`smtp`)은 이제 메일 화면의 설정 탭이 전용 API 로 다루고(D-548) 이 편집기에서 걷었다 - smtp 묶음의
  * 단언(칸 이름 · 보안 연결 값 · 비밀번호는 비밀 저장 API 로만 · 인증서 확인)은 `screens/mail/mail-screen.test.jsx` 와
- * `tests/integration/test_mail_settings_api.py` 로 옮겼다. */
+ * `tests/integration/test_mail_settings_api.py` 로 옮겼다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ */
 const apiMock = vi.fn();
 vi.mock("../../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
 
@@ -113,7 +115,7 @@ describe("StructuredObjectFields — backup_schedule (지시 32 · 36)", () => {
     const odd = "*/15 9-18 * * 1-5";
     renderField("backup_schedule", JSON.stringify({ enabled: true, cron: odd, keep: 30 }));
     expect(screen.getByLabelText("주기")).toHaveValue("custom");
-    expect(screen.getByLabelText("cron 표현식")).toHaveValue(odd);
+    expect(screen.getByLabelText("Cron 식")).toHaveValue(odd);
   });
 
   it("잘못된 JSON 에도 크래시하지 않는다", () => {

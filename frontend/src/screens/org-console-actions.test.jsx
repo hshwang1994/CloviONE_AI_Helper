@@ -15,6 +15,8 @@ import "@testing-library/jest-dom/vitest";
  * 2) 부서 비활성화 창은 그대로 남는 것들의 수를 말한다 — 0명과 200명이 같은 경고를 받지 않는다.
  * 3) 지울 수 있는 부서는 확인 창(취소가 기본 초점, 채움 위험 「삭제」), 못 지우는 부서는 막는 항목과 그 화면 링크 + 「비활성화하기」.
  * 4) 화면의 채움(primary)은 판 머리의 추가 단추 하나이고, 그 단추가 동작 묶음의 오른쪽 끝이다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -196,7 +198,7 @@ describe("부서 동작", () => {
     expect(dlg.textContent).toContain("4명");
     expect(within(dlg).getByRole("link", { name: "사용자 보기" })).toHaveAttribute("href", "#/users?department_id=dep-sales");
     expect(within(dlg).queryByRole("button", { name: "삭제" })).toBeNull();
-    await userEvent.click(within(dlg).getByRole("button", { name: "비활성화하기" }));
+    await userEvent.click(within(dlg).getByRole("button", { name: "비활성화" }));
     expect(await screen.findByRole("dialog", { name: "영업팀을 비활성화하시겠습니까?" }, WAIT)).toBeInTheDocument();
     expect(apiMock.mock.calls.some(([p, o]) => o && o.method === "DELETE")).toBe(false);
   });
@@ -275,6 +277,6 @@ describe("화면의 채움", () => {
       .toBe("#/audit?object_type=organization&object_id=org-1");
     const del = within(menu).getByRole("menuitem", { name: "삭제" });
     expect(del).toHaveAttribute("aria-disabled", "true");
-    expect(del).toHaveAccessibleDescription("조직은 지울 수 없습니다. 비활성화하면 새 사용을 막을 수 있습니다.");
+    expect(del).toHaveAccessibleDescription("조직은 삭제할 수 없습니다. 대신 비활성화할 수 있습니다.");
   });
 });

@@ -33,7 +33,7 @@ export const NEXT_BUTTON = {
   login: "ChatGPT 로그인",
   paste: "주소 붙여 넣기",
   model: "모델 고르기",
-  enable: "AI 사용 켜기",
+  enable: "AI 사용 활성화",
 };
 /* 최근 성공 · 최근 확인 시각은 ⑥ 의 줄이다 — ① 의 띠에 한 번 더 세우지 않는다(D-501). 서버 사실의 **자리**만 고르고 글은 바꾸지
    않는다. */
@@ -204,7 +204,7 @@ export function AiChecks({ data, onVerify, verifying = false, problem = null, ti
               variant={primary ? "primary" : undefined} onClick={onVerify} loading={verifying}
               disabled={!canVerify || verifying}
             >
-              지금 확인
+              연결 확인
             </Button>
           )}
         />

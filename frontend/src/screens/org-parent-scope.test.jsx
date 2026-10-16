@@ -25,6 +25,8 @@ import "@testing-library/jest-dom/vitest";
  * 반례를 함께 잰다: 같은 조직의 부서는 그대로 후보이고 고른 값이 그대로 실려 나간다.
  * 후보를 조건에 따라 좁히는 것과, **없는 조합을 권하지 않는 것**은 다른 일이다. 미사용 부서도 새 상위가 될 수
  * 없다(xb-08) — 다만 수정 창에서 **지금** 상위 부서가 미사용이면 그 값은 후보에 남는다.
+
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -233,7 +235,7 @@ describe("부서 수정의 상위 부서 후보", () => {
 describe("정지된 조직에 부서를 만들 때", () => {
   it("창이 그 조직의 미사용 상태를 말한다 — 활성 조직의 창은 평소 안내 그대로다(org-17)", async () => {
     const dlg = await openCreate("/organizations?org=org-3", "묵은회사", "부서 추가", "묵은회사에 부서 추가");
-    expect(dlg.textContent).toContain("이 조직은 미사용 상태라 여기에 만든 부서는 조직을 다시 활성화할 때까지 아무도 쓸 수 없습니다.");
+    expect(dlg.textContent).toContain("이 조직은 미사용 상태라 여기에 추가한 부서는 조직을 다시 활성화할 때까지 아무도 쓸 수 없습니다.");
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull(), WAIT);
   });

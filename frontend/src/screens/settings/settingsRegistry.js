@@ -32,7 +32,7 @@ export const SETTING_LABELS = {
   // AI 관리(9-5). 이 표에서는 숨기지만(DEDICATED_SCREEN_KEYS) 라벨은 있어야 한다 -
   // 감사 로그와 버전 기록이 이 이름으로 나온다. 노션 데이터베이스 id 세 개가 여기 함께
   // 있었는데, 그 값을 읽는 제품 코드도 그 값을 고치던 화면도 없어져 라벨만 남았었다.
-  ai_generation_enabled: "AI 답변 생성",
+  ai_generation_enabled: "AI 사용",
   // 초기 설정 화면에서 고른다(SETUP_SCREEN_KEYS). 라벨은 감사와 버전 기록에 쓰인다.
   setup_optional_choices: "초기 설정의 선택 기능",
   ai_provider: "AI 제공자",
@@ -42,13 +42,13 @@ export const SETTING_LABELS = {
   ai_max_concurrency: "AI 동시 실행 수",
   // ChatGPT 계정 연결의 토큰 수명 기본값(D-516). 제공자가 수명을 알려 주지 않을 때만 쓰는 값이라 AI 설정 화면의
   // 계정 연결 칸 아래에서만 다룬다.
-  ai_openai_access_ttl_fallback_seconds: "ChatGPT access token 기본 수명(초)",
+  ai_openai_access_ttl_fallback_seconds: "ChatGPT 접근 토큰 기본 수명(초)",
   ai_openai_refresh_ttl_fallback_days: "ChatGPT 갱신 토큰 기본 수명(일)",
   ai_token_refresh_lead_seconds: "토큰 미리 갱신 시간(초)",
   // AI 기능 스위치 셋(D-507) — 파일 소유에서 DB 설정으로 옮기면서 이 표에 들어왔다.
-  chat_enabled: "AI 채팅",
+  chat_enabled: "AI 도우미",
   game_ai_enabled: "게임 퀴즈 AI",
-  assistant_narrative_enabled: "홈 AI 문장 요약",
+  assistant_narrative_enabled: "홈 문장 요약",
   // 알림을 메일로도 보내기(계획 3.4). 메일 발송 화면에서 다룬다(MAIL_SCREEN_KEYS). 라벨은 감사와 버전 기록에 쓰인다.
   mail_notification_types: "메일로 보내는 알림",
   mail_notification_max_age_days: "오래된 메일 기준(일)",
@@ -65,14 +65,14 @@ export const OBJECT_SCHEMA_HELP = {
   session_policy: 'JSON 예: {"idle_timeout_seconds": 1800, "absolute_timeout_seconds": 28800}, 값은 초 단위입니다(30분=1800, 8시간=28800).',
   lockout_policy: 'JSON 예: {"max_failures": 5, "lock_seconds": 900}, max_failures(연속 로그인 실패 몇 회 만에 잠글지, 1~20), lock_seconds(잠금 유지 시간, 초 단위, 60~86400).',
   // 백엔드(_email_domains)는 빈 목록([])을 '도메인 제한 없음'으로 허용한다(round10 감사 C 반영).
-  allowed_email_domains: 'JSON 예: ["example.com"], **계정을 새로 추가할 때** 허용할 이메일 도메인 목록입니다. 이미 있는 계정은 도메인을 좁혀도 계속 로그인합니다(로그인 검사가 아닙니다). 빈 목록([])이면 제한 없이 모든 이메일을 허용합니다.',
-  ui_branding: 'JSON 예: {"product_name": "ClovirONE", "support_email": "help@example.com"}, 제품명, 지원 이메일 등 브랜딩 값.',
+  allowed_email_domains: 'JSON 예: ["example.com"]. 계정을 새로 추가할 때 허용할 이메일 도메인 목록입니다. 이미 있는 계정은 도메인을 좁혀도 계속 로그인합니다(로그인 검사가 아닙니다). 빈 목록([])이면 제한 없이 모든 이메일을 허용합니다.',
+  ui_branding: 'JSON 예: {"product_name": "ClovirAssist", "support_email": "help@example.com"}. 제품명과 지원 이메일 같은 브랜딩 값입니다.',
   // 비밀번호를 이 JSON 에 넣으면 설정 화면·감사·버전 스냅샷에 평문으로 남는다. 그래서
   // 비밀번호는 이 값에 들어가지 않는다 - 메일 설정 화면의 비밀번호 칸이 따로 저장한다(계획 2.3).
   // 백엔드(_backup_schedule)가 **저장 시점에** cron·타임존을 검증한다 — 여기 예시는 그것과
   // 같은 모양이라야 한다(틀린 예시를 그대로 붙여 넣으면 저장이 거부된다).
   backup_schedule: 'JSON 예: {"enabled": true, "cron": "0 3 * * *", "timezone": "Asia/Seoul", "keep": 14, "keep_days": 7}, cron 은 분 시 일 월 요일(0 3 * * * = 매일 새벽 3시), keep 은 남길 백업 개수(1~365), keep_days 는 개수를 넘어도 남기는 기간(0~365일).',
-  mail_notification_types: 'JSON 예: ["ticket_assigned", "ticket_status_changed", "ticket_resolved"], 메일 발송 화면의 「메일로 보내는 알림」에서 고르는 것이 편합니다.',
+  mail_notification_types: 'JSON 예: ["ticket_assigned", "ticket_status_changed", "ticket_resolved"]. ‘메일’ 화면의 ‘알림 메일’ 탭에서 고르는 것이 편합니다.',
   setup_optional_choices: 'JSON 예: {"mail": "use", "llm": "unused", "tls": "app"}, 초기 설정 화면의 「사용하지 않음」과 「외부 프록시가 맡음」 단추로 고르는 것이 편합니다.',
 };
 // 값의 정본은 서버(app/core/authz.py)이고, 화면 쪽 사본은 lib/roles.js 한 곳이다(지시 21).
@@ -195,7 +195,7 @@ export function securityDowngradeWarning(setting, value) {
   if (setting.key === "allowed_email_domains") {
     // 빈 목록([])은 백엔드에서 '모든 도메인 허용'이라 로그인 제한이 통째로 풀린다.
     if (Array.isArray(value) && value.length === 0)
-      return "허용 이메일 도메인을 비우면 도메인 제한이 사라져 모든 이메일 도메인의 로그인이 허용됩니다. 계속할까요?";
+      return "허용 이메일 도메인을 비우면 도메인 제한이 사라져 어떤 이메일 도메인으로도 계정을 추가할 수 있습니다. 계속할까요?";
     return null;
   }
   if (setting.key === "password_policy") {
@@ -206,7 +206,7 @@ export function securityDowngradeWarning(setting, value) {
     if (value && cur.min_classes != null && value.min_classes != null && value.min_classes < cur.min_classes)
       reasons.push("문자 종류 수 " + cur.min_classes + " → " + value.min_classes);
     if (reasons.length)
-      return "비밀번호 정책을 약화합니다(" + reasons.join(", ") + "). 인증 강도가 낮아집니다, 계속할까요?";
+      return "비밀번호 정책을 약화합니다(" + reasons.join(", ") + "). 인증 강도가 낮아집니다. 계속할까요?";
     return null;
   }
   // 세션 제한 시간을 늘리는 것도 password_policy 약화·도메인 제한 해제와 같은 성격의 보안 완화다 —
@@ -227,8 +227,8 @@ export function securityDowngradeWarning(setting, value) {
     // 로그인된 모든 세션에 적용되고, 유휴 상태인 사용자는(저장한 관리자 자신 포함) 그 자리에서
     // 로그아웃될 수 있다 — 늘릴 때만 확인받고 줄일 때는 조용히 저장되던 것이 비대칭이었다.
     if (value && cur.idle_timeout_seconds != null && value.idle_timeout_seconds != null && value.idle_timeout_seconds < cur.idle_timeout_seconds) {
-      return "유휴 제한을 " + fmtDuration(cur.idle_timeout_seconds) + " → " + fmtDuration(value.idle_timeout_seconds)
-        + " 로 줄입니다. 신규 세션부터가 아니라 저장 즉시 이미 로그인된 모든 세션에 적용되어, "
+      return "유휴 제한을 줄입니다( " + fmtDuration(cur.idle_timeout_seconds) + " → " + fmtDuration(value.idle_timeout_seconds)
+        + " ). 새 세션부터가 아니라 저장 즉시 이미 로그인된 모든 세션에 적용되어, "
         + "유휴 상태인 사용자는(나 자신 포함) 그 자리에서 로그아웃될 수 있습니다. 계속할까요?";
     }
     return null;
@@ -243,7 +243,7 @@ export function securityDowngradeWarning(setting, value) {
     if (value && cur.lock_seconds != null && value.lock_seconds != null && value.lock_seconds < cur.lock_seconds)
       reasons.push("잠금 시간 " + fmtDuration(cur.lock_seconds) + " → " + fmtDuration(value.lock_seconds));
     if (reasons.length)
-      return "계정 잠금 정책을 완화합니다(" + reasons.join(", ") + "). 무차별 대입(브루트포스) 공격에 더 취약해집니다, 계속할까요?";
+      return "계정 잠금 정책을 완화합니다(" + reasons.join(", ") + "). 무차별 대입(브루트포스) 공격에 더 취약해집니다. 계속할까요?";
     return null;
   }
   return null;

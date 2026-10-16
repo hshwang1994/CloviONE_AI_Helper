@@ -178,7 +178,7 @@ export function MailScreen() {
     mutationFn: () => api("/api/admin/mail/resend-unconfigured", { method: "POST" }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: MAIL_STATUS_KEY });
-      toast(`쌓여 있던 메일 ${(res && res.queued) || 0}건을 다시 보낼 차례에 넣었습니다.`, "success");
+      toast(`쌓여 있던 메일 ${(res && res.queued) || 0}건을 발송 대기열에 다시 넣었습니다.`, "success");
     },
   });
 

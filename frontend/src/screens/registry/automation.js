@@ -19,7 +19,7 @@ export const AUTOMATION_SCREENS = {
     smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
     key: "schedules", area: "자동화와 연동", title: "실행 일정", endpoint: "/api/admin/schedules",
     help: "정해진 시간에 자동 실행을 예약합니다.",
-    emptyTitle: "예약된 일정이 없습니다",
+    emptyTitle: "등록된 실행 일정이 없습니다.",
     // ?id=는 다른 화면(승인의 '대상 보기' 등)이 특정 스케줄로 딥링크할 때 쓴다 — 그 스케줄의
     // 상세 드로어를 곧바로 연다.
     onQuery: (p) => p.id
@@ -28,9 +28,9 @@ export const AUTOMATION_SCREENS = {
     selectKey: "schedule",
     // 생성 권한이 없는 역할(operator/auditor)에게는 없는 버튼('+ 스케줄 추가')을 누르라고 안내하지 않는다(백업 화면과 동일 패턴).
     emptyHelp: (role) => (role === "admin" || role === "system_admin")
-      ? "‘스케줄 추가’로 Cron 또는 1회 실행 일정을 추가해 시스템 작업을 자동 실행하세요."
+      ? "‘실행 일정 추가’로 Cron 또는 1회 실행을 예약해 시스템 작업을 자동으로 실행하세요."
       : "실행 일정은 관리자가 추가합니다. 추가되면 예약과 다음 실행 시각이 여기에 표시됩니다.",
-    createLabel: "스케줄 추가",
+    createLabel: "실행 일정 추가",
     // list_schedules(app/schedules/router.py)는 쿼리 파라미터를 전혀 받지 않는다(항상 전체 목록) —
     // clientFilter:true로 이미 받아 온 목록을 화면에서 직접 거른다.
     // 스케줄은 삭제/보관 엔드포인트가 없어 비활성·완료된 once형도 계속 목록에 남으므로, 활성만
@@ -87,23 +87,23 @@ export const AUTOMATION_SCREENS = {
       { name: "preset", label: "간편 주기(선택)", type: "select", value: "", options: SCHED_PRESET_OPTS, help: "고르면 Cron 식이 자동 생성됩니다. ‘사용 안 함’이면 아래 Cron 식/실행 시각을 직접 입력하세요." },
       // 이 폼은 유형(cron/once)에 따른 조건부 표시가 없다 — 두 필드가 항상 함께 보이므로, 각각 어느
       // 유형에서만 쓰이는지 help로 명시해 반대 유형의 값을 채우고 무시되는 걸 모르는 일을 줄인다.
-      { name: "cron_expression", label: "Cron 식", type: "text", help: "예: 0 9 * * 1 (매주 월 09:00). 간편 주기를 골랐으면 비워도 됩니다. (유형이 ‘1회 실행’이면 이 값은 쓰이지 않습니다.)" },
-      { name: "run_at", label: "실행 시각(1회형, ISO)", type: "text", help: "예: 2026-08-01T09:00:00+09:00, 시간대 표기가 없으면 UTC로 해석됩니다(KST면 +09:00을 붙이세요). (유형이 ‘Cron 반복’이면 이 값은 쓰이지 않습니다.)" },
-      { name: "timezone", label: "시간대", type: "text", value: "Asia/Seoul", help: "Cron 평가에 쓰이는 시간대(run_at에는 적용되지 않음)." },
+      { name: "cron_expression", label: "Cron 식", type: "text", help: "예: 0 9 * * 1 (매주 월 09:00). 간편 주기를 골랐으면 비워도 됩니다. 유형이 ‘1회 실행’이면 이 값은 쓰이지 않습니다." },
+      { name: "run_at", label: "실행 시각(1회형, ISO)", type: "text", help: "예: 2026-08-01T09:00:00+09:00. 시간대 표기가 없으면 UTC로 해석됩니다(KST면 +09:00을 붙이세요). 유형이 ‘Cron 반복’이면 이 값은 쓰이지 않습니다." },
+      { name: "timezone", label: "시간대", type: "text", value: "Asia/Seoul", help: "Cron 식을 계산할 때 쓰는 시간대입니다. 1회 실행 시각에는 적용되지 않습니다." },
       { name: "target_type", label: "대상 유형", type: "select", value: "system", options: SCHED_TARGET_OPTS },
       // 대상은 시스템 하나뿐이고 그 값도 하나뿐이다(백엔드 SYSTEM_TARGETS = {"noop"}).
       { name: "target_ref", label: "대상", type: "select", required: true, value: "noop",
         options: opt([["noop", "시스템 (noop)"]]),
         help: "지금 예약할 수 있는 대상은 시스템 작업 하나입니다." },
-      { name: "payload_template", label: "실행 입력값(JSON)", type: "json", help: "실행에 넘길 기본 입력값. 비우면 빈 값으로 실행됩니다." },
-      { name: "retry_policy", label: "재시도 정책(JSON)", type: "json", help: '예: {"max_attempts": 3}, 일시 오류 시 최대 재시도 횟수(1~10, 기본 3). app/schedules/scheduler.py가 이 값으로 재시도/백오프를 결정합니다.' },
+      { name: "payload_template", label: "실행 입력값(JSON)", type: "json", help: "실행에 넘길 기본 입력값입니다. 비우면 빈 값으로 실행됩니다." },
+      { name: "retry_policy", label: "재시도 정책(JSON)", type: "json", help: '예: {"max_attempts": 3}. 일시 오류가 나면 이 횟수까지 다시 시도합니다(1~10, 기본 3).' },
       // 기본값을 명시하지 않으면 FormModal이 null을 보내 백엔드(non-Optional str)가 422로 거절한다
       // → 모든 기본 경로 스케줄 생성이 실패했다. 백엔드 기본값(skip)과 맞춘다.
       { name: "misfire_policy", label: "누락 처리 정책", type: "select", value: "skip", options: MISFIRE_OPTS },
       { name: "concurrency_policy", label: "동시 실행 정책", type: "select", value: "skip", options: CONCURRENCY_OPTS },
-      { name: "timeout_seconds", label: "타임아웃(초)", type: "number" },
-      { name: "start_at", label: "시작 시각(ISO, 선택)", type: "text", help: "유효 기간의 시작. 예: 2026-08-01T00:00:00+09:00" },
-      { name: "end_at", label: "종료 시각(ISO, 선택)", type: "text", help: "유효 기간의 끝. 예: 2026-12-31T23:59:59+09:00" },
+      { name: "timeout_seconds", label: "제한 시간(초)", type: "number" },
+      { name: "start_at", label: "시작 시각(ISO, 선택)", type: "text", help: "유효 기간이 시작하는 시각입니다. 예: 2026-08-01T00:00:00+09:00" },
+      { name: "end_at", label: "종료 시각(ISO, 선택)", type: "text", help: "유효 기간이 끝나는 시각입니다. 예: 2026-12-31T23:59:59+09:00" },
     ] },
     // target_type·target_ref는 이제 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
     // end_at은 이제 목록 열이라 상세에서 중복 제거(드로어는 열+detailFields 합집합을 그린다).
@@ -112,7 +112,7 @@ export const AUTOMATION_SCREENS = {
     // 무관하게 예정 시각을 보여준다(비활성이면 라벨로 명시). 목록 열과 key가 겹치지 않게 별도 key.
     // 스케줄 ID 는 남긴다 — 감사 로그 필터(object_type=schedule)에 붙여 넣는 값이다.
     // 소유자는 서버가 이름을 함께 준다(app/schedules/router.py `_view`) — UUID 대신 그 이름을 쓴다.
-    detailFields: [field("id", "스케줄 ID"), personField("owner_user_id", "소유자", "owner_name", "owner_email"),
+    detailFields: [field("id", "일정 ID"), personField("owner_user_id", "소유자", "owner_name", "owner_email"),
       { key: "_next_run_scheduled", label: "다음 실행(예정)", render: (r) => r.next_run_at ? fmtDateTimeCompact(r.next_run_at) + (r.enabled ? "" : " (현재 비활성)") : "-" },
       field("description", "설명"), field("timezone", "시간대"), mapCol("misfire_policy", "누락 처리 정책", { skip: "건너뛰기", run_once: "한 번만 실행" }), mapCol("concurrency_policy", "동시 실행 정책", { skip: "건너뛰기", allow: "동시 실행 허용" }), field("timeout_seconds", "제한 시간(초)"), dateCol("start_at", "시작 시각"), dateCol("created_at", "생성 일자"), jsonField("payload_template", "실행 입력값"), jsonField("retry_policy", "재시도 정책")],
     actions: [
@@ -132,9 +132,9 @@ export const AUTOMATION_SCREENS = {
       // run-now는 비동기로 큐잉될 뿐이라 이 토스트 이후 결과를 알 방법이 없었다(목록엔 자동 갱신도
       // 상태 열도 없다) — 최소한 어디서 결과를 확인할지 명확히 안내한다.
       { label: "지금 실행", roles: OPS_ROLES, when: (r) => r.enabled, path: (r) => "/api/admin/schedules/" + r.id + "/run-now", confirm: "이 일정을 지금 한 번 실행할까요?",
-        result: (res) => ({ ok: true, msg: (res.deduplicated ? "이미 실행 중이라 중복 실행을 건너뛰었습니다." : "실행을 시작했습니다(비동기).") + " 결과는 ‘실행 이력’에서 확인하세요." }) },
+        result: (res) => ({ ok: true, msg: (res.deduplicated ? "이미 실행 중이라 중복 실행을 건너뛰었습니다." : "실행 요청을 대기열에 넣었습니다.") + " 결과는 ‘실행 이력’에서 확인하세요." }) },
       // 미리보기: 다음 실행 시각뿐 아니라 '실제로 보낼 페이로드'와 대상까지 안내 모달로 보여준다.
-      { label: "미리보기", roles: OPS_ROLES, path: (r) => "/api/admin/schedules/" + r.id + "/dry-run",
+      { label: "미리 보기", roles: OPS_ROLES, path: (r) => "/api/admin/schedules/" + r.id + "/dry-run",
         info: (res) => {
           const r0 = res || {};   // 빈/비-JSON 2xx면 api()가 null을 준다 — res.x 직접 접근은 throw
           const t = (r0.next_fire_times_utc || []).slice(0, 5).map(fmtDateTimeCompact);
@@ -148,14 +148,14 @@ export const AUTOMATION_SCREENS = {
           return lines.join("\n");
         } },
       { label: "실행 이력", subList: {
-        title: "스케줄 실행 이력",
+        title: "실행 이력",
         paginated: true,
         filters: [{ key: "status", type: "select", label: "결과", options: opt([["failed", "실패"], ["succeeded", "성공"], ["running", "실행 중"], ["queued", "대기"], ["skipped", "건너뜀"]]) }],
         endpoint: (r, p) => "/api/admin/schedules/" + r.id + "/runs?page=" + ((p && p.page) || 1) + (p && p.filters && p.filters.status ? "&status=" + encodeURIComponent(p.filters.status) : ""),
         // _run_view가 request_payload(실제로 보낸 값)도 돌려주는데 목록엔 전혀 없었다 — 실패 원인
         // 진단의 핵심 두 값(보낸 것/받은 것) 중 하나가 아예 안 보였다. 둘 다 진단용 요약으로 노출한다.
         columns: [dateCol("scheduled_at", "예정"), mapCol("status", "결과", SCHED_RUN), dateCol("started_at", "시작"), dateCol("finished_at", "종료"), col("retry_count", "재시도", "count"),
-          { key: "request_payload", label: "보낸 페이로드", type: "text", render: (r) => { const v = r.request_payload; if (v == null || v === "" || (typeof v === "object" && !Object.keys(v).length)) return "-"; const s = typeof v === "string" ? v : JSON.stringify(v); return s.length > 60 ? s.slice(0, 60) + "…" : s; } },
+          { key: "request_payload", label: "보낸 입력값", type: "text", render: (r) => { const v = r.request_payload; if (v == null || v === "" || (typeof v === "object" && !Object.keys(v).length)) return "-"; const s = typeof v === "string" ? v : JSON.stringify(v); return s.length > 60 ? s.slice(0, 60) + "…" : s; } },
           { key: "response_summary", label: "응답 요약", type: "text", render: (r) => { const v = r.response_summary; if (v == null || v === "") return "-"; const s = typeof v === "string" ? v : JSON.stringify(v); return s.length > 60 ? s.slice(0, 60) + "…" : s; } },
           // 건너뛴 실행(_record_skip, app/schedules/scheduler.py)은 error_message에 원문 영어 사유
           // 코드('misfire_skip'/'concurrent_run_active')를 그대로 담아 온다 — backupReasonText와 동일한
@@ -166,13 +166,13 @@ export const AUTOMATION_SCREENS = {
           // schedule_run_id를 손으로 찾는 것 말고는 길이 없었다. SubListDrawer의 rowActions는
           // navigate를 지원하지 않아(act()가 path()를 호출하는 mutation 전용) 컬럼 링크로 둔다.
           { key: "job_link", label: "작업 큐", type: "code", render: (r) => React.createElement(Link, { underline: "hover", href: "#/jobs?schedule_run_id=" + encodeURIComponent(r.id) }, "보기") }],
-        emptyTitle: "실행 이력이 없습니다", emptyHelp: "아직 이 일정이 실행된 적이 없습니다(또는 이 필터에 해당하는 기록이 없습니다).",
+        emptyTitle: "실행 이력이 없습니다.", emptyHelp: "이 일정이 아직 실행되지 않았거나 고른 결과에 맞는 기록이 없습니다.",
         rowActions: [
-          // 목록 열은 진단 핵심 두 값(보낸 페이로드/응답 요약)을 60자로 자른다 — 그 너머는 볼 방법이
+          // 목록 열은 진단 핵심 두 값(보낸 입력값/응답 요약)을 60자로 자른다 — 그 너머는 볼 방법이
           // 없었다. 이미 불러온 행 데이터를 그대로(전체 길이) 안내 모달로 보여준다(네트워크 호출 없음).
-          { label: "전체 보기", localInfo: (sub) => {
+          { label: "전체 내용 보기", localInfo: (sub) => {
               const fmt = (v) => (v == null || v === "" || (typeof v === "object" && !Object.keys(v).length)) ? "(없음)" : (typeof v === "string" ? v : JSON.stringify(v, null, 2));
-              const lines = ["보낸 페이로드:\n" + fmt(sub.request_payload), "\n응답 요약:\n" + fmt(sub.response_summary)];
+              const lines = ["보낸 입력값:\n" + fmt(sub.request_payload), "\n응답 요약:\n" + fmt(sub.response_summary)];
               if (sub.error_message) lines.push("\n오류:\n" + fmt(sub.error_message));
               return lines.join("\n");
             } },
@@ -216,7 +216,7 @@ export const AUTOMATION_SCREENS = {
       // 이미 실행된 once형은 next_run_at이 비어 있어 이 폼도 run_at을 빈 채로 연다(백엔드 _view가
       // next_run_at이 있을 때만 run_at을 돌려줌) — 그대로 저장하면 백엔드가 422('once 스케줄에는
       // run_at이 필요합니다')로 거절한다. 왜 비어 있는지·무엇을 채워야 하는지 여기서 미리 알린다.
-      { name: "run_at", label: "실행 시각(1회형, ISO)", type: "text", help: "시간대 표기가 없으면 UTC로 해석됩니다(KST면 +09:00). 유형이 ‘Cron 반복’이면 이 값은 쓰이지 않습니다. 이미 실행된 1회형 일정은 이 칸이 비어 있습니다. 다시 저장하려면 새 실행 시각을 입력하세요(비워 두면 저장이 거절됩니다)." },
+      { name: "run_at", label: "실행 시각(1회형, ISO)", type: "text", help: "시간대 표기가 없으면 UTC로 해석됩니다(KST면 +09:00). 유형이 ‘Cron 반복’이면 이 값은 쓰이지 않습니다. 이미 실행된 1회형 일정은 이 칸이 비어 있습니다. 다시 저장하려면 새 실행 시각을 입력하세요(비워 두면 저장할 수 없습니다)." },
       { name: "timezone", label: "시간대", type: "text" },
       { name: "target_type", label: "대상 유형", type: "select", options: SCHED_TARGET_OPTS },
       { name: "target_ref", label: "대상", type: "select", required: true,
@@ -226,11 +226,11 @@ export const AUTOMATION_SCREENS = {
         help: (row && row.target_ref && row.target_ref !== "noop")
           ? "이 일정은 지금 새로 고를 수 없는 대상을 가리킵니다. 지금 값을 그대로 두면 나머지를 고쳐 저장할 수 있고, 시스템 작업으로 바꾸면 되돌릴 수 없습니다."
           : "지금 예약할 수 있는 대상은 시스템 작업 하나입니다." },
-      { name: "payload_template", label: "실행 페이로드(JSON)", type: "json" },
-      { name: "retry_policy", label: "재시도 정책(JSON)", type: "json", help: '예: {"max_attempts": 3}, 일시 오류 시 최대 재시도 횟수(1~10, 기본 3).' },
+      { name: "payload_template", label: "실행 입력값(JSON)", type: "json" },
+      { name: "retry_policy", label: "재시도 정책(JSON)", type: "json", help: '예: {"max_attempts": 3}. 일시 오류가 나면 이 횟수까지 다시 시도합니다(1~10, 기본 3).' },
       { name: "misfire_policy", label: "누락 처리 정책", type: "select", options: MISFIRE_OPTS },
       { name: "concurrency_policy", label: "동시 실행 정책", type: "select", options: CONCURRENCY_OPTS },
-      { name: "timeout_seconds", label: "타임아웃(초)", type: "number" },
+      { name: "timeout_seconds", label: "제한 시간(초)", type: "number" },
       { name: "start_at", label: "시작 시각(ISO, 선택)", type: "text" },
       { name: "end_at", label: "종료 시각(ISO, 선택)", type: "text" },
     ] },
@@ -243,7 +243,7 @@ export const AUTOMATION_SCREENS = {
     // 예시로 드는 유형은 **실제로 큐에 들어가는 것**만이다(shared.js 의 JOB_TYPE 과 같은
     // 목록). 예전에는 「문서 생성」과 「Notion 동기화」를 들었는데 그 두 잡이 제품에서
     // 없어졌다 - 없는 기능을 예시로 들면 사용자는 그것을 찾다가 못 찾고 고장이라고 읽는다.
-    emptyTitle: "처리된 작업이 없습니다", emptyHelp: "채팅, 예약 실행, 메일 발송 같은 백그라운드 작업이 실행되면 처리 현황과 실패 내역이 여기에 표시됩니다.",
+    emptyTitle: "처리된 작업이 없습니다.", emptyHelp: "채팅, 예약 실행, 메일 발송 같은 백그라운드 작업이 실행되면 처리 현황과 실패 내역이 여기에 표시됩니다.",
     // 감사 로그·알림에서 특정 작업으로 딥링크할 때(?job_id=) 무필터 전체 목록 대신 그 작업의 상세
     // 드로어를 곧바로 연다 — GET /api/admin/jobs/{id}는 이미 pollJobUntilDone이 쓰는 엔드포인트다.
     // schedule_id/schedule_run_id는 그 반대 방향(FN-13/IA-02) — 스케줄 실행 이력이 "이 실행을
@@ -285,7 +285,7 @@ export const AUTOMATION_SCREENS = {
           // 대기와 **같은 수**면 서지 않는다 — 「대기 7」 옆 「실행 가능 7」은 같은 사실을 두 번 말하고,
           // 누르면 같은 조건으로 간다(D-501). 예정 시각이 아직 안 온 대기가 있을 때만 새 사실이다.
           ...(s.ready != null && s.ready !== s.queued
-            ? [{ value: s.ready, label: "실행 가능(ready)", role: "risk", kind: s.ready > 0 ? "warn" : undefined, onClick: () => ctx.setFilter("status", "queued") }]
+            ? [{ value: s.ready, label: "실행 가능", role: "risk", kind: s.ready > 0 ? "warn" : undefined, onClick: () => ctx.setFilter("status", "queued") }]
             : []),
           { value: s.failed != null ? s.failed : 0, label: "실패", kind: s.failed > 0 ? "danger" : undefined, onClick: () => ctx.setFilter("status", "failed") },
           { value: s.succeeded != null ? s.succeeded : 0, label: "완료", kind: "ok", onClick: () => ctx.setFilter("status", "succeeded") },
@@ -307,7 +307,7 @@ export const AUTOMATION_SCREENS = {
                 ? s.avg_processing_seconds_24h.toFixed(1) + "초"
                 : Math.floor(s.avg_processing_seconds_24h / 60) + "분 " + Math.round(s.avg_processing_seconds_24h % 60) + "초"
             ),
-            label: "평균 처리 시간(24h)", role: "measure",
+            label: "평균 처리 시간(최근 24시간)", role: "measure",
           },
         ];
         if (s.oldest_queued_at) {
@@ -345,7 +345,7 @@ export const AUTOMATION_SCREENS = {
          두 칸은 줄의 **뒤**에 선다(`group: "other"`, D-501). 큐를 훑는 사람이 먼저 고르는 것은 유형과 상태이고,
          이 둘은 대개 일정 화면의 링크가 채워 주는 좁히기다 — 그룹 순서(entity → 분류 → 상태)대로 두면 줄 맨
          앞이 「연결된 스케줄」 · 「실행 건 ID」였고 「상태」가 맨 끝이었다. */
-      { key: "schedule_id", type: "select", kind: "entity", label: "연결된 스케줄", optionsFromRefList: "schedules", group: "other" },
+      { key: "schedule_id", type: "select", kind: "entity", label: "연결된 실행 일정", optionsFromRefList: "schedules", group: "other" },
       { key: "schedule_run_id", type: "text", label: "실행 건 ID", group: "other",
         freeTextReason: "일정 하나에 종속된 값이라 전역 후보 목록이 없다. 실제 경로는 일정 상세의 크로스링크다." },
     ],
@@ -367,7 +367,7 @@ export const AUTOMATION_SCREENS = {
         const t = new Date(iso).getTime(); if (Number.isNaN(t)) return "-";
         const diff = Date.now() - t; if (diff <= 0) return "대기 중";
         const m = Math.floor(diff / 60000);
-        if (m < 1) return "지연 <1분"; if (m < 60) return "지연 " + m + "분";
+        if (m < 1) return "지연 1분 미만"; if (m < 60) return "지연 " + m + "분";
         return "지연 " + Math.floor(m / 60) + "시간 " + (m % 60) + "분";
       } },
       { key: "attempt_count", label: "시도", type: "count", sortable: true, render: (r) => r.max_attempts != null ? r.attempt_count + " / " + r.max_attempts : String(r.attempt_count) },
@@ -403,7 +403,7 @@ export const AUTOMATION_SCREENS = {
       // round30 감사 E에서 이 문제를 위해 추가됨) 프런트가 안 그렸을 뿐이다. schedule_run_id는
       // 개별 실행 건을 여는 화면이 따로 없어(스케줄 상세의 '실행 이력' 하위 목록만 있다)
       // 링크 대신 참조값으로만 보여준다 — 없는 화면으로 가짜 링크를 걸지 않는다.
-      { key: "schedule_id", label: "연결된 스케줄", render: (r) => r.schedule_id
+      { key: "schedule_id", label: "연결된 실행 일정", render: (r) => r.schedule_id
         ? React.createElement(Link, { underline: "hover", href: "#/schedules?id=" + encodeURIComponent(r.schedule_id) }, r.schedule_id) : "-" },
       { key: "schedule_run_id", label: "실행 건 ID", render: (r) => r.schedule_run_id || "-" },
       { key: "available_at_full", label: "실행 예정", render: (r) => fmtDateTimeCompact(r.available_at) },

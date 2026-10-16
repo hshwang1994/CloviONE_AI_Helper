@@ -10,7 +10,7 @@ import { CONSOLE_WRITE_ROLES } from "../../lib/roles.js";
 export const WRITE_ROLES = CONSOLE_WRITE_ROLES;
 export const isWriteRole = (role) => role != null && WRITE_ROLES.includes(role);
 // 쓰기 권한이 없을 때 버튼 옆에 남기는 이유 — 버튼을 숨기지 않는다(아래 Maintenance 주석 참고).
-export const NO_WRITE_REASON = "관리자, 시스템 관리자만 변경할 수 있습니다.";
+export const NO_WRITE_REASON = "관리자, 시스템 관리자만 바꿀 수 있습니다.";
 
 /* 작업 백로그 줄에서 가는 곳 — 작업 큐를 **그 상태로 걸러서** 연다(작업 큐는 주소의 `status` 를 필터로 읽는다).
    대시보드 경보 행(`Dashboard.jsx` 의 `JOBS_FAILED_TO` · `JOBS_QUEUED_TO` · `ACTION_LABEL`)과 같은 곳 · 같은 이름이다 —
@@ -26,7 +26,7 @@ export const JOBS_BACKLOG_LINKS = {
 // 4종(worker_conversational은 그 레인을 켠 적이 있는 설치에만 백엔드가 보낸다, app/health/
 // service.py::build_dashboard)과 외부 연동 4종을 아래 serviceLabel()이 함께 조회한다.
 export const SERVICE_LABELS = {
-  web: "웹 서버", worker: "백그라운드 작업", scheduler: "스케줄러", worker_conversational: "대화형 작업",
+  web: "웹 서버", worker: "백그라운드 작업", scheduler: "예약 실행", worker_conversational: "대화형 작업",
   notion: "Notion",
 };
 // 연동(Integration)은 관리자가 자유 텍스트로 이름을 만들 수 있어(§ Integrations 화면) SERVICE_LABELS의
@@ -319,7 +319,7 @@ export function healthVerdict(comps, disk, mem, certDays, jobs, integrations, ba
   // 보인다 — 색만 맞춘 것이지 모양까지 같지는 않다(여기는 Callout의 테두리 상자, Dashboard는 배지가
   // 든 테두리 없는 줄). 여러 화면이 '지금 조치할 문제 없음'을 완전히 같은 컴포넌트로 그리려면
   // Callout 자체를 그쪽 마크업으로 바꿔야 하는 별도 작업이라 여기서는 색조 일치까지만 보장한다.
-  if (!problems.length) return { tone: "success", problems, msg: "시스템 정상, 지금 확인이 필요한 항목이 없습니다." };
+  if (!problems.length) return { tone: "success", problems, msg: "시스템이 정상이고 조치가 필요한 항목이 없습니다." };
   // 다중 장애가 동시에 겹치면(문제가 여러 건) ', '로 이어붙인 한 줄 긴 문장은 훑어보기 어렵다 —
   // 요약 한 줄만 msg로 두고, 실제 항목은 (아래 렌더에서) 줄마다 나눠 보여준다.
   return { tone: danger ? "danger" : "warn", problems, msg: problems.length === 1 ? problems[0].msg : "주의 " + problems.length + "건" };

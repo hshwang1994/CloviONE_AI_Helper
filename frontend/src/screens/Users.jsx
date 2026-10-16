@@ -100,11 +100,11 @@ export function roleHelpText(row) {
   if (gains.length && row.compared_to) {
     const shown = gains.slice(0, 3).join(", ");
     const rest = gains.length > 3 ? ` 외 ${gains.length - 3}가지` : "";
-    parts.push(`${row.compared_to}에 더해 ${shown}${rest}를 할 수 있습니다.`);
+    parts.push(`${row.compared_to}에 더해 ${shown}${rest}도 할 수 있습니다.`);
   }
   const loses = Array.isArray(row.loses) ? row.loses : [];
   if (loses.length && row.compared_to) {
-    parts.push(`${row.compared_to}와 달리 ${loses.join(", ")}는 할 수 없습니다.`);
+    parts.push(`${row.compared_to}와 달리 ${loses.join(", ")} 권한이 없습니다.`);
   }
   return parts.join(" ");
 }
@@ -249,7 +249,7 @@ function TempPasswordModal({ data, onClose }) {
       if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
       copiedTimerRef.current = setTimeout(() => setCopied(""), 1500);
       toast("복사했습니다.", "success");
-    }, () => setCopyNotice({ tone: "danger", text: "복사 실패" }));
+    }, () => setCopyNotice({ tone: "danger", text: "복사하지 못했습니다. 직접 선택해 복사하세요." }));
     else setCopyNotice({ tone: "info", text: "복사를 지원하지 않는 환경입니다. 직접 선택해 복사하세요." });
   }
   const footer = (
@@ -463,7 +463,7 @@ export function Users() {
   const pwPolicy = (pwPolicyQ.data && pwPolicyQ.data.settings && pwPolicyQ.data.settings.password_policy && pwPolicyQ.data.settings.password_policy.value) || {};
   const pwMinLen = pwPolicy.min_length != null ? pwPolicy.min_length : 12;
   const pwMinClasses = pwPolicy.min_classes != null ? pwPolicy.min_classes : 3;
-  const pwHelp = "비우면 임시 비밀번호가 자동 생성되어 화면에 한 번 표시됩니다. 직접 입력 시 " + pwMinLen + "자 이상, 문자 종류(대/소문자, 숫자, 기호) " + pwMinClasses + "종 이상을 조합하세요.";
+  const pwHelp = "비우면 임시 비밀번호가 자동 생성되어 화면에 한 번 표시됩니다. 직접 입력하려면 " + pwMinLen + "자 이상, 문자 종류(대/소문자, 숫자, 기호) " + pwMinClasses + "종 이상을 조합하세요.";
   // 부서, 직책 드롭다운의 실패/미등록 상태를 폼 도움말로 노출한다(막다른 '없음'만 남는 문제).
   // 목적지 화면 이름만 언급하는 정적 텍스트였던 것을 실제로 누를 수 있는 링크로 바꾼다, 새 탭으로
   // 열어(target=_blank) 작성 중이던 사용자 추가/수정 폼(반쯤 채운 값)을 잃지 않고 부서/직책을 먼저
@@ -471,15 +471,15 @@ export function Users() {
   // React 노드도 받을 수 있다.
   const deptHelp = dept.isError ? (<>부서 목록을 불러오지 못했습니다. <LinkButton onClick={() => dept.refetch()}>다시 시도</LinkButton></>)
     : dept.isLoading ? "부서 목록을 불러오는 중…"
-    : dept.isEmpty ? (<>등록된 부서가 없습니다, <Link href="#/departments" target="_blank" rel="noreferrer noopener" underline="hover">‘부서 관리’에서 먼저 추가하세요</Link>(새 탭)</>)
-    : dept.isAllInactive ? (<>등록된 부서가 모두 비활성 상태입니다, <Link href="#/departments" target="_blank" rel="noreferrer noopener" underline="hover">‘부서 관리’에서 활성화하세요</Link>(새 탭)</>) : undefined;
+    : dept.isEmpty ? (<>등록된 부서가 없습니다. <Link href="#/departments" target="_blank" rel="noreferrer noopener" underline="hover">‘조직 관리’에서 먼저 추가하세요</Link>(새 탭)</>)
+    : dept.isAllInactive ? (<>등록된 부서가 모두 비활성 상태입니다. <Link href="#/departments" target="_blank" rel="noreferrer noopener" underline="hover">‘조직 관리’에서 활성화하세요</Link>(새 탭)</>) : undefined;
   const titleHelp = title.isError ? (<>직책 목록을 불러오지 못했습니다. <LinkButton onClick={() => title.refetch()}>다시 시도</LinkButton></>)
     : title.isLoading ? "직책 목록을 불러오는 중…"
-    : title.isEmpty ? (<>등록된 직책이 없습니다, <Link href="#/job-titles" target="_blank" rel="noreferrer noopener" underline="hover">‘직책 관리’에서 먼저 추가하세요</Link>(새 탭)</>)
-    : title.isAllInactive ? (<>등록된 직책이 모두 비활성 상태입니다, <Link href="#/job-titles" target="_blank" rel="noreferrer noopener" underline="hover">‘직책 관리’에서 활성화하세요</Link>(새 탭)</>) : undefined;
+    : title.isEmpty ? (<>등록된 직책이 없습니다. <Link href="#/job-titles" target="_blank" rel="noreferrer noopener" underline="hover">‘직책 관리’에서 먼저 추가하세요</Link>(새 탭)</>)
+    : title.isAllInactive ? (<>등록된 직책이 모두 비활성 상태입니다. <Link href="#/job-titles" target="_blank" rel="noreferrer noopener" underline="hover">‘직책 관리’에서 활성화하세요</Link>(새 탭)</>) : undefined;
   const orgHelp = org.isError ? (<>조직 목록을 불러오지 못했습니다. <LinkButton onClick={() => org.refetch()}>다시 시도</LinkButton></>)
     : org.isLoading ? "조직 목록을 불러오는 중…"
-    : org.isEmpty ? (<>등록된 조직이 없습니다, <Link href="#/organizations" target="_blank" rel="noreferrer noopener" underline="hover">‘조직 관리’에서 먼저 추가하세요</Link>(새 탭)</>)
+    : org.isEmpty ? (<>등록된 조직이 없습니다. <Link href="#/organizations" target="_blank" rel="noreferrer noopener" underline="hover">‘조직 관리’에서 먼저 추가하세요</Link>(새 탭)</>)
     : undefined;
   // 목록·CSV 내보내기가 **같은 필터 문자열**을 쓴다. 두 벌로 만들면 화면에 필터를 걸고
   // 내보낸 파일에 전 직원이 담기는 식으로 갈라지고, 그건 파일을 열기 전까지 아무도 모른다.
@@ -635,7 +635,7 @@ export function Users() {
   const roleRows = useRoleHelp(true);
 
   const createFields = [
-    { name: "email", label: "이메일", type: "email", required: true, help: "로그인 아이디로 쓰입니다." }, { name: "display_name", label: "이름", type: "text", required: true }, { name: "role", label: "역할", type: "select", value: "user", options: roleOptionsFor(actorRole, "create", ROLE_OPTS), help: <RoleHelp rows={roleRows} lead={actorRole === "system_admin" ? "관리자, 시스템 관리자 계정도 추가할 수 있습니다." : "관리자, 시스템 관리자 계정 추가는 시스템 관리자만 가능합니다."} /> }, { name: "department_id", label: "부서", type: "entity", value: "", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "entity", value: "", options: title.options, help: titleHelp }, { name: "password", label: "초기 비밀번호(선택)", type: "password", help: pwHelp }, { name: "active", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "비활성화하면 비활성 상태로 추가됩니다(로그인 불가). 나중에 상세에서 활성화할 수 있습니다." }, { name: "must_change_password", label: "다음 로그인 시 비밀번호 변경", type: "checkbox", value: true, checkLabel: "다음 로그인 시 바꾸게 한다", help: "켜 두면 이 사람은 다음 로그인 직후 비밀번호를 바꿀 때까지 다른 화면으로 갈 수 없습니다." }, ];
+    { name: "email", label: "이메일", type: "email", required: true, help: "로그인 아이디로 쓰입니다." }, { name: "display_name", label: "이름", type: "text", required: true }, { name: "role", label: "역할", type: "select", value: "user", options: roleOptionsFor(actorRole, "create", ROLE_OPTS), help: <RoleHelp rows={roleRows} lead={actorRole === "system_admin" ? "관리자, 시스템 관리자 계정도 추가할 수 있습니다." : "관리자, 시스템 관리자 계정은 시스템 관리자만 추가할 수 있습니다."} /> }, { name: "department_id", label: "부서", type: "entity", value: "", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "entity", value: "", options: title.options, help: titleHelp }, { name: "password", label: "초기 비밀번호(선택)", type: "password", help: pwHelp }, { name: "active", label: "활성", type: "checkbox", value: true, checkLabel: "활성", help: "비활성화하면 비활성 상태로 추가됩니다(로그인 불가). 나중에 상세에서 활성화할 수 있습니다." }, { name: "must_change_password", label: "다음 로그인 시 비밀번호 변경", type: "checkbox", value: true, checkLabel: "다음 로그인 때 비밀번호를 바꾸게 함", help: "선택하면 이 사람은 다음 로그인 직후 비밀번호를 바꿀 때까지 다른 화면으로 갈 수 없습니다." }, ];
   const editFields = [
     // required: 빈 이름으로 제출하면 서버는 display_name=null을 '변경 없음'으로 취급해 조용히
     // 아무것도 안 바꾼다(update_user는 not None일 때만 반영), 클라이언트에서 먼저 막아 저장됐다는
@@ -644,7 +644,7 @@ export function Users() {
       // 관리자 승인 흐름 안내는 system_admin이 아닌 행위자에게만 붙어 있었는데, 역할이 실제로
       // 바뀌면(어떤 역할로든) 이 사용자의 모든 세션이 즉시 강제 로그아웃된다(app/users/service.py
       // update_user, docs/USER_LIFECYCLE.md §3), 이 부작용은 actorRole과 무관하게 항상 적용되므로 별도로 안내한다.
-      name: "role", label: "역할", type: "select", options: roleOptionsFor(actorRole, "edit", ROLE_OPTS), help: <RoleHelp rows={roleRows} lead={(actorRole === "system_admin" ? "" : "관리자로 변경하면 승인 요청이 접수됩니다. ") + "역할이 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다."} />, }, { name: "department_id", label: "부서", type: "entity", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "entity", options: title.options, help: titleHelp }, { name: "must_change_password", label: "다음 로그인 시 비밀번호 변경", type: "checkbox", checkLabel: "다음 로그인 시 바꾸게 한다", help: "켜 두면 이 사람은 다음 로그인 직후 비밀번호를 바꿀 때까지 다른 화면으로 갈 수 없습니다." },
+      name: "role", label: "역할", type: "select", options: roleOptionsFor(actorRole, "edit", ROLE_OPTS), help: <RoleHelp rows={roleRows} lead={(actorRole === "system_admin" ? "" : "관리자로 변경하면 승인 요청이 접수됩니다. ") + "역할이 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다."} />, }, { name: "department_id", label: "부서", type: "entity", options: dept.options, help: deptHelp }, { name: "title_id", label: "직책", type: "entity", options: title.options, help: titleHelp }, { name: "must_change_password", label: "다음 로그인 시 비밀번호 변경", type: "checkbox", checkLabel: "다음 로그인 때 비밀번호를 바꾸게 함", help: "선택하면 이 사람은 다음 로그인 직후 비밀번호를 바꿀 때까지 다른 화면으로 갈 수 없습니다." },
       /* 관리 범위 (F2) — **부서 관리자를 만들 수 있는 유일한 입구**다.
        *
        * 모델(`users.admin_scope`)과 읽는 쪽(`app/core/scope.py`)은 0024 부터 있었는데
@@ -660,7 +660,7 @@ export function Users() {
       { name: "admin_scope", label: "관리 범위", type: "select", options: SCOPE_OPTS,
         showIf: (v) => v.role !== "user",
         help: "관리자가 관리 화면에서 볼 수 있는 범위입니다. 좁히면 그 범위 밖 사람과 자원이 목록에서 사라집니다. 범위가 바뀌면 이 사용자의 모든 로그인 세션이 즉시 해제됩니다. "
-          + "전체는 전체 관리자, 조직은 조직관리자, 부서는 부서관리자라고 부릅니다. 이름은 다르지만 시스템 관리자(system_admin, 역할 자체가 다른 계정)와는 별개 개념입니다." },
+          + "전체는 전체 관리자, 조직은 조직관리자, 부서는 부서관리자라고 부릅니다. 전체 관리자는 이름이 비슷하지만 역할이 다른 시스템 관리자와 별개입니다." },
       // showIf: app/users/service.py _apply_admin_scope는 admin_scope='org'인데 scope_org_id가
       // 없으면 저장을 거부한다("조직 범위에는 대상 조직을 지정해야 합니다") — 그런데 이 폼에는
       // scope_org_id를 고를 필드가 아예 없었다. SCOPE_OPTS는 '소속 조직'을 고를 수 있는 선택지로
@@ -669,13 +669,13 @@ export function Users() {
       // 조직관리자를 만들 입구는 없었던 셈).
       { name: "scope_org_id", label: "범위 대상 조직", type: "entity", options: org.options,
         showIf: (v) => v.role !== "user" && v.admin_scope === "org",
-        help: (orgHelp ? orgHelp : "'조직'을 고른 경우에만 씁니다. 비워 두면 저장이 거부됩니다. 아무것도 못 보는 계정이 되기 때문입니다.") },
+        help: (orgHelp ? orgHelp : "'조직'을 고른 경우에만 씁니다. 비워 두면 저장할 수 없습니다. 아무것도 못 보는 계정이 되기 때문입니다.") },
       // showIf: 도움말이 "'부서'를 고른 경우에만 씁니다"라고 말하면서도 admin_scope가 global/org일
       // 때도 계속 보였다 — AI 쿼터 화면(범위가 '사용자'일 때만 필요한 대상 ID 칸)과 같은 모양의
       // 문제라 같은 장치(showIf)로 맞춘다.
       { name: "scope_dept_id", label: "범위 대상 부서", type: "entity", options: dept.options,
         showIf: (v) => v.role !== "user" && v.admin_scope === "dept",
-        help: "'부서'를 고른 경우에만 씁니다. 이 부서와 그 하위 부서까지 봅니다. 비워 두면 저장이 거부됩니다. 아무것도 못 보는 계정이 되기 때문입니다." },
+        help: "'부서'를 고른 경우에만 씁니다. 이 부서와 그 하위 부서까지 봅니다. 비워 두면 저장할 수 없습니다. 아무것도 못 보는 계정이 되기 때문입니다." },
     ];
 
   function announce(res, okMsg) {
@@ -704,10 +704,10 @@ export function Users() {
           <Button variant="primary" onClick={() => setCreating(true)}>사용자 추가</Button>
         </>}
         help={<Box sx={{ "& p": { m: 0 }, "& p + p": { mt: 0.75 } }}>
-          <p>계정을 만들고 역할, 부서, 직책을 관리합니다. 행을 누르면 상세에서 비밀번호 재설정, 세션 해제, 잠금 해제를 할 수 있습니다.</p>
+          <p>계정을 추가하고 역할, 부서, 직책을 관리합니다. 행을 누르면 상세에서 비밀번호 재설정, 세션 해제, 잠금 해제를 할 수 있습니다.</p>
           <p><strong>비활성화</strong>는 로그인만 막고(쉽게 되돌림), <strong>보관</strong>은 목록에서 감추되 기록은 남기고 복구할 수 있습니다.</p>
           <p>일반 사용자를 <strong>관리자</strong>로 올리면 승인 요청이 접수되어 승인 후 반영됩니다.</p>
-          <p>임시 비밀번호는 생성, 재설정 시 화면에 한 번만 표시됩니다.</p>
+          <p>임시 비밀번호는 계정을 추가하거나 비밀번호를 재설정할 때 화면에 한 번만 표시됩니다.</p>
         </Box>} />
       {deepLinkFailure ? <Callout tone="danger" compact>{deepLinkFailure}</Callout> : null}
       {/* 필터 바 — DataScreen(재설계 기준 화면)과 같은 자동 줄바꿈 그리드. 화면이 넓어지면 열이
@@ -811,15 +811,15 @@ export function Users() {
           emptyState={showArchived ? (
             // 보관함을 보는 중엔 내용 필터만 지운다(clearContentFilters), clearFilters를 쓰면
             // showArchived까지 꺼져 조용히 보관함 밖으로 밀려난다(툴바의 동일 버튼과 같은 이유, 위 참고).
-            <EmptyState layout="region" title="보관된 계정이 없습니다" help="보관한 계정이 여기에 표시됩니다."
-              action={hasContentFilter ? <Button size="sm" onClick={clearContentFilters}>필터 지우기</Button> : <Button size="sm" onClick={() => setShowArchived(false)}>보관함 나가기</Button>} />
+            <EmptyState layout="region" title="보관된 계정이 없습니다." help="보관한 계정이 여기에 표시됩니다."
+              action={hasContentFilter ? <Button size="sm" onClick={clearContentFilters}>필터 초기화</Button> : <Button size="sm" onClick={() => setShowArchived(false)}>보관함 나가기</Button>} />
           ) : hasFilter ? (
             /* 조건 0건의 지우기는 30 보조 단추다(핸드오프 RULES §1 · 조합 계약 C-4). */
-            <EmptyState layout="region" art="search" title="조건에 해당하는 사용자가 없습니다" help="검색어나 필터를 지우고 다시 확인하세요."
-              action={<Button size="sm" onClick={clearFilters}>필터 지우기</Button>} />
+            <EmptyState layout="region" art="search" title="검색 조건에 맞는 사용자가 없습니다." help="검색어나 필터를 지우고 다시 확인하세요."
+              action={<Button size="sm" onClick={clearFilters}>필터 초기화</Button>} />
           ) : (
             /* 만드는 단추는 30 이고 채움이 아니다 — 화면의 채움은 머리의 「사용자 추가」 하나다(RULES §1 · §3). */
-            <EmptyState layout="region" title="사용자가 없습니다" help="'사용자 추가'로 새 계정을 만드세요."
+            <EmptyState layout="region" title="등록된 사용자가 없습니다." help="‘사용자 추가’를 눌러 계정을 추가하세요."
               action={<Button size="sm" onClick={() => setCreating(true)}>사용자 추가</Button>} />
           )}
           list={{
@@ -871,7 +871,7 @@ export function Users() {
               if (archivedId && await confirm("그 이메일은 보관된 계정이 쓰고 있습니다. 그 계정을 복구할까요? 방금 입력한 역할, 부서 등 값은 적용되지 않고, 계정은 보관 전 정보 그대로 복구됩니다.", { title: "보관된 계정 복구", confirmLabel: "복구" })) {
                 await api("/api/admin/users/" + archivedId + "/unarchive", { method: "POST", body: {} });
                 setCreating(false); refresh();
-                toast("보관된 계정을 복구했습니다(예전 정보 그대로, 방금 입력한 값은 반영되지 않았습니다. 필요하면 상세에서 따로 수정하세요).", "success");
+                toast("보관된 계정을 예전 정보 그대로 복구했습니다. 방금 입력한 값은 반영되지 않았으니 필요하면 상세에서 수정하세요.", "success");
                 return;
               }
               // 복구를 취소했거나 id가 없으면 폼을 유지하고 **폼 위 오류로** 말한다(다른 이메일로 바꿀 수 있게) —
@@ -1049,7 +1049,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
       if (copiedIdTimerRef.current) clearTimeout(copiedIdTimerRef.current);
       copiedIdTimerRef.current = setTimeout(() => setCopiedId(""), 1500);
       toast("ID를 복사했습니다.", "success");
-    }, () => setActionNotice({ tone: "danger", text: "복사 실패" }));
+    }, () => setActionNotice({ tone: "danger", text: "복사하지 못했습니다. 직접 선택해 복사하세요." }));
     else setActionNotice({ tone: "info", text: "복사를 지원하지 않는 환경입니다. 직접 선택해 복사하세요." });
   }
   // 되돌리기 어려운 작업(비활성화, 보관)은 별도 묶음으로 떼어 오조작을 줄인다, 이전엔 무해한
@@ -1110,7 +1110,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
   ) : (
     <ActionFooter
       placement="modal"
-      extra={<Typography variant="caption" color="text.secondary">이 계정을 관리할 권한이 없습니다(system_admin 전용).</Typography>}
+      extra={<Typography variant="caption" color="text.secondary">이 계정을 관리할 권한이 없습니다. 시스템 관리자만 관리할 수 있습니다.</Typography>}
     >
       <OverflowMenu ariaLabel="사용자 작업 더 보기" items={navItems} />
     </ActionFooter>
@@ -1126,7 +1126,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
       {detailStale ? (
         <Box sx={{ mb: 2 }}>
           <Callout tone="danger" action={<Button size="sm" onClick={refetchDetail}>다시 시도</Button>}>
-            최신 상태를 불러오지 못해 작업을 수행할 수 없습니다.
+            최신 상태를 불러오지 못해 지금은 작업할 수 없습니다.
           </Callout>
         </Box>
       ) : null}
@@ -1154,7 +1154,7 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
             </Typography>
           ) : !d.active ? (
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-              로그인할 수 없습니다. 목록에는 그대로 남아 있고 ‘활성화’로 되돌립니다.
+              로그인할 수 없습니다. 목록에는 그대로 남아 있고 ‘활성화’로 되돌릴 수 있습니다.
             </Typography>
           ) : null}
         </DetailRow>

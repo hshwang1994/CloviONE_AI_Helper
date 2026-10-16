@@ -29,15 +29,15 @@ import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
  */
 
 export const PASTE_STEPS = [
-  "「Continue with ChatGPT」를 누르면 새 창(또는 탭)에서 ChatGPT 가 열립니다. 로그인하고 「허용」을 누르세요.",
+  "「Continue with ChatGPT」를 누르면 새 창(또는 탭)에서 ChatGPT가 열립니다. 로그인하고 「허용」을 누르세요.",
   "허용하면 그 창이 「127.0.0.1 … 서버에 연결할 수 없습니다」 오류 화면으로 바뀝니다. 승인이 끝났다는 뜻이라 정상입니다. "
   + "그 창의 주소창에서 전체 주소를 복사하세요(Ctrl+L, Ctrl+C).",
   "이 탭으로 돌아와 아래 칸에 붙여 넣으면 바로 연결됩니다.",
 ];
 export const PLAN_NOTICE = "연결한 ChatGPT 계정 하나의 요금제를 이 설치의 모든 사용자가 함께 씁니다. "
   + "사용량은 ChatGPT 설정에서 확인합니다.";
-export const WRONG_ATTEMPT = "이번 시도의 주소가 아닙니다. 1부터 다시 하세요.";
-export const NOT_A_CALLBACK = "주소가 아닙니다. 주소창의 전체 주소를 복사하세요.";
+export const WRONG_ATTEMPT = "이번 시도의 주소가 아닙니다. 1단계부터 다시 하세요.";
+export const NOT_A_CALLBACK = "붙여 넣은 내용에 승인 주소가 없습니다. 주소창의 전체 주소를 복사하세요.";
 export const EXPIRED_TEXT = "시도가 만료됐습니다. 다시 시작하세요.";
 export const BLOCKED_TEXT = "창이 열리지 않았습니다. 팝업을 허용하거나 이 링크로 여세요.";
 export const CONNECTED_LABEL = "ChatGPT 계정으로 연결됨";
@@ -203,7 +203,7 @@ function PasteBox({ attempt, onCancel, onRestart, onConnected }) {
       const text = await navigator.clipboard.readText();
       take(String(text || "").trim());
     } catch (e) {
-      setNote("붙여넣기 단추를 쓸 수 없습니다. 칸을 누르고 Ctrl+V 를 누르세요.");
+      setNote("붙여넣기 단추를 쓸 수 없습니다. 칸을 누르고 Ctrl+V를 누르세요.");
     }
   }
 
@@ -242,7 +242,7 @@ function PasteBox({ attempt, onCancel, onRestart, onConnected }) {
         </Callout>
       ) : null}
       {attempt.resumed ? (
-        <Callout tone="info" compact action={<Button size="sm" onClick={onRestart}>처음부터 다시</Button>}>
+        <Callout tone="info" compact action={<Button size="sm" onClick={onRestart}>처음부터 다시 시작</Button>}>
           앞서 시작한 로그인이 아직 열려 있습니다. 새 창에서 승인했다면 그 주소를 붙여 넣으세요.
         </Callout>
       ) : null}
