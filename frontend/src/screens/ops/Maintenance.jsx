@@ -222,12 +222,12 @@ export function Maintenance({ embedded = false } = {}) {
           ) : null}
           {/* 유지보수 모드가 켜져 있으면 사용자 쓰기가 차단되는 위험 상태다, 페이지 상단에 눈에 띄는 배너로 분명히 한다
               (현재 상태 배지만으론 이 화면에 돌아온 관리자가 한눈에 알기 어려웠다). */}
-          {on ? <Box sx={{ mb: 3 }} role="status"><Callout tone="warn">현재 유지보수 모드가 활성화되어 있습니다. 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 차단되고 있습니다. 읽기와 운영자 이상의 쓰기는 그대로 됩니다. 점검이 끝나면 아래에서 비활성화해 주세요.</Callout></Box> : null}
+          {on ? <Box sx={{ mb: 3 }} role="status"><Callout tone="warn">현재 유지보수 모드가 활성화되어 있습니다. 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 차단되고 있습니다. 읽기와 운영자 이상의 쓰기는 계속할 수 있습니다. 점검이 끝나면 아래에서 비활성화해 주세요.</Callout></Box> : null}
           <Card>
             <SettingRow
               label="유지보수 모드"
               value={<Badge value={on ? "maintenance" : "up"} />}
-              description="활성화하면 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 차단됩니다. 읽기와 운영자 이상의 쓰기는 그대로 됩니다."
+              description="활성화하면 일반 사용자의 쓰기(티켓, 게시판, 문서, 팀 채팅, 놀이, AI 대화, 휴지통)가 차단됩니다. 읽기와 운영자 이상의 쓰기는 계속할 수 있습니다."
               action={rowActions(
                 <>
                   {/* 점검 공지에는 '버전 기록'이 있는데 정작 더 위험한(앱 전체 쓰기를 막는) 유지보수 모드
@@ -251,7 +251,7 @@ export function Maintenance({ embedded = false } = {}) {
                 ? <Box component="span" sx={{ whiteSpace: "pre-line", ...KO_WORD_BREAK }}>{serverMsg}</Box>
                 : "아직 적은 공지가 없습니다."}
               tone={serverMsg ? undefined : "muted"}
-              description="유지보수 모드가 활성화되어 있을 때 사용자가 보게 되는 안내 문구입니다."
+              description="유지보수 모드일 때 사용자에게 보이는 안내 문구입니다."
               action={rowActions(
                 <>
                   {/* 다른 설정과 달리 점검 공지는 설정 표에서 제외돼 버전 기록, 롤백이 닿지 않았다, 여기서 같은 UI를 재사용해 제공한다. */}
@@ -274,7 +274,7 @@ export function Maintenance({ embedded = false } = {}) {
       {editing && canWrite ? (
         <Modal open onClose={requestCloseEditor} title="점검 공지 수정" footer={editorFooter}>
           <Typography variant="body2" color="text.secondary" id="maint-msg-desc" sx={{ mb: 1.5, ...KO_WORD_BREAK }}>
-            유지보수 모드가 활성화되어 있을 때 사용자가 보게 되는 안내 문구입니다.
+            유지보수 모드일 때 사용자에게 보이는 안내 문구입니다.
           </Typography>
           {/* 공지는 사용자에게 보이는 산문이라 JSON 편집기용 monospace를 쓰지 않는다.
               설명 · 유효성 힌트를 aria-describedby로 입력에 프로그래매틱하게 연결한다(이전엔 시각적으로만

@@ -438,9 +438,9 @@ REGISTRY: dict[str, SettingSpec] = {
         SettingSpec("ui_branding", "object", {"product_name": "ClovirAssist"}, False,
                     "로그인 화면과 채팅 화면의 제목에 쓰는 제품명입니다.", _ui_branding),
         SettingSpec("maintenance_mode", "bool", False, False,
-                    "활성화하면 일반 사용자의 쓰기가 차단됩니다. 읽기와 운영자 이상의 쓰기는 그대로 됩니다.", _bool),
+                    "활성화하면 일반 사용자의 쓰기가 차단됩니다. 읽기와 운영자 이상의 쓰기는 계속할 수 있습니다.", _bool),
         SettingSpec("maintenance_message", "string", "현재 시스템 점검 중입니다.", False,
-                    "유지보수 모드가 활성화되어 있을 때 사용자가 보게 되는 안내 문구입니다.", _non_empty_str),
+                    "유지보수 모드일 때 사용자에게 보이는 안내 문구입니다.", _non_empty_str),
         SettingSpec("password_policy", "object", {"min_length": 12, "min_classes": 3}, False,
                     "저장하면 바로 적용됩니다.", _password_policy),
         # "신규 세션부터 적용"은 absolute_timeout_seconds에만 맞는 말이다(app/core/sessions.py
