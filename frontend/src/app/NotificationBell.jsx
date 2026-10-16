@@ -82,6 +82,17 @@ function audienceLabel(aud) {
   return aud === "admin" ? "관리" : "내 업무";
 }
 
+/* 종 숫자의 구성(r23 #32) — 숫자는 내 알림 · 관리 알림 · 시스템 알림을 더한 값이라 알림 화면(내 알림만)의 수와 다를 수 있다. 둘 이상이
+   더해졌으면 툴팁과 접근 이름이 그 구성을 말한다. 하나뿐이면 구성을 덧붙이지 않는다. */
+export function badgeParts({ own, ownAudience, other, otherAudience, sys }) {
+  const noun = (aud) => (aud === "admin" ? "관리 알림" : "내 알림");
+  const parts = [];
+  if (own > 0) parts.push(`${noun(ownAudience)} ${own}건`);
+  if (otherAudience && other > 0) parts.push(`${noun(otherAudience)} ${other}건`);
+  if (sys > 0) parts.push(`시스템 알림 ${sys}건`);
+  return parts;
+}
+
 /** 한 audience 의 「안 읽음」 총계. 팝오버가 열려 목록을 받았으면 그 스냅샷을 먼저 믿는다 —
  *  두 질의의 60초 타이머가 어긋나 헤더 숫자와 보이는 항목이 다른 말을 하지 않게. 목록이
  *  오류면 그 스냅샷은 옛 성공 응답이라 믿지 않는다. */
@@ -474,6 +485,8 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
   const sysCount = sysNotices.length;
   const badge = rawBadge + sysCount;
   const quiet = sysCount === 0 && (!!(unread.data && unread.data.quiet) || (badge === 0 && count > 0));
+  const parts = badgeParts({ own: ownUnread.badge, ownAudience: audience, other: otherUnread.badge, otherAudience, sys: sysCount });
+  const composition = parts.length > 1 ? `(${parts.join(", ")})` : "";
   const quietTitle = count > 0
     ? `방해금지 또는 알림 배지 설정 때문에 숫자를 숨겼습니다. 안 읽은 알림은 ${count}건입니다.`
     : "방해금지 중입니다.";
@@ -528,7 +541,7 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
           .noti-quiet / .noti-err / .noti-pending)를 IconButton + Badge 하나로 모았다.
           상태가 넷이라는 사실과 각 상태의 의미(아래 주석)는 그대로 남긴다 — 바뀐 것은
           '어떻게 그리는가'뿐이고, 무엇을 말하는지는 하나도 줄이지 않았다. */}
-      <Tooltip title={badge ? (countWarn ? "표시된 숫자가 최신이 아닐 수 있습니다." : "알림")
+      <Tooltip title={badge ? (countWarn ? "표시된 숫자가 최신이 아닐 수 있습니다." : `알림 ${badge}건${composition}`)
         : quiet ? quietTitle
         : countError ? "알림 개수를 불러오지 못했습니다."
         : countPartial ? audienceLabel(otherAudience) + " 알림 개수를 불러오지 못해 합계가 실제보다 적을 수 있습니다."
@@ -556,7 +569,7 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
           <IconButton
             ref={bellRef}
             color="inherit"
-            aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (quiet ? " (방해금지 중, 배지 숫자 숨김)" : "") + (countError ? " (개수를 불러오지 못함)" : countPartial ? " (" + audienceLabel(otherAudience) + " 알림 개수를 불러오지 못함)" : "")}
+            aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (composition ? " " + composition : "") + (quiet ? " (방해금지 중, 배지 숫자 숨김)" : "") + (countError ? " (개수를 불러오지 못함)" : countPartial ? " (" + audienceLabel(otherAudience) + " 알림 개수를 불러오지 못함)" : "")}
             aria-haspopup="dialog" aria-expanded={open} aria-controls="noti-pop"
             onClick={() => { if (!open && unread.isError) unread.refetch(); setOpen((v) => !v); }}
           >
