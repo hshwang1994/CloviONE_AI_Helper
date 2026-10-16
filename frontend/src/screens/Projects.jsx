@@ -107,7 +107,7 @@ export function projectListQuery(filters) {
 /* 구성 칸 넷. 서버가 세는 상태 어휘와 **같은 키**다(`app/projects/models.py::PROJECT_STATUSES`) —
  * 그 키가 곧 목록을 좁히는 조건이라, 화면이 이름을 새로 지으면 눌러도 아무것도 안 걸러진다. */
 const STATUS_TILES = [
-  ["active", "진행"],
+  ["active", "진행 중"],
   ["done", "완료"],
   ["on_hold", "보류"],
   ["planned", "계획"],

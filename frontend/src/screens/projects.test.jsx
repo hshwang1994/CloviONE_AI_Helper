@@ -26,6 +26,7 @@
  * 와 정의 줄로 옮기고, 통째 비교에 위험 칩 둘을 더했다. 건강도 원은 위험 칩이 대신한다 — 막대 단언(지시 15)은 그대로 둔다.
 
  * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ * qa-contract-change: 프로젝트 `active` 의 화면 이름을 「진행 중」 한 벌로 맞췄다(r23 #47 — 요약 칩 · 수정 창은 「진행」, 배지는 「진행 중」이었다). 단언하는 동작은 그대로다.
  */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -471,7 +472,7 @@ describe("프로젝트 목록 — 요약", () => {
     // 단위는 「개」다 — 목록 발(「전체 N개 중 M개 표시」)과 같은 낱말이다(D-587).
     expect(summaryTiles()).toEqual({
       "전체": "22개",
-      "진행": "12개",
+      "진행 중": "12개",
       "완료": "5개",
       "보류": "3개",
       "계획": "2개",
@@ -500,7 +501,7 @@ describe("프로젝트 목록 — 요약", () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
 
-    await user.click(tile("진행"));
+    await user.click(tile("진행 중"));
     await waitFor(() => {
       expect(apiMock.mock.calls.map(([p]) => String(p))
         .some((p) => p.startsWith("/api/projects?") && p.includes("status=active"))).toBe(true);
@@ -508,7 +509,7 @@ describe("프로젝트 목록 — 요약", () => {
 
     // 조건을 켜는 자리와 끄는 자리가 다르면 사용자는 끄는 법을 못 찾는다.
     apiMock.mockClear();
-    await user.click(tile("진행"));
+    await user.click(tile("진행 중"));
     await waitFor(() => {
       const listCalls = apiMock.mock.calls.map(([p]) => String(p)).filter((p) => p.startsWith("/api/projects"));
       expect(listCalls.length).toBeGreaterThan(0);

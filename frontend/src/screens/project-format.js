@@ -29,9 +29,11 @@ export const PROJECT_WRITE_ROLES = ["operator", "admin", "system_admin"];
 /* 상태 어휘는 계약(영어 열거값)이고 화면 문구는 한국어다. 계약을 한국어로 바꾸면 화면
  * 코드가 표시용 문자열로 분기하게 되고, 문구를 영어로 두면 읽는 사람이 뜻을 모른다
  * (app/projects/weekly.py::MILESTONE_STATUS_LABELS 가 서버에서 같은 판단을 기록한다). */
+/* `active` 의 화면 이름은 「진행 중」 하나다 — 배지는 공용 사전이 「진행」을 「진행 중」으로 바꿔 그리는데 수정 창 선택지 · 요약 칩은
+   「진행」 그대로라, 같은 상태가 한 화면에서 두 이름이었다(r23 #47). 저장 값(`active`)은 그대로다. */
 export const PROJECT_STATUS_KO = {
   planned: "계획",
-  active: "진행",
+  active: "진행 중",
   on_hold: "보류",
   done: "완료",
 };
