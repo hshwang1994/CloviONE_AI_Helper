@@ -602,23 +602,30 @@ export function Sprint() {
       {meeting.isError ? <ErrorState layout="region" error={meeting.error} onRetry={meeting.refetch} /> : null}
       {sprints.isError ? <ErrorState layout="region" error={sprints.error} onRetry={sprints.refetch} /> : null}
 
+      {/* 팀 없음 · 팀 고르기 전 · 회차 없음도 「회차를 고르기 전」과 같은 자리(문맥 줄 바로 아래 판)에 선다(r23 19-none) — 화면 가운데의
+          큰 빈 상태는 고를 칸에서 200px 아래에 떨어져 섰고, 같은 화면의 다른 빈 상태(판 안)와 모양이 갈렸다. */}
       {noTeamAtAll ? (
-        <EmptyState
-          layout="page"
-          title="회차를 볼 수 있는 팀이 없습니다."
-          help="소속 팀이 정해지면 그 팀의 회차와 회의가 여기 보입니다. 소속은 관리자가 지정할 수 있습니다."
-        />
+        <Card>
+          <EmptyState
+            layout="region"
+            title="회차를 볼 수 있는 팀이 없습니다."
+            help="소속 팀이 정해지면 그 팀의 회차와 회의가 여기 보입니다. 소속은 관리자가 지정할 수 있습니다."
+          />
+        </Card>
       ) : null}
       {needTeamPick ? (
-        <EmptyState
-          layout="page"
-          title="팀을 골라 주세요."
-          help="회차는 팀이 운영합니다. 위 팀 칸에서 팀을 고르면 그 팀의 회차로 회의를 시작할 수 있습니다."
-        />
+        <Card>
+          <EmptyState
+            layout="region"
+            title="팀을 골라 주세요."
+            help="회차는 팀이 운영합니다. 위 팀 칸에서 팀을 고르면 그 팀의 회차로 회의를 시작할 수 있습니다."
+          />
+        </Card>
       ) : null}
       {sprintsReady && !sprintId && sprintRows.length === 0 ? (
+        <Card>
         <EmptyState
-          layout="page"
+          layout="region"
           title="등록된 회차가 없습니다."
           help="회차를 추가하면 여기서 번다운과 건강, 담당자별 남은 일을 보고 회의를 진행할 수 있습니다."
           action={
@@ -630,6 +637,7 @@ export function Sprint() {
             </>
           }
         />
+        </Card>
       ) : null}
       {sprintsReady && !sprintId && sprintRows.length > 0 ? (
         /* 안내는 문맥 줄 바로 아래 판 안이다 — 여는 단추는 위 회차 칸 옆에 있다. */
