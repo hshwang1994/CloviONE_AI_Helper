@@ -11,7 +11,7 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js
  * 4 + 3, 넓으면 일곱이 한 줄이다(칸 폭을 보는 컨테이너 질의). 처음에는 `auto-fill minmax(14rem, 1fr)` 이었는데 1920 에서 여섯 칸
  * + 외톨이 한 칸으로 섰고, 같은 폭으로 나눈 칸에서 「보내는 사람과 방식별 정보 입력」만 두 줄로 접혔다(캡처 m4-1 · 프로브
  * equal_column_split). 그래서 열 수는 판 폭이 정하고, 칸은 `auto` 라 긴 이름이 제 폭을 받는다. 줄마다 번호 또는 체크 · 이름 ·
- * 상태 낱말(끝남 · 지금 할 일 · 아직 · 막힘)이 보이고, 지금 할 일과 막힌 줄은 서버의 한 문장을 이름 아래에 단다.
+ * 상태 낱말(완료 · 지금 할 일 · 아직 안 함 · 막힘, 「완료」는 초기 설정 점검 목록 · 도메인 변경 단계와 같은 낱말)이 보이고, 지금 할 일과 막힌 줄은 서버의 한 문장을 이름 아래에 단다.
  *
  * 「지금 할 일」 상자(상태 요약 면)가 이미 말한 단계(`quietKey`)는 그 문장을 다시 쓰지 않는다 — 같은 문장이 한 판에 두 번 서면 읽는
  * 사람은 두 가지 할 일로 읽는다. 단계를 지어내지 않는다: 이름 · 상태 · 문장은 전부 서버 값이다.
@@ -21,7 +21,7 @@ import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, RADIUS } from "../../ui/theme.js
 const STEPS_FOUR_REM = 40;
 const STEPS_SEVEN_REM = 82;
 
-export const STEP_STATE_LABEL = { done: "끝남", current: "지금 할 일", todo: "아직 안 함", blocked: "막힘" };
+export const STEP_STATE_LABEL = { done: "완료", current: "지금 할 일", todo: "아직 안 함", blocked: "막힘" };
 
 /* 작은 글자는 강한 쪽 잉크다 — `primary.main` 은 두 모드가 같은 값이라 어두운 면 위 「지금 할 일」이 2.54:1 이었다(캡처 m4-1 대비
    프로브). `primary.dark` 는 모드마다 강한 쪽으로 민 값이다(light 는 더 어둡게, dark 는 더 밝게). */

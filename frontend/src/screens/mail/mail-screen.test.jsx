@@ -433,7 +433,7 @@ describe("메일 화면 — 안내 흐름 (D-560)", () => {
     expect(steps.querySelectorAll("li[data-step-state]")).toHaveLength(7);
     expect(steps.querySelector('[data-step="test_sent"]')).toHaveAttribute("aria-current", "step");
     expect(steps.querySelectorAll('[data-step-state="done"]')).toHaveLength(5);
-    expect(within(steps.querySelector('[data-step="enable"]')).getByText("끝남")).toBeInTheDocument();
+    expect(within(steps.querySelector('[data-step="enable"]')).getByText("완료")).toBeInTheDocument();
     expect(within(steps.querySelector('[data-step="inbox_confirmed"]')).getByText("아직 안 함")).toBeInTheDocument();
     const next = card.querySelector(".k-mail-next");
     expect(next).not.toBeNull();

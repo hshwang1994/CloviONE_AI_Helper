@@ -36,7 +36,7 @@ const TOOL_LABELS = {
 
 const SORT_LABELS = {
   recent: "최근 수정", created: "만든 날", title: "제목",
-  due: "마감", updated: "최근 바뀜", completed: "최근 끝남",
+  due: "마감", updated: "최근 바뀜", completed: "최근 완료",
 };
 
 const KIND_ICONS = {
@@ -84,7 +84,7 @@ export function ResultRow({ kind, item, hideAuthor = false }) {
   } else if (kind === "ticket") {
     meta = [item.key, item.status ? <Badge key="s" value={item.status} /> : null,
             (item.assignees || []).length ? `담당 ${item.assignees.join(", ")}` : null,
-            item.due ? `마감 ${item.due}` : null, item.completed_at ? <Stamp key="c" value={item.completed_at} prefix="끝남" /> : null,
+            item.due ? `마감 ${item.due}` : null, item.completed_at ? <Stamp key="c" value={item.completed_at} prefix="완료" /> : null,
             item.blocked ? "막힘" : null];
   } else if (kind === "project") {
     meta = [item.code, item.status, typeof item.progress_pct === "number" ? `진행률 ${Math.round(item.progress_pct)}%` : null,
