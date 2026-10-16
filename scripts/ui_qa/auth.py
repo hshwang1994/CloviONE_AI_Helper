@@ -257,6 +257,11 @@ def _dismiss_tour(context, base_url: str, log) -> None:
     `csrf_token` — `_fetch_me`가 돌려주는 `user` 서브트리 밖에 있어 따로 읽는다).
     """
     try:
+        # 이미 끝낸 계정에는 보내지 않는다 — 서버는 「완료」를 받을 때마다 완료 시각을 지금으로 다시 적는다(`mark_tour_seen`). 랩에서
+        # 사용자 본인 계정으로 읽기 전용 대장을 돌릴 때 그 계정의 둘러보기 완료 시각이 바뀌었다(r23, 10-17). 읽기만 하고 판정은 서버의 `show` 다.
+        pref = context.request.get(f"{base_url.rstrip('/')}/api/me/preferences", timeout=LOGIN_TIMEOUT_MS)
+        if pref.status == 200 and ((pref.json() or {}).get("tour") or {}).get("show") is False:
+            return
         me_response = context.request.get(f"{base_url.rstrip('/')}/api/me", timeout=LOGIN_TIMEOUT_MS)
         csrf_token = me_response.json().get("csrf_token") if me_response.status == 200 else None
         if not csrf_token:
