@@ -283,7 +283,8 @@ describe("스프린트 회의", () => {
     await userEvent.type(screen.getByLabelText("내용"), "다음 회차에서 다시 봅니다.");
     // 적는 동안 초안이 회차별로 남는다.
     await waitFor(() => expect(readSessionDraft("cv.meetingDraft.v1:sp-now")).toMatchObject({ body: "다음 회차에서 다시 봅니다." }));
-    await userEvent.click(screen.getByRole("button", { name: "적기" }));
+    // qa-contract-change: 회의 결정 입력 단추가 동사표의 「회의록에 추가」다(r23 #52 — 「적기」). 단언하는 동작은 그대로다.
+    await userEvent.click(screen.getByRole("button", { name: "회의록에 추가" }));
     await waitFor(() =>
       expect(
         apiMock.mock.calls.some(

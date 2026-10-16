@@ -294,8 +294,10 @@ function DecisionComposer({ draft, onDraftChange, onAdd, busy, assigneeOptions, 
             />
           </>
         ) : null}
+        {/* 단추 낱말은 동사표의 「추가」이고, 무엇에 더하는지까지 말한다 — 이 화면에는 티켓을 담는 단추가 없어야 하므로(D-484)
+            맨 「추가」는 티켓을 담는 일로 읽힐 수 있다(「적기」는 동사표 밖이었다, r23 #52). */}
         <Button type="submit" disabled={busy || !(d.body || "").trim()}>
-          적기
+          회의록에 추가
         </Button>
       </Stack>
     </Box>
@@ -308,6 +310,14 @@ const PAIR_GRID = {
   gridTemplateColumns: MEETING_PAIR_TRACKS,
   "& > *": { minHeight: PAIR_CHART_MIN_HEIGHT, display: "flex", flexDirection: "column" },
   "& > * > *:last-child": { flex: 1, minHeight: 0, justifyContent: "flex-start" },
+};
+
+/* 업무량과 범위 변경의 짝 — 높이를 맞추지 않는다. 담당자별 남은 WD 는 사람 수만큼의 막대라 짧을 때가 많은데, 옆 범위 변경 그림의
+   높이에 맞춰 늘면 막대 한 줄 아래가 300px 비었다(r23 #104). 두 판은 위에서 맞추고 각자 내용 높이로 선다. */
+const PAIR_GRID_NATURAL = {
+  display: "grid", gap: 2, mb: 2, alignItems: "start",
+  gridTemplateColumns: MEETING_PAIR_TRACKS,
+  "& > *": { display: "flex", flexDirection: "column" },
 };
 
 export function Sprint() {
@@ -866,7 +876,7 @@ export function Sprint() {
 
           {/* 4 — 업무량과 범위 변경. 회차 전체다. */}
           <Section title="업무량과 범위 변경" rule>
-            <Box sx={PAIR_GRID}>
+            <Box sx={PAIR_GRID_NATURAL}>
               <Section flush title="담당자별 남은 WD" rule sx={{ flex: 1 }} titleAs="h4">
                 <Box sx={{ ...PANEL_SURFACE, flex: 1, minHeight: 0 }}>
                   {workload ? (
