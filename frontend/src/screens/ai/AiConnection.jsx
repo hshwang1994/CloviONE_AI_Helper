@@ -106,6 +106,9 @@ export function AiConnection() {
 
   const [choice, setChoice] = React.useState(null);
   const [runDraft, setRunDraft] = React.useState(null);
+  /* 실행 옵션 저장의 실패는 그 「저장」 곁에 선다(설정 저장 왕복 하네스, r23) — 같은 저장 요청을 쓰는 다른 구획의 실패는 「확인과 오류」에
+     남고, 실행 옵션의 실패만 오른쪽 열 아래(1366 에서 화면 아래 82px)로 떨어지지 않게 따로 든다. */
+  const [runError, setRunError] = React.useState("");
   const [switchError, setSwitchError] = React.useState(null);
   const [switching, setSwitching] = React.useState(false);
   /* 「다음 할 일」이 가리키는 구획. 감싸는 상자는 `display: contents` 라 판의 줄 간격을 바꾸지 않는다. */
@@ -334,12 +337,16 @@ export function AiConnection() {
             columns={["12rem", "12rem"]}
             action={(
               <>
-                <Button disabled={!runDirty || saveConfig.isPending} onClick={() => setRunDraft(null)}>되돌리기</Button>
+                <Button disabled={!runDirty || saveConfig.isPending} onClick={() => { setRunDraft(null); setRunError(""); }}>되돌리기</Button>
                 <Button
                   variant="primary" disabled={!runDirty} loading={saveConfig.isPending}
-                  onClick={() => saveConfig.mutate(runDraft, {
-                    onSuccess: () => { setRunDraft(null); toast("실행 옵션을 저장했습니다.", "success"); },
-                  })}
+                  onClick={() => {
+                    setRunError("");
+                    saveConfig.mutate(runDraft, {
+                      onSuccess: () => { setRunDraft(null); toast("실행 옵션을 저장했습니다.", "success"); },
+                      onError: (e) => setRunError((e && e.message) || "실행 옵션을 저장하지 못했습니다."),
+                    });
+                  }}
                 >
                   저장
                 </Button>
@@ -361,6 +368,11 @@ export function AiConnection() {
               />
             </Field>
           </FieldRow>
+          {runError ? (
+            <Box role="alert" data-run-save-error="" sx={{ minWidth: 0 }}>
+              <Callout tone="danger" variant="inline">{runError}</Callout>
+            </Box>
+          ) : null}
         </FormSection>
         </Box>
 
@@ -401,7 +413,8 @@ export function AiConnection() {
 
         {/* ⑥ 확인과 오류 — 이 화면의 하나뿐인 [연결 확인] · 최근 시각 · 막힌 까닭 · 저장 실패가 한 구획에 선다. */}
         <AiChecks
-          data={data} onVerify={() => verify.mutate()} verifying={verify.isPending || watch.verifying} problem={saveFailure}
+          data={data} onVerify={() => verify.mutate()} verifying={verify.isPending || watch.verifying}
+          problem={runError ? failureText([verify, "연결 확인을 시작하지 못했습니다."]) : saveFailure}
           titleId={SECTION_IDS.checks}
         />
         </Box>

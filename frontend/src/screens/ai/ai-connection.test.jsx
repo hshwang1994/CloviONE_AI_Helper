@@ -25,6 +25,7 @@ import "@testing-library/jest-dom/vitest";
  *   9) 의미 검색 줄은 서버가 지은 낱말(`index.embed_status_label`)을 그대로 쓰고, 없으면 예전 낱말(있음 · 없음)이다.
 
  * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+ * qa-contract-change: 실행 옵션 저장 실패는 ⑥ 「확인과 오류」가 아니라 그 「저장」 곁에 선다(설정 저장 왕복 하네스가 1366 에서 화면 아래 82px 로 잰 자리) — 실패 시험의 자리 단언을 옮겼다.
 
  * qa-contract-change: 실행 옵션 칸 이름을 계획 §6 대로 바꿨다 — 「제한 시간(초) · 동시 실행 수」 → 「요청 제한 시간(초) · 동시 요청 수」(AI 요청 하나의 제한 시간과 동시에 나가는 요청 수다). 저장 · 되돌리기 단언은 그대로다.
  */
@@ -231,7 +232,7 @@ describe("AI 연결 — 여섯 구획 (D-574)", () => {
     expect(within(screen.getByTestId("ai-checks")).getAllByText("아직 없음")).toHaveLength(2);
   });
 
-  it("저장에 실패하면 그 까닭이 ⑥ 의 메시지 상자로 선다", async () => {
+  it("실행 옵션 저장에 실패하면 그 까닭이 그 「저장」 곁에 선다 — ⑥ 에 겹쳐 세우지 않는다(r23 설정 저장 왕복)", async () => {
     const user = userEvent.setup();
     const base = apiMock.getMockImplementation();
     apiMock.mockImplementation((path, opt) => {
@@ -245,8 +246,11 @@ describe("AI 연결 — 여섯 구획 (D-574)", () => {
     await user.clear(timeout);
     await user.type(timeout, "90");
     await user.click(screen.getByRole("button", { name: "저장" }));
-    const failure = await within(checksSection()).findByText(/제한 시간은 300초를 넘을 수 없습니다/);
+    // 예전에는 오른쪽 열 ⑥ 에만 섰다 — 1366 에서 「저장」을 누른 사람의 화면 아래 82px 이었다(설정 저장 왕복 하네스).
+    const failure = await screen.findByText(/제한 시간은 300초를 넘을 수 없습니다/);
+    expect(failure.closest("[data-run-save-error]")).not.toBeNull();
     expect(failure.closest(".k-callout")).not.toBeNull();
+    expect(within(checksSection()).queryByText(/제한 시간은 300초를 넘을 수 없습니다/)).toBeNull();
   });
 });
 

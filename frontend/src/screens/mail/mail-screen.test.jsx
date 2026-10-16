@@ -239,6 +239,33 @@ describe("메일 화면 — 설정 탭", () => {
     await waitFor(() => expect(calls("GET", "/api/admin/mail/verify/job-1").length).toBeGreaterThan(0));
   });
 
+  it("저장에 실패하면 그 까닭이 따라오는 발(저장 단추 곁) 안에 선다 — 폼 끝에 서지 않는다(r23 설정 저장 왕복)", async () => {
+    const user = userEvent.setup();
+    route((p, method) => (p === "/api/admin/mail/settings" && method === "PUT"
+      ? Promise.reject(Object.assign(new Error("보내는 주소 형식이 올바르지 않습니다."), { status: 422 }))
+      : null));
+    renderScreen();
+    await screen.findByTestId("mail-settings-form");
+    const from = screen.getByLabelText(/보내는 주소/);
+    await user.clear(from);
+    await user.type(from, "qa@example.com");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+    const failure = await screen.findByText(/보내는 주소 형식이 올바르지 않습니다/);
+    const footer = failure.closest("[data-action-footer-sticky]");
+    expect(footer, "실패 문장이 따라오는 발 밖에 섰다").not.toBeNull();
+    expect(failure.closest("[role=alert]")).not.toBeNull();
+    // 실패가 서 있는 동안은 「저장하지 않은 수정 내용」 문장 대신 그 까닭이 선다(입력은 그대로).
+    expect(within(footer).queryByText("저장하지 않은 수정 내용이 있습니다.")).toBeNull();
+    expect(from).toHaveValue("qa@example.com");
+  });
+
+  it("「보내는 이름」 도움말은 비울 때의 실제 결과를 말한다 — 제품 이름이 보내는 이름이 된다(D-572)", async () => {
+    renderScreen();
+    await screen.findByTestId("mail-settings-form");
+    expect(screen.getByText("비우면 제품 이름이 보내는 이름으로 보입니다.")).toBeInTheDocument();
+    expect(screen.queryByText("비우면 주소만 보입니다.")).toBeNull();
+  });
+
   it("저장하지 않은 수정 내용이 있으면 ④ 의 확인 단추가 꺼지고 까닭이 그 구획에 선다", async () => {
     const user = userEvent.setup();
     renderScreen();
