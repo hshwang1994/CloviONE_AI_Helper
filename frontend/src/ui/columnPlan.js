@@ -15,7 +15,8 @@
  *   늘어나는 글   title {14, 3, 36} · text {12, 3, 48} · name {9, 2, 18} · identifier {11, 2, 22} · path {10, 2, 24}
  *                 (바닥 rem, 비중, 상한 rem) — 남는 폭을 비중대로 상한까지 나눈다(물 채우기)
  *   내용 길이     status 6 · enum 6.5 · code 6.5 바탕 — 폭 = max(바탕, 머리글 필요 폭, 값 필요 폭)
- *   고정          count 6 · number 7 · percent · score 6 · date 8.5 · datetime 11 · select 2.5 · actions 30n + 8(n−1) + 32px
+ *   고정          count 6 · number 7 · percent · score 6 · date 8.5 · datetime 11 · select 2.5 · actions Σ단추 + 8(n−1) + 32px
+ *                 (글자 단추는 max(64, 글 폭 + 20), 아이콘 단추는 30)
  *
  * 머리글 필요 폭 = 12px 글 폭 + 칸 여백 32 + 정렬 · 필터 표지마다 22. 값 필요 폭 = 열의 `values`(선택지 라벨 전부) 또는 받은 행의
  * 화면 낱말(`value(row)` · `hint(row)` · 글 값) 가운데 가장 긴 것(14px) + 32. 둘 다 0.5rem 단위로 올린다. 크기는 전부 rem 이라
@@ -43,9 +44,17 @@ export const VALUE_FONT_REM = 0.875;
 export const CELL_PAD_REM = 2;
 export const GLYPH_REM = 1.375;
 export const STEP_REM = 0.5;
-/* 행 동작 칸 — 단추 30 · 사이 8 · 칸 여백 32. */
-export const ACTION_BUTTON_REM = 1.875;
+/* 행 동작 칸 — 단추 사이 8 · 칸 여백 32. 단추 폭은 **글자 단추의 바닥 64**(단추 최소 폭)다.
+ *
+ * 예전 값 30 은 단추의 **높이**였다(행 안 동작은 30px). 그 값으로 폭을 셈해 「수정」 하나짜리 열이 64px 로 섰고, 64px 단추가
+ * 칸 여백 16 만큼 밀려 표 오른쪽 끝에서 잘렸다 — 승인 표의 「승인 · 거절」은 둘째 단추가 통째로 판 밖이었다(r23 #26 · #94,
+ * 실브라우저 1920 실측: 열 64 · 단추 1839~1903 · 표 끝 1887). 아이콘만 서는 열은 `actionKind: "icon"`(30)이고, 글이 긴 단추는
+ * `actionLabels` 로 글을 주면 글 폭으로 잰다(「나에게 배정」 · 「되돌리기」). */
+export const ACTION_BUTTON_REM = 4;
+export const ACTION_ICON_REM = 1.875;
 export const ACTION_GAP_REM = 0.5;
+/* 글자 단추의 안쪽 좌우 여백(10 + 10). 글 폭은 칸 글자(14)로 잰다 — 한글 한 자가 글자 크기만큼 선다. */
+export const ACTION_LABEL_PAD_REM = 1.25;
 /* 받은 행에서 값 길이를 잴 때 보는 행 수 상한 — 무한 받기 목록이 길어져도 계산이 커지지 않는다. */
 export const VALUE_SAMPLE_ROWS = 200;
 
@@ -212,8 +221,13 @@ export function columnSpec(col, { rootPx = 16, glyphs = 0, sortKey, rows } = {})
     return { ...base, kind: "grow", min, weight: growSpec.weight, max, need, trusted };
   }
   if (type === "actions") {
-    const n = Math.max(1, Number(c.actionCount) || 1);
-    const w = stepUp(ACTION_BUTTON_REM * n + ACTION_GAP_REM * (n - 1) + CELL_PAD_REM);
+    const labels = Array.isArray(c.actionLabels) ? c.actionLabels.filter(Boolean) : null;
+    const icon = c.actionKind === "icon";
+    const n = labels && labels.length ? labels.length : Math.max(1, Number(c.actionCount) || 1);
+    const button = (label) => (icon ? ACTION_ICON_REM
+      : Math.max(ACTION_BUTTON_REM, String(label || "").length * VALUE_FONT_REM + ACTION_LABEL_PAD_REM));
+    const buttons = labels && labels.length ? labels.reduce((sum, l) => sum + button(l), 0) : n * button("");
+    const w = stepUp(buttons + ACTION_GAP_REM * (n - 1) + CELL_PAD_REM);
     return { ...base, kind: "fixed", min: Math.max(minOverride != null ? minOverride : w, header), weight: 0, max: null };
   }
   const floor = minOverride != null ? minOverride : (typeSpec ? remOf(typeSpec.minWidth) : (remOf(s.minWidth) || 4.5));

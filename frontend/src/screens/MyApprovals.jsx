@@ -256,6 +256,8 @@ export function MyApprovals() {
   if (box === "todo") {
     columns.push({
       key: "actions", label: "결재", type: "actions",
+      /* 칸 폭은 단추 글로 잰다 — 「승인 · 거절」 두 단추가 판 끝에서 잘렸다(r23 #26). */
+      actionLabels: ["승인", "거절"],
       render: (r) => {
         // 결재가 끝난 줄에는 단추를 안 그린다 — 서버가 409 로 막을 두 번째 클릭을 화면이
         // 먼저 없앤다. 자리는 그대로 두어 아래 줄이 커서 밑으로 올라오지 않게 한다.

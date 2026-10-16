@@ -11,6 +11,8 @@ import { COLUMN_TYPES } from "./columnTypes.js";
  * 칸 하나가 1px 다를 수 있어 ±1 로 보고, 합은 칸 폭과 정확히 같아야 한다.
  *
  * qa-contract-change: 남는 폭의 첫 몫이 내용 몫이 됐다(P17V). 계획의 계산표는 비중만으로 나눠 1366 에서 이메일 열이 185px 였고,
+ * qa-contract-change: 행 동작 칸의 단추 폭을 높이(30)가 아니라 글자 단추 바닥(64)으로 센다 — 30 으로 세면 「수정」 하나짜리 칸이 64px 라
+ * 단추가 표 밖으로 나가 잘렸다(r23 #26 · #94 실측). 아이콘 칸(`actionKind: "icon"`)은 옛 값 그대로이고, 글 폭 단언을 더한다.
  * 일반 길이 주소 「kim.jihoon@goodmit.co.kr」(232px)가 잘렸다 — 계획이 함께 요구한 「이메일 · 상태 · 역할 · 날짜는 일반 길이 값에서
  * 말줄임 없음」과 어긋난다. 이제 값 폭까지 먼저 주고, 모자라면 값이 바닥보다 짧은 열(이름 · 부서)이 그 차이를 내준다. 황금값은
  * 그 규칙으로 다시 쟀고(1366 · 1600 · 1920 · 말단 1366), 이메일이 잘리지 않는다는 단언을 더했다. */
@@ -179,10 +181,21 @@ describe("남는 폭의 분배", () => {
     ];
     const plan = planColumns(cols, 2000, {});
     expect(plan.widths.sel).toBe(40);
-    // 동작 칸 = 30 × 2 + 8 + 32 = 100 → 0.5rem 단위로 올려 104.
-    expect(plan.widths.act).toBe(104);
-    expect(plan.widths.n + plan.widths.c).toBe(2000 - 40 - 104);
+    // 동작 칸 = 글자 단추 64 × 2 + 8 + 32 = 168(30 은 단추의 높이였다 — r23 #26).
+    expect(plan.widths.act).toBe(168);
+    expect(plan.widths.n + plan.widths.c).toBe(2000 - 40 - 168);
     expect(plan.widths.n).toBeGreaterThan(288);
+  });
+
+  it("행 동작 칸 폭 — 글자 단추는 64 바닥, 아이콘은 30, 긴 글은 글 폭으로 잰다", () => {
+    const one = planColumns([{ key: "n", label: "이름", type: "name" }, { key: "act", label: "", type: "actions" }], 1200, {});
+    // 「수정」 하나 = 64 + 32 = 96. 예전에는 30 + 32 → 64 라 64px 단추가 칸 여백만큼 표 밖으로 나갔다.
+    expect(one.widths.act).toBe(96);
+    const icons = planColumns([{ key: "n", label: "이름", type: "name" }, { key: "act", label: "", type: "actions", actionKind: "icon", actionCount: 2 }], 1200, {});
+    expect(icons.widths.act).toBe(104);   // 30 × 2 + 8 + 32 = 100 → 0.5rem 단위로 올려 104
+    const long = planColumns([{ key: "n", label: "이름", type: "name" }, { key: "act", label: "", type: "actions", actionLabels: ["나에게 배정", "수정"] }], 1200, {});
+    // 「나에게 배정」 6자 × 14 + 20 = 104 · 「수정」 64 · 사이 8 · 칸 여백 32 = 208.
+    expect(long.widths.act).toBe(208);
   });
 
   it("칸 폭을 못 쟀으면 배분하지 않는다 — 첫 그림은 옛 배치다", () => {

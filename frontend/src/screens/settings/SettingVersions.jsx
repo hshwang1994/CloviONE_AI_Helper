@@ -60,6 +60,8 @@ export function SettingVersions({ settingKey, label, canWrite, onClose, onRolled
   ];
   if (canWrite) columns.push({
     key: "__roll", label: "", type: "actions",
+    // 칸 폭은 단추 글로 잰다 — 글이 긴 단추 하나다(`columnPlan` 의 `actionLabels`).
+    actionLabels: ["이 버전으로 롤백"],
     // 직접 편집(SettingEditor.onSave)은 securityDowngradeWarning이 참일 때만 danger 확인을 쓰고,
     // 평범한 저장(예: conversation_retention_days 90→30)은 기본 톤이다 — 롤백 버튼만 종류와 무관하게
     // 항상 빨간색이라, 보안과 무관한 설정도 위험해 보이는 경보 피로를 줬다. 같은 판정 함수로 톤을 맞춘다.
