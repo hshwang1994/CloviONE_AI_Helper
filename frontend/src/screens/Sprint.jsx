@@ -98,7 +98,7 @@ const DISCUSS_TABS = [
   { key: "due_soon", label: "마감 임박", empty: "곧 마감인 티켓이 없습니다.", tone: "warn" },
   { key: "no_estimate", label: "예상 WD 없음", empty: "예상 WD가 비어 있는 티켓이 없습니다." },
   { key: "no_due", label: "마감 없음", empty: "마감이 비어 있는 티켓이 없습니다." },
-  { key: "scope_changes", label: "범위 변경", empty: "회차가 시작한 뒤 드나든 티켓이 없습니다." },
+  { key: "scope_changes", label: "범위 변경", empty: "회차가 시작한 뒤 추가되거나 제외된 티켓이 없습니다." },
 ];
 
 /* 논의 목록·회의록 레인의 세로 상한. 목록은 자기 상자 안에서 구른다. */
@@ -936,12 +936,12 @@ export function Sprint() {
                         size="sm"
                         onClick={() => setDiscussTab("scope_changes")}
                       >
-                        드나든 티켓 보기
+                        범위 변경 티켓 보기
                       </Button>
                     </Stack>
                   ) : (
                     <Typography variant="body2" color="text.secondary">
-                      이 회차에는 드나든 기록이 없어서 범위가 얼마나 바뀌었는지 알 수 없습니다.
+                      이 회차에는 티켓 추가와 제외 기록이 없어서 범위가 얼마나 바뀌었는지 알 수 없습니다.
                     </Typography>
                   )}
                 </Box>
