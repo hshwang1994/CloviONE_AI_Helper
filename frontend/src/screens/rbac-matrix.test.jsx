@@ -88,4 +88,12 @@ describe("권한 매트릭스", () => {
     // 색·기호만으로 구분하면 스크린리더 사용자에게는 아무 정보가 없다.
     expect((await screen.findAllByLabelText("허용 안 됨")).length).toBe(2);
   });
+
+  /* 상세의 「허용 역할」 줄도 서버 값(`system_admin`)이 아니라 역할 이름이다(r23 #100). 모르는 값은 지어내지 않고 그대로 둔다. */
+  it("상세의 허용 역할은 역할 이름으로 선다", () => {
+    const allowed = REGISTRY.rbac.detailFields.find((f) => f.key === "allowed");
+    expect(allowed.render({ allowed: ["operator", "admin", "system_admin"] })).toBe("운영자, 관리자, 시스템 관리자");
+    expect(allowed.render({ allowed: ["future_role"] })).toBe("future_role");
+    expect(allowed.render({ allowed: [] })).toBe("-");
+  });
 });

@@ -8,6 +8,7 @@ import "@testing-library/jest-dom/vitest";
 
 /* qa-contract-replaced-by: frontend/src/screens/org/org-members-list.test.jsx
  * qa-contract-change: 구성원 목록이 작업 공간의 구성원 판이 됐다(O1 · D-533) — 부서의 기본이 하위 포함이 되어 「하위 부서 포함」 토글 단언을 「직속만」 토글로 뒤집었고, 동명이인 이름 칸 둘째 줄의 이메일을 걷어 「이메일이 두 번 선다」 단언을 「한 번만 선다」로 바꿨다.
+ * qa-contract-change: 계정 상태 낱말이 사용자 화면과 한 벌(활성 · 비활성 · 보관됨)이 됐다(r23 #99) — 상태 칸의 보관 선택지 이름만 「보관」에서 「보관됨」으로 바뀌고 서버 값(archived)과 초기화 동작 단언은 그대로다.
  *
  * 구성원 판 (O1 · D-533) — 옛 `OrgMembersList`(계획 3.6 · D-510)의 자리를 잇는다.
  *
@@ -148,7 +149,7 @@ describe("표", () => {
     await screen.findAllByText("김하나");
     apiMock.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 50 });
     await user.click(screen.getByRole("combobox", { name: /상태/ }));
-    await user.click(await screen.findByRole("option", { name: "보관" }));
+    await user.click(await screen.findByRole("option", { name: "보관됨" }));
     expect(await screen.findByText("검색 조건에 맞는 항목이 없습니다.")).toBeInTheDocument();
     const clears = screen.getAllByRole("button", { name: "필터 초기화" });
     await user.click(clears[clears.length - 1]);

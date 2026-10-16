@@ -15,6 +15,12 @@ import { CONCURRENCY_OPTS, JOB_TYPE, MISFIRE_OPTS, OPS_ROLES, SCHEDT_OPTS, SCHED
 import { onoff } from "./actions.js";
 import { fmtElapsedMinutes } from "../ops/opsHelpers.js";
 
+/* 「실행 일정(Cron)」 칸의 글 — 그리는 글과 열 폭을 재는 글(`value`)이 같은 함수에서 나온다. 그리는 함수만 있으면 열 배분이 이 글을
+   못 재서 바닥 폭으로 서고 긴 글이 잘린다(`ui/columnPlan.js::columnValueText` 는 `render` 결과를 재지 않는다). */
+const cronText = (r) => (r.schedule_type === "once"
+  ? "1회 실행(‘다음 실행’ 참고)"
+  : (r.cron_expression == null || r.cron_expression === "" ? "-" : String(r.cron_expression)));
+
 export const AUTOMATION_SCREENS = {
   schedules: {
     smallSet: true, // 저장된 뷰 기준(서버 페이지 + 조건 셋 이상)에 못 미친다(D-506)
@@ -52,7 +58,7 @@ export const AUTOMATION_SCREENS = {
      * 대조할 수 없었다 — 표의 존재 이유가 비교인데 그것이 안 됐다. 백업 화면이 같은 이유로
      * 이미 요약 카드를 바꿨다(platform.js 의 「마지막 백업」). */
     columns: [{ ...col("name", "이름"), identifier: true }, mapCol("schedule_type", "유형", SCHED_TYPE),
-      { key: "cron_expression", label: "실행 일정(Cron)", type: "code", render: (r) => r.schedule_type === "once" ? "1회 실행(‘다음 실행’ 참고)" : (r.cron_expression == null || r.cron_expression === "" ? "-" : String(r.cron_expression)) },
+      { key: "cron_expression", label: "실행 일정(Cron)", type: "code", value: cronText, render: cronText },
       mapCol("target_type", "대상 유형", { system: "시스템" }),
       { key: "target_ref", label: "대상", type: "enum", render: (r) => r.target_ref || "-" },
       enabledCol("활성"),
@@ -166,7 +172,7 @@ export const AUTOMATION_SCREENS = {
           // 실패 원인을 더 깊이 보려면(시도 횟수·워커 last_error·소요 시간) 작업 큐에서 이
           // schedule_run_id를 손으로 찾는 것 말고는 길이 없었다. SubListDrawer의 rowActions는
           // navigate를 지원하지 않아(act()가 path()를 호출하는 mutation 전용) 컬럼 링크로 둔다.
-          { key: "job_link", label: "작업 큐", type: "code", render: (r) => React.createElement(Link, { underline: "hover", href: "#/jobs?schedule_run_id=" + encodeURIComponent(r.id) }, "보기") }],
+          { key: "job_link", label: "작업 큐", type: "code", value: () => "보기", render: (r) => React.createElement(Link, { underline: "hover", href: "#/jobs?schedule_run_id=" + encodeURIComponent(r.id) }, "보기") }],
         emptyTitle: "실행 이력이 없습니다.", emptyHelp: "이 일정이 아직 실행되지 않았거나 고른 결과에 맞는 기록이 없습니다.",
         rowActions: [
           // 목록 열은 진단 핵심 두 값(보낸 입력값/응답 요약)을 60자로 자른다 — 그 너머는 볼 방법이

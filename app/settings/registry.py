@@ -417,11 +417,11 @@ REGISTRY: dict[str, SettingSpec] = {
     s.key: s
     for s in [
         SettingSpec("conversation_retention_days", "int", 90, False,
-                    "대화 보존 기간(일). 이 기간이 지난 대화는 자동으로 삭제됩니다.", _positive_int(3650)),
+                    "이 기간이 지난 대화는 자동으로 삭제됩니다.", _positive_int(3650)),
         SettingSpec("notification_retention_days", "int", 90, False,
-                    "알림 보존 기간(일). 이 기간이 지난 알림은 자동으로 정리됩니다.", _positive_int(3650)),
+                    "이 기간이 지난 알림은 자동으로 정리됩니다.", _positive_int(3650)),
         SettingSpec("trash_retention_days", "int", 7, False,
-                    "휴지통 보관 기간(일). 이 기간이 지나면 원본을 보관 처리하고 휴지통에서 삭제합니다.", _positive_int(365)),
+                    "이 기간이 지나면 원본을 보관 처리하고 휴지통에서 삭제합니다.", _positive_int(365)),
         # 문서 휴지통은 **다른 정책**을 갖는다 (지시 22.7 개정 · D-352).
         #
         # 위 `trash_retention_days` 가 하는 일은 「원본을 보관처리하고 휴지통 행을 지우는」
@@ -438,11 +438,11 @@ REGISTRY: dict[str, SettingSpec] = {
         SettingSpec("ui_branding", "object", {"product_name": "ClovirAssist"}, False,
                     "로그인 화면과 채팅 화면의 제목에 쓰는 제품명입니다.", _ui_branding),
         SettingSpec("maintenance_mode", "bool", False, False,
-                    "유지보수 모드 (일반 사용자 신규 요청 차단)", _bool),
+                    "활성화하면 일반 사용자의 쓰기가 차단됩니다. 읽기와 운영자 이상의 쓰기는 그대로 됩니다.", _bool),
         SettingSpec("maintenance_message", "string", "현재 시스템 점검 중입니다.", False,
-                    "유지보수 공지 메시지", _non_empty_str),
+                    "유지보수 모드가 활성화되어 있을 때 사용자가 보게 되는 안내 문구입니다.", _non_empty_str),
         SettingSpec("password_policy", "object", {"min_length": 12, "min_classes": 3}, False,
-                    "비밀번호 정책: 저장하면 바로 적용됩니다.", _password_policy),
+                    "저장하면 바로 적용됩니다.", _password_policy),
         # "신규 세션부터 적용"은 absolute_timeout_seconds에만 맞는 말이다(app/core/sessions.py
         # ::create가 그 값을 세션 생성 시점에 expires_at으로 굳힌다). idle_timeout_seconds는
         # 굳지 않는다 - validate()가 매 요청마다 그때의 설정값으로 idle_deadline을 다시 계산하므로,
@@ -450,7 +450,7 @@ REGISTRY: dict[str, SettingSpec] = {
         # password_policy 설명("즉시 적용")은 정확한데 이 칸만 두 필드를 뭉뚱그려 틀렸었다.
         SettingSpec("session_policy", "object",
                     {"idle_timeout_seconds": 1800, "absolute_timeout_seconds": 28800}, False,
-                    "세션 정책: 유휴 제한은 저장하면 이미 열린 세션에도 바로 적용되고, 최대 세션 길이는 새로 여는 세션부터 적용됩니다.",
+                    "유휴 제한은 저장하면 이미 열린 세션에도 바로 적용되고, 최대 세션 길이는 새로 여는 세션부터 적용됩니다.",
                     _session_policy),
         # ADM-05: 예전엔 env(app/core/config.py의 login_max_failures/login_lock_seconds)
         # 전용이라 화면에서 볼 수도 바꿀 수도 없었다 - 조정하려면 서버 파일을 고치고
@@ -459,7 +459,7 @@ REGISTRY: dict[str, SettingSpec] = {
         # 지금과 똑같이 동작한다. 다음 로그인 시도부터 즉시 적용(별도 굳는 지점 없음).
         SettingSpec("lockout_policy", "object",
                     {"max_failures": 5, "lock_seconds": 900}, False,
-                    "계정 잠금 정책: 로그인 실패 임계값과 잠금 시간을 정합니다. 다음 로그인 시도부터 바로 적용됩니다.",
+                    "로그인 실패 임계값과 잠금 시간을 정합니다. 다음 로그인 시도부터 바로 적용됩니다.",
                     _lockout_policy),
         # 기본값이 비어 있다(= 제한 없음). 설치처마다 다른 값이라 여기에 한 회사의 도메인을
         # 박아 두면 다른 고객사 설치에서도 그 회사 도메인으로만 계정을 만들 수 있게 된다.
@@ -482,17 +482,17 @@ REGISTRY: dict[str, SettingSpec] = {
         # `restart_required=False`: 워커 틱이 매번 이 값을 다시 읽는다
         # (app/worker_main.py). 설정 캐시 재적재가 60초 간격이므로 늦어도 그 안에 반영된다.
         SettingSpec("search_index_interval_seconds", "int", 0, False,
-                    "검색 색인 갱신 주기: 초 단위로 정합니다. 0이면 서버 기본값을 쓰고, 그 밖의 값은 60초 이상이어야 합니다.",
+                    "검색 색인을 갱신하는 주기를 초 단위로 정합니다. 0이면 서버 기본값을 쓰고, 그 밖의 값은 60초 이상이어야 합니다.",
                     _interval_seconds),
         SettingSpec("document_automation_enabled", "bool", True, False,
-                    "문서 자동화: 비활성화하면 새 문서 생성 요청을 받지 않습니다.", _bool),
+                    "비활성화하면 새 문서 생성 요청을 받지 않습니다.", _bool),
         # AI 기능 셋(계획 3.13, D-507). 예전에는 feature-flags.json 소유라 운영에서 관리 화면이 못 켰다.
         SettingSpec("chat_enabled", "bool", True, False,
-                    "AI 도우미 채팅: 비활성화하면 채팅 화면과 대화 기능을 쓸 수 없습니다.", _bool),
+                    "비활성화하면 채팅 화면과 대화 기능을 쓸 수 없습니다.", _bool),
         SettingSpec("game_ai_enabled", "bool", False, False,
-                    "AI 퀴즈 만들기: 활성화하면 놀이 화면에서 AI가 퀴즈 초안을 만듭니다.", _bool),
+                    "활성화하면 놀이 화면에서 AI가 퀴즈 초안을 만듭니다.", _bool),
         SettingSpec("assistant_narrative_enabled", "bool", False, False,
-                    "AI 도우미 문장 요약: 활성화하면 홈과 도우미가 숫자 옆에 한두 문장 요약을 붙입니다.", _bool),
+                    "활성화하면 홈과 도우미가 숫자 옆에 한두 문장 요약을 붙입니다.", _bool),
         # 백업 스케줄(0033, PLAN Phase 6). 워커가 이 값을 읽어 실제로 백업을 만든다
         # (app/worker_main.py::backup_schedule_tick) — '되는 척하는 스위치'가 아니다.
         # 기본은 꺼짐: 켜는 순간 디스크를 쓰기 시작하므로 운영자가 의도해서 켜야 한다.
@@ -515,22 +515,22 @@ REGISTRY: dict[str, SettingSpec] = {
                     False,
                     # 지시 36: 비밀번호를 저장하지 않는다는 사실은 관리자가 알아야 하지만,
                     # 그 저장 방식의 내부 필드 이름까지 알 필요는 없다.
-                    "메일 발송에 쓸 서버 정보. 비밀번호는 여기 저장하지 않고 메일 설정의 비밀번호 칸에 "
-                    "따로 저장합니다",
+                    "메일 발송에 쓸 서버 정보입니다. 비밀번호는 여기 저장하지 않고 메일 설정의 비밀번호 칸에 "
+                    "따로 저장합니다.",
                     _smtp),
         # 알림을 메일로도 보내기(계획 3.4, D-514). 사용자는 이 목록 안에서 받을 유형을 고른다. 관리자가 목록에서
         # 빼면 그 유형은 켜 둔 사람에게도 나가지 않는다. 소비자는 `app/notifications/mail.py` 다.
         SettingSpec("mail_notification_types", "object",
                     ["ticket_assigned", "ticket_status_changed", "ticket_resolved"], False,
-                    "메일로도 보낼 수 있는 알림 유형입니다. 사용자는 이 안에서 메일로 받을 알림을 고릅니다",
+                    "메일로도 보낼 수 있는 알림 유형입니다. 사용자는 이 안에서 메일로 받을 알림을 고릅니다.",
                     _mail_notification_types),
         SettingSpec("mail_notification_max_age_days", "int", 7, False,
-                    "메일 서버가 멈춘 동안 쌓인 메일은 이 기간(일)이 지나면 보내지 않습니다",
+                    "메일 서버가 멈춘 동안 쌓인 메일은 이 기간(일)이 지나면 보내지 않습니다.",
                     _positive_int(30)),
         # 초기 설정 화면이 고친다(D-520). 메일과 AI 를 쓰지 않는 설치도 정상 설치다 - 「사용하지 않음」이면 설정이 비어
         # 있어도 초기 설정의 할 일로 세지 않는다.
         SettingSpec("setup_optional_choices", "object", {"mail": "use", "llm": "use", "tls": "app"}, False,
-                    "초기 설정에서 메일과 AI 를 쓰는지, TLS 를 누가 맡는지 고릅니다", _setup_choices),
+                    "초기 설정에서 메일과 AI를 쓰는지, TLS를 누가 맡는지 고릅니다.", _setup_choices),
         # 노션 데이터베이스 id 셋(9-4)이 여기 있었다. 티켓 목록과 문서 목록이 그 값을
         # 읽어 노션을 조회했기 때문이다. 지금은 셋 다 자체 데이터베이스에서 나오므로
         # 관리자가 정할 것이 없다. 옛 데이터를 한 번 읽어 오는 이관 CLI 는 데이터베이스를
@@ -541,23 +541,23 @@ REGISTRY: dict[str, SettingSpec] = {
         # 빈 제공자, 빈 모델, 꺼짐이 기본이다 - AI 를 기본으로 켜 두는 관례가 이 저장소에 없고, 모델은 제품이 대신 고를
         # 자리가 아니다. 서버에 로그인된 구독 명령줄 도구로 돌던 옛 설정(`llm_*`)은 0037 이 옮겼다.
         SettingSpec("ai_generation_enabled", "bool", False, False,
-                    "AI 답변 생성: 켜면 채팅, 작업 공간, 홈 요약, 퀴즈가 설정한 AI 제공자로 답을 만듭니다", _bool),
-        SettingSpec("ai_provider", "string", "", False, "답변을 만드는 AI 제공자입니다", _ai_provider),
-        SettingSpec("ai_auth_method", "string", "", False, "AI 제공자에 연결하는 방법입니다", _ai_auth_method),
-        SettingSpec("ai_model", "string", "", False, "답변을 만드는 모델 이름입니다. 비우면 AI 가 꺼집니다", _ai_model),
+                    "활성화하면 채팅, 작업 공간, 홈 요약, 퀴즈가 설정한 AI 제공자로 답을 만듭니다.", _bool),
+        SettingSpec("ai_provider", "string", "", False, "답변을 만드는 AI 제공자입니다.", _ai_provider),
+        SettingSpec("ai_auth_method", "string", "", False, "AI 제공자에 연결하는 방법입니다.", _ai_auth_method),
+        SettingSpec("ai_model", "string", "", False, "답변을 만드는 모델 이름입니다. 비우면 AI가 비활성화됩니다.", _ai_model),
         SettingSpec("ai_timeout_seconds", "int", 60, False,
-                    "AI 호출 하나를 기다리는 시간(초)입니다", _ai_timeout),
+                    "AI 호출 하나를 기다리는 시간(초)입니다.", _ai_timeout),
         SettingSpec("ai_max_concurrency", "int", 2, False,
-                    "웹과 백그라운드 작업이 함께 나눠 쓰는 AI 동시 실행 수입니다", _ai_concurrency),
+                    "웹과 백그라운드 작업이 함께 나눠 쓰는 AI 동시 실행 수입니다.", _ai_concurrency),
         # ChatGPT 계정 연결의 토큰 수명 기본값(계획 3.15, D-516). **정본은 제공자의 응답이다** - 응답의 `expires_in` ·
         # JWT `exp` · `refresh_token_expires_in` 이 없을 때만 이 값을 쓴다. 제공자가 수명을 바꿔도 코드를 고치지 않는다.
         SettingSpec("ai_openai_access_ttl_fallback_seconds", "int", 3600, False,
-                    "제공자가 access token 수명을 알려 주지 않을 때 쓰는 값(초)입니다",
+                    "제공자가 접근 토큰 수명을 알려 주지 않을 때 쓰는 값(초)입니다.",
                     _bounded_int(300, 86400, "초")),
         SettingSpec("ai_openai_refresh_ttl_fallback_days", "int", 30, False,
-                    "제공자가 갱신 토큰 수명을 알려 주지 않을 때 쓰는 값(일)입니다", _bounded_int(1, 365, "일")),
+                    "제공자가 갱신 토큰 수명을 알려 주지 않을 때 쓰는 값(일)입니다.", _bounded_int(1, 365, "일")),
         SettingSpec("ai_token_refresh_lead_seconds", "int", 300, False,
-                    "access token 이 끝나기 이만큼 전에 미리 갱신합니다(초)", _bounded_int(30, 3600, "초")),
+                    "접근 토큰이 만료되기 몇 초 전에 미리 갱신할지 정합니다.", _bounded_int(30, 3600, "초")),
     ]
 }
 

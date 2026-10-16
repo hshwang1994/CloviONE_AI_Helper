@@ -9,7 +9,7 @@ import { roleLabel } from "../../lib/roles.js";
 import { useInfiniteList, useResetScrollOnKeyChange } from "../../lib/useInfiniteList.js";
 import { useQueryState } from "../../lib/useQueryState.js";
 import { Button, Callout, CountChip, DataTable, ErrorState, useToast } from "../../ui/kit.jsx";
-import { SettingRow } from "../../ui/adminKit.jsx";
+import { SettingRow, SettingRows } from "../../ui/adminKit.jsx";
 import { selectionColumn, useRowSelection } from "../../ui/bulkSelect.jsx";
 import { FilterBar } from "../../ui/FilterBar.jsx";
 import { EntityCombobox, FilterSelect, SearchBox } from "../../ui/filters.jsx";
@@ -35,17 +35,23 @@ export const INTEGRITY_KEY = ["integrity"];
 
 const TAB_SPEC = { issue: "", q: "" };
 
-/** 검사가 모두 0건인 탭 - 한 줄 안내와 검사 목록. 검사 목록은 이 탭이 무엇을 보는지 말한다. */
+/** 검사가 모두 0건인 탭 - 한 줄 안내와 검사 목록. 검사 목록은 이 탭이 무엇을 보는지 말한다.
+ *
+ * 🔴 줄이 판 끝까지 늘면 「0건」 칩이 이름에서 1,600px 떨어져 섰다(1920). 줄 묶음은 반 칸 폭이다(`SettingRows width="form"`,
+ * D-590) — 칩이 이름 · 설명과 한 덩어리로 읽히고, 좁은 폭(두 칸 문턱 미만)에서는 판 폭을 다 쓴다. 줄은 설명이 잘리지 않는 일반
+ * 줄이다(`compact` 의 한 줄 말줄임은 개인 설정 훑기 목록 몫이다 — 반 칸 폭에서 「…볼 수 없습니다」가 잘렸다). */
 function ClearTab({ findings }) {
   return (
     <Box sx={{ display: "grid", gap: 1.5 }}>
       <Callout tone="ok" variant="inline">이 탭에서 정리할 항목이 없습니다.</Callout>
-      {/* 촘촘한 줄은 실선이 줄 위에 온다. 첫 줄 위의 선은 안내와 겹쳐 두 줄로 보이므로 뗀다. */}
-      <Box sx={{ "& > .k-settingrow:first-of-type": { borderTop: 0 } }}>
-        {findings.map((f) => (
-          <SettingRow key={f.key} compact label={f.title} description={f.why} action={<CountChip value="0건" />} />
+      <SettingRows width="form">
+        {findings.map((f, i) => (
+          <SettingRow
+            key={f.key} label={f.title} description={f.why} action={<CountChip value="0건" />}
+            last={i === findings.length - 1}
+          />
         ))}
-      </Box>
+      </SettingRows>
     </Box>
   );
 }

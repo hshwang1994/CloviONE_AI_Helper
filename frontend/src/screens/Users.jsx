@@ -574,7 +574,7 @@ export function Users() {
       // 목록에서 잠금을 발견할 방법이 없었다. 같은 셀에 잠금 배지를 함께 보여 준다(별도 열 없이).
       // 여러 배지를 한 그룹으로 묶는다 — 좁은 화면 카드 뷰에서 배지가 라벨과 함께 흩어지지 않게
       // 하나의 inline-flex 그룹으로 두고, 배지 사이 간격도 gap이 담당한다(예전엔 공백 텍스트 노드였다).
-      // 수명주기(사용 중/비활성/보관됨)는 배타적인 한 개다 — 판정과 이유는 lifecycleBadge 에 있다(X14).
+      // 수명주기(활성/비활성/보관됨)는 배타적인 한 개다 — 판정과 이유는 lifecycleBadge 에 있다(X14).
       // 열 이름도 '활성'이 아니라 '상태'다: 이 열이 답하는 것은 "활성인가"가 아니라 "지금 이
       // 계정으로 로그인이 되는가, 안 된다면 어느 문을 열어야 하는가"이기 때문이다.
       key: "active", label: "상태", type: "status",
@@ -793,7 +793,7 @@ export function Users() {
             「부서 미지정」 타일(11명)을 눌러 이 상자를 켜면 목록이 9건으로 줄어드는데,
             그때 배너가 「포함해 보고 있습니다」라고 하면 관리자는 사라진 2명을 사고로 읽는다.
             수를 여기 적지 않는 이유는 그것이 데이터라서다 — 세는 일은 목록이 한다. */}
-        {showArchived && items.length > 0 ? <Box sx={{ mb: 2.5 }}><Callout tone="info">보관된 계정만 보고 있습니다. 사용 중인 계정을 다시 보려면 ‘보관된 계정 보기’를 끄세요.</Callout></Box> : null}
+        {showArchived && items.length > 0 ? <Box sx={{ mb: 2.5 }}><Callout tone="info">보관된 계정만 보고 있습니다. 보관되지 않은 계정을 다시 보려면 ‘보관된 계정 보기’를 끄세요.</Callout></Box> : null}
         {/* 목록 판 — 불러오는 중 · 빈 목록 · 행 · 발(받은 건수 · 「사용자 더 보기」 · 선택 묶음)이 한 판 안이다(조합 계약 C-3).
             판은 넘침을 자르지 않아 고정 열 이름이 페이지를 따라온다. 손으로 그린 페이저와 목록 위 일괄 작업 줄이
             여기 있었다 — 이제 목록 판 발 하나를 다른 화면과 함께 쓴다. */}
@@ -927,7 +927,10 @@ const SESSION_COLUMNS = [
  *
  *   보관됨   로그인 불가. 목록·검색에서도 빠진다. '복구' 로 되돌린다        (warn)
  *   비활성   로그인 불가. 목록에는 그대로 남는다. '활성화' 로 되돌린다      (neutral)
- *   사용 중  로그인 가능                                                    (ok)
+ *   활성     로그인 가능                                                    (ok)
+ *
+ * 낱말은 「활성 · 비활성 · 보관됨」 한 벌이다 — 이 화면의 「활성」 조건 칸, 조직 관리의 구성원 표 · 상태 칸과 같은 어휘다.
+ * 예전에는 이 배지만 「사용 중」이라 같은 계정이 사용자 목록에서는 「사용 중」, 조직 관리에서는 「활성」으로 읽혔다(r23 #99).
  *
  * 보관과 비활성의 색을 다르게 준다 — 둘 다 회색이면 "로그인이 안 된다" 는 같은 결론까지만
  * 전해지고, **되돌리는 방법이 다르다는 것**은 전해지지 않는다. 보관 쪽이 더 무거운 상태라
@@ -938,7 +941,7 @@ const SESSION_COLUMNS = [
  */
 export function lifecycleBadge(row) {
   if (row.archived_at) return { label: "보관됨", kind: "warn" };
-  return row.active ? { label: "사용 중", kind: "ok" } : { label: "비활성", kind: "neutral" };
+  return row.active ? { label: "활성", kind: "ok" } : { label: "비활성", kind: "neutral" };
 }
 
 // 부서·직책이 비활성화됐는데도 이름만 봐서는 정상처럼 보이는 문제(수정 폼은 이미 처리, 상세는
@@ -1144,13 +1147,13 @@ function UserDetail({ user, notFound, onClose, onEdit, onChanged, onTempPw, pwHe
         </DetailRow>
         <DetailRow label="역할">{ROLE_KO[d.role] || d.role}{isSelf ? " (본인)" : ""}</DetailRow>
         {/* 목록과 **같은 판정**을 쓴다(X14) — 한쪽만 고치면 같은 계정이 목록에서는 '보관됨'
-            인데 상세에서는 '사용 중'으로 보인다. 보관된 계정은 `active` 가 참인 채로 남아
+            인데 상세에서는 '활성'으로 보인다. 보관된 계정은 `active` 가 참인 채로 남아
             있으므로(복구 때 되돌리려고), 복구하면 어느 상태로 돌아오는지도 함께 말한다. */}
         <DetailRow label="상태">
           <Badge value={lifecycleBadge(d).label} kind={lifecycleBadge(d).kind} />
           {d.archived_at ? (
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-              로그인할 수 없고 목록에서도 빠집니다. 복구하면 {d.active ? "사용 중" : "비활성"} 상태로 돌아옵니다.
+              로그인할 수 없고 목록에서도 빠집니다. 복구하면 {d.active ? "활성" : "비활성"} 상태로 돌아옵니다.
             </Typography>
           ) : !d.active ? (
             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>

@@ -10,8 +10,11 @@ import { lifecycleBadge } from "./Users.jsx";
  * `active=true` 인 채로 목록에 실려 오고, 예전 화면은 그 값만 보고 **초록 '사용 중'**
  * 배지를 그렸다. 로그인은 막혀 있는데(app/core/deps.py) 화면은 정상 계정이라고 말한 것이다.
  *
- * 이 표본이 핵심이다: `{ active: true, archived_at: "…" }`. 여기서 '사용 중' 이 나오면
+ * 이 표본이 핵심이다: `{ active: true, archived_at: "…" }`. 여기서 「활성」이 나오면
  * 관리자는 목록을 훑어 보관된 계정을 찾을 수 없다.
+ *
+ * qa-contract-change: 로그인되는 계정의 배지가 「사용 중」에서 「활성」이 됐다 — 이 화면의 「활성」 조건 칸, 조직 관리의 구성원 표 · 상태 칸과 같은
+ * 낱말 한 벌(활성 · 비활성 · 보관됨)이다(r23 #99, 서버 값은 그대로). 세 상태가 배타적이고 톤이 겹치지 않는다는 단언은 그대로다.
  */
 
 const ACTIVE = { active: true, archived_at: null };
@@ -21,13 +24,13 @@ const ARCHIVED = { active: true, archived_at: "2026-08-01T00:00:00" };
 const ARCHIVED_WAS_DISABLED = { active: false, archived_at: "2026-08-01T00:00:00" };
 
 describe("lifecycleBadge", () => {
-  it("로그인이 되는 계정만 '사용 중'이다", () => {
-    expect(lifecycleBadge(ACTIVE)).toEqual({ label: "사용 중", kind: "ok" });
+  it("로그인이 되는 계정만 '활성'이다", () => {
+    expect(lifecycleBadge(ACTIVE)).toEqual({ label: "활성", kind: "ok" });
   });
 
-  it("보관된 계정을 '사용 중'으로 그리지 않는다 — active 가 참이어도", () => {
+  it("보관된 계정을 '활성'으로 그리지 않는다 — active 가 참이어도", () => {
     expect(lifecycleBadge(ARCHIVED).label).toBe("보관됨");
-    expect(lifecycleBadge(ARCHIVED).label).not.toBe("사용 중");
+    expect(lifecycleBadge(ARCHIVED).label).not.toBe("활성");
     // 보관 전에 비활성이었든 아니든 목록에서는 '보관됨' 하나로 읽힌다.
     expect(lifecycleBadge(ARCHIVED_WAS_DISABLED).label).toBe("보관됨");
   });

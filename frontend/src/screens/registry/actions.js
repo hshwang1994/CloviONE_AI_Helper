@@ -159,7 +159,8 @@ export const slotVersionsAction = () => ({
     paginated: true,
     endpoint: (r, p) => "/api/admin/prompts?slot=" + encodeURIComponent(r.slot) + "&source=admin&page=" + ((p && p.page) || 1),
     columns: [
-      { key: "version", label: "버전", type: "code", render: (r) => "v" + r.version },
+      // `value` 는 그리는 글과 같다 — 열 배분은 `render` 결과를 재지 않는다(`ui/columnPlan.js::columnValueText`).
+      { key: "version", label: "버전", type: "code", value: (r) => "v" + r.version, render: (r) => "v" + r.version },
       { key: "status", label: "상태", type: "enum", render: (r) => SLOT_VERSION_STATUS[r.status] || r.status },
       { key: "created_by", label: "작성자", type: "name", render: (r) => r.created_by_name || r.created_by_email || "-" },
       dateCol("created_at", "만든 날"),

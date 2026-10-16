@@ -25,10 +25,13 @@ import { FONT_WEIGHT } from "../../ui/theme.js";
  * 직속 보기에서는 부서 열을 처음부터 그리지 않는다. 동명이인은 이메일 열이 가른다
  * (이름 칸 둘째 줄의 이메일은 걷었다 — 두 번 보였다). */
 
+/* 계정 상태 낱말은 사용자 화면(`Users.jsx::lifecycleBadge`)과 한 벌이다 — 활성 · 비활성 · 보관됨, 톤도 같다(보관이 더 무거운 상태라
+   주의, 비활성은 중립). 예전에는 같은 계정이 사용자 목록에서는 「사용 중」, 여기서는 「활성」이었고 보관은 「보관 · 보관됨」으로 갈렸다
+   (r23 #99). 서버 값(active · inactive · archived)은 그대로다. */
 const STATE_OPTIONS = [
   { value: "active", label: "활성" },
   { value: "inactive", label: "비활성" },
-  { value: "archived", label: "보관" },
+  { value: "archived", label: "보관됨" },
 ];
 
 export const MEMBERSHIP_OPTIONS = [
@@ -38,8 +41,8 @@ export const MEMBERSHIP_OPTIONS = [
 ];
 
 function stateOf(user) {
-  if (user.archived_at) return { label: "보관", kind: "neutral" };
-  if (user.active === false) return { label: "비활성", kind: "warn" };
+  if (user.archived_at) return { label: "보관됨", kind: "warn" };
+  if (user.active === false) return { label: "비활성", kind: "neutral" };
   return { label: "활성", kind: "ok" };
 }
 

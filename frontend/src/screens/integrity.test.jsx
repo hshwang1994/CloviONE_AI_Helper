@@ -15,6 +15,9 @@ import "@testing-library/jest-dom/vitest";
  *   ④ 0건 탭은 한 줄 안내와 검사 줄이다. 표도 체크박스도 없다.
  *   ⑤ 고치기는 전역 관리자만 한다 — 운영자와 부서 범위 관리자에게는 선택 열도 부서 후보 요청도 없다.
  *   ⑥ 관리자 범위 탭의 역할은 관리 콘솔의 역할 이름으로 선다.
+ *
+ * qa-contract-change: 0건 탭의 검사 줄이 판 끝까지 늘어 「0건」 칩이 이름에서 1,600px 떨어져 섰다. 줄 묶음은 반 칸 폭(`SettingRows width="form"`, D-590)이고
+ * 줄은 설명이 잘리지 않는 일반 줄이다. 그래서 「촘촘한 줄 + 말줄임 원문 title」 단언을 「반 칸 묶음 안의 일반 줄 + 설명 전문 + 같은 줄의 0건 칩」으로 바꿨다.
  */
 
 const apiMock = vi.fn();
@@ -170,8 +173,12 @@ describe("0건 탭과 딥링크", () => {
     await user.click(await screen.findByRole("tab", { name: /티켓/ }));
     expect(await screen.findByText("이 탭에서 정리할 항목이 없습니다.")).toBeInTheDocument();
     const row = screen.getByText(TICKETS.title).closest(".k-settingrow");
-    expect(row).toHaveClass("k-settingrow--compact");
-    expect(within(row).getByText(TICKETS.why)).toHaveAttribute("title", TICKETS.why);
+    // 줄 묶음은 반 칸 폭이고(D-590), 줄은 설명을 말줄임하지 않는 일반 줄이다.
+    expect(row.closest(".k-settingrows--form")).not.toBeNull();
+    expect(row).not.toHaveClass("k-settingrow--compact");
+    expect(within(row).getByText(TICKETS.why)).not.toHaveAttribute("title");
+    // 건수는 이름과 같은 줄에 선다.
+    expect(within(row).getByText("0건")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).toBeNull();
     expect(screen.queryByRole("table")).toBeNull();
   });

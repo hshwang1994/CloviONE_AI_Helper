@@ -522,8 +522,10 @@ export const GOVERNANCE_SCREENS = {
     // 원시 역할 값('system_admin')까지 매칭해 화면에 안 보이는 값으로 결과가 걸린다.
     searchFields: ["capability", "area", "note"],
     searchPlaceholder: "권한 이름으로 검색",
+    /* 허용 역할은 서버 값(`system_admin`)이 아니라 관리 콘솔의 역할 이름이다(r23 #100) — 예전에는 상세의 이 줄만 「operator,
+       admin, system_admin」을 그대로 보였다. 표의 열 이름과 같은 낱말이다. */
     detailFields: [field("id", "권한 키"), field("note", "설명"),
-      { key: "allowed", label: "허용 역할", render: (r) => (r.allowed || []).join(", ") || "-" }],
+      { key: "allowed", label: "허용 역할", render: (r) => (r.allowed || []).map((v) => ROLE_KO[v] || v).join(", ") || "-" }],
   },
   /* ── 관리자 백로그 잔여 (PLAN Phase 6, 마이그레이션 0033) ───────────────────
    *

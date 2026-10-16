@@ -136,7 +136,8 @@ export const AUTHORING_SCREENS = {
       { key: "label", label: "기능", type: "name", rowLink: true, rowName: (r) => r.label },
       { key: "current", label: "지금 쓰는 지시문", type: "name", render: (r) => (r.current ? r.current.label : "-") },
       { key: "feature_state", label: "기능 상태", type: "status", render: (r) => React.createElement(Badge, { value: r.feature_state_label || r.feature_state, kind: FEATURE_STATE_KIND[r.feature_state] || "neutral" }) },
-      { key: "draft", label: "초안", type: "code", render: (r) => (r.draft ? r.draft.label : "-") },
+      /* `value` 는 그리는 글과 같은 글이다 — 열 배분은 `render` 결과를 재지 않아서(`ui/columnPlan.js::columnValueText`) 없으면 바닥 폭으로 서고 긴 초안 이름이 잘린다. */
+      { key: "draft", label: "초안", type: "code", value: (r) => (r.draft ? r.draft.label : "-"), render: (r) => (r.draft ? r.draft.label : "-") },
       { key: "calls_30d", label: "최근 30일 요청", type: "count" },
       { key: "failure_rate", label: "실패율", type: "percent", render: (r) => (r.failure_rate == null ? "-" : r.failure_rate + "%") },
       dateCol("last_used_at", "마지막 사용"),
