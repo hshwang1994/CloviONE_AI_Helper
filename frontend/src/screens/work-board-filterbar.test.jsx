@@ -13,7 +13,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
  *  1) 데이터 조건은 티켓 목록과 같은 필터 바 **한 줄**이다 — 검색 → 프로젝트(wide) → 담당자 → 우선순위 → 난이도 → 신호.
  *     팀 · 회차 · 보기 전환 · 보기 옵션은 그 줄이 아니라 문맥 줄에 선다.
  *  2) 보기 옵션 묶음의 차례와 구성 — 「내 티켓만」이 맨 앞이고, 백로그 탭에서 보류 · 완료와 취소가 빠져도 제자리다.
- *  3) 「필터 지우기」는 데이터 조건만 걷는다 — 팀 · 회차 · 탭 · 보류 · 완료와 취소 · 내 티켓만은 그대로다.
+ *  3) 「필터 초기화」는 데이터 조건만 걷는다 — 팀 · 회차 · 탭 · 보류 · 완료와 취소 · 내 티켓만은 그대로다.
  *  4) 옛 주소 키(`project` · `assignee`)는 한 번 읽어 새 키로 고쳐 쓴다 — 판 질의는 새 키로 한 번만 나간다.
  *  5) 「내 티켓만」 — 담당자 칸은 이유와 함께 꺼지고 칩이 서지 않으며, 그 상태로 비면 「내 티켓이 없습니다」다.
  *  6) 칸에서 여러 값을 고르면 서버 질의에 키를 되풀이해 싣는다. */
@@ -169,20 +169,20 @@ describe("작업 보드 — 데이터 필터는 한 줄이고 보기 옵션은 �
     await waitFor(() => expect(here()).toContain("mine=1"));
     expect(screen.getByRole("button", { name: "내 티켓만" })).toHaveAttribute("aria-pressed", "true");
     expect(chipTexts()).toEqual(["검색: 로그"]);
-    expect(conditionLine().querySelector("[data-condition-count]").textContent).toMatch(/^조건 1개에 맞는 /);
+    expect(conditionLine().querySelector("[data-condition-count]").textContent).toMatch(/^검색 결과 /);
     await waitFor(() => expect(lastBoard().get("mine")).toBe("true"));
   });
 
-  it("🔴 「필터 지우기」는 데이터 조건만 걷는다 — 팀 · 회차 · 보류 · 완료와 취소 · 내 티켓만은 그대로다", async () => {
+  it("🔴 「필터 초기화」는 데이터 조건만 걷는다 — 팀 · 회차 · 보류 · 완료와 취소 · 내 티켓만은 그대로다", async () => {
     apiMock.mockImplementation(stub({ board: boardOf([]) }));
     renderBoard("/work-board?team=d-a&sprint=sp-a&hold=1&all=1&mine=1&q=로그&project_id=p-a&priority=높음&signal=blocked&est_wd_min=1");
     await waitFor(() => expect(conditionLine()).not.toBeNull());
     await waitFor(() => expect(chipTexts()).toEqual(["우선순위: 높음", "신호: 차단됨", "프로젝트: A 프로젝트", "검색: 로그", "예상 WD: 1 ~ …"]));
-    expect(conditionLine().querySelector("[data-condition-count]").textContent).toBe("조건 5개에 맞는 결과가 0건입니다.");
+    expect(conditionLine().querySelector("[data-condition-count]").textContent).toBe("검색 결과 0건");
     // 조건 때문에 빈 판이라 빈 상태도 같은 지우기를 준다.
     expect(await screen.findByText("조건에 맞는 티켓이 없습니다.")).toBeInTheDocument();
 
-    await userEvent.click(within(conditionLine()).getByRole("button", { name: "필터 지우기" }));
+    await userEvent.click(within(conditionLine()).getByRole("button", { name: "필터 초기화" }));
     await waitFor(() => expect(here()).toBe("/work-board?team=d-a&sprint=sp-a&hold=1&all=1&mine=1"));
     expect(conditionLine()).toBeNull();
     await waitFor(() => {
@@ -197,10 +197,10 @@ describe("작업 보드 — 데이터 필터는 한 줄이고 보기 옵션은 �
     });
   });
 
-  it("백로그 탭의 「필터 지우기」는 조건 줄에 선 정렬 칩도 걷는다 — 탭은 그대로다", async () => {
+  it("백로그 탭의 「필터 초기화」는 조건 줄에 선 정렬 칩도 걷는다 — 탭은 그대로다", async () => {
     renderBoard("/work-board?team=d-a&sprint=sp-a&tab=backlog&sort=due_date&q=x");
     await waitFor(() => expect(chipTexts()).toEqual(["검색: x", "정렬: 마감 ↑"]));
-    await userEvent.click(within(conditionLine()).getByRole("button", { name: "필터 지우기" }));
+    await userEvent.click(within(conditionLine()).getByRole("button", { name: "필터 초기화" }));
     await waitFor(() => expect(here()).toBe("/work-board?team=d-a&sprint=sp-a&tab=backlog"));
   });
 
@@ -287,7 +287,7 @@ describe("「내 티켓만」과 담당자 조건", () => {
     expect(screen.queryByText("내 티켓이 없습니다.")).toBeNull();
   });
 
-  it("조건도 걸려 있으면 조건 때문에 빈 목록이 먼저다 — 「필터 지우기」를 준다", async () => {
+  it("조건도 걸려 있으면 조건 때문에 빈 목록이 먼저다 — 「필터 초기화」를 준다", async () => {
     apiMock.mockImplementation(stub({ board: boardOf([]) }));
     renderBoard("/work-board?team=d-a&sprint=sp-a&mine=1&q=없는말");
     expect(await screen.findByText("조건에 맞는 티켓이 없습니다.")).toBeInTheDocument();

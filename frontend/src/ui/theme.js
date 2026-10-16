@@ -195,7 +195,8 @@ export const CONTROL = {
  * MUI `SvgIcon` 에는 `size` prop 이 **없다**(`fontSize` 다). `size={18} strokeWidth={1.8}` 는
  * 조용히 무시되는 죽은 prop 이었고 자식 아이콘 24px 가 부모 그룹 20px 보다 크게 나오도록
  * 구현을 오도했다(F-W1R-05). `scripts/check_icon_props.py` 가 그 형태 자체를 금지한다. */
-export const ICON = { mark: 16, inline: 18, nav: 20, action: 20, hero: 24 };
+/* `empty` — 판 · 구획 안 빈 상태의 아이콘(D-588). 클로비 그림(72)을 대신하는 중립 표지라 본문 글자보다 한 단 크고 그림보다 작다. */
+export const ICON = { mark: 16, inline: 18, nav: 20, action: 20, hero: 24, empty: 32 };
 
 /** px 계약값을 4K 레버가 따라오는 rem 문자열로. 값의 정본은 위 표 하나다. */
 export function remPx(px) { return `${px / 16}rem`; }

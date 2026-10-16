@@ -60,14 +60,14 @@ beforeEach(() => {
 afterEach(() => forgetPresets());
 
 describe("보기 기준은 조건이 아니다", () => {
-  it("기본 보기 기준만 걸린 0건은 「자료 없음」이다 — 조건 줄도 「조건에 맞는 항목이 없습니다」도 없다", async () => {
+  it("기본 보기 기준만 걸린 0건은 「자료 없음」이다 — 조건 줄도 「검색 조건에 맞는 항목이 없습니다」도 없다", async () => {
     apiMock.mockResolvedValue({ items: [] });
     const { container } = renderScreen();
     expect(await screen.findByText("아직 기록이 없습니다")).toBeInTheDocument();
     expect(lastUrl()).toContain("group_by=action");
-    expect(screen.queryByText("조건에 맞는 항목이 없습니다.")).toBeNull();
+    expect(screen.queryByText("검색 조건에 맞는 항목이 없습니다.")).toBeNull();
     expect(container.querySelector("[data-condition-line]")).toBeNull();
-    expect(screen.queryByRole("button", { name: "필터 지우기" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "필터 초기화" })).toBeNull();
   });
 
   it("보기 기준 칸은 필터 줄 오른쪽 끝 묶음에 서고 「전체」가 없다", async () => {
@@ -88,7 +88,7 @@ describe("보기 기준은 조건이 아니다", () => {
     expect(container.querySelector("[data-condition-chip]")).toBeNull();
   });
 
-  it("필터 지우기는 조건만 지우고 보기 기준은 남긴다", async () => {
+  it("필터 초기화는 조건만 지우고 보기 기준은 남긴다", async () => {
     apiMock.mockResolvedValue({ items: [{ id: "a", label: "채팅" }] });
     const user = userEvent.setup();
     renderScreen();
@@ -98,7 +98,7 @@ describe("보기 기준은 조건이 아니다", () => {
     await user.click(screen.getByRole("combobox", { name: "결과" }));
     await user.click(await screen.findByRole("option", { name: "성공" }));
     await waitFor(() => expect(lastUrl()).toContain("status=ok"));
-    await user.click(screen.getByRole("button", { name: "필터 지우기" }));
+    await user.click(screen.getByRole("button", { name: "필터 초기화" }));
     await waitFor(() => expect(lastUrl()).not.toContain("status="));
     expect(lastUrl()).toContain("group_by=user");
   });

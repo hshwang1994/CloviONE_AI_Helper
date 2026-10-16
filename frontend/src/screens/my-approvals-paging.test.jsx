@@ -74,7 +74,7 @@ describe("내 결재함 — 묶음 이어 받기", () => {
   it("총 건수와 받은 건수를 말하고, 더 받으면 이어 붙인다", async () => {
     renderApprovals();
     expect(await screen.findByText("요청자 0")).toBeInTheDocument();
-    expect(screen.getByText("45건 중 20건을 받았습니다.")).toBeInTheDocument();
+    expect(screen.getByText("전체 45건 중 20건 표시")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "결재 더 보기" }));
     await waitFor(() => expect(calls.some((u) => u.includes("page=2"))).toBe(true));

@@ -1030,7 +1030,7 @@ PROBE_JS = r"""
         for (const c of tr.children) {
           if (c.tagName === 'TD' || c.tagName === 'TH') tds.push(c);
         }
-        /* 여러 열에 걸친 칸이 있는 줄은 열의 몸이 아니다 — 빈 표의 한 줄 띠(「조건에 맞는 항목이 없습니다.」) · 묶음 머리 줄이다.
+        /* 여러 열에 걸친 칸이 있는 줄은 열의 몸이 아니다 — 빈 표의 한 줄 띠(「검색 조건에 맞는 항목이 없습니다.」) · 묶음 머리 줄이다.
            세면 띠의 왼쪽 글이 첫 열의 몸이 되고 나머지 열은 몸이 없는 열로 남는다(P18 랩: 대기 승인이 0건인 승인 표). */
         if (tds.some((td) => (td.colSpan || 1) > 1)) continue;
         for (let i = 0; i < cols.length && i < tds.length; i++) {

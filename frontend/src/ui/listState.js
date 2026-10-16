@@ -32,9 +32,28 @@ export const LIST_STATE_COPY = Object.freeze({
   disabled: { title: "이 기능이 꺼져 있습니다.", help: "관리자가 기능을 켜면 목록을 볼 수 있습니다." },
   unreachable: { title: "서버에 연결하지 못했습니다.", help: "잠시 뒤 다시 시도하세요." },
   error: { title: "목록을 불러오지 못했습니다.", help: "잠시 뒤 다시 시도하세요." },
-  "filtered-empty": { title: "조건에 맞는 항목이 없습니다.", help: "" },
-  empty: { title: "아직 항목이 없습니다.", help: "" },
+  "filtered-empty": { title: "검색 조건에 맞는 항목이 없습니다.", help: "" },
+  empty: { title: "등록된 항목이 없습니다.", help: "" },
 });
+
+/* 받침에 따른 주격 조사 — 「티켓이」 · 「게시글이」 · 「승인 요청이」 · 「감사 기록이」(`lib/format.js::hasFinalConsonant` 와 같은 규칙,
+   이 파일은 의존 없이 쓰이도록 셈을 따로 둔다). */
+function subjectParticle(word) {
+  const last = String(word || "").trim().slice(-1);
+  const code = last.charCodeAt(0) - 0xac00;
+  if (code < 0 || code > 11171) return "이(가)";
+  return code % 28 === 0 ? "가" : "이";
+}
+
+/** 조건 0건 문장 — 「검색 조건에 맞는 {대상}이 없습니다.」(D-587). 대상이 없으면 기본 문장이다. */
+export function filteredEmptyTitle(noun) {
+  return noun ? `검색 조건에 맞는 ${noun}${subjectParticle(noun)} 없습니다.` : LIST_STATE_COPY["filtered-empty"].title;
+}
+
+/** 조건 없는 0건 문장 — 「등록된 {대상}이 없습니다.」(D-587). */
+export function emptyTitle(noun) {
+  return noun ? `등록된 ${noun}${subjectParticle(noun)} 없습니다.` : LIST_STATE_COPY.empty.title;
+}
 
 /** 오류 봉투의 사유 코드(`body.error.code`). 없으면 null. */
 export function errorCode(error) {

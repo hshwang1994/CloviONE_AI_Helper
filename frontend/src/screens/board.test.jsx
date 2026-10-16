@@ -86,7 +86,7 @@ describe("빈 화면은 '아직 글이 없음'과 '검색 결과 없음'을 구�
     expect(await screen.findByRole("heading", { name: "검색 결과가 없습니다" })).toBeInTheDocument();
     // 걸린 조건은 조건 칩으로 선다 — 칸이 닫혀도 무엇으로 좁혔는지 보인다.
     expect(screen.getByText("카테고리: 질문")).toBeInTheDocument();
-    const clear = screen.getByRole("button", { name: "검색, 카테고리 지우기" });
+    const clear = screen.getByRole("button", { name: "검색 조건 초기화" });
     expect(clear).toBeInTheDocument();
 
     // CTA를 누르면 실제로 필터가 풀려 원래의 온보딩 빈 상태로 돌아온다.
@@ -255,14 +255,14 @@ describe("묶음 이어 받기", () => {
     expect(screen.queryByText("전체 45건")).toBeNull();
     expect(document.querySelector("[data-result-line]")).toBeNull();
     expect(document.querySelector("[data-condition-line]")).toBeNull();
-    expect(screen.getByText("45건 중 20건을 받았습니다.")).toBeInTheDocument();
+    expect(screen.getByText("전체 45건 중 20건 표시")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "글 더 보기" }));
     await waitFor(() => expect(asked.some((u) => u.includes("page=2"))).toBe(true));
     expect(await screen.findByText("글 20")).toBeInTheDocument();
     /* 갈아 끼운 게 아니라 **이어 붙였다** — 앞 묶음의 첫 글이 그대로 남아 있다. */
     expect(screen.getByText("글 0")).toBeInTheDocument();
-    expect(await screen.findByText("45건 중 40건을 받았습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("전체 45건 중 40건 표시")).toBeInTheDocument();
   });
 
   it("조건을 바꾸면 첫 묶음부터 다시 받는다 — 한참 내려간 자리에서 걸러 놓고 빈 화면을 보면 안 된다", async () => {

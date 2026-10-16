@@ -75,7 +75,7 @@ export function useInfiniteSentinel(ref, { onHit, enabled, root = null, rootMarg
  *
  * 돌려주는 것:
  *   sentinelRef  센티넬 요소에 거는 **콜백 ref**. 센티넬이 나중에 붙어도(불러오는 중 → 행) 관찰이 다시 걸린다
- *   sentence     「N건 중 M건을 받았습니다.」 — 셀 것도 더 받을 것도 없으면 `null`(한 줄짜리 목록 아래에 자리만 먹는다)
+ *   sentence     「전체 N건 중 M건 표시」 — 셀 것도 더 받을 것도 없으면 `null`(한 줄짜리 목록 아래에 자리만 먹는다)
  *   hasNext      「더 보기」와 센티넬을 그릴 것인가
  *   more         「더 보기」가 부르는 함수(무성장 가드가 이 호출을 센다)
  */
@@ -121,10 +121,13 @@ export function useListFooter({
   let sentence = null;
   if (!silent) {
     const n = (v) => Number(v).toLocaleString("ko-KR");
+    /* 상태 낱말은 명사구다(D-587) — 「전체 23개 중 20개 표시」. 예전 「23건 중 20건을 받았습니다.」는 화면이 아니라
+       전송을 말했다. 단위는 목록이 준다(프로젝트 「개」, 사람 「명」). 자동 받기 상한 안내는 괄호 안의 완전한 문장이다
+       (가운뎃점은 글리프 규칙이 막는다). */
     sentence = total == null
-      ? `${n(loaded)}${unit}을 받았습니다.`
-      : `${n(total)}${unit} 중 ${n(loaded)}${unit}을 받았습니다.`;
-    if (capped && next) sentence += " 조건을 좁히면 더 빨리 찾습니다.";
+      ? `${n(loaded)}${unit} 표시`
+      : `전체 ${n(total)}${unit} 중 ${n(loaded)}${unit} 표시`;
+    if (capped && next) sentence += " (조건을 좁히면 더 빨리 찾을 수 있습니다)";
   }
   return { sentinelRef: setNode, sentence, hasNext: next, isFetchingNext: !!isFetchingNext, more, capped };
 }

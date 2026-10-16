@@ -140,12 +140,12 @@ describe("내 활동", () => {
       });
     });
     renderActivity();
-    await screen.findByText("50건을 받았습니다.");
+    await screen.findByText("50건 표시");
     const more = screen.getByRole("button", { name: "활동 더 보기" });
     expect(more).toBeEnabled();
 
     await userEvent.click(more);
-    await screen.findByText("55건을 받았습니다.");
+    await screen.findByText("55건 표시");
     expect(screen.queryByRole("button", { name: "활동 더 보기" })).toBeNull();
   });
 });

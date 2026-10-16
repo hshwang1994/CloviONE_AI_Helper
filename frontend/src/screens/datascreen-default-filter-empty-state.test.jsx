@@ -13,6 +13,9 @@
  * qa-contract-change: 조건 때문에 0건인 빈 상태가 「검색 결과가 없습니다」 + 「검색, 필터 지우기」 판에서 표 머리 아래 한 줄 띠
  * 「조건에 맞는 항목이 없습니다.」 + 30 「필터 지우기」로 바뀌었다(D-530 목록 상태 일곱 갈래). 가르는 계약(필터 때문 대 정말 없음)과
  * 지운 뒤 전체로 돌아가는 계약은 그대로 단언하고, 띠가 표 머리 아래 줄이라는 사실을 새로 단언한다.
+ *
+ * qa-contract-change: 기본 조건만 걸린 0건의 띠 단추는 「필터 초기화」가 아니라 「전체 결과 보기」다(D-587) — 사람이 건 조건이 없는데
+ * 필터를 초기화하라고 말하지 않는다. 누르면 기본값이 아니라 전체로 간다는 계약과 정말 0건이면 온보딩이라는 계약은 그대로다.
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -75,9 +78,9 @@ beforeEach(() => {
   apiMock.mockReset();
 });
 
-/* 조건 때문에 0건 — 표 머리 아래 한 줄 띠(D-530)가 문장과 30 「필터 지우기」를 든다. 조건 줄에도 같은 이름의 단추가 있어 띠 안에서 찾는다. */
+/* 조건 때문에 0건 — 표 머리 아래 한 줄 띠(D-530)가 문장과 30 단추를 든다. 기본 조건만 걸렸으면 단추가 「전체 결과 보기」다(D-587). */
 async function findEmptyBand() {
-  const heading = await screen.findByRole("heading", { name: "조건에 맞는 항목이 없습니다." });
+  const heading = await screen.findByRole("heading", { name: "검색 조건에 맞는 항목이 없습니다." });
   const band = heading.closest("[data-empty-layout='band']");
   expect(band).not.toBeNull();
   // 띠는 표 머리 아래 줄이다 — 판을 흰 면으로 채우는 빈 상태가 아니다.
@@ -87,7 +90,7 @@ async function findEmptyBand() {
 }
 
 describe("DataScreen — 기본 필터가 걸린 화면의 빈 상태 (PA-RC-0038)", () => {
-  it("기본 필터로 0건이면 무조건형 온보딩이 아니라 '필터 때문' 문구 + 필터 지우기를 보인다", async () => {
+  it("기본 필터로 0건이면 무조건형 온보딩이 아니라 '필터 때문' 문구 + 전체 결과 보기를 보인다", async () => {
     apiMock.mockImplementation((url) =>
       Promise.resolve(String(url).includes("status=pending")
         ? { items: [], page: 1, page_size: 20, total: 0 }
@@ -97,18 +100,18 @@ describe("DataScreen — 기본 필터가 걸린 화면의 빈 상태 (PA-RC-003
     const band = await findEmptyBand();
     // 기본값 제외 로직이 되살아나면 이 온보딩 문구가 대신 뜬다 — 반드시 없어야 한다.
     expect(screen.queryByText("검사 요청이 없습니다")).toBeNull();
-    expect(within(band).getByRole("button", { name: "필터 지우기" })).toBeInTheDocument();
+    expect(within(band).getByRole("button", { name: "전체 결과 보기" })).toBeInTheDocument();
   });
 
-  it("빈 화면이 아니어도 기본 필터만으로 툴바에 '필터 지우기'가 뜬다(acceptance 2)", async () => {
+  it("빈 화면이 아니어도 기본 필터만으로 툴바에 '필터 초기화'가 뜬다(acceptance 2)", async () => {
     apiMock.mockResolvedValue({ items: [{ id: "1", name: "대기 항목" }], page: 1, page_size: 20, total: 1 });
     renderScreen(CONFIG_WITH_DEFAULT_FILTER);
 
     await screen.findByText("대기 항목");
-    expect(screen.getByRole("button", { name: "필터 지우기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "필터 초기화" })).toBeInTheDocument();
   });
 
-  it("'필터 지우기'를 누르면 기본값이 아니라 전체가 보인다(acceptance 2 — 기본값 복귀가 아님)", async () => {
+  it("'전체 결과 보기'를 누르면 기본값이 아니라 전체가 보인다(acceptance 2 — 기본값 복귀가 아님)", async () => {
     apiMock.mockImplementation((url) =>
       Promise.resolve(String(url).includes("status=pending")
         ? { items: [], page: 1, page_size: 20, total: 0 }
@@ -117,7 +120,7 @@ describe("DataScreen — 기본 필터가 걸린 화면의 빈 상태 (PA-RC-003
     renderScreen(CONFIG_WITH_DEFAULT_FILTER);
 
     const band = await findEmptyBand();
-    await user.click(within(band).getByRole("button", { name: "필터 지우기" }));
+    await user.click(within(band).getByRole("button", { name: "전체 결과 보기" }));
 
     // 지운 뒤 재요청이 status= 파라미터 없이 나갔다(기본값으로 되돌아간 게 아니라 진짜 전체).
     expect(apiMock.mock.calls.some(([u]) => !String(u).includes("status="))).toBe(true);
@@ -129,8 +132,8 @@ describe("DataScreen — 기본 필터가 걸린 화면의 빈 상태 (PA-RC-003
     renderScreen(CONFIG_NO_FILTER);
 
     expect(await screen.findByText("표시할 항목이 없습니다(검사용)")).toBeInTheDocument();
-    expect(screen.queryByText("조건에 맞는 항목이 없습니다.")).toBeNull();
-    expect(screen.queryByRole("button", { name: /필터 지우기/ })).toBeNull();
+    expect(screen.queryByText("검색 조건에 맞는 항목이 없습니다.")).toBeNull();
+    expect(screen.queryByRole("button", { name: /필터 초기화/ })).toBeNull();
   });
 
   it("기본 필터가 있어도 진짜 0건(필터를 지워도 0건)이면 결국 온보딩 문구로 떨어진다", async () => {
@@ -140,7 +143,7 @@ describe("DataScreen — 기본 필터가 걸린 화면의 빈 상태 (PA-RC-003
     renderScreen(CONFIG_WITH_DEFAULT_FILTER);
 
     const band = await findEmptyBand();
-    await user.click(within(band).getByRole("button", { name: "필터 지우기" }));
+    await user.click(within(band).getByRole("button", { name: "전체 결과 보기" }));
 
     expect(await screen.findByText("검사 요청이 없습니다")).toBeInTheDocument();
   });

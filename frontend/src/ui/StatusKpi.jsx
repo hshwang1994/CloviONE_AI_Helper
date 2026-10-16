@@ -359,16 +359,17 @@ export function StatusSummaryCard({
             <Typography component="span" sx={{ fontSize: FONT_SIZE.body, fontWeight: FONT_WEIGHT.bold, ...KO_KEEP }}>{title}</Typography>
           ) : null}
           {/* 시험 · 프로브가 「이 카드의 큰 숫자와 그 이름」을 순서가 아니라 이름으로 짚는 손잡이(`data-readout`). */}
+          {/* 낱말이 먼저다(D-587) — 「전체 99건」. 예전에는 큰 수 뒤에 낱말이 붙어 「99 전체」로 읽혔다. */}
           <Box component="span" data-summary-total="" sx={{ display: "contents" }}>
-            <Typography component="span" data-readout="value" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
-              {total}
-            </Typography>
             <Typography
               component="span" data-readout="label"
               sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold, display: "inline-flex", alignItems: "center", gap: 0.75 }}
             >
               {totalKind ? <StatusDot accent={accentOf(totalKind)} /> : null}
               {totalLabel}
+            </Typography>
+            <Typography component="span" data-readout="value" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
+              {shownValue(total)}
             </Typography>
           </Box>
           {action ? <Box sx={{ marginInlineStart: "auto" }}>{action}</Box> : null}
@@ -485,11 +486,11 @@ export function StatusSummaryCard({
             ) : null}
             {hasTotal ? (
               <Box component="span" data-summary-total="" sx={{ display: "contents" }}>
-                <Typography component="span" data-readout="value" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
-                  {total}
-                </Typography>
                 <Typography component="span" data-readout="label" sx={{ fontSize: FONT_SIZE.bodySm, fontWeight: FONT_WEIGHT.semibold }}>
                   {totalLabel}
+                </Typography>
+                <Typography component="span" data-readout="value" sx={{ fontSize: FONT_SIZE.pageTitle, fontWeight: FONT_WEIGHT.bold, lineHeight: 1, ...NUMERIC }}>
+                  {shownValue(total)}
                 </Typography>
               </Box>
             ) : null}

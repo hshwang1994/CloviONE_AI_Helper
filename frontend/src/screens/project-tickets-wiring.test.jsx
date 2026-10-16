@@ -131,14 +131,14 @@ describe("프로젝트 티켓 탭 — 팀 티켓과 같은 배선", () => {
     expect(chips).toEqual(["상태: 계획"]);
   });
 
-  it("「완료, 취소 포함」을 켜면 범위가 넓어지고, 「필터 지우기」는 범위를 건드리지 않는다", async () => {
+  it("「완료, 취소 포함」을 켜면 범위가 넓어지고, 「필터 초기화」는 범위를 건드리지 않는다", async () => {
     const user = userEvent.setup();
     renderTab("/projects/p-1?tab=tickets&q=로그");
     await screen.findByText("첫 티켓");
     await user.click(screen.getByRole("button", { name: "완료, 취소 포함" }));
     await waitFor(() => expect(lastList().get("active")).toBe("false"));
     const line = document.querySelector("[data-filter-bar] [data-condition-line]");
-    await user.click(within(line).getByRole("button", { name: "필터 지우기" }));
+    await user.click(within(line).getByRole("button", { name: "필터 초기화" }));
     await waitFor(() => expect(paramsOf(here()).get("q")).toBeNull());
     expect(paramsOf(here()).get("active")).toBe("0");
     expect(lastList().get("active")).toBe("false");

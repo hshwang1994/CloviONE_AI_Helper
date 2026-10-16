@@ -425,7 +425,7 @@ export function Project() {
   if (projectQuery.isError) {
     return (
       <div className="c-screen">
-        <PageHeader crumbRoot="팀 공간" area="프로젝트" title="프로젝트" actions={back} />
+        <PageHeader crumbRoot="팀 업무" area="프로젝트" title="프로젝트" actions={back} />
         <ErrorState error={projectQuery.error} onRetry={() => projectQuery.refetch()} />
       </div>
     );
@@ -433,7 +433,7 @@ export function Project() {
   if (projectQuery.isPending) {
     return (
       <div className="c-screen">
-        <PageHeader crumbRoot="팀 공간" area="프로젝트" title="프로젝트" />
+        <PageHeader crumbRoot="팀 업무" area="프로젝트" title="프로젝트" />
         <Card><Skeleton lines={8} /></Card>
       </div>
     );
@@ -540,7 +540,7 @@ export function Project() {
   return (
     <>
       <TabShell
-        crumbRoot="팀 공간"
+        crumbRoot="팀 업무"
         area="프로젝트"
         title={project.name || "프로젝트"}
         ariaLabel="프로젝트 상세 탭"

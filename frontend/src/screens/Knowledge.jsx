@@ -363,7 +363,7 @@ export function Knowledge() {
      나타납니다」를 보여 주면 할 수 있는 일을 없다고 말하는 것이 된다. 목록이 비었을 때의
      안내는 아래 `ListEmptyState` 하나가 맡는다. */
 
-  /* 「필터 지우기」가 지우는 축 = 칩이 서는 축 (D-388 · 조합 계약 C-1). 한 목록에서 관리한다.
+  /* 「필터 초기화」가 지우는 축 = 칩이 서는 축 (D-388 · 조합 계약 C-1). 한 목록에서 관리한다.
      프로젝트는 **사람이 고른 자리일 때만** 조건이다 — 프로젝트가 하나뿐인 설치는 화면이 스스로 그
      프로젝트를 여는데, 그것을 조건으로 세면 아무것도 안 건 사람에게 「조건 1개」가 보인다. */
   const projectIsCondition = !!project
@@ -470,7 +470,7 @@ export function Knowledge() {
                 <ListEmptyState
                   filtered={hasFilter}
                   onClear={clearFilters}
-                  clearLabel="검색, 필터 지우기"
+                  clearLabel="검색 조건 초기화"
                   filteredTitle="조건에 맞는 문서가 없습니다"
                   filteredHelp="검색어와 분류, 태그, 작성자 조건을 풀면 전체 문서가 다시 나타납니다."
                   title="문서가 아직 없습니다."

@@ -279,6 +279,7 @@ export function MyStats() {
               안 갖고, 칩 줄에서도 부분 셋과 **구분 간격**을 사이에 두고 선다. */}
           <StatusSummaryCard
             ariaLabel="내 업무량"
+            unit="건"
             sx={{ mb: 2.5 }}
             total={totals.all}
             totalLabel={`최근 ${months}개월 내 티켓`}

@@ -498,7 +498,7 @@ export function Trash() {
               emptyState={(
                 /* 조건 때문에 비었다 — 조건을 풀 자리를 함께 준다. 탭 줄은 위에 그대로 있다. 판 안 빈 칸이라 region 이다. */
                 <ListEmptyState
-                  layout="region" filtered onClear={() => setState({ kind: "" })} clearLabel="전체 보기"
+                  layout="region" filtered onClear={() => setState({ kind: "" })} clearLabel="전체 결과 보기"
                   filteredTitle="이 종류에는 항목이 없습니다"
                   filteredHelp="지금 고른 종류의 항목이 휴지통에 없습니다. 전체를 보면 다른 종류가 있는지 알 수 있습니다."
                 />

@@ -74,7 +74,7 @@ describe("surface — 판이 곧 표 상자다", () => {
 
   it("쪽을 나누지 않는 목록은 받은 행 수로 같은 문장을 쓰고, 두 줄 미만이면 발을 안 그린다", () => {
     const { container, rerender } = ui(<DataTable placement="surface" columns={cols} rows={rows} rowKey={(r) => r.id} />);
-    expect(container.querySelector("[data-list-footer]").textContent).toBe("3건 중 3건을 받았습니다.");
+    expect(container.querySelector("[data-list-footer]").textContent).toBe("전체 3건 중 3건 표시");
     rerender(<ThemeModeProvider><DataTable placement="surface" columns={cols} rows={rows.slice(0, 1)} rowKey={(r) => r.id} /></ThemeModeProvider>);
     expect(container.querySelector("[data-list-footer]")).toBeNull();
     // 표 상자 모서리는 판 안쪽 반경으로 잘린다 — 발이 없으면 아래 모서리도 표 상자가 든다.
@@ -88,7 +88,7 @@ describe("surface — 판이 곧 표 상자다", () => {
     const foot = container.querySelector("[data-list-footer]");
     const noteEl = foot.querySelector("[data-list-note]");
     expect(noteEl.textContent).toBe("검색어로 좁혀 보세요.");
-    expect(within(foot).getByText("12건 중 3건을 받았습니다.").compareDocumentPosition(noteEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(foot).getByText("전체 12건 중 3건 표시").compareDocumentPosition(noteEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("결과 문장을 스스로 가진 목록은 그 문장이 발 문장이다 — 받은 행 수 문장을 한 번 더 세우지 않는다", () => {
@@ -160,7 +160,7 @@ describe("발 — 「더 보기」와 자동 로딩", () => {
     ui(<DataTable placement="surface" columns={cols} rows={rows} rowKey={(r) => r.id} list={{ total: 900, loaded: 3, hasNext: true, onMore, autoMaxRows: 3 }} />);
     await intersect();
     expect(onMore).not.toHaveBeenCalled();
-    expect(screen.getByText(/조건을 좁히면 더 빨리 찾습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/조건을 좁히면 더 빨리 찾을 수 있습니다/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "더 보기" }));
     expect(onMore).toHaveBeenCalledTimes(1);
   });
@@ -207,12 +207,12 @@ describe("불러오는 중 · 빈 목록 · card · plain", () => {
     expect(getComputedStyle(plate).paddingTop).not.toMatch(/^0(px|rem)?$/);
     rerender(
       <ThemeModeProvider>
-        <DataTable placement="surface" columns={cols} rows={[]} emptyState={<EmptyState layout="region" title="조건에 맞는 항목이 없습니다" />} />
+        <DataTable placement="surface" columns={cols} rows={[]} emptyState={<EmptyState layout="region" title="검색 조건에 맞는 항목이 없습니다" />} />
       </ThemeModeProvider>,
     );
     plate = container.querySelector("[data-list-surface]");
     expect(plate.getAttribute("data-list-state")).toBe("empty");
-    expect(within(plate).getByText("조건에 맞는 항목이 없습니다")).toBeInTheDocument();
+    expect(within(plate).getByText("검색 조건에 맞는 항목이 없습니다")).toBeInTheDocument();
     expect(plate.querySelector("[data-list-footer]")).toBeNull();
   });
 
@@ -241,7 +241,7 @@ describe("불러오는 중 · 빈 목록 · card · plain", () => {
   it("plain 도 `list` 를 주면 발을 그린다 — 따라오지는 않는다", () => {
     const { container } = ui(<DataTable columns={cols} rows={rows} rowKey={(r) => r.id} list={{ total: 9, loaded: 3, hasNext: true, onMore: () => {} }} />);
     const foot = container.querySelector("[data-list-footer]");
-    expect(foot.textContent).toContain("9건 중 3건을 받았습니다.");
+    expect(foot.textContent).toContain("전체 9건 중 3건 표시");
     expect(getComputedStyle(foot).position).not.toBe("sticky");
   });
 });

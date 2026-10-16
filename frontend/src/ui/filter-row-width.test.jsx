@@ -14,7 +14,7 @@
  *  2. **상한이 고정 rem 이다.** `1fr` 처럼 컨테이너에 비례하는 값이면 필터가 둘뿐일 때
  *     두 컨트롤이 페이지 폭을 절반씩 나눠 갖는다 — 옛 시험이 잡던 그 결함이다.
  *  3. **줄은 폭 전체를 차지한다.** 남는 폭이 실제로 남는 폭이어야 프로브가 그것을 잰다.
- *  4. **되돌리기는 조건 칸이 아니다.** `필터 지우기` 가 필터와 같은 폭의 상자가 되지 않는다.
+ *  4. **되돌리기는 조건 칸이 아니다.** `필터 초기화` 가 필터와 같은 폭의 상자가 되지 않는다.
  *  5. **실제 화면이 그 계약을 쓴다.** 부품만 맞고 화면이 자기 격자를 다시 만드는 상태를
  *     막는다(예전에 TicketFilterBar 와 DataScreen 이 각자 격자를 복제하고 있었다).
  */
@@ -191,15 +191,15 @@ describe("TicketFilterBar — 공유 탐색 줄 계약을 실제로 쓴다", () 
     const surface = container.querySelector("[data-filter-surface]");
     const line = surface.querySelector("[data-condition-line]");
     expect(line).toBeTruthy();
-    expect(line.querySelector("[data-condition-count]").textContent).toBe("조건 1개에 맞는 결과가 7건입니다.");
+    expect(line.querySelector("[data-condition-count]").textContent).toBe("검색 결과 7건");
     expect(line.querySelectorAll("[data-condition-chip]")).toHaveLength(1);
     // 조건 줄은 면의 마지막 줄이다.
     expect(surface.lastElementChild).toBe(line);
   });
 
-  it("«필터 지우기» 는 조건 칸이 아니라 조건 줄 안의 글자 단추다", async () => {
+  it("«필터 초기화» 는 조건 칸이 아니라 조건 줄 안의 글자 단추다", async () => {
     const { container } = renderBar(["status"], { status: "완료" });
-    const clear = await screen.findByRole("button", { name: "필터 지우기" });
+    const clear = await screen.findByRole("button", { name: "필터 초기화" });
     // 조건 줄 안에 있다 — 필터 칸 흐름 끝의 동작 묶음이 아니다.
     expect(clear.closest("[data-condition-line]")).toBeTruthy();
     expect(clear.hasAttribute("data-filter-clear")).toBe(true);
@@ -210,10 +210,10 @@ describe("TicketFilterBar — 공유 탐색 줄 계약을 실제로 쓴다", () 
     expect(container.querySelector("[data-filter-actions]")).toBeNull();
   });
 
-  it("조건이 없으면 «필터 지우기» 자체가 없다 — 아무 일도 안 하는 버튼을 두지 않는다", async () => {
+  it("조건이 없으면 «필터 초기화» 자체가 없다 — 아무 일도 안 하는 버튼을 두지 않는다", async () => {
     renderBar(["status"], { status: "" });
     await screen.findByRole("combobox", { name: "상태" });
-    expect(screen.queryByRole("button", { name: "필터 지우기" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "필터 초기화" })).toBeNull();
   });
 
   it("칸 폭은 축의 뜻을 따른다 — 프로젝트는 wide, 담당자는 기본 Entity, 기한은 날짜가 아니라 열거 칸이다", async () => {

@@ -666,9 +666,9 @@ def _board_search_clear(r, ctx):
     face = r.main_text(160)
     clear = r.in_main("button", "지우기")
     if not clear.count():
-        clear = r.in_main("button", "검색, 카테고리 지우기")
+        clear = r.in_main("button", "검색 조건 초기화")
     if not clear.count():
-        stop("«검색, 카테고리 지우기» 가 없다 — 0건에서 되돌릴 자리가 없다")
+        stop("«검색 조건 초기화» 가 없다 — 0건에서 되돌릴 자리가 없다")
     clear.first.click()
     r.settle(1800)
     return {"ui_action": "검색으로 0건을 만들고 «지우기» 로 되돌린다",
@@ -1026,7 +1026,7 @@ def _ideas_clear(r, ctx):
     narrowed = r.hash_of()
     clear = r.in_main("button", "지우기")
     if not clear.count():
-        stop("0건인데 «검색, 카테고리 지우기» 가 없다")
+        stop("0건인데 «검색 조건 초기화» 가 없다")
     clear.first.click()
     r.settle(1800)
     after = r.hash_of()

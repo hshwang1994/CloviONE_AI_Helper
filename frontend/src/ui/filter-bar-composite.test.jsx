@@ -76,7 +76,7 @@ describe("FilterBar — 한 줄", () => {
 });
 
 describe("FilterBar — 조건 줄", () => {
-  it("칩이 있으면 같은 면 안 마지막 줄에 「조건 N개에 맞는 결과가 M건입니다.」 → 칩 → 지우기 → 덧붙는 단추 순서로 선다", () => {
+  it("칩이 있으면 같은 면 안 마지막 줄에 「검색 결과 M건」 → 칩 → 지우기 → 덧붙는 단추 순서로 선다", () => {
     const onClear = vi.fn();
     const onAll = vi.fn();
     const { container } = ui(
@@ -92,7 +92,7 @@ describe("FilterBar — 조건 줄", () => {
     expect(line).not.toBeNull();
     expect(surface.lastElementChild).toBe(line);
     const count = line.querySelector("[data-condition-count]");
-    expect(count.textContent).toBe("조건 2개에 맞는 결과가 1,234건입니다.");
+    expect(count.textContent).toBe("검색 결과 1,234건");
     expect(count).toHaveAttribute("aria-live", "polite");
     const kids = [...line.children];
     expect(kids[0]).toBe(count);
@@ -112,20 +112,20 @@ describe("FilterBar — 조건 줄", () => {
 
   it("조건 수는 칩 수다 — 칩이 없는 조건을 셀 길이가 없다", () => {
     const { container, rerender } = ui(<FilterConditionLine total={5} chips={[CHIPS[0]]} conditions={["a", "b", "c"]} />);
-    expect(container.querySelector("[data-condition-count]").textContent).toBe("조건 1개에 맞는 결과가 5건입니다.");
+    expect(container.querySelector("[data-condition-count]").textContent).toBe("검색 결과 5건");
     rerender(<ThemeModeProvider><FilterConditionLine total={5} chips={[]} /></ThemeModeProvider>);
     expect(container.querySelector("[data-condition-line]")).toBeNull();
     // 이름이 없는 칩은 칩이 아니다.
     rerender(<ThemeModeProvider><FilterConditionLine total={5} chips={[{ key: "x", label: "" }, CHIPS[1]]} /></ThemeModeProvider>);
     expect(container.querySelectorAll("[data-condition-chip]")).toHaveLength(1);
-    expect(container.querySelector("[data-condition-count]").textContent).toBe("조건 1개에 맞는 결과가 5건입니다.");
+    expect(container.querySelector("[data-condition-count]").textContent).toBe("검색 결과 5건");
   });
 
   it("결과를 아직 모르면 수를 지어내지 않는다 · 단위를 바꿀 수 있다", () => {
     const { container, rerender } = ui(<FilterConditionLine total={null} chips={CHIPS} />);
     expect(container.querySelector("[data-condition-count]").textContent).toBe("세는 중…");
     rerender(<ThemeModeProvider><FilterConditionLine total={3} unit="명" chips={CHIPS} /></ThemeModeProvider>);
-    expect(container.querySelector("[data-condition-count]").textContent).toBe("조건 2개에 맞는 결과가 3명입니다.");
+    expect(container.querySelector("[data-condition-count]").textContent).toBe("검색 결과 3명");
   });
 
   it("칩의 지우기 · 줄의 지우기 · 덧붙는 단추가 넘긴 동작을 부른다", async () => {
@@ -138,14 +138,14 @@ describe("FilterBar — 조건 줄", () => {
         total={9}
         chips={[{ key: "status", label: "상태: 계획", onDelete }]}
         onClearAll={onClear}
-        clearLabel="필터 지우기"
+        clearLabel="필터 초기화"
         extraAction={{ label: "전체 보기", onClick: onAll }}
       />,
     );
     const chip = screen.getByText("상태: 계획").closest("[data-condition-chip]");
     await user.click(chip.querySelector(".MuiChip-deleteIcon"));
     expect(onDelete).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByRole("button", { name: "필터 지우기" }));
+    await user.click(screen.getByRole("button", { name: "필터 초기화" }));
     expect(onClear).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole("button", { name: "전체 보기" }));
     expect(onAll).toHaveBeenCalledTimes(1);
@@ -161,5 +161,62 @@ describe("FilterBar — 조건 줄", () => {
     const long = "프로젝트: ClovirAssist 플랫폼 전환 및 자체 데이터 이관";
     ui(<FilterConditionLine total={1} chips={[{ key: "p", label: long, onDelete: () => {} }]} />);
     expect(screen.getByText(long).closest("[data-condition-chip]")).toHaveAttribute("title", long);
+  });
+});
+
+/* 「추가 필터」(D-596) — 덜 쓰는 조건 칸을 접는다. 감사 로그가 첫 소비처다(대상 ID · 작업 · 문의 번호). */
+describe("FilterBar — 추가 필터 접기", () => {
+  function MoreBar({ active = 0 }) {
+    return (
+      <FilterBar
+        search={<SearchBox value="" onSearch={() => {}} placeholder="검색" ariaLabel="검색" />}
+        more={{ active, fields: [<FilterSelect key="r" label="문의 번호" value="" onChange={() => {}} options={["a"]} />] }}
+      >
+        <FilterSelect label="결과" value="" onChange={() => {}} options={["성공", "실패"]} />
+      </FilterBar>
+    );
+  }
+
+  it("접힌 채로 시작하고, 단추가 칸을 여닫는다 — 접힌 칸은 DOM 에 없다", async () => {
+    ui(<MoreBar />);
+    const toggle = screen.getByRole("button", { name: "추가 필터" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("문의 번호")).toBeNull();
+    // 단추는 첫 줄에 선다 — 칸 흐름(검색 → 조건 칸) 뒤다.
+    expect(toggle.closest("[data-filter-row]")).toBe(screen.getByLabelText("결과").closest("[data-filter-row]"));
+
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const field = screen.getByLabelText("문의 번호");
+    const moreRow = field.closest("[data-filter-more]");
+    expect(moreRow).not.toBeNull();
+    expect(toggle).toHaveAttribute("aria-controls", moreRow.id);
+
+    await userEvent.click(toggle);
+    expect(screen.queryByLabelText("문의 번호")).toBeNull();
+  });
+
+  it("접힌 칸에 조건이 걸려 있으면 처음부터 펼치고, 단추 이름이 걸린 수를 말한다", () => {
+    ui(<MoreBar active={1} />);
+    const toggle = screen.getByRole("button", { name: "추가 필터 1" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("문의 번호")).toBeInTheDocument();
+  });
+
+  it("사람이 접은 것은 그대로 두되, 접힌 칸에 조건이 새로 걸리면 다시 펼친다(딥링크 · 저장된 뷰)", async () => {
+    const { rerender } = ui(<MoreBar active={1} />);
+    await userEvent.click(screen.getByRole("button", { name: "추가 필터 1" }));
+    expect(screen.queryByLabelText("문의 번호")).toBeNull();
+    rerender(<ThemeModeProvider><MoreBar active={1} /></ThemeModeProvider>);
+    expect(screen.queryByLabelText("문의 번호")).toBeNull();
+    rerender(<ThemeModeProvider><MoreBar active={2} /></ThemeModeProvider>);
+    expect(screen.getByRole("button", { name: "추가 필터 2" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("문의 번호")).toBeInTheDocument();
+  });
+
+  it("`more` 를 안 주면 단추도 둘째 줄도 없다", () => {
+    ui(<FilterBar><FilterSelect label="결과" value="" onChange={() => {}} options={["성공"]} /></FilterBar>);
+    expect(screen.queryByRole("button", { name: /추가 필터/ })).toBeNull();
+    expect(document.querySelector("[data-filter-more]")).toBeNull();
   });
 });

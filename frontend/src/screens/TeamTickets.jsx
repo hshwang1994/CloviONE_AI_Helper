@@ -120,7 +120,7 @@ export function TeamTickets() {
           담을 것이 남지 않았으므로 메뉴 자체를 뺀다 — 눌러도 빈 목록만 열리는 버튼은
           사용자에게 자기가 못 쓰는 기능이 있다고 말하는 셈이다. */}
       <PageHeader
-        crumbRoot="팀 공간" area="팀 티켓" title="팀 티켓"
+        crumbRoot="팀 업무" area="팀 티켓" title="팀 티켓"
         description="팀 전체 티켓을 담당자별로 묶어서 봅니다. 보이는 티켓은 담당자가 아니어도 고칠 수 있고, 고친 내용은 이력에 남습니다."
       />
       {q.isLoading ? <Card><Skeleton lines={6} /></Card>

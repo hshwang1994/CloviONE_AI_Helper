@@ -122,15 +122,15 @@ def _sprint_clear(r, ctx):
     before = r.rows()
     r.choose("상태", "진행")
     narrowed = r.rows()
-    button = r.page.get_by_role("button", name="필터 지우기")
+    button = r.page.get_by_role("button", name="필터 초기화")
     if not button.count():
         button = r.page.get_by_role("button", name="지우기")
     if not button.count():
-        stop("«필터 지우기» 가 없다 — %d행 → %d행 인 화면: «%s»"
+        stop("«필터 초기화» 가 없다 — %d행 → %d행 인 화면: «%s»"
              % (before, narrowed, r.main_text(220)))
     button.first.click()
     r.settle(1200)
-    return {"ui_action": "조건을 건 뒤 «필터 지우기» 를 누른다",
+    return {"ui_action": "조건을 건 뒤 «필터 초기화» 를 누른다",
             "url_state": "→ %s" % r.hash_of(),
             "observed": {"rows": {"before": before, "narrowed": narrowed,
                                   "cleared": r.rows()}},
@@ -422,14 +422,14 @@ flow("FF-0933", "admin_jobs", "filter", "실행 건 ID로 좁힌다",
 def _jobs_clear(r, ctx):
     r.choose("상태", "실패")
     narrowed = r.rows()
-    button = r.page.get_by_role("button", name="필터 지우기")
+    button = r.page.get_by_role("button", name="필터 초기화")
     if not button.count():
         button = r.page.get_by_role("button", name="지우기")
     if not button.count():
-        stop("«필터 지우기» 가 없다")
+        stop("«필터 초기화» 가 없다")
     button.first.click()
     r.settle(1400)
-    return {"ui_action": "조건을 건 뒤 «필터 지우기» 를 누른다",
+    return {"ui_action": "조건을 건 뒤 «필터 초기화» 를 누른다",
             "observed": {"rows": {"narrowed": narrowed, "cleared": r.rows()}},
             "rendered": "표 %d행 → %d행 · 주소 «%s»" % (narrowed, r.rows(), r.hash_of()),
             "failed": None if r.rows() >= narrowed else "지웠는데 행이 안 늘었다"}

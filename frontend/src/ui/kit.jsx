@@ -37,6 +37,18 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
+import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
+import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
+import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
+import SearchOffRoundedIcon from "@mui/icons-material/SearchOffRounded";
+import HourglassEmptyRoundedIcon from "@mui/icons-material/HourglassEmptyRounded";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import CloudOffRoundedIcon from "@mui/icons-material/CloudOffRounded";
+import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
+import SportsEsportsOutlinedIcon from "@mui/icons-material/SportsEsportsOutlined";
 import Collapse from "@mui/material/Collapse";
 import { keyframes } from "@mui/system";
 import GlobalStyles from "@mui/material/GlobalStyles";
@@ -1648,16 +1660,16 @@ export function Skeleton({ kind = "section", lines = 3, rows = 5, cols = 4, heig
  * 정상이라(온보딩 문구·권한별 CTA) `EmptyState` 의 props 를 그대로 흘려보낸다.
  */
 export function ListEmptyState({
-  filtered, onClear, clearLabel = "필터 지우기", filteredTitle, filteredHelp, ...rest
+  filtered, onClear, clearLabel = "필터 초기화", filteredTitle, filteredHelp, ...rest
 }) {
   if (!filtered) return <EmptyState {...rest} />;
   return (
     <EmptyState
       size={rest.size}
       layout={rest.layout}
-      title={filteredTitle || "조건에 맞는 항목이 없습니다"}
+      title={filteredTitle || "검색 조건에 맞는 항목이 없습니다."}
       /* 「없다」로 끝내지 않는다 — 무엇을 하면 되는지까지가 빈 상태다(지시 18). */
-      help={filteredHelp || "지금 걸린 조건에 맞는 항목이 없습니다. 조건을 지우면 전체를 볼 수 있습니다."}
+      help={filteredHelp || "필터를 초기화하면 전체 목록을 볼 수 있습니다."}
       /* 조건 0건의 지우기는 **30 보조 단추**다(RULES §1 「30px 조건 지우기」 · 조합 계약 C-4). 채움이었을 때 문서 ·
          프로젝트 · DataScreen 은 머리의 「새 문서」 같은 채움과 한 화면에 채움 둘을 세웠다. */
       action={onClear ? <Button size="sm" onClick={onClear}>{clearLabel}</Button> : null}
@@ -1721,6 +1733,18 @@ function mascotGroundSx(theme) {
     boxShadow: `inset 0 0 0 1px ${theme.palette.divider}`,
   };
 }
+
+/* 판 · 구획 안 빈 상태의 아이콘(D-588) — 그림 키(`lib/assets.js::ART`)마다 같은 뜻의 중립 외곽선 아이콘.
+   클로비 그림은 화면 전체가 하나의 상태인 자리(`layout="page"`)에만 선다. 홈 한 화면에 72px 클로비가 넷 서던 것
+   (업무 판 · 이번 주 · 최근 문서 · 담당자 지정 필요)이 이 표로 사라진다. */
+const ART_ICON = {
+  tickets: AssignmentOutlinedIcon, docs: DescriptionOutlinedIcon, trash: DeleteOutlineRoundedIcon,
+  chat: ChatBubbleOutlineRoundedIcon, board: ArticleOutlinedIcon, notify: NotificationsNoneRoundedIcon,
+  search: SearchOffRoundedIcon, notFound: SearchOffRoundedIcon, serverError: ErrorOutlineRoundedIcon,
+  wait: HourglassEmptyRoundedIcon, trouble: ErrorOutlineRoundedIcon, noPermission: LockOutlinedIcon,
+  sessionExpired: LockOutlinedIcon, offline: CloudOffRoundedIcon, success: TaskAltRoundedIcon,
+  games: SportsEsportsOutlinedIcon,
+};
 
 /** `EmptyState` 가 실제로 받는 prop 전체 — 아래 개발 모드 검사의 정본이다. */
 const EMPTY_STATE_PROPS = [
@@ -1795,12 +1819,14 @@ export function EmptyState(props) {
   /* compact 는 여전히 그림을 안 그린다(DS-15). 팝오버·모달 하위목록은 폭도 높이도 좁아서
      그림이 «다음에 무엇을 하면 되는지» 를 밀어낸다. 그 자리에 캐릭터가 필요한 화면은
      `icon` 으로 직접 넘긴다 — 그 포즈는 `emptyCompact` 밴드다. */
-  const artSrc = !compact && art && ART[art] ? ART[art] : null;
+  /* 그림은 화면 전체가 빈 자리(page)에만 선다(D-588). 판 · 구획(card · region)은 같은 뜻의 작은 아이콘이다. */
+  const artSrc = page && !compact && art && ART[art] ? ART[art] : null;
+  const ArtIcon = !page && !compact && art ? ART_ICON[art] || null : null;
   /* 그림 크기는 «보이는 캐릭터» 에서 파생한다 (지시 71 · `Mascot.jsx::MASCOT_PLACE`).
      예전에는 `width: {sm:72, xxl:88, uhd:112}` 였는데, 그 72 는 자산마다 다른 크기로 보였다 —
      `empty-notify`(잉크 84%)는 60px 인데 `empty-tickets`(62%)는 45px 였다. 같은 자리에서
      그림이 두 크기로 나오는 것이고, 박스를 재는 검사로는 안 보인다. */
-  const artPlace = page ? "emptyPage" : card ? "emptyCard" : "emptyRegion";
+  const artPlace = "emptyPage";
   const artBox = artSrc ? mascotBoxSx(artPlace, artSrc) : null;
   /* 칸 폭은 EMPTY_STATE_MAX_CH. 문구 한도는 COPY_LIMIT.emptyHelp — 폭을 바꾸면 한도가 따라간다. */
   const bodySx = {
@@ -1861,6 +1887,10 @@ export function EmptyState(props) {
             ...artBox, objectFit: "contain",
           }}
         />
+      ) : ArtIcon ? (
+        <Box aria-hidden="true" data-empty-icon={art} sx={{ flexShrink: 0, display: "inline-flex", color: "text.secondary", lineHeight: 1 }}>
+          <ArtIcon sx={{ fontSize: remPx(ICON.empty) }} />
+        </Box>
       ) : icon ? (
         <Box aria-hidden="true" sx={{ flexShrink: 0, fontSize: compact ? FONT_SIZE.pageTitle : FONT_SIZE.readout, color: "text.faint", lineHeight: 1 }}>{icon}</Box>
       ) : null}
@@ -3950,7 +3980,9 @@ export function FieldRow({ children, action, columns, sx }) {
   const fixed = Array.isArray(columns) && columns.length > 0;
   const fields = fixed
     ? (
-      <Box sx={{ display: "grid", gap: FORM_FIELD_GAP, alignItems: "start", gridTemplateColumns: columns.map((c) => `minmax(0, ${c})`).join(" ") }}>
+      /* 고정 열은 **왼쪽에 붙는다**(D-590). `justifyContent` 가 없으면 격자의 기본 `normal` 이 `auto` 트랙을 남는 폭까지 늘려,
+         `["auto", "auto"]` 의 둘째 칸이 판 가운데에서 시작했다 — AI 연결의 「제공자」 · 「인증 방식」이 1,400px 판의 양 끝에 섰다. */
+      <Box sx={{ display: "grid", gap: FORM_FIELD_GAP, alignItems: "start", justifyContent: "start", gridTemplateColumns: columns.map((c) => `minmax(0, ${c})`).join(" ") }}>
         {children}
       </Box>
     )

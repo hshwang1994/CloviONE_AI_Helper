@@ -44,7 +44,10 @@ export const GOVERNANCE_SCREENS = {
     // 실제 승인 실행자는 3종(app/approvals/service.py): schedule.enable,
     // integration.change_config, user.role_change. 러너 설정 변경과 문서 발행은 S11 이
     // 그 두 기능과 함께 걷어냈다.
-    emptyTitle: "승인 요청이 없습니다", emptyHelp: "스케줄 활성화, 연동 설정 변경, 역할 변경처럼 승인이 필요한 작업이 요청되면 여기에서 승인, 거절, 취소합니다.",
+    /* 기본 조건(대기)만 걸린 0건은 「처리할 승인 요청이 없습니다.」다(D-587) — 사람이 건 조건이 없는데 「검색 조건에 맞는」이라고
+       말하지 않는다. 단추는 「전체 결과 보기」(DataScreen)라 처리된 · 만료된 요청까지 본다. */
+    noun: "승인 요청", emptyDefaultTitle: "처리할 승인 요청이 없습니다.",
+    emptyTitle: "승인 요청이 없습니다.", emptyHelp: "스케줄 활성화, 연동 설정 변경, 역할 변경처럼 승인이 필요한 작업이 요청되면 여기에서 승인, 거절, 취소합니다.",
     emptyRelatedLink: { href: "#/approval-delegations", label: "부재 시 대리 승인자 설정" },
     // 다른 화면/미래의 딥링크가 ?id=로 특정 승인 건을 곧바로 열 수 있게 한다(다른 화면들과 동일한
     // 패턴 — 백엔드 GET /api/admin/approvals/{id}가 이미 존재하는데 지금까지 아무 화면도 호출하지 않았다).
@@ -302,7 +305,9 @@ export const GOVERNANCE_SCREENS = {
          안 고쳐졌다). 이제 그 파일이 백엔드가 기록하는 값 전량과 맞춰져 있다. */
       { key: "object_type", type: "select", label: "대상", options: OBJTYPE_OPTS },
       // 특정 엔티티에 일어난 모든 사건을 추적한다(상세의 '대상 ID'·부서/직책 상세 id를 붙여넣는다).
-      { key: "object_id", type: "text", label: "대상 ID",
+      /* 정확한 값을 붙여넣는 세 축(대상 ID · 작업 · 문의 번호)은 「추가 필터」에 접어 둔다(D-596). 상세의 링크와 딥링크가
+         값을 걸면 접힌 칸이 펼쳐진다 — 걸린 조건을 숨기지 않는다. */
+      { key: "object_id", type: "text", label: "대상 ID", more: true,
         freeTextReason: "감사 대상은 모든 object_type 을 가로지른다. 하나의 후보 목록이 존재할 수 없다." },
       // 감사 action은 백엔드가 정확 일치(==)로 필터한다(router: AuditLog.action == action). 실제 값은
       // '대상.동작'을 조합한 열린 네임스페이스라(예: user.update, prompts.update_content, cli.user.enable,
@@ -322,7 +327,7 @@ export const GOVERNANCE_SCREENS = {
       // D-355·D-361 과 같은 판단이다: 통제 어휘가 아닌 값을 후보로 승격하지 않는다.
       //
       // 무엇을 적어야 하는지는 상세 드로어의 「작업(원문)」과 열의 hover 힌트가 답한다.
-      { key: "action", type: "text", label: "작업(정확히, 예: user.update)",
+      { key: "action", type: "text", label: "작업(정확히, 예: user.update)", more: true,
         freeTextReason: "감사 작업 이름은 코드가 만들어 내므로 고를 수 있는 후보 목록이 존재하지 않습니다. 상세의 ‘작업(원문)’에서 정확한 문자열을 확인해 그대로 적으세요." },
       // VIS-59: 로그인/로그아웃이 같은 대상 ID로 수십 행씩 연속돼 실제로 봐야 할 사건
       // (실패·설정 변경 등)이 그 사이에 묻힌다. action(하나만 골라 좁히는 정확 일치)과는
@@ -341,7 +346,7 @@ export const GOVERNANCE_SCREENS = {
       // 상관 id 로 찾기 (Z8). 이 값은 상세 패널에 **보이기만 했고 그것으로 찾을 수가 없었다**.
       // 사용자가 오류 화면의 '문의 번호'를 불러 주면 그대로 붙여넣어 그 요청 하나를 짚는다 —
       // 새벽 3시에 "화면이 안 나와요" 를 받았을 때 경로와 상태 코드 말고 쓸 것이 생긴다.
-      { key: "request_id", type: "text", label: "문의 번호(요청 ID)",
+      { key: "request_id", type: "text", label: "문의 번호(요청 ID)", more: true,
         freeTextReason: "외부에서 받아 적는 번호다. 이 제품 안에 후보 목록이 없다." },
       // 백엔드 _parse_boundary(app/audit/router.py)는 하루 단위가 아니라 시각(오프셋 포함 ISO-8601)까지
       // 정밀하게 필터할 수 있다 — 기간 칸 하나가 시각 쌍을 고른다(D-530): 최근 1시간 · 24시간 · 7일 · 전체, 또는 시:분까지 직접.

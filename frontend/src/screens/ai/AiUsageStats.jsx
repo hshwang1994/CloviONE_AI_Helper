@@ -14,7 +14,7 @@ import { FONT_SIZE, KO_WORD_BREAK } from "../../ui/theme.js";
 /* AI 사용 통계 — 실제 사용량 분석 (계획 A6, D-543). 「AI 사용 통계」 그릇의 첫 탭이다.
  *
  * 위에서 아래로 「조건 · 기간 · 보기 기준 → 작은 지표 한 줄 → 나눔 표」다. 큰 KPI 카드를 여러 줄로 쌓지 않는다(카드가 아니다 —
- * 값과 작은 이름 한 줄). 보기 기준은 조건이 아니다(D-530): 조건 수 · 칩 · 「필터 지우기」에 들지 않는다. 기간은 세그먼티드이고
+ * 값과 작은 이름 한 줄). 보기 기준은 조건이 아니다(D-530): 조건 수 · 칩 · 「필터 초기화」에 들지 않는다. 기간은 세그먼티드이고
  * 「직접 선택」이면 날짜 칸 둘이 옆에 선다. 서버가 쓴 기간을 문장으로 보인다(`range_label`) — 빈 칸인데 30일을 쓰는 일이 없다.
  * 검색은 서버가 한다(보이는 범위 안 사람의 이름 · 이메일 · 기능 이름). 행을 누르면 같은 기간 · 조건의 호출 기록으로 간다.
  */
@@ -144,7 +144,7 @@ export function AiUsageStats() {
   ];
   const empty = conditionCount
     ? <EmptyState title="조건에 맞는 기록이 없습니다" action={(
-      <Button size="sm" onClick={() => setQuery({ status: "", action: "", q: "" })}>필터 지우기</Button>
+      <Button size="sm" onClick={() => setQuery({ status: "", action: "", q: "" })}>필터 초기화</Button>
     )} />
     : <EmptyState title="이 기간에 AI 요청이 없습니다" help="기간을 넓히거나 AI 연결 상태를 확인하세요." />;
 
@@ -167,7 +167,7 @@ export function AiUsageStats() {
           ].filter(Boolean),
           total: data ? data.total : null,
           onClearAll: conditionCount > 1 ? () => setQuery({ status: "", action: "", q: "" }) : null,
-          clearLabel: "필터 지우기",
+          clearLabel: "필터 초기화",
         }}
       >
         <FilterSelect label="결과" value={query.status} allLabel="전체" options={STATUSES}

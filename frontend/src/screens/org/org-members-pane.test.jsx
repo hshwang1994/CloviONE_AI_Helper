@@ -16,7 +16,7 @@ import "@testing-library/jest-dom/vitest";
  *      트리 줄의 수(가지 전체)와 목록의 수가 같아진다 — 예전에는 상위 부서가 트리에 12명인데 목록이 직속 0명이었다.
  *   ② 부서 열은 조직 보기와 하위가 있는 부서의 하위 포함 보기에만 선다(말단 부서 직속은 모두 같은 부서다).
  *   ③ 동명이인은 이메일 열이 가른다 — 이름 칸 둘째 줄의 이메일은 걷었다(두 번 보였다).
- *   ④ 칩은 기본과 다른 조건만 만들고, 「필터 지우기」는 기본으로 되돌린다.
+ *   ④ 칩은 기본과 다른 조건만 만들고, 「필터 초기화」는 기본으로 되돌린다.
  *   ⑤ 행은 그 사람의 사용자 상세로 가는 진짜 링크다. 수는 「구성원 N명」(서버 total)이 말한다.
  */
 
@@ -140,15 +140,15 @@ describe("표", () => {
     expect(header("이름")).toBeInTheDocument();
   });
 
-  it("조건 때문에 0명이면 「필터 지우기」가 기본 조건으로 되돌린다", async () => {
+  it("조건 때문에 0명이면 「필터 초기화」가 기본 조건으로 되돌린다", async () => {
     const user = userEvent.setup();
     renderPane({ scope: { kind: "dept", deptId: "dep-sales", hasChildren: true } });
     await screen.findAllByText("김하나");
     apiMock.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 50 });
     await user.click(screen.getByRole("combobox", { name: /상태/ }));
     await user.click(await screen.findByRole("option", { name: "보관" }));
-    expect(await screen.findByText("조건에 맞는 항목이 없습니다.")).toBeInTheDocument();
-    const clears = screen.getAllByRole("button", { name: "필터 지우기" });
+    expect(await screen.findByText("검색 조건에 맞는 항목이 없습니다.")).toBeInTheDocument();
+    const clears = screen.getAllByRole("button", { name: "필터 초기화" });
     await user.click(clears[clears.length - 1]);
     await waitFor(() => expect(lastQuery().get("state")).toBe("active"));
   });

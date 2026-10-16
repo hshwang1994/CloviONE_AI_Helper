@@ -13,7 +13,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
  *  1) 팀 후보가 둘 이상이고 기본 팀이 없으면 화면이 고르라고 말한다 — 「전체 팀」 판은 없다.
  *  2) 팀을 바꾸면 회차·프로젝트가 비워지고 그 팀의 회차 목록을 새로 읽는다.
  *  3) 프로젝트를 바꿔도 팀·회차·회차 목록은 그대로다 — 프로젝트는 필터다.
- *  4) 「필터 지우기」는 데이터 조건만 걷는다 — 팀·회차·탭·보기 옵션(내 티켓만 · 보류 펴기)은 그대로다.
+ *  4) 「필터 초기화」는 데이터 조건만 걷는다 — 팀·회차·탭·보기 옵션(내 티켓만 · 보류 펴기)은 그대로다.
  *  5) 편성 단추는 팀의 관리 범위(`manageable`)를 따른다 — 역할만으로는 안 선다.
  *  6) 「스프린트 회의」·「티켓 추가」 링크가 팀 문맥을 싣는다.
  *  7) 머리 동작의 순서는 보조 → 더 보기 → 주 동작이다(D-501) — 예정 회차의 「회차 열기」가 머리의 마지막 단추다. */
@@ -139,7 +139,7 @@ describe("작업 보드의 팀 문맥", () => {
     expect(calls("/api/work/sprints").length).toBe(sprintsBefore);
   });
 
-  it("「필터 지우기」는 데이터 조건만 걷는다 — 팀·회차·「내 티켓만」·보류 펴기는 그대로다", async () => {
+  it("「필터 초기화」는 데이터 조건만 걷는다 — 팀·회차·「내 티켓만」·보류 펴기는 그대로다", async () => {
     apiMock.mockImplementation(stub({ defaultTeam: "d-a" }));
     renderBoard("/work-board?team=d-a&sprint=sp-a&project_id=p-a&q=x&mine=1&hold=1");
     await waitFor(() => expect(calls("/api/work/board?").length).toBe(1));
@@ -151,7 +151,7 @@ describe("작업 보드의 팀 문맥", () => {
     });
     const chips = [...line.querySelectorAll("[data-condition-chip]")].map((c) => c.textContent);
     expect(chips).toEqual(["프로젝트: A 프로젝트", "검색: x"]);
-    await userEvent.click(within(line).getByRole("button", { name: "필터 지우기" }));
+    await userEvent.click(within(line).getByRole("button", { name: "필터 초기화" }));
     await waitFor(() => expect(screen.getByTestId("here").textContent).toBe("/work-board?team=d-a&sprint=sp-a&mine=1&hold=1"));
     expect(document.querySelector("[data-condition-line]")).toBeNull();
   });

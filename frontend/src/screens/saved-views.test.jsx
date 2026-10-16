@@ -110,7 +110,7 @@ describe("주소로 뷰 복원", () => {
     renderScreen();
     await screen.findByText("감사 로그");
 
-    await user.click(await screen.findByRole("button", { name: "필터 지우기" }));
+    await user.click(await screen.findByRole("button", { name: "필터 초기화" }));
     await waitFor(() => expect(window.location.hash).toBe("#/audit"));
   });
 });

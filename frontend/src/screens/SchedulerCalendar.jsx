@@ -330,6 +330,7 @@ export function SchedulerCalendar({ embedded = false } = {}) {
               선다(계획 표 7). 실패의 색은 점이 맡고 이름 글자가 함께 선다. */}
           <StatusSummaryCard
             ariaLabel="이 구간 실행"
+            unit="건"
             total={(counts.run || 0) + (counts.planned || 0) + (counts.failed || 0)}
             items={[
               { key: "run", label: "실행", value: counts.run, kind: "ok" },

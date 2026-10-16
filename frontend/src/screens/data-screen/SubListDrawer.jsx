@@ -143,7 +143,7 @@ export function SubListDrawer({ view, onClose, onActed }) {
             }),
             total: q.isLoading || q.isError ? null : (total != null ? total : rows.length),
             onClearAll: Object.values(subFilters).filter(Boolean).length > 1 ? () => setSubFilters({}) : null,
-            clearLabel: "필터 지우기",
+            clearLabel: "필터 초기화",
           }}
         >
             {(sl.filters).map((f) => f.type === "date" ? (

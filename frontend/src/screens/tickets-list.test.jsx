@@ -122,7 +122,7 @@ describe("내 티켓 — 목록", () => {
     expect(screen.queryByText("전체 2건")).toBeNull();
     expect(document.querySelector("[data-filter-surface] [data-condition-line]")).toBeNull();
     expect(document.querySelector("[data-result-line]")).toBeNull();
-    expect(screen.getByText("2건 중 2건을 받았습니다.")).toBeInTheDocument();
+    expect(screen.getByText("전체 2건 중 2건 표시")).toBeInTheDocument();
   });
 
   it("SEM-02: h1 하나뿐이던 화면에 필터·목록 구획용 h2가 있다(시각적으로는 안 보임)", async () => {
@@ -143,7 +143,7 @@ describe("내 티켓 — 목록", () => {
     await user.click(await screen.findByRole("option", { name: "완료" }));
 
     // 조건이 걸리면 그 사실이 건수 옆에 함께 선다 — 숫자만 보고 "왜 1건이지"를 되묻지 않게.
-    expect(await screen.findByText("조건 1개에 맞는 결과가 1건입니다.")).toBeInTheDocument();
+    expect(await screen.findByText("검색 결과 1건")).toBeInTheDocument();
     expect(screen.getByText("월간 리포트 오탈자")).toBeInTheDocument();
     expect(screen.queryByText("서버 등록 IP 중복 방지")).toBeNull();
     // 화면이 몰래 거른 것이 아니라 **서버에 물어본** 결과다.

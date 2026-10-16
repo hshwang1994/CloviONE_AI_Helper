@@ -571,7 +571,7 @@ function BoardScreen({ kind = "free" }) {
           ].filter(Boolean),
           total: list.first ? (list.total != null ? list.total : items.length) : null,
           onClearAll: [q, category, status].filter(Boolean).length > 1 ? clearFilters : null,
-          clearLabel: "필터 지우기",
+          clearLabel: "필터 초기화",
         }}
       >
         <FilterSelect
@@ -607,7 +607,7 @@ function BoardScreen({ kind = "free" }) {
               layout="region"
               title="검색 결과가 없습니다"
               help="조건에 맞는 게시글이 없습니다. 검색어를 지우거나 카테고리를 ‘전체’로 되돌려 보세요."
-              action={<Button size="sm" onClick={clearFilters}>검색, 카테고리 지우기</Button>}
+              action={<Button size="sm" onClick={clearFilters}>검색 조건 초기화</Button>}
             />
           ) : (
             /* 🔴 여기에 «글쓰기» 를 다시 두지 않는다 (S19) — 상단 행동과 같은 일이다.

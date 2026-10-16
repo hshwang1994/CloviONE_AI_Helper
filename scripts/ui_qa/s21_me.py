@@ -462,7 +462,7 @@ def _noti_race(r, ctx):
     r.choose("읽음 상태", "안 읽음만")
     r.page.wait_for_timeout(120)
     r.rec.reset()
-    clear = r.in_main("button", "필터 지우기")
+    clear = r.in_main("button", "필터 초기화")
     if clear.count():
         clear.first.click()
     r.settle(2400)

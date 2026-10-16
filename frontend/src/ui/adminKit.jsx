@@ -2,7 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { Badge, FlatBadgeSurface, SectionTitle } from "./kit.jsx";
-import { SECTION_GAP } from "./density.js";
+import { SECTION_GAP, SETTING_ROW_WIDTH } from "./density.js";
 import { CONTROL, FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK, LINE_HEIGHT, MOTION } from "./theme.js";
 import { centerPad } from "./layout.jsx";
 
@@ -71,7 +71,9 @@ const SETTING_STATE_KIND = {
  * 것만으로 그 단추가 눌려 버린다. 접근 가능한 이름은 컨트롤의 aria-label 이 계속 정한다. */
 const LABEL_FOR = { display: "block", cursor: "pointer" };
 
-export function SettingRow({ label, value, description, tone, action, state, last, compact, controlId, children }) {
+/* `width` — 줄 묶음의 폭(D-590, `density.js::SETTING_ROW_WIDTH`). 줄 하나에 주거나, 묶음(`SettingRows width`)이 CSS 변수로
+   안의 줄 전부에 준다. 안 주면 지금처럼 담는 판의 폭을 다 쓴다. */
+export function SettingRow({ label, value, description, tone, action, state, last, compact, controlId, width, children }) {
   const oneLine = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   return (
     /* 설정 줄도 목록 행이다 — 상태 배지는 면 없이 점 + 낱말로 선다(RULES §2). */
@@ -81,6 +83,7 @@ export function SettingRow({ label, value, description, tone, action, state, las
          올라가는 식으로 찾으면 안쪽 배치를 조금만 바꿔도 시험이 깨진다. */
       className={compact ? "k-settingrow k-settingrow--compact" : "k-settingrow"}
       sx={{
+        maxWidth: width ? SETTING_ROW_WIDTH[width] || width : "var(--k-setting-row-max, none)",
         ...(compact ? {
           display: "flex", alignItems: "center", gap: 1.5,
           py: 1.25, borderTop: 1, borderColor: (t) => t.palette.rule,
@@ -168,11 +171,15 @@ export function SettingList({ title, action, children, sx }) {
 
 /* 설정 줄 묶음의 그릇 — 첫 줄의 위 괘선과 위 여백을 지운다(구획 제목 바로 아래 줄이 선 하나를 더 그리지 않게).
  * 전에는 메일 · AI · 프로필 화면이 같은 `sx` 한 줄을 다섯 번 복사했다. 줄 사이 선은 `SettingRow` 가 그대로 그린다. */
-export function SettingRows({ children, className, sx }) {
+export function SettingRows({ children, className, width, sx }) {
   return (
     <Box
       className={className ? `k-settingrows ${className}` : "k-settingrows"}
-      sx={{ minWidth: 0, "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 }, ...sx }}
+      sx={{
+        minWidth: 0, "& > .k-settingrow:first-of-type": { borderTop: 0, pt: 0 },
+        ...(width ? { "--k-setting-row-max": SETTING_ROW_WIDTH[width] || width } : null),
+        ...sx,
+      }}
     >
       {children}
     </Box>

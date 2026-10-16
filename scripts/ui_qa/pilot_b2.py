@@ -185,14 +185,14 @@ flow("FF-0427", "admin_users", "filter",
 def _clear_filters(r, ctx):
     r.choose("역할", "운영자")
     narrowed = r.rows()
-    button = r.page.get_by_role("button", name="필터 지우기")
+    button = r.page.get_by_role("button", name="필터 초기화")
     if not button.count():
         button = r.page.get_by_role("button", name="지우기")
     if not button.count():
-        stop("«필터 지우기» 가 없다")
+        stop("«필터 초기화» 가 없다")
     button.first.click()
     r.settle(1400)
-    return {"ui_action": "조건을 하나 건 뒤 «필터 지우기» 를 누른다",
+    return {"ui_action": "조건을 하나 건 뒤 «필터 초기화» 를 누른다",
             "frontend_state": "filters={} · q=''",
             "observed": {"rows": {"narrowed": narrowed, "cleared": r.rows()}},
             "rendered": "표 %d행 → %d행 · 주소 %s" % (narrowed, r.rows(), r.hash_of()),

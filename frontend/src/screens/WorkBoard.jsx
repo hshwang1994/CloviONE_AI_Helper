@@ -754,7 +754,7 @@ function WorkBoardScreen() {
           title: c.label,
           count: c.total,
           items,
-          hint: c.total > items.length ? `${c.total}건 중 ${items.length}건을 받았습니다.` : null,
+          hint: c.total > items.length ? `전체 ${c.total}건 중 ${items.length}건 표시` : null,
           action: nextCursor ? (
             <Button
               variant="ghost" size="sm" loading={extra.loading}

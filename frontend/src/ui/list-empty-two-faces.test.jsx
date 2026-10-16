@@ -44,7 +44,7 @@ describe("ListEmptyState — 0건의 두 얼굴", () => {
     );
     expect(screen.getByText("조건에 맞는 프로젝트가 없습니다")).toBeInTheDocument();
     expect(screen.queryByText("프로젝트가 없습니다")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "필터 지우기" }));
+    await user.click(screen.getByRole("button", { name: "필터 초기화" }));
     expect(onClear).toHaveBeenCalledTimes(1);
   });
 
@@ -55,8 +55,9 @@ describe("ListEmptyState — 0건의 두 얼굴", () => {
 
   it("문구를 안 주면 기본 문구가 «무엇을 하면 되는지»까지 말한다 (지시 18)", () => {
     render(<ListEmptyState filtered onClear={() => {}} title="없음" />);
-    expect(screen.getByText("조건에 맞는 항목이 없습니다")).toBeInTheDocument();
-    expect(screen.getByText(/조건을 지우면 전체를 볼 수 있습니다/)).toBeInTheDocument();
+    expect(screen.getByText("검색 조건에 맞는 항목이 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("필터를 초기화하면 전체 목록을 볼 수 있습니다.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "필터 초기화" })).toBeInTheDocument();
   });
 
   it("버튼 문구는 호출부가 바꿀 수 있다 — 조건이 검색어뿐이면 «필터»라는 말이 거짓이다", () => {

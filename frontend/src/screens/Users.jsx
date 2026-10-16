@@ -743,7 +743,7 @@ export function Users() {
           total: query.first ? (total != null ? total : items.length) : null,
           /* 보관함을 보는 중엔 내용 필터만 지운다 — 보관함 밖으로 조용히 밀려나지 않게(아래 빈 상태와 같은 이유). */
           onClearAll: hasContentFilter ? clearContentFilters : null,
-          clearLabel: "필터 지우기",
+          clearLabel: "필터 초기화",
         }}
       >
         {/* 부서는 **범위**라 조건 칸의 맨 앞이다(`FilterBar.jsx::FILTER_GROUP_ORDER` — 범위 → 대상 → 분류 → 상태). 표에 「부서」

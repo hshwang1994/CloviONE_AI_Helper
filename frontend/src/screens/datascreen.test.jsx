@@ -168,7 +168,7 @@ describe("페이지네이션", () => {
     expect(apiMock.mock.calls.some((c) => String(c[0]).includes("page=2"))).toBe(true);
     /* 🔴 **이어 붙였다** — 갈아 끼운 게 아니다. 앞 묶음의 행이 그대로 남아 있어야 한다. */
     expect(screen.getByText("동작-1")).toBeTruthy();
-    expect(screen.getByText("4건 중 2건을 받았습니다.")).toBeTruthy();
+    expect(screen.getByText("전체 4건 중 2건 표시")).toBeTruthy();
   });
 
   it("끝까지 굴려도 같은 일이 일어난다 — 단추와 자동 로딩이 같은 것을 부른다", async () => {
@@ -313,11 +313,11 @@ describe("빈 상태는 '데이터 없음'과 '검색 결과 없음'을 구분�
     expect(await screen.findByRole("heading", { name: "감사 로그가 없습니다" })).toBeInTheDocument();
 
     await user.type(screen.getByRole("searchbox"), "없는값");
-    /* 조건 때문에 0건 — 표 머리 아래 한 줄 띠(D-530). 툴바(조건 줄)에도 같은 이름의 '필터 지우기'가 있으므로 띠 안에서 찾는다. */
-    const heading = await screen.findByRole("heading", { name: "조건에 맞는 항목이 없습니다." });
+    /* 조건 때문에 0건 — 표 머리 아래 한 줄 띠(D-530). 툴바(조건 줄)에도 같은 이름의 '필터 초기화'가 있으므로 띠 안에서 찾는다. */
+    const heading = await screen.findByRole("heading", { name: "검색 조건에 맞는 항목이 없습니다." });
     const band = heading.closest("[data-empty-layout='band']");
     expect(band.closest("tr[data-empty-band]")).not.toBeNull();
-    expect(band.querySelector("button")).toHaveTextContent("필터 지우기");
+    expect(band.querySelector("button")).toHaveTextContent("필터 초기화");
   });
 
   /* 조합 계약 C-4 — 정말 빈 화면에서도 화면의 채움은 머리 동작 하나다. 빈 상태의 만드는 단추는 같은 일을 하는 30 보조다

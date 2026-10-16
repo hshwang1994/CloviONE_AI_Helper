@@ -22,7 +22,7 @@ function ui(node) {
 
 describe("빈 표 — 머리 아래 한 줄 띠", () => {
   it("머리는 서 있고 몸에는 띠 한 줄뿐이다", () => {
-    const { container } = ui(<DataTable placement="surface" columns={COLS} rows={[]} rowKey={(r) => r.id} empty="조건에 맞는 항목이 없습니다." />);
+    const { container } = ui(<DataTable placement="surface" columns={COLS} rows={[]} rowKey={(r) => r.id} empty="검색 조건에 맞는 항목이 없습니다." />);
     expect(screen.getByRole("columnheader", { name: "이름" })).toBeInTheDocument();
     const rows = container.querySelectorAll("tbody tr");
     expect(rows).toHaveLength(1);
@@ -30,7 +30,7 @@ describe("빈 표 — 머리 아래 한 줄 띠", () => {
     // 띠 칸은 모든 열에 걸친다.
     expect(rows[0].querySelector("td")).toHaveAttribute("colspan", String(COLS.length));
     const band = rows[0].querySelector('[data-empty-layout="band"]');
-    expect(within(band).getByRole("heading", { name: "조건에 맞는 항목이 없습니다." })).toBeInTheDocument();
+    expect(within(band).getByRole("heading", { name: "검색 조건에 맞는 항목이 없습니다." })).toBeInTheDocument();
     // 표가 판 가장자리에 붙는다 — 여백 안의 「상태만 든 판」이 아니다. 판은 빈 목록이라는 표식은 그대로 든다.
     const surface = container.querySelector("[data-list-surface]");
     expect(surface).toHaveAttribute("data-list-state", "empty");
@@ -58,11 +58,11 @@ describe("빈 표 — 머리 아래 한 줄 띠", () => {
     ui(
       <DataTable
         columns={COLS} rows={[]} rowKey={(r) => r.id}
-        empty="조건에 맞는 항목이 없습니다."
-        emptyAction={<Button size="sm" onClick={onClear}>필터 지우기</Button>}
+        empty="검색 조건에 맞는 항목이 없습니다."
+        emptyAction={<Button size="sm" onClick={onClear}>필터 초기화</Button>}
       />,
     );
-    const button = screen.getByRole("button", { name: "필터 지우기" });
+    const button = screen.getByRole("button", { name: "필터 초기화" });
     expect(button.closest("[data-empty-band]")).not.toBeNull();
     button.click();
     expect(onClear).toHaveBeenCalledTimes(1);
@@ -76,7 +76,7 @@ describe("빈 표 — 머리 아래 한 줄 띠", () => {
       />,
     );
     const band = container.querySelector('[data-empty-band] [data-empty-layout="band"]');
-    expect(within(band).getByRole("button", { name: "필터 지우기" })).toBeInTheDocument();
+    expect(within(band).getByRole("button", { name: "필터 초기화" })).toBeInTheDocument();
   });
 
   it("행이 있으면 띠가 없다", () => {

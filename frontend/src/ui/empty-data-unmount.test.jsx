@@ -20,6 +20,7 @@ import { LineSeries } from "./charts/LineSeries.jsx";
 import { Sparkline } from "./charts/Sparkline.jsx";
 
 /* qa-contract-change: 조건 때문에 0건인 목록은 표를 언마운트하지 않고 머리 아래 한 줄 띠로 「조건에 맞는 항목이 없습니다.」를 말한다(D-530 목록 상태 일곱 갈래 — 조건을 바꿔도 머리가 제자리에 있고 판을 흰 면으로 채우지 않는다). 조건 없이 정말 0건인 목록의 언마운트(머리 행 · 「0건 중 0건」을 남기지 않음)는 그대로 단언하고, 클라이언트 필터 예외는 「더 보기」가 남고 행이 없으며 띠가 머리 아래 줄이라는 단언으로 옮긴다. */
+/* qa-contract-change: 조건 없이 정말 0건인 목록도 표를 언마운트하지 않는다(D-588) — 0건과 다건이 같은 셸(표 머리 · 한 줄 띠 · 추가 단추)을 쓰고, 띠가 「등록된 항목이 없습니다.」를 말한다. 화면 가운데 흰 면에 작은 안내만 남던 모양을 걷는다. 「0건 중 0건」 발 · 페이저를 남기지 않는다는 단언은 그대로다. */
 /* qa-contract-change: 판독 줄(MetricStrip)이 핸드오프 RULES §6 에 따라 걷혀, 그 부품의 「전부 비면 원인을 대신 그린다」 계약(emptyCause · data-metrics-empty — 제품 소비처 0)을 그 줄을 이은 측정값 줄(StatusKpiStrip)의 「항목이 없으면 그릇을 남기지 않는다」로 옮긴다. */
 
 /* 값이 0건일 때 **그리지 않는가** (PLAN «빈 데이터 규칙», 지시 0-10).
@@ -147,19 +148,26 @@ beforeEach(() => {
   apiMock.mockReset();
 });
 
-describe("0건이면 표와 페이저를 언마운트한다", () => {
-  it("표가 통째로 사라진다 — 머리 행만 남지 않는다", async () => {
+describe("0건이면 페이저를 언마운트하고, 표는 머리 아래 한 줄 띠로 남는다 (D-588)", () => {
+  it("조건 없는 0건 — 머리는 그대로이고 그 아래 한 줄 띠가 등록 문장을 말한다(머리 행만 남지 않는다)", async () => {
     apiMock.mockResolvedValue({ items: [], page: 1, page_size: 20, total: 0 });
     const { container } = renderScreen(config({ paginated: true }));
-    await screen.findByText("표시할 항목이 없습니다");
-    expect(container.querySelector("table")).toBeNull();
-    expect(screen.queryByText("이름")).toBeNull();
+    const heading = await screen.findByRole("heading", { name: "등록된 항목이 없습니다." });
+    const table = container.querySelector("table");
+    expect(table).not.toBeNull();
+    expect(within(table.querySelector("thead")).getByText("이름")).toBeInTheDocument();
+    const rows = [...table.querySelectorAll("tbody tr")];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].hasAttribute("data-empty-band")).toBe(true);
+    expect(rows[0].contains(heading)).toBe(true);
+    // 판 없는 화면 가운데 빈 상태(page)로 그리지 않는다.
+    expect(container.querySelector("[data-empty-layout='page']")).toBeNull();
   });
 
   it("목록 끝 줄이 사라진다 — 「0건 중 0건」을 남기지 않는다", async () => {
     apiMock.mockResolvedValue({ items: [], page: 1, page_size: 20, total: 0 });
     renderScreen(config({ paginated: true }));
-    await screen.findByText("표시할 항목이 없습니다");
+    await screen.findByRole("heading", { name: "등록된 항목이 없습니다." });
     expect(document.querySelector("[data-list-footer]")).toBeNull();
     expect(screen.queryByRole("button", { name: "더 보기" })).toBeNull();
   });
@@ -196,7 +204,7 @@ describe("0건이면 표와 페이저를 언마운트한다", () => {
     const rows = [...table.querySelectorAll("tbody tr")];
     expect(rows).toHaveLength(1);
     expect(rows[0].hasAttribute("data-empty-band")).toBe(true);
-    expect(within(rows[0]).getByRole("heading", { name: "조건에 맞는 항목이 없습니다." })).toBeInTheDocument();
+    expect(within(rows[0]).getByRole("heading", { name: "검색 조건에 맞는 항목이 없습니다." })).toBeInTheDocument();
     expect(screen.queryByText("행 1")).toBeNull();
   });
 });

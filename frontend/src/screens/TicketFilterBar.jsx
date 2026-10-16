@@ -353,7 +353,7 @@ function OffCell({ reason, children }) {
    문장이다), 그 조건의 칩은 서지 않고 조건 수에서도 빠진다. 값은 주소에 남는다 — 이유가 걷히면 조건이 돌아온다. */
 export function TicketFilterBar({
   fields, value, onChange, total, scope, end, chips: outerChips, tailChips, onClear,
-  defaultStatusKeys, allStatus, onShowAll, resetLabel = "필터 지우기", options, disabled,
+  defaultStatusKeys, allStatus, onShowAll, resetLabel = "필터 초기화", options, disabled,
 }) {
   const projectOverride = options && options.project_id;
   const assigneeOverride = options && options.assignee_user_id;

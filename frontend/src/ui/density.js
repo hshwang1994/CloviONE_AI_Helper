@@ -434,3 +434,8 @@ export function gameRoomColumns() {
 /* 레일의 높이 예산 — 참여자 목록은 13rem 까지 서고 그 위는 안에서 굴린다(채팅을 밀어내지 않는다). 흐름 모드의 채팅 로그와 판의
    천장은 창이 아니라 이 값이 정한다. */
 export const GAME_RAIL_BUDGET = { members: "13rem", flowChat: "22rem", flowBoardMax: "60vh", flowBoardMin: "22rem" };
+
+/* 설정 줄 묶음의 폭(D-590) — 이름 · 설명 · 컨트롤이 **한 묶음으로 보이는** 폭이다. 판이 1,400px 이어도 스위치가 이름에서
+   1,500px 떨어지지 않게 줄 자체를 묶는다(페이지 폭은 묶지 않는다 — D-520). `form` 은 폼 판 안의 켜고 끄는 줄 · 확인 줄이다.
+   값은 AI 연결 · 메일 · OS 화면의 실제 캡처를 견줘 정했다. 안 주면(기본) 지금처럼 판 폭을 다 쓴다. */
+export const SETTING_ROW_WIDTH = { form: "48rem" };

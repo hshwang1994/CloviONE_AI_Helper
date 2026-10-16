@@ -24,6 +24,10 @@ import { ThemeModeProvider } from "./ThemeModeProvider.jsx";
  *
  * qa-contract-change: 빈 표가 판 안 빈 상태 부품(region)이 아니라 머리 아래 한 줄 띠(band)로 선다(D-530 — 판을 흰 면으로 채우지 않는다).
  * 문구 단언은 그대로 두고, 띠가 표의 줄이며 머리가 서 있고 그림이 없다는 단언을 더한다.
+ *
+ * qa-contract-change: 판 · 구획(card · region) 빈 상태의 그림은 작은 중립 아이콘으로 바뀌었다(D-588 — 클로비는 화면 전체가
+ * 하나의 상태인 자리에만 선다). 다크 함몰면 단언은 그림이 남는 화면 전체(page) 빈 상태로 옮기고, 판 빈 상태가 아이콘이며
+ * 바탕을 칠하지 않는다는 단언을 더한다.
  */
 
 function ui(node) {
@@ -279,7 +283,7 @@ describe("필터 바 — 줄 칸 · 토글 · 조건 줄", () => {
         <FilterConditionLine total={21} chips={[{ key: "s", label: "상태 계획", onDelete: () => {} }]} onClearAll={() => {}} />
       </ConfirmProvider></ToastProvider></ThemeModeProvider>,
     );
-    expect(screen.getByText("조건 1개에 맞는 결과가 21건입니다.")).toBeInTheDocument();
+    expect(screen.getByText("검색 결과 21건")).toBeInTheDocument();
     expect(getComputedStyle(container.querySelector("[data-condition-line]")).borderTopWidth).toBe("1px");
   });
 });
@@ -403,8 +407,16 @@ describe("다크 모드 — 빈 상태 · 오류 상태 그림의 바탕", () =>
   };
   afterEach(() => { document.documentElement.removeAttribute("data-theme"); });
 
-  it("다크에서 그림이 서는 빈 상태는 함몰면 · 모서리 6 · 안쪽 선이고, 여백은 라이트와 같다", () => {
-    const dark = inMode("dark", <EmptyState title="아직 티켓이 없습니다" art="tickets" />);
+  it("판 · 구획의 빈 상태는 그림 대신 작은 아이콘이고 바탕을 칠하지 않는다 (D-588)", () => {
+    const { container } = inMode("dark", <EmptyState title="아직 티켓이 없습니다" art="tickets" />);
+    const box = container.querySelector(".k-empty");
+    expect(box.querySelector("img")).toBeNull();
+    expect(box.querySelector("[data-empty-icon='tickets'] svg")).not.toBeNull();
+    expect(getComputedStyle(box).backgroundColor).not.toBe("rgb(28, 33, 54)");
+  });
+
+  it("다크에서 그림이 서는 빈 상태(화면 전체)는 함몰면 · 모서리 6 · 안쪽 선이고, 여백은 라이트와 같다", () => {
+    const dark = inMode("dark", <EmptyState title="아직 티켓이 없습니다" art="tickets" layout="page" />);
     const darkBox = dark.container.querySelector(".k-empty");
     const darkStyle = getComputedStyle(darkBox);
     expect(darkStyle.backgroundColor).toBe("rgb(28, 33, 54)");
@@ -413,7 +425,7 @@ describe("다크 모드 — 빈 상태 · 오류 상태 그림의 바탕", () =>
     const darkPad = [darkStyle.paddingTop, darkStyle.paddingLeft];
     dark.unmount();
 
-    const light = inMode("light", <EmptyState title="아직 티켓이 없습니다" art="tickets" />);
+    const light = inMode("light", <EmptyState title="아직 티켓이 없습니다" art="tickets" layout="page" />);
     const lightStyle = getComputedStyle(light.container.querySelector(".k-empty"));
     expect(lightStyle.backgroundColor).not.toBe("rgb(28, 33, 54)");
     expect(lightStyle.boxShadow === "" || lightStyle.boxShadow === "none").toBe(true);
@@ -421,7 +433,7 @@ describe("다크 모드 — 빈 상태 · 오류 상태 그림의 바탕", () =>
   });
 
   it("그림 없는 빈 상태(조건 0건)는 다크에서도 바탕을 받지 않는다", () => {
-    const { container } = inMode("dark", <EmptyState title="조건에 맞는 항목이 없습니다" />);
+    const { container } = inMode("dark", <EmptyState title="검색 조건에 맞는 항목이 없습니다" />);
     const st = getComputedStyle(container.querySelector(".k-empty"));
     expect(st.backgroundColor).not.toBe("rgb(28, 33, 54)");
     expect(st.boxShadow === "" || st.boxShadow === "none").toBe(true);

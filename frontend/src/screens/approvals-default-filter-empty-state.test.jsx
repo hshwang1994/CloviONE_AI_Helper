@@ -15,6 +15,9 @@ import { MemoryRouter } from "react-router-dom";
  *
  * qa-contract-change: 조건 때문에 0건은 「검색 결과가 없습니다」 + 「검색, 필터 지우기」 판이 아니라 표 머리 아래 한 줄 띠 「조건에 맞는 항목이
  * 없습니다.」 + 30 「필터 지우기」다(D-530 목록 상태 일곱 갈래). 「필터 때문 대 정말 없음」 판정과 지운 뒤 전체 조회 단언은 그대로다.
+ *
+ * qa-contract-change: 기본 조건(대기)만 걸린 0건은 「처리할 승인 요청이 없습니다.」 + 30 「전체 결과 보기」다(D-587) — 사람이 건
+ * 조건이 없는데 「필터 초기화」라고 말하지 않는다. 누르면 전체 조회로 가고, 정말 0건이면 온보딩으로 떨어진다는 단언은 그대로다.
  */
 
 const apiMock = vi.fn();
@@ -28,11 +31,11 @@ import { DataScreen } from "./DataScreen.jsx";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
-const FILTERED_EMPTY = "조건에 맞는 항목이 없습니다.";
-/* 조건 때문에 0건의 띠 — 조건 줄에도 같은 이름의 「필터 지우기」가 있어 띠 안에서 찾는다. */
+const FILTERED_EMPTY = "처리할 승인 요청이 없습니다.";
+/* 기본 조건 때문에 0건의 띠 — 넓히는 단추는 띠 안의 「전체 결과 보기」다(조건 줄의 「필터 초기화」와 같은 일을 한다). */
 async function bandClear() {
   const heading = await screen.findByRole("heading", { name: FILTERED_EMPTY });
-  return within(heading.closest("[data-empty-layout='band']")).getByRole("button", { name: "필터 지우기" });
+  return within(heading.closest("[data-empty-layout='band']")).getByRole("button", { name: "전체 결과 보기" });
 }
 
 function renderApprovals() {
@@ -63,11 +66,11 @@ describe("/approvals — 기본 필터(status=pending) 0건일 때 빈 상태", 
     renderApprovals();
 
     expect(await screen.findByText(FILTERED_EMPTY)).toBeInTheDocument();
-    expect(screen.queryByText("승인 요청이 없습니다")).toBeNull();
+    expect(screen.queryByText("승인 요청이 없습니다.")).toBeNull();
     expect(await bandClear()).toBeInTheDocument();
   });
 
-  it("'필터 지우기'를 누르면 대기가 아닌 처리된 요청도 보인다(전체 조회, 기본값 복귀 아님)", async () => {
+  it("'전체 결과 보기'를 누르면 대기가 아닌 처리된 요청도 보인다(전체 조회, 기본값 복귀 아님)", async () => {
     apiMock.mockImplementation((url) =>
       Promise.resolve(String(url).includes("status=pending")
         ? { items: [], page: 1, page_size: 20, total: 0 }
@@ -91,7 +94,7 @@ describe("/approvals — 기본 필터(status=pending) 0건일 때 빈 상태", 
 
     await user.click(await bandClear());
 
-    expect(await screen.findByText("승인 요청이 없습니다")).toBeInTheDocument();
+    expect(await screen.findByText("승인 요청이 없습니다.")).toBeInTheDocument();
     expect(screen.getByText("부재 시 대리 승인자 설정")).toBeInTheDocument(); // emptyRelatedLink 회귀 없음
   });
 });

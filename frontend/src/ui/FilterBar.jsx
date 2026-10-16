@@ -5,7 +5,6 @@ import Typography from "@mui/material/Typography";
 import { Button } from "./kit.jsx";
 import { FILTER_SURFACE_CONTAINER, FilterRowContext } from "./filters.jsx";
 import { BREAKPOINTS, CONTROL, FONT_SIZE, FONT_WEIGHT, RADIUS, remPx } from "./theme.js";
-import { hasFinalConsonant } from "../lib/format.js";
 
 /* 탐색 줄 — 목록 화면의 «어떻게 볼지»(도구)와 «무엇을 볼지»(필터)를 담는 자리.
  *
@@ -236,18 +235,12 @@ export function FilterActions({ children, sx }) {
 /* `text` — 화면이 이미 쓰던 결과 문장(「총 N건 가운데 M건을 보여 줍니다.」 · 「총 N건, 짧은 검색어라
    부분 일치로 찾았습니다」)을 그대로 세운다(계획 P-21 — 문구를 통일하지 않는다). 문장을 준 화면은
    0건이어도 그 문장을 말한다 — 원래 그랬다. */
-/* 조건과 결과를 **한 문장**으로 말한다 (계획 2.2).
- *
- * 예전 문구 「조건 2개, 결과 3건」은 쉼표로 이은 두 조각이라 "조건 2개" 가 무엇을 뜻하는지 읽는
- * 사람이 짐작해야 했다. 지금은 완전한 문장이다: 「조건 2개에 맞는 결과가 3건입니다.」 조건이 없으면
- * 「전체 12건입니다.」다. 셀 대상이 결과가 아니라 부서처럼 이름이 있으면 `noun` 으로 주고
- * 조사는 받침으로 고른다(「부서가」 · 「티켓이」). 단위는 `unit` 이다. */
-export function filterSummaryText({ count, total, unit = "건", noun = "결과" }) {
+/* 결과 수는 상태 낱말이라 명사구다(D-587) — 조건이 걸리면 「검색 결과 3건」, 없으면 「전체 12건」.
+   조건 수는 바로 옆의 칩이 말한다(같은 사실을 두 번 세지 않는다). 옛 호출부가 넘기는 `noun` 은 이제 쓰지 않는다. */
+export function filterSummaryText({ count, total, unit = "건" }) {
   if (total == null) return "세는 중…";
   const amount = total.toLocaleString("ko-KR") + unit;
-  if (!count) return `전체 ${amount}입니다.`;
-  const particle = hasFinalConsonant(noun) ? "이" : "가";
-  return `조건 ${count}개에 맞는 ${noun}${particle} ${amount}입니다.`;
+  return count ? `검색 결과 ${amount}` : `전체 ${amount}`;
 }
 
 export function ResultLine({ total, unit = "건", noun = "결과", conditions, action, text, sx }) {
@@ -375,6 +368,8 @@ export function FilterConditionLine({ total, unit = "건", noun = "결과", chip
  *   search      `SearchBox` 하나(없으면 생략)
  *   children    내용 필터 칸(순서는 `FILTER_GROUP_ORDER`)
  *   end         오른쪽 끝 묶음
+ *   more        덜 쓰는 조건 칸 `{ fields, active, label }`(D-596). 첫 줄에 「추가 필터」 접기 단추가 서고, 펼치면 같은 면
+ *               안 둘째 줄에 칸이 선다. `active` 는 그 칸에 걸린 조건 수다(단추 이름 뒤 수).
  *   conditions  `{ chips, total, unit, noun, onClearAll, clearLabel, extraAction: { label, onClick } }`
  *   divider     아래 실선. 서랍 안 필터처럼 목록과 가를 선이 필요 없는 자리만 `false`
  *
@@ -382,17 +377,37 @@ export function FilterConditionLine({ total, unit = "건", noun = "결과", chip
  * 직접 조립한다 — `scripts/check_composition.py` 가 그 표와 대조한다. */
 /* `toggles` — 「하위 부서 포함」 · 「보관 포함」처럼 목록을 넓히거나 좁히는 켬/끔 **조건**이다(D-530). 조건이라 조건 칸 바로 뒤에
    서고 칩을 만든다(호출부가 `conditions.chips` 에 싣는다). 보기 방식(보기 기준 · 정렬)은 조건이 아니라 `end` 다. */
-export function FilterBar({ search, children, toggles, end, conditions, divider = true, flush = false, sx, ...rest }) {
+export function FilterBar({ search, children, toggles, more, end, conditions, divider = true, flush = false, sx, ...rest }) {
   /* `flush` — 아래 간격을 걷는다. 그릇(흐름 · 판)이 간격을 주는 자리다(화면이 숫자 여백을 적지 않는다). */
   const merged = flush ? { mb: 0, ...sx } : sx;
+  /* 「추가 필터」(D-596) — 접힌 칸에 조건이 걸려 있으면 처음부터 펼친다. 걸린 조건을 접힌 칸에 숨기지 않기 위해서다.
+     딥링크나 저장된 뷰가 접힌 칸에 조건을 새로 걸면 다시 펼친다. 사용자가 접은 것은 조건 수가 늘기 전까지 그대로 둔다. */
+  const moreActive = more ? Number(more.active) || 0 : 0;
+  const [moreOpen, setMoreOpen] = React.useState(moreActive > 0);
+  const [seenActive, setSeenActive] = React.useState(moreActive);
+  if (moreActive !== seenActive) {
+    setSeenActive(moreActive);
+    if (moreActive > seenActive) setMoreOpen(true);
+  }
+  const moreId = React.useId();
   return (
     <FilterSurface divider={divider} sx={merged} data-filter-bar="" {...rest}>
       <FilterRow>
         {search || null}
         {children}
         {toggles || null}
+        {more ? (
+          <FilterToggle
+            expanded={moreOpen}
+            aria-controls={moreOpen ? moreId : undefined}
+            onClick={() => setMoreOpen((v) => !v)}
+          >
+            {(more.label || "추가 필터") + (moreActive ? " " + moreActive : "")}
+          </FilterToggle>
+        ) : null}
         {end ? <ToolbarEnd>{end}</ToolbarEnd> : null}
       </FilterRow>
+      {more && moreOpen ? <FilterRow id={moreId} data-filter-more="">{more.fields}</FilterRow> : null}
       {conditions ? <FilterConditionLine {...conditions} /> : null}
     </FilterSurface>
   );

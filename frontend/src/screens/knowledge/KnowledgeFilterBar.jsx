@@ -9,7 +9,7 @@ import { SORTS, VIEW_OPTIONS } from "./constants.js";
  * 한 줄 순서는 필터 바 정본이다(핸드오프 README §3 · 조합 계약 C-1): 검색 320 → 내용 조건(프로젝트 · 분류 ·
  * 태그 · 작성자) → 빈 공간 → 오른쪽 끝 정렬. 「보기」는 이 줄의 조건이 아니라 줄 **위**의 세그먼티드가 고른다
  * (`Knowledge.jsx`). 조건이 하나라도 걸리면 같은 면 안 둘째 줄이 조건 줄이다 —
- * 「조건 N개에 맞는 결과가 M건입니다.」 → 조건 칩 → 「필터 지우기」(ACCEPTANCE D3).
+ * 「검색 결과 M건」 → 조건 칩 → 「필터 초기화」(ACCEPTANCE D3).
  *
  * **모든 조건은 칩을 가진다**(조합 계약 C-1). 예전에는 검색어를 조건으로 세면서 칩은 안 그렸고 태그 셋을 조건
  * 하나로 세서, 「조건 2개」 옆에 칩이 하나였다. 조건 수는 이제 칩 수다.
@@ -63,7 +63,7 @@ export function KnowledgeFilterBar({
           noAllOption
         />
       )}
-      conditions={{ chips, total, onClearAll, clearLabel: "필터 지우기" }}
+      conditions={{ chips, total, onClearAll, clearLabel: "필터 초기화" }}
     >
       {/* 축의 이름은 **프로젝트**다(D-415). 값 · 주소 · 서버 파라미터(`?project=`, `project_id`, `"none"`)는 그대로다.
           프로젝트는 값이 긴 축이라 wide 칸이다(`filters.jsx::ROW_KIND.entityWide`). 작성자는 사람이라 기본 칸이다. */}

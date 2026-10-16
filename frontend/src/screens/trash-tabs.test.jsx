@@ -124,7 +124,7 @@ describe("종류 탭", () => {
     expect(screen.getByRole("tab", { name: /전체/ })).toBeInTheDocument();
     expect(screen.queryByText("아직 지운 티켓이나 문서가 없습니다")).toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: "전체 보기" }));
+    await userEvent.click(screen.getByRole("button", { name: "전체 결과 보기" }));
     await screen.findByText("로그인 오류");
   });
 

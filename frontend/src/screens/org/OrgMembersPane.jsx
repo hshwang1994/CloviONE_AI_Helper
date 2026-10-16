@@ -18,7 +18,7 @@ import { FONT_WEIGHT } from "../../ui/theme.js";
  *
  * 도구 줄: 「구성원 N명」(지금 조건의 서버 total) + 필터 줄(검색 · 상태 기본 활성 · 조직이면 소속 · 부서면 「직속만」). 부서의 기본은
  * **하위 포함**이다 — 트리 줄의 수(가지 전체)와 목록의 수가 같다. 예전에는 상위 부서가 트리에 12명인데 목록이 직속 0명이었다.
- * 모든 조건이 칩과 「필터 지우기」에 든다. 조직이면 부서도 조직 직속도 아닌 사람이 있을 때만 그 사실을 한 줄 메시지 상자로 말한다.
+ * 모든 조건이 칩과 「필터 초기화」에 든다. 조직이면 부서도 조직 직속도 아닌 사람이 있을 때만 그 사실을 한 줄 메시지 상자로 말한다.
  *
  * 표(F3 열 배분): 이름 · 직책 · 이메일 · 부서 · 상태 · 역할. 이름 · 이메일 · 상태 · 역할은 필수 열이라 어떤 폭에서도 숨지 않고, 좁으면
  * 직책 → 부서 순서로 숨긴다 — 부서 열은 여러 부서가 섞이는 보기에만 서므로 문맥이 아니라 보조 열이고 직책보다 오래 남는다. 말단 부서의
@@ -102,7 +102,7 @@ export function OrgMembersPane({ label, head, scope, emptyText, notice = null })
     }).toString()),
   });
 
-  /* 기본 조건(상태 「활성」 · 하위 포함)은 칸 자체가 말한다 — 칩은 기본과 다른 조건만 만들고, 「필터 지우기」는 기본으로 되돌린다.
+  /* 기본 조건(상태 「활성」 · 하위 포함)은 칸 자체가 말한다 — 칩은 기본과 다른 조건만 만들고, 「필터 초기화」는 기본으로 되돌린다.
      고정 도구 줄에 늘 서는 칩 줄 하나가 1366 판에서 표 행 하나를 먹는다. */
   const clearAll = () => { setQ(""); setState("active"); setDirectOnly(false); setMembership(""); };
   const chips = [
@@ -143,7 +143,7 @@ export function OrgMembersPane({ label, head, scope, emptyText, notice = null })
           <FilterToggle pressed={directOnly} onClick={() => setDirectOnly((v) => !v)}>직속만</FilterToggle>
         ) : null}
         conditions={chips.length ? {
-          chips, total: list.total, unit: "명", noun: "사람", onClearAll: clearAll, clearLabel: "필터 지우기",
+          chips, total: list.total, unit: "명", noun: "사람", onClearAll: clearAll, clearLabel: "필터 초기화",
         } : undefined}
       >
         <FilterSelect label="상태" value={state} onChange={(v) => setState(v || "")} options={STATE_OPTIONS} allLabel="보관 제외 전체" />
@@ -182,7 +182,7 @@ export function OrgMembersPane({ label, head, scope, emptyText, notice = null })
           rowHref={(u) => "#/users/" + u.id}
           empty={hasCondition ? LIST_STATE_COPY["filtered-empty"].title : (emptyText || "속한 사람이 없습니다.")}
           emptyAction={hasCondition
-            ? <Button size="sm" onClick={clearAll}>필터 지우기</Button>
+            ? <Button size="sm" onClick={clearAll}>필터 초기화</Button>
             : <Button size="sm" href="#/users">사용자 화면 열기</Button>}
           list={{
             total: list.total, loaded: list.loaded, hasNext: list.hasNext,

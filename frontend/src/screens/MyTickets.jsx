@@ -965,7 +965,7 @@ export function Unassigned() {
     <div className="c-screen">
       {/* 화면 설명은 페이지 머리의 한 줄이다(조합 계약 C-3). 예전에는 목록 판 안 표 위에 서서 머리 줄을 판 윗변에서 밀어냈다. */}
       <PageHeader
-        crumbRoot="내 업무" area="미할당 티켓" title="미할당 티켓"
+        crumbRoot="팀 업무" area="미할당 티켓" title="미할당 티켓"
         description="담당자 없는 활성 티켓입니다. ‘나에게 배정’ 또는 ‘수정’으로 지정하세요."
       />
       {q.isLoading ? <Card><Skeleton /></Card>

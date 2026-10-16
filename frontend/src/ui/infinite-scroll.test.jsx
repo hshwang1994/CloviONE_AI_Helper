@@ -26,12 +26,12 @@ const intersect = async () => { await act(async () => { globalThis.__intersect()
 describe("ListFooter — 받은 건수와 「더 보기」", () => {
   it("몇 건 중 몇 건을 받았는지 말한다", () => {
     renderFooter({});
-    expect(screen.getByText("184건 중 100건을 받았습니다.")).toBeInTheDocument();
+    expect(screen.getByText("전체 184건 중 100건 표시")).toBeInTheDocument();
   });
 
   it("전체를 모르는 목록은 받은 건수만 말한다 — 없는 숫자를 지어내지 않는다", () => {
     renderFooter({ total: null, loaded: 40 });
-    expect(screen.getByText("40건을 받았습니다.")).toBeInTheDocument();
+    expect(screen.getByText("40건 표시")).toBeInTheDocument();
   });
 
   it("단추로도 받을 수 있다 — 키보드·스크린리더는 무한 스크롤에 닿을 수 없다", async () => {
@@ -114,7 +114,7 @@ describe("ListFooter — 폭주를 막는 가드 둘", () => {
     renderFooter({ onMore, loaded: 300, total: 1148, autoMaxRows: 300 });
     await intersect();
     expect(onMore).not.toHaveBeenCalled();
-    expect(screen.getByText(/조건을 좁히면 더 빨리 찾습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/조건을 좁히면 더 빨리 찾을 수 있습니다/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "더 보기" }));
     expect(onMore).toHaveBeenCalledTimes(1);
   });

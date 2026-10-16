@@ -64,14 +64,14 @@ const PROJECT_SPEC = {
 /* **무엇이 «조건» 인가는 한 번만 적는다.**
  *
  * 이 목록을 쓰는 자리가 셋이다: 조건이 걸렸는지 판정하는 곳(빈 화면의 갈래), 결과 줄이
- * 세는 곳, 그리고 「필터 지우기」가 지우는 곳. 셋이 각자 적으면 갈라진다 — 실제로
+ * 세는 곳, 그리고 「필터 초기화」가 지우는 곳. 셋이 각자 적으면 갈라진다 — 실제로
  * 갈라져 있었다: 앞의 둘은 여섯 축을 다 셌는데 지우는 쪽은 `archived` 와 `dept` 만 되돌려
  * 놓았다. 그래서 검색어로 0건이 된 화면에서 「필터 지우기」를 눌러도 **주소가 한 글자도
  * 안 바뀌었고**, 같은 빈 화면이 같은 버튼을 달고 그대로 남았다. 바로 그 화면의 안내가
  * 「조건(검색어, 부서, 상태)을 지우면 전체를 볼 수 있습니다」라고 적혀 있었다.
  *
  * 정렬은 여기 없다. 정렬은 **어느 프로젝트가 목록에 있는가**를 바꾸지 않으므로 0건의
- * 원인이 될 수 없고, 지울 이유도 없다 — 버튼이 「필터 지우기」라고 말하는 그대로다. */
+ * 원인이 될 수 없고, 지울 이유도 없다 — 버튼이 「필터 초기화」라고 말하는 그대로다. */
 const PROJECT_FILTER_KEYS = Object.keys(PROJECT_SPEC).filter((k) => k !== "sort" && k !== "order");
 
 /** 조건 전부를 기본값으로 되돌리는 조각. `setFilters` 는 준 키만 바꾸므로 **다 적어야** 한다. */
@@ -187,6 +187,8 @@ function Summary({ query, filters, onFilter }) {
     <Box sx={{ mb: 2.5 }}>
       <StatusSummaryCard
         ariaLabel="프로젝트 구성"
+        /* 프로젝트는 「개」로 센다 — 목록 발(「전체 99개 중 20개 표시」)과 같은 단위다(D-587). */
+        unit="개"
         total={d.total}
         items={STATUS_TILES.map(([key, label]) => ({ key, value: status[key] || 0, label }))}
         value={filters.status || null}
@@ -400,7 +402,7 @@ export function Projects() {
   return (
     <div className="c-screen">
       <PageHeader
-        crumbRoot="팀 공간" area="프로젝트" title="프로젝트"
+        crumbRoot="팀 업무" area="프로젝트" title="프로젝트"
         actions={canWrite ? (
           <Button variant="primary" onClick={() => setCreating(true)}>새 프로젝트</Button>
         ) : null}
@@ -435,7 +437,7 @@ export function Projects() {
           chips: projectChips,
           total: q.first ? data.total : null,
           onClearAll: hasProjectFilter ? clearProjectFilters : null,
-          clearLabel: "필터 지우기",
+          clearLabel: "필터 초기화",
         }}
       >
         {/* 후보는 이 응답이 들고 온다 — 서버가 계산한 내 조회 범위다. */}

@@ -299,7 +299,7 @@ export function Chat() {
 
   return (
     <Box className="c-screen" data-workspace={fill ? "fill" : "flow"} sx={fill ? { flex: "1 1 auto", minHeight: 0 } : null}>
-      <PageHeader crumbRoot="도우미" area="AI 도우미" title="AI 도우미" actions={<Button href="#/ai">문서에서 찾기</Button>} />
+      <PageHeader crumbRoot="내 업무" area="AI 도우미" title="AI 도우미" actions={<Button href="#/ai">문서에서 찾기</Button>} />
       <Box
         ref={gridRef} data-chat-layout={mode} data-page-fill=""
         sx={{

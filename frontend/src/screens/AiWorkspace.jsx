@@ -172,7 +172,7 @@ export function AiWorkspace() {
   return (
     <Box className="c-screen">
       <PageHeader
-        crumbRoot="도우미"
+        crumbRoot="내 업무"
         area="AI 도우미"
         title="문서에서 찾기"
         help="사내 문서에서 근거를 찾고, 그 근거가 어느 문서 어디인지 보여 줍니다."

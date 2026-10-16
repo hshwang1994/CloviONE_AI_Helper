@@ -467,7 +467,7 @@ describe("DataTable", () => {
           selection={{ count: 2, onClear: () => {}, actions: <button type="button">내보내기</button> }}
         />,
       );
-      expect(screen.getByText("520건 중 3건을 받았습니다.")).toBeInTheDocument();
+      expect(screen.getByText("전체 520건 중 3건 표시")).toBeInTheDocument();
       const toolbar = screen.getByRole("toolbar", { name: "일괄 작업" });
       expect(within(toolbar).getByRole("button", { name: "내보내기" })).toBeInTheDocument();
       expect(toolbar).toHaveTextContent("2개 선택");
@@ -478,7 +478,7 @@ describe("DataTable", () => {
       expect(foot.parentElement).toBe(container.querySelector("[data-list-surface]"));
       expect(foot.parentElement.lastElementChild).toBe(foot);
       // 일괄 동작이 문장보다 뒤(오른쪽)에 선다.
-      expect(screen.getByText("520건 중 3건을 받았습니다.").compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.getByText("전체 520건 중 3건 표시").compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it("total 을 모르면 발 줄이 숫자를 지어내지 않는다 — 받은 건수만 말한다", () => {
@@ -487,7 +487,7 @@ describe("DataTable", () => {
       );
       const foot = container.querySelector("[data-list-footer]");
       expect(foot).toBeTruthy();
-      expect(foot.textContent).toBe("3건을 받았습니다.");
+      expect(foot.textContent).toBe("3건 표시");
       expect(foot.textContent).not.toMatch(/중/);
     });
 

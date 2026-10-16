@@ -133,6 +133,8 @@ export const MASCOT_PLACE = {
      였다 — 제목과 설명과 버튼이 같은 무게로 서서 「이 판은 비어 있다」가 한눈에 안 읽혔다.
      `emptyPage` 와 같은 132 로 올린다. 두 자리는 같은 뜻(이 면이 통째로 비었다)이고,
      다른 것은 «면» 이 화면이냐 판이냐뿐이라 보이는 크기가 같아야 한다. */
+  /* D-588 뒤로 `EmptyState` 의 `art` 는 판 · 구획(card · region)에서 그림이 아니라 작은 아이콘이다 — 그림은 `emptyPage` 하나뿐이다.
+     아래 셋은 화면이 포즈를 `icon` 으로 직접 넘기는 자리의 상한이다(클로비 패널의 듣는 포즈 · AI 도우미 첫 화면의 판). */
   emptyCard:     { visible: 72,  context: "inline" },
   emptyRegion:   { visible: 72,  context: "inline" },
   emptyCompact:  { visible: 72,  context: "inline" },

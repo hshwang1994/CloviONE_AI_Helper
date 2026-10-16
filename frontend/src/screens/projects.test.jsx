@@ -464,14 +464,15 @@ describe("프로젝트 목록 — 요약", () => {
 
     /* 통째로 비교한다. 타일 하나씩 보면 화면이 새 타일을 몰래 더해도 안 걸린다.
        구성 다섯과 위험 둘은 한 카드의 칩이고, 평균 진행률은 카드 머리 오른쪽 값이다 — 아래 단언이 그것을 이어서 본다. */
+    // 단위는 「개」다 — 목록 발(「전체 N개 중 M개 표시」)과 같은 낱말이다(D-587).
     expect(summaryTiles()).toEqual({
-      "전체": "22",
-      "진행": "12",
-      "완료": "5",
-      "보류": "3",
-      "계획": "2",
-      "건강도 낮음": "4",
-      "지연 마일스톤": "6",
+      "전체": "22개",
+      "진행": "12개",
+      "완료": "5개",
+      "보류": "3개",
+      "계획": "2개",
+      "건강도 낮음": "4개",
+      "지연 마일스톤": "6개",
     });
 
     // 평균 진행률 — 숫자는 막대 옆에 그대로 있다.
@@ -632,7 +633,7 @@ describe("프로젝트 목록 — 조건이 주소에 남는다", () => {
   });
 });
 
-/* 「필터 지우기」가 **정말로 지우는가**.
+/* 「필터 초기화」가 **정말로 지우는가**.
  *
  * 이 버튼이 뜨는 조건은 여섯 축(검색어·보관·부서·상태·Health 하위·지연) 중 하나라도
  * 기본값과 다른 것이다. 그런데 지우는 쪽은 그중 둘(`archived`·`dept`)만 되돌려 놓았다 —
@@ -643,13 +644,13 @@ describe("프로젝트 목록 — 조건이 주소에 남는다", () => {
  * 글로 적어 두고 있었던 셈이다.
  *
  * 주소를 본다. 「버튼을 눌렀다」가 아니라 「조건이 실제로 사라졌다」가 지킬 성질이라서다. */
-describe("프로젝트 목록 — 필터 지우기", () => {
+describe("프로젝트 목록 — 필터 초기화", () => {
   it("검색어, 상태, Health 하위, 지연까지 한 번에 지운다", async () => {
     const user = userEvent.setup();
     listPayload = { items: [], total: 0, page: 1, page_size: 20 };
     renderAt("/projects?q=%EC%97%86%EB%8A%94%EA%B2%83&status=done&trouble=1&overdue=1&dept=d-1&archived=1");
 
-    await user.click(await screen.findByRole("button", { name: "필터 지우기" }));
+    await user.click(await screen.findByRole("button", { name: "필터 초기화" }));
 
     await waitFor(() => expect(addr()).toBe("/projects"));
     // 조건이 사라졌으니 서버로도 아무 조건이 안 나간다.
@@ -661,7 +662,7 @@ describe("프로젝트 목록 — 필터 지우기", () => {
     listPayload = { items: [], total: 0, page: 1, page_size: 20 };
     renderAt("/projects?q=%EC%97%86%EB%8A%94%EA%B2%83&sort=created_at&order=desc");
 
-    await user.click(await screen.findByRole("button", { name: "필터 지우기" }));
+    await user.click(await screen.findByRole("button", { name: "필터 초기화" }));
 
     await waitFor(() => expect(addrParam("q")).toBeNull());
     expect(addrParam("sort")).toBe("created_at");
@@ -671,7 +672,7 @@ describe("프로젝트 목록 — 필터 지우기", () => {
   it("조건이 하나도 없으면 버튼 자체가 없다 (누를 것이 없는 버튼을 그리지 않는다)", async () => {
     renderAt("/projects");
     await screen.findByText("배포 자동화");
-    expect(screen.queryByRole("button", { name: "필터 지우기" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "필터 초기화" })).toBeNull();
   });
 });
 

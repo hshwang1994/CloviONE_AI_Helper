@@ -5,7 +5,7 @@
  *   ② 검색은 접힌 부모를 강제로 펴서 맞은 노드를 보이고, 맞은 글자를 굵게 한다. 검색을 지우면 검색 전 펼침으로 돌아간다.
  *   ③ 「모두 접기 · 펼치기」 신호가 트리 전체에 닿는다.
  *   ④ 줄의 수는 이름이 아니라 설명이다(「구성원 N명」). 미사용 · 상위 관계 오류는 점 + 낱말이고 배지가 아니다.
- *   ⑤ 맞는 것이 없으면 조건 0건 상태와 「필터 지우기」가 선다.
+ *   ⑤ 맞는 것이 없으면 조건 0건 상태와 「필터 초기화」가 선다.
  */
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
@@ -65,11 +65,11 @@ describe("검색", () => {
     expect(item("개발팀")).toBeInTheDocument();
   });
 
-  it("맞는 것이 없으면 조건 0건 상태이고 「필터 지우기」가 조건을 푼다", async () => {
+  it("맞는 것이 없으면 조건 0건 상태이고 「필터 초기화」가 조건을 푼다", async () => {
     const onClearSearch = vi.fn();
     renderTree({ query: "없는부서", onClearSearch });
     expect(await screen.findByText("조건에 맞는 조직이나 부서가 없습니다.")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "필터 지우기" }));
+    await userEvent.click(screen.getByRole("button", { name: "필터 초기화" }));
     expect(onClearSearch).toHaveBeenCalled();
   });
 });

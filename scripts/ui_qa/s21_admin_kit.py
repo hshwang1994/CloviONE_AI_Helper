@@ -139,13 +139,13 @@ def ds_filter(label: str, option: str, api: str, *, axis: str = "", server: bool
 
 
 def ds_clear(label: str, option: str):
-    """조건을 하나 걸고 «필터 지우기» 로 한 번에 비운다."""
+    """조건을 하나 걸고 «필터 초기화» 로 한 번에 비운다."""
     def _act(r, ctx):
         r.choose(label, option)
         r.settle(1400)
         narrowed = n_rows(r)
         with_hash = r.hash_of()
-        clear = r.in_main("button", "필터 지우기")
+        clear = r.in_main("button", "필터 초기화")
         if not clear.count():
             clear = r.in_main("button", "초기화")
         if not clear.count():
@@ -170,13 +170,13 @@ def ds_clear(label: str, option: str):
                 r.settle(1600)
                 narrowed = n_rows(r)
                 with_hash = r.hash_of()
-                clear = r.in_main("button", "필터 지우기")
+                clear = r.in_main("button", "필터 초기화")
         if not clear.count():
-            stop("«필터 지우기» 가 없다")
+            stop("«필터 초기화» 가 없다")
         clear.first.click()
         r.settle(1600)
         after = r.hash_of()
-        return {"ui_action": "«%s = %s» 를 걸고 «필터 지우기» 를 누른다" % (label, option),
+        return {"ui_action": "«%s = %s» 를 걸고 «필터 초기화» 를 누른다" % (label, option),
                 "url_state": "%s → %s" % (with_hash, after),
                 "observed": {"rows": {"filtered": narrowed, "cleared": n_rows(r)}},
                 "rendered": "%d행 → %d행 · 주소 «%s»" % (narrowed, n_rows(r), after[-40:]),

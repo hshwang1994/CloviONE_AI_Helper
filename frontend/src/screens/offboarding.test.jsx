@@ -373,7 +373,7 @@ describe("오프보딩 화면", () => {
     renderScreen();
 
     await screen.findByText("퇴사자0");
-    expect(screen.getByText("25건 중 20건을 받았습니다.")).toBeInTheDocument();
+    expect(screen.getByText("전체 25건 중 20건 표시")).toBeInTheDocument();
     expect(screen.queryByText("퇴사자2-0")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "실행 이력 더 보기" }));
@@ -381,7 +381,7 @@ describe("오프보딩 화면", () => {
     /* 갈아 끼운 게 아니라 **이어 붙였다** — 감사 이력에서 앞 묶음이 사라지면 두 줄을
        나란히 대조할 수 없다. */
     expect(screen.getByText("퇴사자0")).toBeInTheDocument();
-    expect(await screen.findByText("25건 중 25건을 받았습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("전체 25건 중 25건 표시")).toBeInTheDocument();
   });
 
   it("PA-RC-0012: 미리보기 카드 제목(대상 이름)이 h1 다음 h6이 아니라 h2다", async () => {

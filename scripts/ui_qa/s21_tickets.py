@@ -42,26 +42,26 @@ def _list_read(where: str, api: str):
 
 
 def _clear_filters(combo: str, option: str):
-    """조건을 하나 걸고 «필터 지우기» 로 **한 번에** 비운다."""
+    """조건을 하나 걸고 «필터 초기화» 로 **한 번에** 비운다."""
     def _act(r, ctx):
         r.choose(combo, option)
         narrowed = n_rows(r)
         hash_with = r.hash_of()
-        clear = r.in_main("button", "필터 지우기")
+        clear = r.in_main("button", "필터 초기화")
         if not clear.count():
             clear = r.in_main("button", "초기화")
         if not clear.count():
-            stop("«필터 지우기» 가 없다 — 조건을 걸었는데 비울 자리가 없다")
+            stop("«필터 초기화» 가 없다 — 조건을 걸었는데 비울 자리가 없다")
         clear.first.click()
         r.settle(1600)
         after = r.hash_of()
-        return {"ui_action": "«%s = %s» 를 걸고 «필터 지우기» 를 누른다" % (combo, option),
+        return {"ui_action": "«%s = %s» 를 걸고 «필터 초기화» 를 누른다" % (combo, option),
                 "frontend_state": "조건 전부 해제",
                 "url_state": "%s → %s" % (hash_with, after),
                 "observed": {"rows": {"filtered": narrowed, "cleared": n_rows(r)}},
                 "rendered": "표 %d행 → %d행" % (narrowed, n_rows(r)),
                 "expected": {"source": "derived-check",
-                             "rule": "«필터 지우기» 뒤 주소에 그 조건이 안 남는다",
+                             "rule": "«필터 초기화» 뒤 주소에 그 조건이 안 남는다",
                              "expect": "조건 없음", "got": after},
                 "failed": None if option not in after and "status" not in after
                           else "조건을 비웠는데 주소에 그대로 남아 있다: %s" % after}

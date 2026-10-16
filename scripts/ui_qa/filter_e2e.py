@@ -19,7 +19,7 @@ W5 가 바꾼 것 중 셋은 jsdom 이 원리적으로 말할 수 없다.
     `composition_checks.py::filter_cell_anatomy` 가 잰다
   · **고아 줄이 없는가** — 컨트롤 하나가 줄의 절반 넘게 비우면서 왼쪽에서 시작하는 자리
   · 한 줄 안 컨트롤 **높이가 하나인가**(같은 종류끼리 4px 이내)
-  · 걸린 조건 · 결과 수 · 「필터 지우기」가 **필터 면 안 조건 줄에만** 있는가 — 면 밖 결과 줄 · 줄 끝 동작 묶음의
+  · 걸린 조건 · 결과 수 · 「필터 초기화」가 **필터 면 안 조건 줄에만** 있는가 — 면 밖 결과 줄 · 줄 끝 동작 묶음의
     지우기는 옛 조합이다(UI 3차 · 조합 계약 C-1, `composition_checks.py::filter_composition` 과 같은 계약)
   · Entity Combobox 를 **키보드만으로** 열고·거르고·고를 수 있는가, 그리고 그 선택이
     주소(`project_id=`)와 **서버 질의**까지 닿는가
@@ -196,9 +196,10 @@ MEASURE_JS = r"""() => {
     const count = cline.querySelector('[data-condition-count]');
     const chips = cline.querySelectorAll('[data-condition-chip]').length;
     out.conditionText = count ? (count.innerText || '').trim().slice(0, 40) : '';
-    const m = out.conditionText.match(/조건\s*([\d,]+)\s*개/);
-    if (!m) out.fails.push('조건 줄에 「조건 N개에 맞는 결과가 M건입니다.」가 없다');
-    else if (Number(m[1].replace(/,/g, '')) !== chips) out.fails.push('조건 수 ' + m[1] + ' ≠ 칩 ' + chips);
+    // D-587: 조건 줄의 첫 마디는 「검색 결과 M건」이다(조건 수는 칩 수로 보이므로 문장에 다시 적지 않는다). 수를 아직 모르면 「세는 중…」.
+    const m = out.conditionText.match(/^검색 결과\s*([\d,]+)\s*(건|명|개)/);
+    if (!m && out.conditionText !== '세는 중…') out.fails.push('조건 줄에 「검색 결과 M건」이 없다: ' + out.conditionText);
+    if (!chips) out.fails.push('조건 줄에 칩이 없다');
     const clear = cline.querySelector('[data-filter-clear]');
     if (clear) {
       const bcs = getComputedStyle(clear);
