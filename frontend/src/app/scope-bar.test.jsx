@@ -11,6 +11,7 @@
  *  2. **소속 미지정은 반드시 말한다.** 예전에는 그 상태가 곧 전역(전부 보임)이라 말할
  *     것이 없었지만, 이제는 아무것도 못 보는 상태다 — 증상이 "목록이 비어 있음" 이라
  *     이 안내가 없으면 원인을 찾을 방법이 없다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(「상위 부서와 하위 부서 밖」 → 「상위 부서, 하위 부서 밖」 — 「와」가 두 번 겹친 문장). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 import { describe, it, expect } from "vitest";
 import { scopeSummary } from "./ScopeBar.jsx";
@@ -99,6 +100,6 @@ describe("범위 밖 안내 문구", () => {
 
   it("조회 화면에서는 상위 부서도 보인다고 말한다", async () => {
     const { caveatFor } = await import("./ScopeBar.jsx");
-    expect(caveatFor("/projects")).toContain("상위 부서와 하위 부서 밖");
+    expect(caveatFor("/projects")).toContain("상위 부서, 하위 부서 밖");
   });
 });

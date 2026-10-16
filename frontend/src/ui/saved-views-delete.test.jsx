@@ -1,3 +1,4 @@
+/* qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 — 「지울까요」 → 「삭제할까요」). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다. */
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -66,7 +67,7 @@ describe("저장된 뷰 삭제", () => {
 
     // 어느 뷰가 사라지는지 이름으로 말해야 한다 — 목록에서 옆칸을 잘못 눌렀을 때 그것이 유일한 단서다.
     // (메뉴 항목에도 같은 이름이 있으므로 확인 문구 전체로 집는다.)
-    expect(await screen.findByText(/실패만.*뷰를 지울까요/)).toBeInTheDocument();
+    expect(await screen.findByText(/실패만.*뷰를 삭제할까요/)).toBeInTheDocument();
     expect(deleteCalls()).toHaveLength(0);
   });
 
