@@ -271,7 +271,9 @@ function CommentItem({ comment, postId, palette, isReply, person, onChanged }) {
           {commentFailure ? <Callout tone="danger" compact>{commentFailure}</Callout> : null}
         </>
       )}
-      <Stack direction="row" gap={1} alignItems="center" justifyContent="space-between" flexWrap="wrap">
+      {/* 동작(답글 · 수정 · 삭제)은 반응 바로 뒤에 선다(r23 #56). 양 끝 맞춤이면 넓은 화면에서 동작이 본문에서 1,500px 떨어진 판 끝에 서서
+          어느 댓글의 단추인지 다시 짚어야 했다. */}
+      <Stack direction="row" gap={2} alignItems="center" flexWrap="wrap">
         <Reactions
           targetType="comment"
           targetId={comment.id}

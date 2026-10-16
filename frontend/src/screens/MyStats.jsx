@@ -373,7 +373,7 @@ export function MyStats() {
                       색은 완료 하나만 쓴다. 배정은 중립 선색이라 완료 막대의 **배경**으로
                       읽히고, 둘의 차이가 곧 남은 몫이다. */}
                   <ColumnSeries
-                    question="달마다 얼마나 맡았고 얼마나 끝냈는지 봅니다. 배정이 없던 달은 값이 «-»이고, 완료율은 아래 표에서 볼 수 있습니다."
+                    question="달마다 얼마나 맡았고 얼마나 끝냈는지 봅니다. 배정이 없던 달은 ‘-’로 표시하고, 완료율은 아래 표에서 볼 수 있습니다."
                     items={data.months.map((m) => (m.assigned
                       ? {
                         key: m.month, label: m.month.slice(2), hint: m.month,
