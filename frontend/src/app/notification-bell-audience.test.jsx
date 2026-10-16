@@ -108,6 +108,11 @@ describe("알림 벨 — 관리 역할은 두 묶음을 함께 보고, 지금 �
     // 두 audience 를 모두 물었다.
     expect(seen.some((u) => u.includes("audience=admin"))).toBe(true);
     expect(seen.some((u) => u.includes("audience=user"))).toBe(true);
+    // 종의 이름은 툴팁 · 배지와 같은 수를 말한다 — 합계와 그 구성(r23 「후」 대장 EX-UI: 「읽지 않음 12」 뒤에 13건 구성이 붙었다).
+    // 창이 열리면 나머지 화면은 aria-hidden 이라 역할 조회에서 빠진다 — 단추를 직접 짚는다.
+    const bell = document.querySelector("[aria-controls=\"noti-pop\"]");
+    expect(bell.getAttribute("aria-label")).toMatch(/^알림 2건\(.*1건.*1건\)$/);
+    expect(bell.getAttribute("aria-label")).not.toMatch(/읽지 않음/);
   });
 
   it("사용자 콘솔에 선 관리 역할은 개인 알림이 **앞에** 선다(축은 역할이 아니라 콘솔이다)", async () => {

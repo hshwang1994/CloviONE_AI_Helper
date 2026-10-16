@@ -561,7 +561,10 @@ export function NotificationBell({ isUser, consoleUser, notices }) {
           <IconButton
             ref={bellRef}
             color="inherit"
-            aria-label={"알림" + (count ? " (읽지 않음 " + count + ")" : "") + (composition ? " " + composition : "") + (quiet ? " (방해금지 중, 배지 숫자 숨김)" : "") + (countError ? " (개수를 불러오지 못함)" : countPartial ? " (" + audienceLabel(otherAudience) + " 알림 개수를 불러오지 못함)" : "")}
+            /* 이름은 툴팁 · 배지와 같은 수를 말한다 — 「알림 13건(내 알림 6건, 관리 알림 6건, 시스템 알림 1건)」. 예전에는 「읽지 않음 12」
+               (시스템 알림을 뺀 수) 뒤에 13건으로 더해지는 구성을 붙여, 화면 낭독기가 서로 다른 두 수를 읽었다(r23 「후」 대장 EX-UI). 배지가
+               없을 때(방해금지 · 뮤트)만 읽지 않은 수를 따로 말한다. */
+            aria-label={(badge ? `알림 ${badge}건${composition}` : "알림" + (count ? " (읽지 않음 " + count + ")" : "")) + (quiet ? " (방해금지 중, 배지 숫자 숨김)" : "") + (countError ? " (개수를 불러오지 못함)" : countPartial ? " (" + audienceLabel(otherAudience) + " 알림 개수를 불러오지 못함)" : "")}
             aria-haspopup="dialog" aria-expanded={open} aria-controls="noti-pop"
             onClick={() => { if (!open && unread.isError) unread.refetch(); setOpen((v) => !v); }}
           >

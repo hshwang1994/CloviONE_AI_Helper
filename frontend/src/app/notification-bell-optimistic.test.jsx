@@ -81,7 +81,7 @@ async function confirmMarkAll(user) {
 async function openBell(user) {
   await waitFor(() => expect(apiMock).toHaveBeenCalled());
   const bell = await screen.findByRole("button", { name: /알림/ });
-  await waitFor(() => expect(bell).toHaveAccessibleName(/읽지 않음 3/));
+  await waitFor(() => expect(bell).toHaveAccessibleName(/알림 3건/));
   await user.click(bell);
   return bell;
 }
@@ -139,7 +139,7 @@ describe("알림 벨 — 읽음 처리는 서버를 기다리지 않고 배지�
 describe("알림 벨 — 숫자 배지는 누름을 막지 않는다", () => {
   it("배지는 pointer-events 를 받지 않는다", async () => {
     mount();
-    const bell = await screen.findByRole("button", { name: /읽지 않음 3/ });
+    const bell = await screen.findByRole("button", { name: /알림 3건/ });
     const badge = bell.parentElement.querySelector(".MuiBadge-badge");
     expect(badge).not.toBeNull();
     expect(badge).toHaveTextContent("3");
