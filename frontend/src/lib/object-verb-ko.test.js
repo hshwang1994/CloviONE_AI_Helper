@@ -52,3 +52,68 @@ describe("승인 요청 유형 — 서버와 같은 낱말", () => {
     expect(approvalTypeKo("")).toBe("-");
   });
 });
+
+/* r23 — 서버가 기록하는 감사 동작 · 대상 **전부**가 한국어 이름을 갖는가.
+ *
+ * 감사 로그 「작업」 칸에 「project 추가」 · 「board.post 수정」 · 「mail test_send」가 보였다 — 서버가 기록하는 동작 184 개 가운데
+ * 113 개의 대상 낱말이 사전에 없었다(r23 화면 대장 67 · 30). 사전에 하나씩 더하는 것으로는 다음 동작에서 또 샌다. 그래서 서버
+ * 소스(`app/**`)의 `action="대상.동작"` · `object_type="…"` 글자를 훑어, 번역 결과에 영문이 남는 것이 하나라도 있으면 실패한다.
+ * 굳어진 영문 약어(AI · CLI · CSV · DKIM …)는 우리말 낱말이 없어 그대로 둔다. */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const APP_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../app");
+function pyFiles(dir, out = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) { if (entry.name !== "__pycache__" && entry.name !== "static") pyFiles(full, out); }
+    else if (entry.name.endsWith(".py")) out.push(full);
+  }
+  return out;
+}
+function literalsOf(re) {
+  const found = new Set();
+  for (const file of pyFiles(APP_DIR)) {
+    const text = fs.readFileSync(file, "utf8");
+    for (const m of text.matchAll(re)) found.add(m[1]);
+  }
+  return found;
+}
+const LATIN_OK = /\b(AI|CLI|CSV|DKIM|DNS|TLS|SMTP|Notion|ChatGPT)\b/g;
+const hasLatin = (s) => /[A-Za-z]/.test(String(s).replace(LATIN_OK, ""));
+
+describe("서버가 기록하는 감사 동작 · 대상은 전부 한국어 이름이 있다", () => {
+  it("action=\"대상.동작\" — 번역에 영문이 남지 않는다", () => {
+    const actions = literalsOf(/action=["']([a-z_]+(?:\.[a-z_]+)+)["']/g);
+    expect(actions.size, "서버 소스에서 감사 동작을 못 찾았다(훑는 경로가 틀렸다)").toBeGreaterThan(150);
+    const bad = [...actions].filter((a) => hasLatin(actionKo(a))).map((a) => `${a} → ${actionKo(a)}`);
+    expect(bad).toEqual([]);
+  });
+
+  it("object_type=\"…\" — 대상 칸에 영문 원문이 새지 않는다", () => {
+    const objects = literalsOf(/object_type=["']([a-z_]+)["']/g);
+    expect(objects.size).toBeGreaterThan(30);
+    const bad = [...objects].filter((o) => hasLatin(objKo(o))).map((o) => `${o} → ${objKo(o)}`);
+    expect(bad).toEqual([]);
+  });
+
+  it("대상 낱말을 겹쳐 쓰지 않는다 — 「문서 문서 보관」이 아니라 「문서 보관」", () => {
+    expect(actionKo("knowledge.document_archive")).toBe("문서 보관");
+    expect(actionKo("mail.test_send")).toBe("메일 시험 발송");
+    expect(actionKo("project.create")).toBe("프로젝트 추가");
+    expect(actionKo("board.post.update")).toBe("게시글 수정");
+    expect(actionKo("mail.cancel")).toBe("메일 발송 취소");
+  });
+});
+
+describe("잡 유형 — 워커가 받는 유형은 전부 한국어 이름이 있다", () => {
+  it("서버의 잡 유형 상수(`…JOB_TYPE… = \"…\"`)를 전부 옮긴다 · 작업 큐 필터 후보와 이름이 같다", async () => {
+    const { JOB_TYPE_KO, CURRENT_JOB_TYPES, jobTypeKo } = await import("./format.js");
+    const types = literalsOf(/[A-Z_]*JOB_TYPE[A-Z_]*\s*=\s*["']([a-z_]+)["']/g);
+    expect(types.size, "서버 소스에서 잡 유형 상수를 못 찾았다").toBeGreaterThan(4);
+    const bad = [...types].filter((t) => !JOB_TYPE_KO[t] || hasLatin(jobTypeKo(t)));
+    expect(bad).toEqual([]);
+    for (const t of types) expect(CURRENT_JOB_TYPES, `${t} 가 작업 큐 유형 필터 후보에 없다`).toContain(t);
+  });
+});

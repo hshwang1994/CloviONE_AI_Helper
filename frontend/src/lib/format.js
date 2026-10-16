@@ -248,6 +248,31 @@ export const OBJECT_KO = {
   // AI 초안의 저장 승인(D-519). 승인 요청 유형 `ai.document_create` 는 「AI, 문서 만들기」, 감사 동작
   // `ai.document.approval_requested` 는 「AI 문서, 승인 요청」으로 읽힌다.
   ai: "AI", "ai.document": "AI 문서", ai_action_request: "AI 초안",
+  /* r23 — 서버가 기록하는 감사 동작(`app/**` 의 `action="대상.동작"`) 가운데 113 개가 대상 낱말이 없어 감사 로그 「작업」 칸에
+     「project 추가」 · 「board.post 수정」 · 「mail test_send」처럼 영문이 섞여 보였다. 대상을 전부 채운다 — 빠지면
+     `object-verb-ko.test.js` 가 서버 소스를 훑어 실패한다. */
+  /* 낱말은 감사 로그 「대상」 필터(`registry/shared.js::OBJTYPE_OPTS`)와 같다 — 한 화면의 두 칸이 같은 것을 다르게 부르지 않는다. */
+  project: "프로젝트", "project.milestone": "프로젝트 마일스톤", "project.health": "프로젝트 건강도",
+  "project.progress": "프로젝트 진행률", "project.weekly_report": "주간 리포트",
+  ticket: "티켓", "ticket.body": "티켓 본문", "ticket.comment": "티켓 댓글", "ticket.attachment": "티켓 첨부",
+  board: "게시판", "board.post": "게시글", "board.comment": "게시글 댓글", "board.attachment": "게시글 첨부",
+  "board.idea": "기능 개선 제안",
+  knowledge: "문서", "knowledge.comment": "문서 댓글", "knowledge.attachment": "문서 첨부",
+  team_docs: "팀 문서", "team_docs.body": "팀 문서 본문",
+  mail: "메일", "mail.settings": "메일 설정", "mail.relay": "로컬 릴레이",
+  profile: "내 프로필", "profile.avatar": "프로필 사진", "profile.preferences": "알림 설정",
+  "profile.notify_email": "알림 받을 메일 주소", "profile.sessions": "로그인 기기",
+  sprint: "스프린트", "sprint.decision": "스프린트 결정", team_chat: "채팅방", trash: "휴지통",
+  "storage.provider": "파일 저장소", impersonation: "대리 보기", integrity: "조직 정합성",
+  search: "검색", secret: "비밀 값", setup: "초기 설정",
+  // 옛 기록의 대상 이름(이관 전 감사 줄) — 지금 서버는 쓰지 않지만 옛 줄이 남아 있다.
+  notion_task: "티켓", notion_document: "팀 문서", board_post: "게시글",
+  // 서버가 기록하는 `object_type` 가운데 이 사전에 없던 것(대시보드 「최근 주요 변경」 · 승인 화면이 이 사전으로 읽는다).
+  board_comment: "게시글 댓글", board_attachment: "게시글 첨부", chat_room: "채팅방", document_category: "문서 분류",
+  document_comment: "문서 댓글", document_template: "문서 서식", integrity_check: "조직 정합성 검사",
+  knowledge_document: "문서 첨부", knowledge_space: "지식 공간", mail_delivery: "메일 발송", mail_settings: "메일 설정",
+  project_milestone: "프로젝트 마일스톤", search_index: "검색 색인", sprint_decision: "스프린트 결정",
+  storage_provider: "파일 저장소", tag: "태그", ticket_attachment: "티켓 첨부", ticket_comment: "티켓 댓글",
 };
 export const VERB_KO = {
   start: "시작", connect: "연결됨",
@@ -278,16 +303,54 @@ export const VERB_KO = {
   // 매핑이 없으면 감사 로그에서 가장 보안상 중요한 이벤트 중 하나가 raw 영어로 샌다
   // (product-quality-audit AREA=D).
   password_change_failed: "비밀번호 변경 실패",
+  // r23 — 서버 감사 동작의 나머지 동사(위 대상 표와 같은 까닭).
+  add: "추가", edit: "수정", remove: "삭제", upload: "추가", download: "내려받기", pin: "고정", stop: "종료",
+  close: "닫기", state: "상태 변경", status: "상태 변경", claim: "가져가기", trash: "휴지통 이동", purge: "영구 삭제",
+  write: "저장", apply: "적용", check: "점검", fix: "정리", snapshot: "기록", recompute: "다시 계산",
+  board_move: "보드 이동", exception_assign: "예외 배정", relation_add: "관계 추가", relation_remove: "관계 삭제",
+  assign_membership: "소속 지정", cancel_run: "실행 취소", discard_file: "파일 삭제", export_xlsx: "엑셀 내보내기",
+  export_csv: "CSV 내보내기", import_create: "CSV 가져오기", password_reset: "비밀번호 재설정",
+  password_reset_requested: "비밀번호 재설정 요청", reindex: "색인 다시 만들기",
+  inbox_confirm: "받은 편지함 확인", test_send: "시험 발송", resend: "다시 보내기",
+  requeue_on_recovery: "복구 뒤 다시 보내기", requeue_unconfigured: "설정 뒤 다시 보내기",
+  flush: "대기 메일 다시 보내기", dkim: "DKIM 키 설정",
+  cleared: "해제", requested: "확인 요청", verified: "확인 완료", revoke_others: "다른 기기 로그아웃",
+  llm_summary_requested: "AI 요약 요청", first_admin_created: "첫 관리자 추가", first_admin_locked: "첫 관리자 경로 잠금",
+  category_delete: "분류 삭제", category_rename: "분류 이름 수정", tag_delete: "태그 삭제", tag_rename: "태그 이름 수정",
+  template_create: "서식 추가", template_update: "서식 수정", template_delete: "서식 삭제",
+  space_create: "공간 추가", space_update: "공간 수정", version_restore: "판 복원",
+  document_archive: "보관", document_restore: "복원", document_purge: "영구 삭제", document_move_project: "프로젝트 이동",
+  add_members: "참여자 추가", remove_member: "참여자 내보내기", create_group: "그룹 추가", rename: "이름 수정",
+  transfer_owner: "방장 넘기기", disband: "삭제", allowed_users: "열람자 지정", restrict: "열람 제한",
+};
+
+/* 「대상 동작」으로 이으면 뜻이 흐려지는 동작은 통째로 이름을 준다(대상 낱말을 겹쳐 쓰지 않는다). */
+export const ACTION_KO = {
+  "mail.cancel": "메일 발송 취소",
+  "mail.verify": "메일 서버 연결 확인",
+  "profile.sessions.revoke": "다른 기기 로그아웃",
+  "impersonation.start": "대리 보기 시작",
+  "impersonation.stop": "대리 보기 종료",
 };
 
 // 잡(job) 유형(job_type) → 한국어. 예전엔 이 표가 registry(JOB_TYPE)에만 있어 Ops.jsx(진단)의
 // '최근 작업 오류'가 raw 영어 enum(chat_message 등)을 그대로 노출했다. 여기 하나로 모아 공용화한다.
 // 실제 enqueue되는 job_type만 담고(backup은 큐에 없지만 감사/기타 경로에서 새어 나오지 않게 함께 둠),
 // 알 수 없는 유형은 raw 값으로 폴백한다.
+/* r23 — 진단의 「최근 작업 오류」에 `mail_send`, 작업 큐에 `mail_verify` 가 영문 그대로 보였다. 이 표와 작업 큐의 유형 필터
+   (`registry/shared.js::JOB_TYPE`)가 따로 자라 서로 다른 유형을 빠뜨렸다 — 이제 필터는 이 표에서 뽑는다. 서버 워커가 받는
+   유형을 전부 담는다(`object-verb-ko.test.js` 가 서버 소스의 잡 유형 상수와 대조한다). */
 export const JOB_TYPE_KO = {
-  chat_message: "채팅 메시지", document_generate: "문서 생성", notion_mapping_sync: "Notion 동기화",
-  schedule_run: "예약 실행", notion_sync: "Notion 동기화", backup: "백업",
+  chat_message: "채팅 메시지", mail_send: "메일 발송", mail_verify: "메일 서버 연결 확인",
+  mail_relay_check: "로컬 릴레이 점검", llm_connection_test: "AI 연결 확인",
+  project_weekly_summary: "주간 리포트 요약", schedule_run: "예약 실행",
+  // 옛 유형 — 지금은 큐에 안 들어가지만 옛 줄이 남아 있다.
+  document_generate: "문서 생성", notion_mapping_sync: "Notion 동기화", notion_sync: "Notion 동기화", backup: "백업",
 };
+/* 지금 큐에 들어가는 유형(작업 큐 화면의 유형 필터 후보). 옛 유형은 후보에 안 둔다 — 고를 수 있으면 「아직 있는 일」로 읽힌다. */
+export const CURRENT_JOB_TYPES = Object.freeze([
+  "chat_message", "mail_send", "mail_verify", "mail_relay_check", "llm_connection_test", "project_weekly_summary", "schedule_run",
+]);
 export const jobTypeKo = (t) => (t == null || t === "" ? "-" : (JOB_TYPE_KO[t] || String(t)));
 
 // 알림 유형(type) → 한국어. 예전엔 이 표가 NotificationBell(TYPE_KO)과 registry(NOTI_TYPE)에
@@ -357,7 +420,8 @@ export const actionKo = (v) => {
   if (s.startsWith("cli.")) { cli = true; s = s.slice(4); }
   const i = s.lastIndexOf(".");
   let out;
-  if (i < 0) out = VERB_KO[s] || OBJECT_KO[s] || s;
+  if (ACTION_KO[s]) out = ACTION_KO[s];
+  else if (i < 0) out = VERB_KO[s] || OBJECT_KO[s] || s;
   else {
     const obj = s.slice(0, i), verb = s.slice(i + 1);
     const objTxt = OBJECT_KO[obj] || obj, verbTxt = VERB_KO[verb] || verb;

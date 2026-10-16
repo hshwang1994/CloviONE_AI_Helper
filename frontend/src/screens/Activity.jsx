@@ -6,7 +6,7 @@ import Typography from "@mui/material/Typography";
 import EastRoundedIcon from "@mui/icons-material/EastRounded";
 import InboxRoundedIcon from "@mui/icons-material/InboxRounded";
 import { api } from "../lib/api.js";
-import { fmtDateTime, fmtRelative } from "../lib/format.js";
+import { chatDayLabel, fmtDateTime, fmtRelative, kstDayKey } from "../lib/format.js";
 import {
   Badge, Button, Card, EmptyState, ErrorState, ListCard, PageHeader, Skeleton, FlatBadgeSurface,
   Segmented,
@@ -36,12 +36,16 @@ const KINDS = [
   { value: "happened", label: "나에게 일어난 일" },
 ];
 
-/* 하루 단위로 묶는다 — 30건이 시각만 다르게 줄줄이 늘어서면 '언제쯤'이 안 읽힌다. */
+/* 하루 단위로 묶는다 — 30건이 시각만 다르게 줄줄이 늘어서면 '언제쯤'이 안 읽힌다.
+ *
+ * 🔴 날은 **한국 시간 달력일**로 가른다(`kstDayKey`). 예전에는 서버 시각 글자의 앞 열 자(UTC 날짜)로 갈라, 한국 시간 0 ~ 9시에
+ * 일어난 일이 전날 묶음에 섰다 — 「2026-08-23」 묶음 안에 「2026. 8. 24. 오전 7:00」 줄이 있었다(r23 화면 대장 30). 줄의 시각은
+ * 한국 시간으로 보이므로 묶음도 같은 시계를 써야 한다. */
 function groupByDay(items) {
   const groups = [];
   let current = null;
   items.forEach((item) => {
-    const day = (item.at || "").slice(0, 10);
+    const day = kstDayKey(item.at) || "";
     if (!current || current.day !== day) {
       current = { day, items: [] };
       groups.push(current);
@@ -155,7 +159,8 @@ export function Activity() {
                 color="text.secondary"
                 sx={{ display: "block", fontWeight: FONT_WEIGHT.bold, py: 1, position: "sticky", ...stickyTopSx(), bgcolor: "background.paper", zIndex: 1 }}
               >
-                {g.day}
+                {/* 오늘 · 어제는 이름으로, 그 밖은 날짜로 부른다(채팅의 날짜 구분선과 같은 말). */}
+                {g.items.length ? chatDayLabel(g.items[0].at) || g.day : g.day}
               </Typography>
               {/* 목록 안이라 배지가 면을 갖지 않는다 (확정 규약 §9). */}
               <FlatBadgeSurface>

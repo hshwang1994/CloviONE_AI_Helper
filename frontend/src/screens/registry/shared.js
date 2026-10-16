@@ -14,7 +14,7 @@ import Typography from "@mui/material/Typography";
 export { badgeCol, boolCol, mapCol, dateCol, jsonField, objectField, readCol, linkCol, listField, previewField, activeCol, enabledCol, truncateCol } from "../DataScreen.jsx";
 export { objKo, actionKo, approvalTypeKo, fmtDateTime, fmtDateTimeCompact, TYPE_KO } from "../../lib/format.js";
 export { Badge } from "../../ui/kit.jsx";
-import { objKo, actionKo, approvalTypeKo, fmtDateTime, TYPE_KO } from "../../lib/format.js";
+import { objKo, actionKo, approvalTypeKo, fmtDateTime, TYPE_KO, JOB_TYPE_KO, CURRENT_JOB_TYPES } from "../../lib/format.js";
 import { CONSOLE_OPS_ROLES, CONSOLE_READ_ROLES, CONSOLE_WRITE_ROLES } from "../../lib/roles.js";
 
 // 바이트 크기를 사람이 읽을 수 있게(백업 크기 등). null이면 '-'.
@@ -155,7 +155,8 @@ export const PROVIDER = {
 export const SCHED_TYPE = { cron: "Cron 반복", once: "1회 실행" };
 // 실제 enqueue되는 job_type 문자열과 정확히 일치해야 한다. 큐에 안 들어가는 것은 안 적는다
 // (backup 은 큐에 없어서, document_generate·notion_mapping_sync 는 S11 이 걷어내서 — 오해 방지).
-export const JOB_TYPE = { chat_message: "채팅 메시지", schedule_run: "예약 실행", mail_send: "메일 발송" };
+// 낱말은 공용 표(`lib/format.js::JOB_TYPE_KO`) 한 곳에서 온다 — 두 표가 따로 자라 `mail_verify` 가 영문으로 샜다(r23).
+export const JOB_TYPE = Object.fromEntries(CURRENT_JOB_TYPES.map((k) => [k, JOB_TYPE_KO[k]]));
 
 // 감사/승인 enum 한국어화는 공용 lib/format.js(objKo·actionKo)에서 온다.
 /* 감사 대상 종류. **닫힌 집합**이라 `enum` 이다 — 짧고 폭이 고정된 값이라 칸 가운데에

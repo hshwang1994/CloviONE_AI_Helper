@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -13,6 +13,10 @@ import { MemoryRouter } from "react-router-dom";
  *
  * qa-contract-change: 종류 고르기를 판 안의 토글 단추 묶음에서 세그먼티드(tablist)로 옮겼다(핸드오프 B-4, B-7) — 단추 역할 단언을 같은 이름의 탭으로 옮긴다.
  * 고른 탭의 aria-selected 를 더 단언한다.
+ *
+ * qa-contract-change: 날짜 머리는 서버 시각 글자의 앞 열 자(UTC 날짜)가 아니라 한국 시간 달력일이고, 오늘 · 어제가 아니면
+ * 「2026년 8월 3일 월」처럼 채팅 날짜 구분선과 같은 말로 쓴다(r23 화면 대장 30). 한국 시간 0 ~ 9시의 일이 전날 묶음에 서던
+ * 결함을 아래 시험이 잡는다.
  */
 
 const apiMock = vi.fn();
@@ -22,6 +26,7 @@ vi.mock("../lib/api.js", () => ({
 }));
 
 import { Activity } from "./Activity.jsx";
+import { chatDayLabel } from "../lib/format.js";
 import { ConfirmProvider, ToastProvider } from "../ui/kit.jsx";
 import { ThemeModeProvider } from "../ui/ThemeModeProvider.jsx";
 
@@ -72,8 +77,34 @@ describe("내 활동", () => {
     expect(await screen.findByText("티켓을(를) 고침")).toBeInTheDocument();
     expect(screen.getByText("누가 나를 불렀다")).toBeInTheDocument();
     // 날짜 머리글 두 개(08-03, 08-02).
-    expect(screen.getByText("2026-08-03")).toBeInTheDocument();
-    expect(screen.getByText("2026-08-02")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: chatDayLabel("2026-08-03T05:00:00") })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: chatDayLabel("2026-08-02T09:00:00") })).toBeInTheDocument();
+  });
+
+  it("날은 한국 시간으로 가른다 — 한국 시간 오전 7시의 일이 전날 묶음에 서지 않는다", async () => {
+    const row = (id, at, title) => ({
+      id, kind: "did", at, action: "ticket.update", object_type: "notion_task", object_id: id,
+      title, body: null, result: "success", route: null, read_at: null,
+    });
+    apiMock.mockResolvedValue({
+      items: [
+        row("a", "2026-08-24T03:00:00", "한국 시간 24일 정오"),
+        // UTC 로는 23일 밤 10시지만 한국 시간으로는 24일 오전 7시다.
+        row("b", "2026-08-23T22:00:00", "한국 시간 24일 아침"),
+        row("c", "2026-08-23T10:00:00", "한국 시간 23일 저녁"),
+      ],
+      total: 3, page: 1, page_size: 20,
+    });
+    renderActivity();
+    await screen.findByText("한국 시간 24일 아침");
+    const group = (at) => screen.getByRole("heading", { name: chatDayLabel(at) }).parentElement;
+    const day24 = group("2026-08-24T03:00:00");
+    const day23 = group("2026-08-23T10:00:00");
+    expect(day24).not.toBe(day23);
+    expect(within(day24).getByText("한국 시간 24일 정오")).toBeInTheDocument();
+    expect(within(day24).getByText("한국 시간 24일 아침")).toBeInTheDocument();
+    expect(within(day23).queryByText("한국 시간 24일 아침")).toBeNull();
+    expect(within(day23).getByText("한국 시간 23일 저녁")).toBeInTheDocument();
   });
 
   it("실패한 활동은 실패라고 표시한다 — 숨기면 본인이 알아챌 창이 닫힌다", async () => {
