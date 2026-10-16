@@ -12,6 +12,7 @@ import {
   Button, Callout, Card, ErrorState, Field, FieldRow, FormSection, PageHeader, Segmented, Skeleton, useToast,
 } from "../../ui/kit.jsx";
 import { SettingRow, SettingRows } from "../../ui/adminKit.jsx";
+import { CONTENT_PAIR_CONTAINER, contentPairTracks } from "../../ui/density.js";
 import { SecretField } from "../../ui/SecretField.jsx";
 import { AiChecks, AiStatusCard } from "./AiStatusCard.jsx";
 import { ChatGptLogin } from "./ChatGptLogin.jsx";
@@ -85,6 +86,9 @@ function useVerifyWatch(data, toast) {
   }, [since]);
   return { verifying, timedOut };
 }
+
+/* 두 열 각각의 구획 세로 흐름 — 판(`Card stack`)이 주던 구획 간격(14)을 열 안에서 그대로 준다. */
+const COLUMN_STACK = { display: "flex", flexDirection: "column", rowGap: 1.75, minWidth: 0 };
 
 export function AiConnection() {
   const qc = useQueryClient();
@@ -246,8 +250,14 @@ export function AiConnection() {
 
       <AiStatusCard data={data} onNext={goNext} timedOut={watch.timedOut} />
 
-      {/* 설정과 확인은 한 판 위의 구획 다섯이다 - 머리와 선으로만 나뉘고 카드를 두르지 않는다(F7 카드 규율, D-527). */}
+      {/* 설정과 확인은 한 판 위의 구획 다섯이다 - 머리와 선으로만 나뉘고 카드를 두르지 않는다(F7 카드 규율, D-527).
+          본문이 넓으면(64rem 이상) 두 열이다(D-590) — 왼쪽은 설정(제공자와 인증 · 모델 · 실행 옵션), 오른쪽은 사용과 확인(AI 기능 ·
+          확인과 오류). 한 열이던 때는 입력이 왼쪽 800px 만 쓰고 스위치와 확인 단추가 이름에서 1,500px 떨어진 오른쪽 끝에 섰다(r23
+          화면 대장 61 · 85 · 86). */}
       <Card stack data-testid="ai-connection-form">
+        <Box sx={CONTENT_PAIR_CONTAINER}>
+        <Box sx={{ ...contentPairTracks("minmax(0, 1fr) minmax(0, 1fr)"), alignItems: "start", columnGap: 5 }} data-ai-columns="">
+        <Box sx={COLUMN_STACK}>
         <FormSection titleAs="h2" title={<span id={SECTION_IDS.provider}>제공자와 인증</span>}>
           {chosenProvider ? (
             <FieldRow columns={["auto", "auto"]}>
@@ -336,14 +346,14 @@ export function AiConnection() {
               </>
             )}
           >
-            <Field label="제한 시간(초)" htmlFor="ai-timeout" help={`${minTimeout}초에서 ${maxTimeout}초 사이로 정합니다.`}>
+            <Field label="요청 제한 시간(초)" htmlFor="ai-timeout" help={`${minTimeout}초에서 ${maxTimeout}초 사이로 정합니다.`}>
               <TextField
                 id="ai-timeout" size="small" type="number" fullWidth value={run.timeout_seconds ?? ""}
                 onChange={(e) => setRunDraft((d) => ({ ...(d || {}), timeout_seconds: Number(e.target.value) }))}
                 inputProps={{ min: minTimeout, max: maxTimeout }}
               />
             </Field>
-            <Field label="동시 실행 수" htmlFor="ai-concurrency" help={`최대 ${maxSlots}입니다.`}>
+            <Field label="동시 요청 수" htmlFor="ai-concurrency" help={`최대 ${maxSlots}입니다.`}>
               <TextField
                 id="ai-concurrency" size="small" type="number" fullWidth value={run.max_concurrency ?? ""}
                 onChange={(e) => setRunDraft((d) => ({ ...(d || {}), max_concurrency: Number(e.target.value) }))}
@@ -352,12 +362,15 @@ export function AiConnection() {
             </Field>
           </FieldRow>
         </FormSection>
+        </Box>
 
+        <Box sx={COLUMN_STACK}>
         <FormSection titleAs="h2" title={<span id={SECTION_IDS.features}>AI 기능</span>}>
-          {/* 설정 줄은 괘선 목록이다 - 구획 머리 선 바로 아래 첫 줄은 윗선을 두 번 긋지 않는다. 모두 누르는 즉시 저장된다. */}
+          {/* 설정 줄은 괘선 목록이다 - 모두 누르는 즉시 저장된다. 한 줄 말줄임(`compact`)이 아니다 — 두 열 배치(D-590)에서 칸이
+              좁아지면 「지금은 AI 사용이 비활성 상태라 동작하지 않습니다」가 말줄임으로 잘렸다(1366 캡처 r23-mail-1). */}
           <SettingRows>
             <SettingRow
-              compact label="AI 사용" controlId="ai-generation"
+              label="AI 사용" controlId="ai-generation"
               description={configured
                 ? "비활성화하면 모든 AI 기능이 답을 만들지 않습니다."
                 : (credentialsReady ? "모델을 고르면 활성화할 수 있습니다." : "제공자를 연결하면 활성화할 수 있습니다.")}
@@ -370,9 +383,9 @@ export function AiConnection() {
                 />
               )}
             />
-            {FEATURES.map(([key, label, description]) => (
+            {FEATURES.map(([key, label, description], i) => (
               <SettingRow
-                key={key} compact label={label} controlId={`ai-feature-${key}`}
+                key={key} last={i === FEATURES.length - 1} label={label} controlId={`ai-feature-${key}`}
                 description={config.generation_enabled ? description : `${description} 지금은 AI 사용이 비활성 상태라 동작하지 않습니다.`}
                 action={(
                   <Switch
@@ -386,11 +399,14 @@ export function AiConnection() {
           </SettingRows>
         </FormSection>
 
-        {/* ⑥ 확인과 오류 — 이 화면의 하나뿐인 [지금 확인] · 최근 시각 · 막힌 까닭 · 저장 실패가 한 구획에 선다. */}
+        {/* ⑥ 확인과 오류 — 이 화면의 하나뿐인 [연결 확인] · 최근 시각 · 막힌 까닭 · 저장 실패가 한 구획에 선다. */}
         <AiChecks
           data={data} onVerify={() => verify.mutate()} verifying={verify.isPending || watch.verifying} problem={saveFailure}
           titleId={SECTION_IDS.checks}
         />
+        </Box>
+        </Box>
+        </Box>
       </Card>
     </Box>
   );

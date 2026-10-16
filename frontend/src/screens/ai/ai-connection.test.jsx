@@ -25,6 +25,8 @@ import "@testing-library/jest-dom/vitest";
  *   9) 의미 검색 줄은 서버가 지은 낱말(`index.embed_status_label`)을 그대로 쓰고, 없으면 예전 낱말(있음 · 없음)이다.
 
  * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
+
+ * qa-contract-change: 실행 옵션 칸 이름을 계획 §6 대로 바꿨다 — 「제한 시간(초) · 동시 실행 수」 → 「요청 제한 시간(초) · 동시 요청 수」(AI 요청 하나의 제한 시간과 동시에 나가는 요청 수다). 저장 · 되돌리기 단언은 그대로다.
  */
 
 const apiMock = vi.fn();
@@ -239,7 +241,7 @@ describe("AI 연결 — 여섯 구획 (D-574)", () => {
       return base(path, opt);
     });
     renderScreen();
-    const timeout = await screen.findByLabelText("제한 시간(초)");
+    const timeout = await screen.findByLabelText("요청 제한 시간(초)");
     await user.clear(timeout);
     await user.type(timeout, "90");
     await user.click(screen.getByRole("button", { name: "저장" }));
@@ -381,7 +383,7 @@ describe("AI 연결 — 실행 옵션과 기능", () => {
     renderScreen();
     const save = await screen.findByRole("button", { name: "저장" });
     expect(save).toBeDisabled();
-    const timeout = screen.getByLabelText("제한 시간(초)");
+    const timeout = screen.getByLabelText("요청 제한 시간(초)");
     await user.clear(timeout);
     await user.type(timeout, "90");
     expect(save).not.toBeDisabled();
