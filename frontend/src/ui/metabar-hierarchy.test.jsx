@@ -107,6 +107,21 @@ describe("상세 속성의 위계", () => {
     expect(getComputedStyle(cell).overflow || "visible").not.toBe("hidden");
   });
 
+  it("먼저 판단할 이름 칸은 내용 폭만 쓴다 — 짧은 프로젝트 이름이 20rem 을 받아 마감을 멀리 밀지 않는다(r23 #96)", () => {
+    const { container } = renderBar([
+      { key: "status", label: "상태", type: "status", rank: "primary", value: "완료" },
+      { key: "project", label: "프로젝트", type: "name", rank: "primary", value: "포털 개편" },
+      { key: "due", label: "마감", type: "date", rank: "primary", value: "2026-08-22" },
+      { key: "tid", label: "티켓 번호", type: "identifier", value: "CLV-142" },
+    ]);
+    const cells = [...container.querySelectorAll('[data-meta-rank="primary"]')];
+    const project = cells.find((c) => c.getAttribute("data-meta-type") === "name");
+    // 늘어나지 않는다(grow 0) — 상한은 그대로 20rem 이다.
+    expect(getComputedStyle(project).flexGrow).toBe("0");
+    expect(getComputedStyle(project).maxWidth).toBe("20rem");
+    for (const c of cells) expect(getComputedStyle(c).flexGrow, c.textContent).toBe("0");
+  });
+
   it("값이 비면 칸을 지우지 않고 `-` 를 적는다 — 자리가 사라지면 «모른다» 가 된다", () => {
     renderBar([
       { key: "status", label: "상태", rank: "primary", value: "진행" },

@@ -1407,7 +1407,10 @@ const META_DIVIDERS = (t) => ({
 function MetaPrimaryRow({ list }) {
   const flexOf = (it) => {
     if (!it.type) return "1 1 9rem";                         // 선언 안 한 칸 — 옛 동작 그대로
-    if (META_GROW_TYPES.indexOf(it.type) >= 0) return "1 1 12rem";
+    /* 먼저 판단할 값의 이름 · 제목형도 자기 내용 폭만 쓴다(상한 20rem, r23 #96). 늘어나는 칸(`1 1 12rem`)이면 짧은 프로젝트 이름과
+       담당자 한 명이 20rem 씩 받아, 1920 의 티켓 상세에서 마감이 프로젝트 · 담당자 칸의 빈 300px 뒤로 밀렸다. 긴 이름은 20rem 에서
+       어절로 접힌다(아래 칸의 `maxWidth`). 압축 띠 · 순위 없는 줄은 그대로다. */
+    if (META_GROW_TYPES.indexOf(it.type) >= 0) return "0 1 auto";
     return "0 0 auto";                                       // 상태·수치·날짜는 내용 폭만
   };
   return (
