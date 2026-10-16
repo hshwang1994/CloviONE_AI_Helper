@@ -133,7 +133,7 @@ def nul_message(
     subject = f"{label} 칸에" if label else "입력값에"
     return (
         f"{subject} 저장할 수 없는 문자가 들어 있습니다. "
-        "보이지 않는 제어문자를 지운 뒤 다시 보내 주세요."
+        "보이지 않는 제어 문자를 지운 뒤 다시 보내 주세요."
     )
 
 

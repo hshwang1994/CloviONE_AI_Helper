@@ -169,7 +169,7 @@ export function MailNotificationCard({ mail, save }) {
         <SettingRows>
           <SettingRow
             compact label="메일 알림 받기" controlId="pref-mail-enabled"
-            description={off ? (delivery.message || "관리자가 메일 발송을 켜면 메일 알림을 받을 수 있습니다.") : "아래에서 고른 알림을 메일로도 받습니다."}
+            description={off ? (delivery.message || "관리자가 메일 발송을 활성화하면 메일 알림을 받을 수 있습니다.") : "아래에서 고른 알림을 메일로도 받습니다."}
             action={(
               <Switch
                 id="pref-mail-enabled" checked={!!mail.enabled} disabled={off && !mail.enabled}

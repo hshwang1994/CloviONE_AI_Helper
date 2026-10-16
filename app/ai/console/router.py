@@ -34,7 +34,7 @@ router = APIRouter(
 class ProviderUnavailableError(AppError):
     status_code = 502
     code = "ai_provider_unavailable"
-    default_message = "AI 제공자에게서 모델 목록을 받지 못했습니다."
+    default_message = "AI 제공자에게서 모델 목록을 받지 못했습니다. 잠시 후 다시 시도해 주세요."
 
 
 class AiConfigChange(BaseModel):
@@ -181,7 +181,7 @@ def verify_result(job_id: str, request: Request, db: Session = Depends(get_db)) 
     if job.status == STATUS_SUCCEEDED:
         result = {"ok": True, "message": "AI 제공자에 연결해 답을 받았습니다."}
     elif job.status == STATUS_FAILED:
-        result = {"ok": False, "message": (job.last_error or "").strip() or "AI 연결을 확인하지 못했습니다."}
+        result = {"ok": False, "message": (job.last_error or "").strip() or "AI 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."}
     elif job.status == STATUS_CANCELLED:
         result = {"ok": False, "message": "연결 확인이 취소됐습니다."}
     if result is not None:

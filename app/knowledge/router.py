@@ -447,7 +447,7 @@ def get_template(
     """틀 하나 — **본문까지** 낸다. 고치는 화면이 열어야 하는 자리다."""
     if template_id == doc_templates.BLANK:
         # 「빈 문서」는 표에 없다. 404 로 답하면 화면이 「고장」으로 읽으므로 422 다.
-        raise ValidationAppError("「빈 문서」는 고칠 수 없습니다.")
+        raise ValidationAppError("「빈 문서」 틀은 수정할 수 없습니다.")
     row = doc_templates.get_or_404(db, getattr(user, "org_id", None), template_id)
     return doc_templates.json_of(row, with_body=True)
 

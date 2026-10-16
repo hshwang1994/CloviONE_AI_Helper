@@ -34,7 +34,7 @@ class PasswordChangeRequiredError(AppError):
 class CSRFError(AppError):
     status_code = 403
     code = "csrf_failed"
-    default_message = "CSRF 토큰이 없거나 올바르지 않습니다."
+    default_message = "요청을 확인할 수 없습니다. 새로고침한 뒤 다시 시도해 주세요."
 
 
 class ImpersonationReadOnlyError(AppError):
@@ -47,7 +47,7 @@ class ImpersonationReadOnlyError(AppError):
 
     status_code = 403
     code = "impersonation_read_only"
-    default_message = "임퍼소네이션 중에는 읽기만 할 수 있습니다."
+    default_message = "대리 보기 중에는 읽기만 할 수 있습니다."
 
 
 class PageAuthRequired(Exception):

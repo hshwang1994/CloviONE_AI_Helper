@@ -252,7 +252,7 @@ def confirm_password_reset(
     if problems:
         # 토큰은 태우지 않는다 - 오타 한 번에 메일을 다시 받아야 하면 아무도 못 쓴다.
         if _is_json_request(request):
-            raise ValidationAppError("비밀번호 정책 위반", details=problems)
+            raise ValidationAppError("비밀번호가 정책에 맞지 않습니다.", details=problems)
         return _page(
             request,
             "reset_password.html",

@@ -355,7 +355,7 @@ def copy_builtin_prompt(
     except (IntegrityError, OperationalError) as exc:
         if not is_insert_race(exc):
             raise
-        raise ConflictError("같은 이름의 버전을 거의 동시에 만들었습니다. 목록을 다시 불러오세요.") from exc
+        raise ConflictError("같은 이름의 버전이 거의 동시에 추가되었습니다. 목록을 다시 불러오세요.") from exc
     record_audit_from_request(
         request, db, action="prompts.create", object_type="prompts", object_id=row.id,
         after={"name": row.name, "version": row.version, "slot": row.slot, "from": "builtin"},
@@ -430,7 +430,7 @@ def _ensure_draft(request: Request, db: Session, slot_key: str, *, content: str 
     except (IntegrityError, OperationalError) as exc:
         if not is_insert_race(exc):
             raise
-        raise ConflictError("같은 기능의 초안을 거의 동시에 만들었습니다. 목록을 다시 불러오세요.") from exc
+        raise ConflictError("같은 기능의 초안이 거의 동시에 추가되었습니다. 목록을 다시 불러오세요.") from exc
     record_audit_from_request(
         request, db, action="prompts.create", object_type="prompts", object_id=draft.id,
         after={"name": draft.name, "version": draft.version, "slot": slot_key, "from": "feature"},
@@ -502,7 +502,7 @@ def prompt_feature_publish(key: str, request: Request, db: Session = Depends(get
     slot_key = _feature_slot(db, key)
     draft = features.draft_row(db, slot_key)
     if draft is None:
-        raise ConflictError("발행할 초안이 없습니다. 먼저 지시문을 고치세요.")
+        raise ConflictError("발행할 초안이 없습니다. 먼저 지시문을 수정하세요.")
     _feature_transition(request, db, draft, STATUS_PUBLISHED)
     return {"item": _feature_item(request, db, slot_key)}
 
@@ -658,7 +658,7 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
         ).first()
         if existing is not None:
             raise ConflictError(
-                f"이미 존재하는 이름입니다: {payload.name}: new-version을 사용하세요."
+                f"이미 있는 이름입니다: {payload.name}. 그 항목의 「새 버전」을 사용하세요."
             )
         content = payload.content
         if model is Policy:
@@ -695,7 +695,7 @@ def _build_router(kind: str, model, view, create_schema, content_update_schema):
             if not is_insert_race(exc):
                 raise
             raise ConflictError(
-                f"이미 존재하는 이름입니다: {payload.name}: new-version을 사용하세요."
+                f"이미 있는 이름입니다: {payload.name}. 그 항목의 「새 버전」을 사용하세요."
             ) from exc
         record_audit_from_request(
             # 같은 기능 안에서 create만 단수화(kind[:-1])해 'policies'→'policie.create'로 어긋났고,

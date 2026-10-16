@@ -124,7 +124,7 @@ def ensure_can_manage(db: Session, user: User, item: TrashItem) -> None:
         raise NotFoundError("휴지통 항목을 찾을 수 없습니다.")
     if user.role in MODERATOR_ROLES or item.deleted_by_user_id == user.id:
         return
-    raise ForbiddenError("이 항목을 복원하거나 지울 권한이 없습니다.")
+    raise ForbiddenError("이 항목을 복원하거나 영구 삭제할 권한이 없습니다.")
 
 
 def restore(db: Session, item: TrashItem, user: User) -> None:
@@ -188,7 +188,7 @@ def purge_bulk(db: Session, ids: list[str], user: User, *, outbound, settings) -
         except Exception:  # noqa: BLE001 — 보관처리 실패 격리(행은 남겨 재시도 가능)
             # 문구에 「노션」이 없다. 보관처리는 이 서버의 행에 `archived` 를 세우는 일이고,
             # 없는 외부 시스템의 이름을 대면 사용자는 고칠 수 없는 곳을 쳐다보게 된다.
-            failed.append({"id": tid, "error": "원본을 보관처리하지 못했습니다. 잠시 후 다시 시도하세요."})
+            failed.append({"id": tid, "error": "원본을 보관 처리하지 못했습니다. 잠시 후 다시 시도하세요."})
     return {"purged": purged, "failed": failed}
 
 

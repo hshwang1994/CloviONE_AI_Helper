@@ -519,7 +519,7 @@ def create_organization(
     # 의 _ensure_may_touch_global과 같은 이유로 403(그 행의 존재는 이미 화면에 드러나 있으니
     # 문제는 존재가 아니라 권한이다).
     if not principal.management.is_global:
-        raise ForbiddenError("조직 생성은 전체 범위 관리자만 할 수 있습니다.")
+        raise ForbiddenError("조직 추가는 전체 범위 관리자만 할 수 있습니다.")
     name = normalize_name(payload.name)
     slug = payload.slug.strip().lower()
     exists = db.execute(
@@ -585,7 +585,7 @@ def update_organization(
         status = (changes["status"] or "").strip()
         if status not in (ORG_ACTIVE, ORG_SUSPENDED):
             raise ValidationAppError(
-                f"상태는 {ORG_ACTIVE} 또는 {ORG_SUSPENDED} 여야 합니다."
+                f"상태는 {ORG_ACTIVE} 또는 {ORG_SUSPENDED}여야 합니다."
             )
         was = before["status"]
         if status == ORG_SUSPENDED:

@@ -440,8 +440,8 @@ def warn_if_refresh_ending(db: Session, provider: str, auth_method: str, *, now:
     ):
         return False
     days = max(0, (row.refresh_expires_at - now).days)
-    body = (f"ChatGPT 계정 연결이 {days}일 안에 끝납니다. 계속 쓰려면 AI 설정에서 다시 로그인하세요."
-            if days else "ChatGPT 계정 연결이 곧 끝납니다. 계속 쓰려면 AI 설정에서 다시 로그인하세요.")
+    body = (f"ChatGPT 계정 연결이 {days}일 안에 끝납니다. 계속 쓰려면 AI 연결 화면에서 다시 로그인하세요."
+            if days else "ChatGPT 계정 연결이 곧 끝납니다. 계속 쓰려면 AI 연결 화면에서 다시 로그인하세요.")
     try:
         notify_ai_admins(db, title="ChatGPT 계정 연결이 곧 끝납니다", body=body, now=now, context={
             "provider": provider, "auth_method": auth_method, "ai_state": "refresh_expiring",

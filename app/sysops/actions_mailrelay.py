@@ -247,15 +247,15 @@ def _perform_apply(runner: Runner, params: dict) -> ActionOutcome:
         if not pk["opendkim"]:
             return ActionOutcome(ok=False, detail="이 서버에는 서명 구성 요소가 설치되지 않았습니다.")
         if not _opendkim_is_ours_or_default(runner.read_text(rf.OPENDKIM_CONF)):
-            return ActionOutcome(ok=False, detail="서명 구성 요소에 기존 설정이 있어 DKIM 서명을 켜지 않았습니다.")
+            return ActionOutcome(ok=False, detail="서명 구성 요소에 기존 설정이 있어 DKIM 서명을 활성화하지 않았습니다.")
         if not runner.exists(rf.dkim_key_path(dkim["domain"], dkim["selector"])):
-            return ActionOutcome(ok=False, detail="DKIM 키가 없습니다. 먼저 키를 만드세요.")
+            return ActionOutcome(ok=False, detail="DKIM 키가 없습니다. 먼저 키를 추가하세요.")
     smarthost = params.get("smarthost") or {}
     password = None
     if smarthost.get("username"):
         password = (runner.read_text(_relay_password_path()) or "").strip()
         if not password:
-            return ActionOutcome(ok=False, detail="상위 SMTP 계정의 비밀번호가 저장되지 않았습니다.")
+            return ActionOutcome(ok=False, detail="상위 SMTP 계정의 비밀번호가 저장되지 않았습니다. 메일 설정에서 상위 SMTP 비밀번호를 저장하세요.")
 
     was_running = services(runner)["postfix"] == "active"
     fingerprint = _ensure_certs(runner)
@@ -292,7 +292,7 @@ def _perform_apply(runner: Runner, params: dict) -> ActionOutcome:
         got = runner.run(argv, timeout=60)
         if not got.ok and argv[1] != "disable":
             _stop(runner)
-            return ActionOutcome(ok=False, detail=NOT_RUNNING + " 로컬 릴레이를 껐습니다.",
+            return ActionOutcome(ok=False, detail=NOT_RUNNING + " 로컬 릴레이를 비활성화했습니다.",
                                  data={"technical": f"{' '.join(argv[1:])}: {(got.stderr or '').strip()[-300:]}"})
     svc = services(runner)
     heard = listeners(runner)
@@ -311,11 +311,11 @@ def _perform_apply(runner: Runner, params: dict) -> ActionOutcome:
         problems.append(f"{rf.OPENDKIM_UNIT} {svc['opendkim']}")
     if problems:
         _stop(runner)
-        return ActionOutcome(ok=False, detail=NOT_RUNNING + " 로컬 릴레이를 껐습니다.",
+        return ActionOutcome(ok=False, detail=NOT_RUNNING + " 로컬 릴레이를 비활성화했습니다.",
                              data={"technical": "; ".join(problems)})
     return ActionOutcome(
         ok=True, changed=True,
-        detail="로컬 릴레이를 다시 적용했습니다." if was_running else "로컬 릴레이를 켰습니다.",
+        detail="로컬 릴레이를 다시 적용했습니다." if was_running else "로컬 릴레이를 활성화했습니다.",
         data={"component": "running", "listeners": heard, "client_fingerprint": fingerprint,
               "relay_fingerprint": rf.relay_fingerprint(params)},
     )
@@ -329,9 +329,9 @@ def _perform_disable(runner: Runner, params: dict) -> ActionOutcome:
     # 아니다(실제 systemd 컨테이너에서 시험용 받는 쪽이 25번을 들어 끄기가 실패로 보였다).
     still = [item for item in heard if item.rsplit(":", 1)[-1] in (str(rf.RELAY_PORT), str(rf.MILTER_PORT))]
     if svc["postfix"] == "active" or still:
-        return ActionOutcome(ok=False, detail="로컬 릴레이를 끄지 못했습니다.",
+        return ActionOutcome(ok=False, detail="로컬 릴레이를 비활성화하지 못했습니다.",
                              data={"technical": f"postfix={svc['postfix']} listeners={','.join(still)}"})
-    return ActionOutcome(ok=True, changed=True, detail="로컬 릴레이를 껐습니다. 설정은 남겨 두었습니다.",
+    return ActionOutcome(ok=True, changed=True, detail="로컬 릴레이를 비활성화했습니다. 설정은 남겨 두었습니다.",
                          data={"component": "ready" if config_state(runner) != "foreign" else "foreign"})
 
 
@@ -373,7 +373,7 @@ def _perform_dkim(runner: Runner, params: dict) -> ActionOutcome:
     public = relay_certs.dkim_public(key)
     return ActionOutcome(
         ok=True, changed=changed,
-        detail="DKIM 키를 만들었습니다." if changed else "이 선택자의 DKIM 키가 이미 있어 그대로 씁니다.",
+        detail="DKIM 키를 추가했습니다." if changed else "이 선택자의 DKIM 키가 이미 있어 그대로 씁니다.",
         data={"domain": domain, "selector": selector, "record_name": rf.dkim_record_name(domain, selector),
               "public": public},
     )

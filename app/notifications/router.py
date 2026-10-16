@@ -281,7 +281,7 @@ def _audience_for_write(audience: str | None) -> str | None:
         return None
     if audience not in AUDIENCES:
         raise ValidationAppError(
-            f"알 수 없는 알림 대상 '{audience}' 입니다. "
+            f"알 수 없는 알림 대상 '{audience}'입니다. "
             "대상은 'user'(내 업무) 또는 'admin'(관리) 중 하나여야 합니다."
         )
     return audience

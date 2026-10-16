@@ -361,7 +361,7 @@ def update_sprint(
     """
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
-        raise ValidationAppError("변경할 내용이 없습니다.")
+        raise ValidationAppError("수정할 내용이 없습니다.")
     sprint = service.update_sprint(db, user, sprint_id=sprint_id, changes=changes)
     record_audit_from_request(
         request, db, action="sprint.update", object_type="sprint",
@@ -490,7 +490,7 @@ def edit_decision(
     if "due_date" in changes:
         changes["due_date"] = parse_date(changes["due_date"])
     if not changes:
-        raise ValidationAppError("변경할 내용이 없습니다.")
+        raise ValidationAppError("수정할 내용이 없습니다.")
     row = meeting.update_decision(db, user, decision_id=decision_id, changes=changes)
     record_audit_from_request(
         request, db, action="sprint.decision.edit", object_type="sprint_decision",

@@ -158,7 +158,7 @@ def parse_kst_boundary(value: str, field: str, *, upper: bool) -> datetime:
             day = datetime.fromisoformat(value)
         except ValueError:
             raise ValidationAppError(
-                f"{field} 형식이 올바르지 않습니다 (ISO 8601)."
+                f"{field} 값의 날짜 형식이 올바르지 않습니다. 2026-10-16 같은 ISO 8601 형식으로 입력하세요."
             ) from None
         local = day.replace(tzinfo=_KST)
         if upper:
@@ -167,7 +167,7 @@ def parse_kst_boundary(value: str, field: str, *, upper: bool) -> datetime:
     try:
         dt = datetime.fromisoformat(value)
     except ValueError:
-        raise ValidationAppError(f"{field} 형식이 올바르지 않습니다 (ISO 8601).") from None
+        raise ValidationAppError(f"{field} 값의 날짜 형식이 올바르지 않습니다. 2026-10-16 같은 ISO 8601 형식으로 입력하세요.") from None
     if dt.tzinfo is not None:
         return dt.astimezone(timezone.utc).replace(tzinfo=None)
     return dt

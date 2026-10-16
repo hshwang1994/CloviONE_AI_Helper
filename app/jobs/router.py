@@ -126,7 +126,7 @@ def _scoped_job_or_404(db: Session, job_id: str, principal: Principal) -> Job:
     """
     job = get_in_scope(db, job_id, visible_user_ids(db, principal.management))
     if job is None:
-        raise NotFoundError("Job을 찾을 수 없습니다.")
+        raise NotFoundError("작업을 찾을 수 없습니다.")
     return job
 
 
@@ -226,7 +226,7 @@ def retry(
     """재시도 — 워커가 쓰기를 다시 실행하는 운영 동작이라 `CONSOLE_OPS_ROLES` 만이다."""
     job = _scoped_job_or_404(db, job_id, principal)
     if job.status != STATUS_FAILED:
-        raise ConflictError("실패 상태의 Job만 재시도할 수 있습니다.")
+        raise ConflictError("실패한 작업만 다시 시도할 수 있습니다.")
     retry_failed(db, job, now=request.app.state.clock.now())
     record_audit_from_request(
         request, db, action="job.retry", object_type="job", object_id=job.id,
@@ -244,7 +244,7 @@ def cancel(
     """취소 — 대기 중인 자동 처리를 죽이는 운영 동작이라 `CONSOLE_OPS_ROLES` 만이다."""
     job = _scoped_job_or_404(db, job_id, principal)
     if job.status != STATUS_QUEUED:
-        raise ConflictError("대기 상태의 Job만 취소할 수 있습니다.")
+        raise ConflictError("대기 중인 작업만 취소할 수 있습니다.")
     now = request.app.state.clock.now()
     cancel_queued(db, job, now=now)
     # If this job drives a schedule_run/document, terminalize that record so the

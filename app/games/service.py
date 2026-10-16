@@ -131,7 +131,7 @@ def _append_event(db: Session, room: GameRoom, kind: str, *, actor_id, payload: 
             db.refresh(room)  # 다른 요청이 먼저 붙였다 — 순번 다시 계산
             if attempt < _APPEND_EVENT_RETRIES - 1:
                 time.sleep(write_conflict_backoff(attempt))
-    raise ConflictError("이벤트를 기록하지 못했습니다. 잠시 후 다시 시도해 주세요.")
+    raise ConflictError("게임 진행을 기록하지 못했습니다. 잠시 후 다시 시도해 주세요.")
 
 
 def _cas_update_state(db: Session, room: GameRoom, mutate) -> dict:
@@ -343,7 +343,7 @@ def disband_room(db: Session, room: GameRoom, user: User, *, now: datetime) -> N
     다음 폴링에서 방을 못 찾아(404) 목록으로 돌아간다. 히스토리를 남기지 않는다(§16.1)."""
     _ensure_host(room, user)
     _append_event(db, room, EV_SYSTEM, actor_id=user.id,
-                  payload={"text": "방장이 방을 파했습니다.", "disbanded": True}, now=now)
+                  payload={"text": "방장이 게임방을 종료했습니다.", "disbanded": True}, now=now)
     room.status = ROOM_FINISHED
     room.closed_at = now
     db.flush()
@@ -388,7 +388,7 @@ def start_game(db: Session, room: GameRoom, user: User, *, now: datetime) -> Gam
     # 바로 FINISHED가 되므로, 'PLAYING만 막는' 예전 가드로는 끝난 방에 /start를 다시 보내 결과를
     # 무한 재추첨할 수 있었다(§13.1 공정성 훼손). 다시 하려면 반드시 초기화(reset)를 거친다.
     if room.status != ROOM_WAITING:
-        raise ConflictError("이미 시작했거나 끝난 방입니다. 다시 하려면 먼저 초기화하세요.")
+        raise ConflictError("이미 시작했거나 끝난 방입니다. '다시 하기'를 누른 뒤 다시 시작할 수 있습니다.")
     room = _start_by_type(db, room, user, now=now)
     # 신원 스냅샷(D-577) — 결과가 나온 뒤 누가 나가도 판 · 결과 대화 상자 · 채팅이 그 사람의 얼굴과 이름을 푼다.
     _stamp_people(db, room)
@@ -787,7 +787,7 @@ def submit_rps(db: Session, room: GameRoom, user: User, *, choice: int, now: dat
     if member is None or not member.active or member.role == ROLE_SPECTATOR:
         raise ForbiddenError("참여자만 낼 수 있습니다.")
     if choice not in (0, 1, 2):
-        raise ValidationAppError("가위/바위/보 중에서 내세요.")
+        raise ValidationAppError("가위, 바위, 보 중에서 내세요.")
     state = json.loads(room.state_json or "{}")
     if state.get("mode") == "tournament":
         _tournament_submit(db, room, user, choice=choice, now=now)
@@ -890,7 +890,7 @@ def _tournament_submit(db, room, user, *, choice, now) -> None:
             _resolve_match(m)
             break
         if not found:
-            raise ForbiddenError("이번 라운드 대진에 없습니다(이미 탈락했거나 관전 중).")
+            raise ForbiddenError("이번 라운드 대진에 없습니다. 이미 탈락했거나 관전 중입니다.")
         return _tournament_advance(db, room, current_state, now=now, force=False)
 
     new_state = _cas_update_state(db, room, _apply)

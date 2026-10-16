@@ -309,7 +309,7 @@ def resolve_or_create_common_space(db: Session, user: User) -> KnowledgeSpace:
     if not org_id:
         # 조직이 없는 사용자에게 조직 공간을 만들어 줄 수는 없다. 만들면 `org_id` 가 빈
         # 공간이 생기고, 그 공간은 위의 `unset` 과 같은 이유로 아무에게도 안 보인다.
-        raise ValidationAppError("조직이 없는 계정은 공통 문서를 만들 수 없습니다.")
+        raise ValidationAppError("조직이 없는 계정은 공통 문서를 추가할 수 없습니다.")
 
     def _lookup() -> KnowledgeSpace | None:
         by_slug = db.execute(
@@ -351,7 +351,7 @@ def resolve_or_create_common_space(db: Session, user: User) -> KnowledgeSpace:
         # 고쳐 주지 않고 **말한다.** 이 상태의 공간에 문서를 넣으면 그 문서는 만든 사람
         # 눈에도 안 보인다. 관리자가 공간 소유를 고쳐야 하는 자리다.
         raise ConflictError(
-            f"공통 문서 공간({space.slug})의 소유가 조직이 아닙니다. 관리자가 공간 소유를 고쳐야 합니다."
+            f"공통 문서 공간({space.slug})의 소유가 조직이 아닙니다. 관리자가 공간 소유를 수정해야 합니다."
         )
     return space
 
@@ -402,7 +402,7 @@ def update_space(
 
     for key, label in _REQUIRED_SPACE_FIELDS.items():
         if key in fields and fields[key] is None:
-            raise ValidationAppError(f"{label} 비워둘 수 없습니다.")
+            raise ValidationAppError(f"{label} 비워 둘 수 없습니다.")
 
     old_name = space.name
     for key in ("name", "description", "owner_kind", "owner_dept_id",
@@ -462,7 +462,7 @@ def _settle_owner_pair(db: Session, space: KnowledgeSpace) -> None:
 def _check_lock(row, expected_version: int | None) -> None:
     """낙관적 잠금 (D-240). 세 자원이 **같은 이름의 같은 규약**이라 검사도 하나다."""
     if expected_version is not None and row.version != expected_version:
-        raise ConflictError("다른 사람이 먼저 저장했습니다. 새로 고친 뒤 다시 시도해 주세요.")
+        raise ConflictError("다른 사람이 먼저 저장했습니다. 새로고침한 뒤 다시 시도해 주세요.")
 
 
 # ── 폴더 ─────────────────────────────────────────────────────────────────────
@@ -884,7 +884,7 @@ def create_document(
     version = versions.snapshot(
         db, document, body if body is not None else blocks.empty_doc(),
         author_id=user.id,
-        change_reason="문서를 만들었습니다.",
+        change_reason="문서를 추가했습니다.",
         source=VSRC_AI if source_type == "AI" else VSRC_USER,
         ai_used=source_type == "AI",
     )
@@ -1161,7 +1161,7 @@ def purge_expired_documents(
     from datetime import timedelta
 
     if not enabled:
-        return {"purged": 0, "skipped": "자동 영구 삭제가 꺼져 있습니다."}
+        return {"purged": 0, "skipped": "자동 영구 삭제가 비활성화되어 있습니다."}
     days = max(1, int(retention_days or 1))
     cutoff = now - timedelta(days=days)
 

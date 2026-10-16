@@ -443,7 +443,7 @@ def preview(request: Request, trash_id: str, db: Session = Depends(get_db),
         # 「영구 삭제는 되돌릴 수 없다」는 그대로 보여야 한다(§17.4 격리와 같은 관용).
         blocks_error = exc.message
     except Exception:
-        blocks_error = "본문을 불러오지 못했습니다."
+        blocks_error = "본문을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
 
     return {
         "id": item.id,

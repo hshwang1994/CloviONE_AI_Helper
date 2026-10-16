@@ -25,7 +25,7 @@ logger = logging.getLogger("app.errors")
 
 # 라우트가 놓친 유니크 경합(같은 요청 두 번 · 같은 이름 동시 생성)이 사용자에게 가는 문장.
 # 「이미 처리됐다」가 아니라 「이미 있다」다 — 다른 사람이 같은 이름을 먼저 만든 경우에도 참이다.
-DUPLICATE_WRITE_MESSAGE = "같은 항목이 이미 있어 저장하지 않았습니다. 화면을 새로 고쳐 확인해 주세요."
+DUPLICATE_WRITE_MESSAGE = "같은 항목이 이미 있어 저장하지 않았습니다. 새로고침한 뒤 확인해 주세요."
 
 
 # PA-RC-0014: Pydantic 검증 실패가 영문 그대로 사용자에게 나갔다("Invalid request data
@@ -67,11 +67,11 @@ def _validation_error_message_ko(err: dict) -> str:
     if err_type in ("greater_than_equal", "greater_than"):
         n = ctx.get("ge", ctx.get("gt"))
         op = "이상" if err_type == "greater_than_equal" else "초과"
-        return f"{n}{op}이어야 합니다." if n is not None else "값이 너무 작습니다."
+        return f"{n} {op}의 값이어야 합니다." if n is not None else "값이 너무 작습니다."
     if err_type in ("less_than_equal", "less_than"):
         n = ctx.get("le", ctx.get("lt"))
         op = "이하" if err_type == "less_than_equal" else "미만"
-        return f"{n}{op}여야 합니다." if n is not None else "값이 너무 큽니다."
+        return f"{n} {op}의 값이어야 합니다." if n is not None else "값이 너무 큽니다."
     if err_type in ("literal_error", "enum"):
         expected = ctx.get("expected")
         return f"허용되지 않는 값입니다(허용: {expected})." if expected else "허용되지 않는 값입니다."
@@ -133,7 +133,7 @@ class FeatureDisabledError(NotFoundError):
     """
 
     code = "feature_disabled"
-    default_message = "이 기능이 꺼져 있습니다."
+    default_message = "이 기능이 비활성화되어 있습니다."
 
 
 class ConflictError(AppError):
@@ -199,7 +199,7 @@ class NotionNotConfiguredError(AppError):
 class NotionQueryError(AppError):
     status_code = 502
     code = "notion_query_failed"
-    default_message = "티켓 저장소 조회에 실패했습니다."
+    default_message = "티켓 저장소를 조회하지 못했습니다. 잠시 후 다시 시도해 주세요."
 
 
 # 이 오류는 원래 Notion 쓰기 모듈이 정의했다. 티켓 저장소 구현체가 둘(Notion · 자체 DB)이

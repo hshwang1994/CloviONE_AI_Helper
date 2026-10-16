@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """저장소 설정 API — 「업로드가 어디로 가는가」에 답이 하나여야 한다 (S8 · D-199).
 
 qa-contract-change: 생성 응답의 계약을 200 에서 201 로 바꿨다(S-10) — 같은 콘솔의 다른
@@ -214,7 +215,7 @@ def test_a_remote_provider_without_a_mountpoint_is_refused_with_a_reason(
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 422, response.text
-    assert "마운트포인트" in response.json()["error"]["message"]
+    assert "마운트 지점" in response.json()["error"]["message"]
 
 
 def test_a_write_path_outside_the_mountpoint_is_refused(client, login_as, local_provider):
@@ -230,7 +231,7 @@ def test_a_write_path_outside_the_mountpoint_is_refused(client, login_as, local_
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 422, response.text
-    assert "마운트포인트 아래" in response.json()["error"]["message"]
+    assert "마운트 지점 아래" in response.json()["error"]["message"]
 
 
 def test_updating_a_provider_takes_the_optimistic_lock(client, login_as, local_provider):
@@ -457,7 +458,7 @@ def test_a_lost_role_race_gets_the_same_409_as_a_late_request(db, local_provider
             db, name="경합 역할", kind="LOCAL", role="BACKUP",
             base_path="/srv/nas/role-race", enabled=True,
         )
-    assert "이미 켜져 있는 저장소가 있습니다" in str(caught.value)
+    assert "이미 활성화된 저장소가 있습니다" in str(caught.value)
 
 
 def test_a_lost_rename_race_gets_the_same_409_as_a_late_request(db, local_provider, monkeypatch):

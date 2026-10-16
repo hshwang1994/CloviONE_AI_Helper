@@ -62,10 +62,10 @@ EXPORT_COLUMNS: tuple[tuple[str, str], ...] = (
     ("active", "활성"),
     ("department", "부서"),
     ("title", "직책"),
-    ("must_change_password", "비밀번호변경요구"),
+    ("must_change_password", "비밀번호 변경 요구"),
     ("locked", "잠김"),
-    ("archived_at", "보관시각"),
-    ("last_login_at", "최근로그인"),
+    ("archived_at", "보관 시각"),
+    ("last_login_at", "최근 로그인"),
     ("created_at", "생성일"),
 )
 
@@ -192,7 +192,7 @@ def parse_import_csv(text: str) -> list[dict]:
             mapping[raw] = key
     if "email" not in mapping.values() or "display_name" not in mapping.values():
         raise ValidationAppError(
-            "CSV 에 '이메일'(email)과 '이름'(display_name) 열이 있어야 합니다. "
+            "CSV에 '이메일'(email)과 '이름'(display_name) 열이 있어야 합니다. "
             f"찾은 열: {', '.join(reader.fieldnames)}"
         )
 
@@ -276,7 +276,7 @@ def import_users(
             continue
         seen_emails.add(email)
         if get_user_by_email(db, email) is not None:
-            out.update(status="skipped", message="이미 있는 이메일입니다(가져오기는 새 계정만 만듭니다).")
+            out.update(status="skipped", message="이미 있는 이메일입니다(가져오기는 새 계정만 추가합니다).")
             skipped += 1
             results.append(out)
             continue
@@ -300,10 +300,10 @@ def import_users(
                 failed += 1
             else:
                 if not _dept_in_scope(scope, dept_id):
-                    out.update(status="failed", message="관리 범위 밖 부서로는 계정을 만들 수 없습니다.")
+                    out.update(status="failed", message="관리 범위 밖 부서로는 계정을 추가할 수 없습니다.")
                     failed += 1
                 else:
-                    out.update(status="ready", message="새로 만들 계정입니다.")
+                    out.update(status="ready", message="새로 추가할 계정입니다.")
                     created += 1
             results.append(out)
             continue
@@ -330,10 +330,10 @@ def import_users(
                 # 방금 만든 행만 되돌린다.
                 db.delete(user)
                 db.flush()
-                out.update(status="failed", message="관리 범위 밖 부서로는 계정을 만들 수 없습니다.")
+                out.update(status="failed", message="관리 범위 밖 부서로는 계정을 추가할 수 없습니다.")
                 failed += 1
             else:
-                out.update(status="created", message="계정을 만들었습니다(임시 비밀번호 발급).",
+                out.update(status="created", message="계정을 추가하고 임시 비밀번호를 발급했습니다.",
                            user_id=user.id)
                 created += 1
         results.append(out)

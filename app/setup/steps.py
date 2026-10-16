@@ -91,7 +91,7 @@ SETUP_STEPS: tuple[SetupStep, ...] = (
             "담당자 배정이 전부 빈 채로 남습니다."
         ),
         requires=("admin_account",),
-        requires_why="부서를 만들 수 있는 사람이 먼저 있어야 합니다.",
+        requires_why="부서를 추가할 수 있는 사람이 먼저 있어야 합니다.",
         user_visible=True,
     ),
     # 「Notion 토큰과 데이터베이스」 단계가 여기 있었다. 티켓·문서·리포트가 그 토큰으로
@@ -112,12 +112,12 @@ SETUP_STEPS: tuple[SetupStep, ...] = (
         key="llm",
         label="AI",
         why=(
-            "AI 를 켜지 않으면 채팅 답변, 문서 요약, 오늘 브리핑의 문장 요약이 모두 비어 있습니다."
+            "AI를 활성화하지 않으면 채팅 답변, 문서 요약, 오늘 브리핑의 문장 요약이 모두 비어 있습니다."
         ),
         requires=("organization",),
         requires_why=(
-            "AI 가 답하는 사실은 이 포털의 사용자와 그 사람의 티켓에서 나옵니다. "
-            "조직 단위가 없으면 AI 가 살아 있어도 답이 비어 있습니다."
+            "AI가 답하는 사실은 이 포털의 사용자와 그 사람의 티켓에서 나옵니다. "
+            "조직 단위가 없으면 AI가 동작해도 답이 비어 있습니다."
         ),
         user_visible=True,
         required=False,
@@ -134,7 +134,7 @@ SETUP_STEPS: tuple[SetupStep, ...] = (
         key="integrations",
         label="외부 연동",
         why=(
-            "등록한 연동이 응답하지 않으면 그 연동을 쓰는 기능만 조용히 실패합니다. "
+            "추가한 연동이 응답하지 않으면 그 연동을 쓰는 기능만 조용히 실패합니다. "
             "연동을 하나도 안 쓰는 설치라면 이 단계는 그대로 넘어갑니다."
         ),
         user_visible=True,

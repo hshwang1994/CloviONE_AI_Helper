@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """AI 도우미의 세기 계약 — `total` 은 권한 안의 정확한 전체 수이고 쪽은 안정하다 (D-567).
 
 「문서 6개」 같은 틀린 수의 원인은 둘이었다: 문서 검색이 조각을 돌려주고 그 수를 `total` 로 냈다, 그리고 목록 도구가 한 쪽의 길이를
@@ -333,7 +334,7 @@ def test_my_activity_is_newest_first_inside_the_window(app, db, people, resource
     db.commit()
     week = _body(_run(app, a1, "my_activity", days=7, kinds=["tickets"]))
     assert week["total"] == 2 and week["totals"] == {"tickets": 2}
-    assert [i["action"] for i in week["items"]] == ["상태를 계획에서 진행으로 바꿨습니다.", "티켓을 만들었습니다."]
+    assert [i["action"] for i in week["items"]] == ["상태를 계획에서 진행으로 바꿨습니다.", "티켓을 추가했습니다."]
     month = _body(_run(app, a1, "my_activity", days=30, kinds=["tickets"]))
     assert month["total"] == 3
 

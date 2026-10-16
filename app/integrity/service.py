@@ -608,8 +608,8 @@ def _skip_reason(user: User | None) -> str:
     if not user.active:
         return "비활성 계정입니다. 계정을 다시 활성화한 뒤에 소속을 지정할 수 있습니다."
     if not user.department_id and user.membership_kind == MEMBERSHIP_ORGANIZATION:
-        return "이미 조직 직속으로 지정된 계정입니다. 소속을 바꾸려면 사용자 화면에서 편집하세요."
-    return "이미 활성 부서에 속한 계정입니다. 소속을 바꾸려면 사용자 화면에서 편집하세요."
+        return "이미 조직 직속으로 지정된 계정입니다. 소속을 바꾸려면 사용자 화면에서 수정하세요."
+    return "이미 활성 부서에 속한 계정입니다. 소속을 바꾸려면 사용자 화면에서 수정하세요."
 
 
 def assign_membership(

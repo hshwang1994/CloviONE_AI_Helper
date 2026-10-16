@@ -46,7 +46,7 @@ MAX_ATTEMPTS_DEFAULT = 3
 #: '오류' 칸에서 바로 읽고 무엇을 고치면 되는지 알 수 있어야 한다.
 UNREADABLE_RETRY_POLICY_MESSAGE = (
     "재시도 정책을 읽을 수 없어 이 실행을 시작하지 못했습니다. "
-    "일정을 수정해 재시도 횟수를 1~10 사이 정수로 고치면 다시 실행할 수 있습니다."
+    "일정을 수정해 재시도 횟수를 1~10 사이 정수로 바꾸면 다시 실행할 수 있습니다."
 )
 
 
@@ -239,7 +239,7 @@ def sweep_zombie_runs(db: Session, *, now: datetime, grace_seconds: float = ZOMB
         # 왜 실패로 남았는지 화면에 적는다. "그냥 실패" 로 두면 운영자가 워크플로를 판다.
         run.error_message = (
             "실행을 처리하던 작업이 끝났는데 결과가 기록되지 않아 정리했습니다"
-            "(같은 스케줄의 다음 실행이 막혀 있었습니다)."
+            "(같은 실행 일정의 다음 실행이 막혀 있었습니다)."
         )
         swept += 1
     if swept:
@@ -409,9 +409,9 @@ class SchedulerService:
                 db,
                 schedule.owner_user_id,
                 type_="schedule_failed",
-                title=f"스케줄 '{schedule.name}' 실행 누락",
+                title=f"실행 일정 '{schedule.name}' 실행 누락",
                 body=(
-                    f"1회성 스케줄이 예정 시각({scheduled_at.isoformat()})에 실행되지 못했고 "
+                    f"1회 실행 일정이 예정 시각({_kst_minute(scheduled_at)})에 실행되지 못했고 "
                     f"따라잡기 허용 시간을 넘겨 취소되었습니다. 필요하면 다시 예약하세요."
                 ),
                 related=("schedule", schedule.id),
@@ -421,3 +421,10 @@ class SchedulerService:
             logger.exception(
                 "failed to notify owner of dropped once-schedule %s", schedule.id
             )
+
+def _kst_minute(value) -> str:
+    """알림 문장에 넣는 시각 — 저장값(Z 없는 UTC)을 한국 시간 분 단위로 쓴다. ISO 원문(2026-10-16T05:00:00)이 본문에 섰다."""
+    from datetime import timezone as _tz
+    from zoneinfo import ZoneInfo
+    aware = value if value.tzinfo else value.replace(tzinfo=_tz.utc)
+    return aware.astimezone(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M") + " 한국 시간"

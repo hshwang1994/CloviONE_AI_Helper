@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """qa-contract-change: 문서 발행 승인 정책 절(승인 필요 워크플로를 auto_publish 로 우회 · 템플릿 승인 정책 강제)이 S11 과 함께 사라졌다 — 그 기능이 없다. 스케줄 승인 게이트 쪽 단언은 전부 그대로이고 대상만 workflow 에서 system 으로 바뀌었다."""
 
 """Regression tests pinned to the iteration-3 review findings.
@@ -247,7 +248,7 @@ def test_schedule_definition_changed_after_request_invalidates_approval(
             f"/api/admin/approvals/{approval['id']}/approve", headers=_headers(csrf)
         )
         assert decision.status_code == 409
-        assert "stale" in decision.json()["error"]["message"]
+        assert "적용할 수 없습니다" in decision.json()["error"]["message"]
 
         detail = approver.get(
             f"/api/admin/schedules/{schedule['id']}"

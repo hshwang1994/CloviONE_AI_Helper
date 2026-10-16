@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """AI 작업공간 API — 검색 · 질의 · 문서 초안 (S10).
 
 여기서 보는 것은 **HTTP 경계**다: 게이트가 걸려 있는가, 쿼터를 언제 세는가, 생성이
@@ -177,7 +178,7 @@ def test_status_says_whether_the_assistant_can_answer(client, app, login_as, see
     off = client.get("/api/ai/status").json()["assistant"]
     assert off["available"] is False
     assert off["reason"] == "off"
-    assert off["notice"] == "AI 사용이 꺼져 있어 지금은 답할 수 없습니다."
+    assert off["notice"] == "AI 사용이 비활성화되어 있어 지금은 답할 수 없습니다."
     # 일반 사용자는 AI 연결 화면을 열 수 없다 - 「AI 연결 열기」 링크를 주지 않는다.
     assert off["can_configure"] is False
 

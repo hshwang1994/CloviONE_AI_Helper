@@ -517,7 +517,7 @@ def pin_post(
     pinned: bool = Query(default=True),
 ):
     if not service.can_moderate(me):
-        raise ForbiddenError("공지 고정은 운영자만 할 수 있습니다.")
+        raise ForbiddenError("공지 고정은 운영자, 관리자, 시스템 관리자만 할 수 있습니다.")
     post = _get_post_or_404(db, post_id, me)
     service.set_pinned(db, post, pinned=pinned, now=request.app.state.clock.now())
     record_audit_from_request(

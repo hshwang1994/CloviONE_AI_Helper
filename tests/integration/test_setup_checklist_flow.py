@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """초기 설정 체크리스트 — 상태 일곱 · 선택 저장 · 요약 띠 · 메일 방식별 표 · 배너 비용 (계획 S1 · M6 · A8, D-534).
 
 못박는 것:
@@ -69,7 +70,7 @@ def test_one_key_is_merged_audited_and_the_new_checklist_comes_back(client, db, 
     assert second.status_code == 200, second.text
     assert _stored(client) == {"mail": "unused", "llm": "use", "tls": "proxy"}, "앞의 선택을 지켜야 한다"
     tls = _items(second.json())["tls"]
-    assert tls["status"] == "done" and any("외부 프록시가 TLS 를 맡는다고" in n for n in tls["notes"])
+    assert tls["status"] == "done" and any("외부 프록시가 TLS를 맡는다고" in n for n in tls["notes"])
     assert {"key": "tls", "value": "app", "label": "이 서버의 인증서 사용"} in tls["choices"]
     audits = db.query(AuditLog).filter(AuditLog.action == "setting.update",
                                        AuditLog.object_id == "setup_optional_choices").all()
@@ -249,7 +250,7 @@ def _relay_mode(client):
 @pytest.mark.parametrize("component, status, words", [
     ("not_installed", "todo", "구성 요소가 설치되지 않았습니다"),
     ("foreign", "todo", "기존 메일 발송 구성이 있습니다"),
-    ("ready", "todo", "로컬 릴레이가 꺼져 있습니다"),
+    ("ready", "todo", "로컬 릴레이가 비활성화되어 있습니다"),
     ("stopped", "problem", "메일 발송 구성 요소가 동작하지 않습니다"),
 ])
 def test_local_relay_component_rows(client, basics, relay, component, status, words):

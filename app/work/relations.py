@@ -103,12 +103,12 @@ def add(
     if kind not in REL_KINDS:
         raise ValidationAppError(f"모르는 관계 종류입니다: {kind}")
     if from_ticket_id == to_ticket_id:
-        raise ValidationAppError("같은 티켓끼리는 이을 수 없습니다.")
+        raise ValidationAppError("같은 티켓끼리는 연결할 수 없습니다.")
 
     left, right = _ordered(from_ticket_id, to_ticket_id, kind)
     if kind == REL_SUBTASK_OF:
         if would_cycle(db, child_id=left, parent_id=right):
-            raise ConflictError("상위 작업이 서로를 가리키게 됩니다.")
+            raise ConflictError("상위 작업 관계가 고리를 이루게 되어 지정할 수 없습니다.")
         current = db.execute(
             select(TicketRelation).where(
                 TicketRelation.from_ticket_id == left,

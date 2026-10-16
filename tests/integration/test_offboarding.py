@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """오프보딩 API — 미리보기 → 실행 → **되돌리기**를 실제 HTTP 경로에서 고정한다 (Phase 6).
 
 계획서가 이 그룹의 최우선으로 지목한 항목이고, 잘못 누르면 사람 하나의 업무가 통째로 남에게
@@ -638,7 +639,7 @@ def test_undo_closes_a_move_whose_ticket_was_permanently_deleted(
     assert body["run"]["undone_at"] is not None, "실행이 영원히 열린 채로 남는다"
     gone = next(m for m in body["moves"] if m["ticket_page_id"] == "page-1")
     assert gone["status"] == "reverted"
-    assert gone["error"] == "티켓이 영구 삭제되어 되돌릴 담당자 자리가 없습니다.", (
+    assert gone["error"] == "티켓이 영구 삭제되어 담당자를 되돌릴 수 없습니다.", (
         "왜 되돌릴 것이 없었는지 화면이 말할 수 있어야 한다"
     )
     # 남아 있는 티켓은 정상적으로 원래 담당자에게 돌아간다(부분 실패가 성공을 덮지 않는다).

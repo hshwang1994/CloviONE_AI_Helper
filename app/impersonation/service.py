@@ -59,13 +59,13 @@ IMPERSONATION_RATE_LIMIT_WINDOW_SECONDS = 10 * 60
 def can_impersonate(actor: User, target: User) -> tuple[bool, str]:
     """(가능한가, 안 되는 이유). 이유는 그대로 사용자에게 보여도 되는 문장이다."""
     if actor.id == target.id:
-        return False, "자기 자신은 임퍼소네이션할 수 없습니다."
+        return False, "자기 자신은 대리 보기할 수 없습니다."
     if not target.active or target.archived_at is not None:
-        return False, "비활성 또는 보관된 계정은 임퍼소네이션할 수 없습니다."
+        return False, "비활성 또는 보관된 계정은 대리 보기할 수 없습니다."
     # 자기보다 강한 역할을 흉내 내면 읽기 전용이라도 권한 상승이다(그 역할만 보이는 화면을
     # 읽게 된다). system_admin 은 누구든 볼 수 있고, 그 밖에는 자기 순위 이하만 가능하다.
     if actor.role != ROLE_SYSTEM_ADMIN and role_rank(target.role) >= role_rank(actor.role):
-        return False, "자신과 같거나 더 높은 권한의 계정은 임퍼소네이션할 수 없습니다."
+        return False, "자신과 같거나 더 높은 권한의 계정은 대리 보기할 수 없습니다."
     return True, ""
 
 
@@ -138,7 +138,7 @@ def start(
     if not allowed:
         raise ForbiddenError(why)
     if session.impersonated_user_id:
-        raise ConflictError("이미 임퍼소네이션 중입니다. 먼저 종료해 주세요.")
+        raise ConflictError("이미 대리 보기 중입니다. 먼저 종료해 주세요.")
     # 남용 방지 (H3-a): 짧은 시간에 서로 다른 대상을 훑어보는 패턴을 막는다.
     # 스코프·권한 판정 뒤, 실제로 행을 만들기 전에 확인한다 — 통과 못 할 시도까지
     # 한도에 넣지 않는다(안 그러면 접근 불가 사용자에 대한 반복 시도로 정상적인

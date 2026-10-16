@@ -200,7 +200,7 @@ def create_group(db: Session, user: User, *, title: str, member_user_ids: list[s
                               last_read_seq=0, joined_at=now, last_seen=None))
     db.flush()
     _append_message(db, room, kind=MSG_SYSTEM, sender_id=None,
-                    body=f"{user.display_name}님이 채팅방을 만들었습니다.", client_message_id=None, now=now)
+                    body=f"{user.display_name}님이 채팅방을 추가했습니다.", client_message_id=None, now=now)
     _notify_invited(db, user, room, [uid for uid in ids if uid != user.id and uid in valid], now=now)
     return room
 
@@ -624,16 +624,16 @@ def disband_room(db: Session, room: ChatRoom, user: User, *, now: datetime) -> N
     같은 트랜잭션에서 dm_key 를 NULL 로 만들어야 한다.
     """
     if room.is_global:
-        raise ConflictError("전체 채팅방은 파할 수 없습니다.")
+        raise ConflictError("전체 채팅방은 삭제할 수 없습니다.")
     if room.kind == ROOM_DIRECT:
-        raise ConflictError("1:1 대화는 파할 수 없습니다. 내 목록에서 숨기기를 사용하세요.")
+        raise ConflictError("1:1 대화는 삭제할 수 없습니다. 내 목록에서 숨기기를 사용하세요.")
     member = repository.get_member(db, room.id, user.id)
     if member is None:
         raise ForbiddenError("이 채팅방에 접근할 수 없습니다.")
     if member.role != ROLE_OWNER:
-        raise ForbiddenError("방장만 채팅방을 파할 수 있습니다.")
+        raise ForbiddenError("방장만 채팅방을 삭제할 수 있습니다.")
     _append_message(db, room, kind=MSG_SYSTEM, sender_id=None,
-                    body=f"{user.display_name}님이 채팅방을 파했습니다.", client_message_id=None, now=now)
+                    body=f"{user.display_name}님이 채팅방을 삭제했습니다.", client_message_id=None, now=now)
     room.deleted_at = now
     db.flush()
 
@@ -732,7 +732,7 @@ def rename_room(db: Session, room: ChatRoom, user: User, *, title: str, now: dat
     room.updated_at = now
     db.flush()
     _append_message(db, room, kind=MSG_SYSTEM, sender_id=None,
-                    body=f"{user.display_name}님이 방 이름을 ‘{before}’에서 ‘{title}’(으)로 바꿨습니다.",
+                    body=f"{user.display_name}님이 방 이름을 바꿨습니다(‘{before}’ → ‘{title}’).",
                     client_message_id=None, now=now)
     return room
 
@@ -787,7 +787,7 @@ def remove_member(db: Session, room: ChatRoom, user: User, *, user_id: str, now:
         raise ConflictError("방장은 스스로 내보낼 수 없습니다. 방장을 넘기거나 방을 나가세요.")
     target = repository.get_member(db, room.id, user_id)
     if target is None:
-        raise NotFoundError("그 사람은 이 채팅방의 참여자가 아닙니다.")
+        raise NotFoundError("선택한 사람은 이 채팅방의 참여자가 아닙니다.")
     names = repository.users_by_ids(db, [user_id])
     label = names[user_id].display_name if user_id in names else "참여자"
     db.delete(target)
@@ -808,7 +808,7 @@ def transfer_owner(db: Session, room: ChatRoom, user: User, *, user_id: str, now
         raise ConflictError("이미 방장입니다.")
     target = repository.get_member(db, room.id, user_id)
     if target is None:
-        raise NotFoundError("그 사람은 이 채팅방의 참여자가 아닙니다.")
+        raise NotFoundError("선택한 사람은 이 채팅방의 참여자가 아닙니다.")
     target.role = ROLE_OWNER
     me.role = ROLE_MEMBER
     db.flush()

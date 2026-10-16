@@ -92,7 +92,7 @@ def execute_document_create(db: Session, approval, app_state) -> None:
             source_type=SOURCE_AI,
         )
     except (NotFoundError, ForbiddenError):
-        raise ConflictError("요청한 사람이 그 자리에 문서를 만들 수 없게 되어 승인할 수 없습니다.") from None
+        raise ConflictError("요청한 사람이 지정한 위치에 문서를 만들 수 없게 되어 승인할 수 없습니다.") from None
     now = app_state.clock.now()
     row.document_id = document.id
     row.executed_at = now

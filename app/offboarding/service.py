@@ -99,7 +99,7 @@ def preview(
         result = tickets.list_my_tickets(db, outbound, settings, target, repo=repo)
         held = list(result.get("tickets") or [])
     except Exception as exc:  # noqa: BLE001 — 원인은 화면에 그대로 알린다
-        tickets_error = getattr(exc, "message", None) or f"티켓 조회 실패: {type(exc).__name__}"
+        tickets_error = getattr(exc, "message", None) or f"{type(exc).__name__}"
 
     return {
         "user": _user_brief(target),
@@ -485,7 +485,7 @@ def undo(
             # 있으므로 아래 재시도 대상으로 남긴다(UA-14 가 고정한 흐름이다).
             if _ticket_is_gone(db, outbound, settings, page_id=move.ticket_page_id, repo=repo):
                 move.status = MOVE_REVERTED
-                move.error = "티켓이 영구 삭제되어 되돌릴 담당자 자리가 없습니다."
+                move.error = "티켓이 영구 삭제되어 담당자를 되돌릴 수 없습니다."
                 move.reverted_at = stamp
             else:
                 move.status = MOVE_REVERT_FAILED

@@ -45,7 +45,7 @@ router = APIRouter(
 DEFAULT_DAYS = 30
 PERIOD_TODAY, PERIOD_7D, PERIOD_30D, PERIOD_MONTH, PERIOD_CUSTOM = "today", "7d", "30d", "month", "custom"
 PERIODS = (
-    (PERIOD_TODAY, "오늘"), (PERIOD_7D, "7일"), (PERIOD_30D, "30일"), (PERIOD_MONTH, "이번 달"), (PERIOD_CUSTOM, "직접 선택"),
+    (PERIOD_TODAY, "오늘"), (PERIOD_7D, "최근 7일"), (PERIOD_30D, "최근 30일"), (PERIOD_MONTH, "이번 달"), (PERIOD_CUSTOM, "직접 선택"),
 )
 #: 화면의 보기 기준(조건이 아니다). API 는 나머지 묶음도 그대로 받는다(호환).
 VIEWS = ((usage.GROUP_ACTION, "기능"), (usage.GROUP_USER, "사용자"), (usage.GROUP_DEPARTMENT, "부서"),
@@ -63,7 +63,7 @@ def _range(request: Request, start: date | None, end: date | None) -> tuple[date
     end = end or _today(request)
     start = start or end - timedelta(days=DEFAULT_DAYS - 1)
     if start > end:
-        raise ValidationAppError("시작 날짜가 끝 날짜보다 늦습니다.")
+        raise ValidationAppError("시작일이 종료일보다 늦습니다. 기간을 다시 선택하세요.")
     if (end - start).days + 1 > usage.MAX_RANGE_DAYS:
         raise ValidationAppError(f"한 번에 {usage.MAX_RANGE_DAYS}일까지 볼 수 있습니다.")
     return start, end

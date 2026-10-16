@@ -76,7 +76,7 @@ export function Ticket() {
   const trash = useMutation({
     mutationFn: () => api("/api/tickets/" + id + "/trash", { method: "POST" }),
     onSuccess: () => {
-      toast("티켓을 휴지통으로 옮겼습니다.", "success");
+      toast("티켓을 휴지통으로 보냈습니다.", "success");
       // 티켓을 그리는 질의 키는 ticket-views.js 한 곳이 안다(홈·스프린트도 이 티켓을 세고 있다).
       invalidateTicketViews(qc, { refetchType: "all" });
       qc.invalidateQueries({ queryKey: ["trash"], refetchType: "all" });

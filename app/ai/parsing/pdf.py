@@ -53,12 +53,12 @@ def parse(path: Path) -> ParseResult:
         if getattr(reader, "is_encrypted", False):
             # 빈 결과로 접지 않는다. 「암호가 걸렸다」는 운영자가 고칠 수 있는 사실이다.
             return failure(
-                PARSE_FAILED, parser=PARSER_NAME, detail="암호가 걸린 PDF 입니다."
+                PARSE_FAILED, parser=PARSER_NAME, detail="암호가 걸린 PDF입니다."
             )
         pages = list(reader.pages)[:MAX_PAGES]
     except Exception:  # noqa: BLE001 - 깨진 파일 하나가 레인을 죽이지 않는다
         logger.exception("PDF 를 열지 못했다")
-        return failure(PARSE_FAILED, parser=PARSER_NAME, detail="PDF 를 읽지 못했습니다.")
+        return failure(PARSE_FAILED, parser=PARSER_NAME, detail="PDF를 읽지 못했습니다.")
 
     units = []
     for number, page in enumerate(pages, start=1):

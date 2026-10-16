@@ -145,7 +145,7 @@ def _ensure_real_date(value: str, label: str) -> str:
     try:
         _date.fromisoformat(value)
     except ValueError:
-        raise ValueError(f"{label}에 없는 날짜입니다: {value}") from None
+        raise ValueError(f"{label}의 날짜가 달력에 없습니다: {value}") from None
     return value
 
 

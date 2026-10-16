@@ -313,13 +313,13 @@ def _dns_check(names: list[str], bind_ip: str, resolvers: list[str]) -> tuple[di
         message = (f"이 서버의 hosts 항목이 {_obj(host)} 이 서버 자신({', '.join(first['answers'])})으로 풉니다. "
                    "다른 컴퓨터가 보는 사내 DNS 답은 이 점검이 보지 못하므로 따로 확인하세요.")
     elif first["state"] == "ok":
-        message = f"이 서버가 쓰는 DNS 가 {_obj(host)} 이 서버 주소({bind_ip})로 풉니다."
+        message = f"이 서버가 쓰는 DNS가 {_obj(host)} 이 서버 주소({bind_ip})로 풉니다."
     elif first["error"] in ("nxdomain", "noanswer"):
-        message = f"이 서버가 쓰는 DNS 에 {_subj(host)} 없습니다. DNS 담당자가 이름을 넣어야 사내에서 이 주소로 열립니다."
+        message = f"이 서버가 쓰는 DNS에 {_subj(host)} 없습니다. DNS 담당자가 이름을 넣어야 사내에서 이 주소로 열립니다."
     elif first["error"]:
         message = f"{_subj(host)} 어느 주소로 풀리는지 DNS 답을 받지 못했습니다."
     else:
-        message = (f"이 서버가 쓰는 DNS 가 {_obj(host)} 다른 주소({', '.join(first['answers'])})로 풉니다. "
+        message = (f"이 서버가 쓰는 DNS가 {_obj(host)} 다른 주소({', '.join(first['answers'])})로 풉니다. "
                    "앞단 프록시를 거쳐 들어오는 구성이면 정상입니다.")
     others = [r["name"] for r in rows[1:] if r["state"] != "ok"]
     if others:
@@ -355,7 +355,7 @@ def _web_check(runner: Runner, names: list[str], bind_ip: str) -> tuple[dict, li
                 "message": "웹 서버 설정 틀이 옛 버전입니다. 제품을 먼저 업그레이드하세요."}, []
     if not runner.exists(df.SITE_ENABLED):
         return {**base, "state": "fail", "technical": df.SITE_ENABLED,
-                "message": "이 제품의 웹 서버 설정이 켜져 있지 않습니다. 설치기로 다시 설치하세요."}, []
+                "message": "이 제품의 웹 서버 설정이 활성화되어 있지 않습니다. 설치기로 다시 설치하세요."}, []
     dump = runner.run([NGINX, "-T"], timeout=30)
     if not dump.ok:
         return {**base, "state": "unknown", "technical": (dump.stderr or "").strip()[-300:] or None,
@@ -369,11 +369,11 @@ def _web_check(runner: Runner, names: list[str], bind_ip: str) -> tuple[dict, li
     listening = _listening_443(runner, bind_ip)
     if listening is False:
         return {**base, "state": "fail", "technical": f"{bind_ip}:443",
-                "message": f"웹 서버가 {bind_ip}:443 에서 요청을 받지 않습니다."}, server_names
+                "message": f"웹 서버가 {bind_ip}:443에서 요청을 받지 않습니다."}, server_names
     missing = [n for n in names if n not in server_names]
     if missing:
         return {**base, "state": "warn", "technical": " ".join(server_names) or None,
-                "message": f"웹 서버 설정에 {_subj(_names_text(missing))} 아직 없습니다. 적용하면 더합니다."}, server_names
+                "message": f"웹 서버 설정에 {_subj(_names_text(missing))} 아직 없습니다. 적용하면 추가합니다."}, server_names
     return {**base, "state": "ok", "technical": " ".join(server_names),
             "message": "웹 서버가 이 이름들로 들어오는 요청을 받습니다."}, server_names
 
@@ -405,7 +405,7 @@ def _impact(state: dict, host: str, aliases: list[str]) -> list[str]:
             out.append(f"옛 주소 {_topic(current)} 함께 쓰는 주소로 남아 그대로 열립니다.")
         else:
             out.append(f"옛 주소 {_topic(current)} 더 이상 열리지 않습니다. 함께 쓰는 주소에 넣으면 계속 열 수 있습니다.")
-    out.append("사내 DNS 와 공개 DNS 는 바뀌지 않습니다. 이름을 넣거나 빼는 일은 DNS 담당자가 합니다.")
+    out.append("사내 DNS와 공개 DNS는 바뀌지 않습니다. 이름을 넣거나 빼는 일은 DNS 담당자가 합니다.")
     return out
 
 
@@ -426,7 +426,7 @@ def _perform_preview(runner: Runner, params: dict) -> ActionOutcome:
     except Exception as exc:  # noqa: BLE001 - 조회기를 못 만들어도(해석기 설정 없음) 나머지 확인은 준다
         logger.warning("DNS 확인을 하지 못했습니다: %s", exc.__class__.__name__)
         dns_check = {"key": "dns", "label": CHECK_LABELS["dns"], "state": "unknown",
-                     "message": "DNS 를 확인하지 못했습니다.", "technical": exc.__class__.__name__}
+                     "message": "DNS를 확인하지 못했습니다.", "technical": exc.__class__.__name__}
         dns = {"system": [], "compare": []}
     checks = [dns_check, _https_check(cert, names), web, _app_check(state, host)]
     data = {
@@ -572,7 +572,7 @@ def _restart_backends(runner: Runner) -> list[dict]:
         before = (runner.run([SYSTEMCTL, "is-active", unit]).stdout or "").strip()
         if before != "active":
             rows.append({"unit": unit, "label": label, "ok": True, "skipped": True,
-                         "detail": "꺼져 있어 다시 시작하지 않았습니다."})
+                         "detail": "동작하고 있지 않아 다시 시작하지 않았습니다."})
             continue
         got = runner.run([SYSTEMCTL, "restart", unit], timeout=UNIT_RESTART_TIMEOUT)
         after = (runner.run([SYSTEMCTL, "is-active", unit]).stdout or "").strip()
@@ -626,7 +626,7 @@ def _perform_apply(runner: Runner, params: dict) -> ActionOutcome:
     except ValueError:
         return _fail(steps, "validate", "웹 서버 설정 틀이 옛 버전입니다. 제품을 먼저 업그레이드하세요.", technical=df.TEMPLATE_FILE)
     if not runner.exists(df.SITE_ENABLED):
-        return _fail(steps, "validate", "이 제품의 웹 서버 설정이 켜져 있지 않습니다. 설치기로 다시 설치하세요.")
+        return _fail(steps, "validate", "이 제품의 웹 서버 설정이 활성화되어 있지 않습니다. 설치기로 다시 설치하세요.")
     dump = runner.run([NGINX, "-T"], timeout=30)
     if dump.ok:
         conflicts = df.name_conflicts(dump.stdout, names)

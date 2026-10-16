@@ -65,9 +65,10 @@ def _copy(db: Session, from_role: str, to_role: str, *, limit: int | None) -> di
     source = service.active_provider(db, role=from_role)
     target = service.active_provider(db, role=to_role)
     if source is None or target is None:
-        raise ArchiveNotPossible(
-            f"저장소가 없습니다(원본 {from_role}={bool(source)}, 대상 {to_role}={bool(target)})."
-        )
+        # 어느 쪽이 없는지 사람 말로 — 예전에는 역할 코드와 True/False 가 백업 경고에 그대로 섰다(r23 문구 대장).
+        names = {ROLE_OPERATIONAL: "운영 파일 저장소", ROLE_BACKUP: "백업 저장소"}
+        missing = [names.get(role, role) for role, prov in ((from_role, source), (to_role, target)) if prov is None]
+        raise ArchiveNotPossible(f"활성화된 {', '.join(missing)}가 없습니다. 파일 저장소 화면에서 확인하세요.")
     if source.id == target.id:
         raise ArchiveNotPossible("원본과 대상이 같은 저장소입니다.")
 

@@ -281,7 +281,7 @@ _MY_WORK_TITLES = {
     "due_this_week": "이번 주 마감 티켓 조회",
     "overdue": "마감 지난 티켓 조회",
 }
-_APPROVAL_TITLES = {"todo": "결재할 문서 확인", "requested": "올린 결재 확인", "done": "결재한 문서 확인"}
+_APPROVAL_TITLES = {"todo": "처리할 승인 요청 확인", "requested": "내가 올린 승인 요청 확인", "done": "처리한 승인 요청 확인"}
 
 
 def _name(value) -> str:
@@ -300,7 +300,7 @@ def intent_title(executions) -> str | None:
         args = getattr(execution, "args", None) or {}
         query = _name(args.get("query"))
         if tool == "my_documents":
-            base = "내가 고친 문서" if args.get("view") == "edited" else "내 문서"
+            base = "내가 수정한 문서" if args.get("view") == "edited" else "내 문서"
             return _clip(f"{base} 중 {query} 검색" if query else f"{base} 조회", INTENT_TITLE_CHARS)
         if tool == "my_work":
             return _MY_WORK_TITLES.get(args.get("view"), "내 티켓 조회")
@@ -315,7 +315,7 @@ def intent_title(executions) -> str | None:
             return "내 프로젝트 조회" if args.get("scope") == "mine" else (
                 _clip(f"{query} 프로젝트 검색", INTENT_TITLE_CHARS) if query else "프로젝트 조회")
         if tool == "my_approvals":
-            return _APPROVAL_TITLES.get(args.get("box"), "결재함 확인")
+            return _APPROVAL_TITLES.get(args.get("box"), "승인 요청 확인")
         if tool == "my_notifications":
             return "안 읽은 알림 확인" if args.get("unread_only") else "알림 확인"
         if tool == "my_activity":

@@ -73,20 +73,20 @@ STATUS_UNSUPPORTED = "unsupported"
 
 #: 상태 → 화면에 그대로 실을 수 있는 한 줄. 「그래서 지금 무엇을 보고 있는가」로 끝난다.
 NOTICES: dict[str, str] = {
-    STATUS_DISABLED: "AI 기능이 꺼져 있습니다.",
+    STATUS_DISABLED: "AI 기능이 비활성화되어 있습니다. 관리자에게 알려 주세요.",
     STATUS_CREDENTIAL_ERROR: "AI 연결이 끊겨 있습니다. 관리자에게 알려 주세요.",
     STATUS_DEGRADED: "AI 연결이 잠시 불안정합니다. 잠시 뒤 다시 시도해 주세요.",
-    STATUS_TIMEOUT: "AI 응답이 제한 시간 안에 끝나지 않았습니다.",
-    STATUS_BUSY: "다른 AI 작업이 진행 중입니다.",
-    STATUS_UNCONFIGURED: "AI 모델이 아직 설정되지 않았습니다.",
-    STATUS_EMPTY: "AI 응답이 비어 있습니다.",
-    STATUS_FAILED: "AI 응답을 만들지 못했습니다.",
-    STATUS_RUNTIME_MISSING: "서버에 AI 실행 환경이 설치되어 있지 않습니다.",
-    STATUS_MODEL_MISSING: "서버에 AI 모델 파일이 없습니다.",
-    STATUS_UNSUPPORTED: "이 기능을 하는 AI 어댑터가 없습니다.",
+    STATUS_TIMEOUT: "AI 응답이 제한 시간 안에 끝나지 않았습니다. 잠시 뒤 다시 시도해 주세요.",
+    STATUS_BUSY: "다른 AI 작업이 진행 중입니다. 잠시 뒤 다시 시도해 주세요.",
+    STATUS_UNCONFIGURED: "AI 모델이 아직 설정되지 않았습니다. 관리자에게 알려 주세요.",
+    STATUS_EMPTY: "AI 응답이 비어 있습니다. 다시 시도해 주세요.",
+    STATUS_FAILED: "AI 응답을 만들지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+    STATUS_RUNTIME_MISSING: "서버에 AI 실행 환경이 설치되어 있지 않습니다. 관리자에게 알려 주세요.",
+    STATUS_MODEL_MISSING: "서버에 AI 모델 파일이 없습니다. 관리자에게 알려 주세요.",
+    STATUS_UNSUPPORTED: "이 기능을 지원하는 AI 연결이 없습니다.",
 }
 
-FALLBACK_NOTICE = "AI 기능을 쓸 수 없습니다."
+FALLBACK_NOTICE = "AI 기능을 쓸 수 없습니다. 관리자에게 알려 주세요."
 
 #: 실패의 기계 코드가 상태보다 더 정확히 말해 주는 경우(P3 ④). 같은 「미설정」 · 「일시 장애」 · 「시간 초과」라도 까닭이 다르면 다음 행동이
 #: 다르다 — 요금제 한도, 끊긴 계정 연결, 차단기가 열린 30초, 차례 예산. 코드는 런타임 · 제공자 어댑터가 적는 값이다.

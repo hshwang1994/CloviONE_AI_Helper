@@ -89,7 +89,7 @@ class LocalOnnxEmbedAdapter(contract.EmbedAdapter):
         if not self.runtime_available():
             return contract.unavailable(
                 contract.CAP_EMBED, contract.STATUS_RUNTIME_MISSING, model=self.model,
-                detail="설치 명령의 AI 단계를 다시 실행하십시오.",
+                detail="설치 명령의 AI 단계를 다시 실행하세요.",
             )
         missing = self.missing_files()
         if missing:

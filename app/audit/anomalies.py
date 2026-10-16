@@ -196,7 +196,7 @@ def detect(
         if night:
             findings.append(_finding(
                 "off_hours", SEVERITY_MEDIUM, actor_id,
-                "심야에 설정, 권한을 바꿨습니다",
+                "심야에 설정이나 권한을 바꿨습니다",
                 f"한국 시간 {OFF_HOURS_START}시~{OFF_HOURS_END}시 사이에 {len(night)}건입니다.",
                 count=len(night), threshold=1,
                 evidence=[f"{e.action} @{e.created_at.replace(tzinfo=timezone.utc).astimezone(_KST):%m-%d %H:%M}" for e in night],
@@ -207,8 +207,8 @@ def detect(
         if critical:
             findings.append(_finding(
                 "critical_action", SEVERITY_HIGH, actor_id,
-                "권한, 계정에 관한 동작이 있었습니다",
-                "역할 변경, 임퍼소네이션, 승인 위임, 기능 플래그는 한 건이라도 확인 대상입니다.",
+                "권한이나 계정에 관한 동작이 있었습니다",
+                "역할 변경, 대리 보기, 승인 위임, 기능 플래그는 한 건이라도 확인 대상입니다.",
                 count=len(critical), threshold=1,
                 evidence=[f"{e.action} → {e.object_type}/{e.object_id or '-'}" for e in critical],
                 first_at=critical[0].created_at, last_at=critical[-1].created_at,
@@ -260,7 +260,7 @@ def detect(
                 findings.append(_finding(
                     RULE_NEW_ACTOR_ACTION, SEVERITY_LOW, actor_id,
                     "이 계정이 처음 하는 동작입니다",
-                    f"최근 {BASELINE_DAYS}일 동안 이 계정이 한 적 없던 설정, 권한 관련 동작입니다.",
+                    f"최근 {BASELINE_DAYS}일 동안 이 계정이 한 적 없던 설정이나 권한 관련 동작입니다.",
                     # UA-27: sensitive_fresh는 **동작 종류**(집합, 중복 제거)라 count에 그 길이를
                     # 쓰면 실제 발생 건수가 아니라 종류 수가 된다 — 같은 새 동작을 5번 해도
                     # 화면의 "건수" 열엔 1이 뜬다. 형제 소견 4종은 전부 원시 이벤트 목록의

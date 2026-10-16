@@ -366,7 +366,7 @@ def create_item(
     if not scope_allows_item(scope, row):
         label = label_for(model)
         raise ForbiddenError(
-            f"관리 범위 밖에는 {label}{object_particle(label)} 만들 수 없습니다."
+            f"관리 범위 밖에는 {label}{object_particle(label)} 추가할 수 없습니다."
         )
     return row
 
@@ -389,7 +389,7 @@ def update_item(
     """
     if name is not _UNSET:
         if name is None:
-            raise ValidationAppError("이름을 비워둘 수 없습니다.")
+            raise ValidationAppError("이름을 비워 둘 수 없습니다.")
         clean = normalize_name(name)
         # UA-12: create_item과 같은 이유로 모델별 실제 제약 범위를 따른다 — Department만
         # 조직 안에서 본다(JobTitle은 전역 유니크라 org_id로 좁히면 안 된다).
@@ -606,12 +606,12 @@ def _blocked_message(blocking: dict[str, int], archived: dict[str, int]) -> str:
         names = ", ".join(
             f"{_ARCHIVED_LABELS[k][0]} {v}{_ARCHIVED_LABELS[k][1]}" for k, v in archived.items()
         )
-        hidden = f" 그중 {names}{topic_particle(names)} 목록에 보이지 않으니 보관함을 함께 확인해 주세요."
+        hidden = f" 그중 {names}{topic_particle(names)} 목록에 보이지 않으니 보관된 항목도 함께 확인해 주세요."
     return (
         # 조사는 앞 조각의 끝 글자 받침으로 고른다 — 「N개」로 끝나면 「가」, 「N명」 · 「N건」이면 「이」다(「이(가)」 같은
         # 괄호 표기를 쓰지 않는다 — 화면 문구는 완전한 한 문장이어야 한다, CLAUDE.md §10).
         f"이 부서에 {parts}{subject_particle(parts)} 연결되어 있어 삭제할 수 없습니다.{hidden}"
-        " 먼저 다른 부서로 옮기거나, '비활성'으로 두면 새로 고를 수는 없지만 기존 연결은"
+        " 먼저 연결된 항목을 다른 부서로 옮기세요. 또는 '비활성'으로 두면 새로 고를 수는 없지만 기존 연결은"
         " 그대로 유지됩니다."
     )
 
@@ -894,7 +894,7 @@ def resolve_by_name_or_error(db: Session, model: type[OrgModel], name: str | Non
     if row is None:
         available = [r.name for r in list_items(db, model, active=True)]
         hint = ", ".join(available) if available else "(등록된 항목 없음)"
-        raise ValidationAppError(f"알 수 없는 {label}입니다: {clean}: 등록된 {label}: {hint}")
+        raise ValidationAppError(f"알 수 없는 {label}입니다: {clean}. 등록된 {label}: {hint}")
     if not row.active:
         raise ValidationAppError(
             f"비활성 {label}{topic_particle(label)} 새로 지정할 수 없습니다: {clean}"

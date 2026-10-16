@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """Approval workflow (spec §20): gates, decisions, self-approval ban, expiry,
 exactly-once payload replay."""
 
@@ -277,7 +278,7 @@ def test_notification_title_uses_korean_label_not_raw_request_type(
     assert requested
     for n in requested:
         assert "schedule.enable" not in n.title, n.title
-        assert "스케줄 활성화" in n.title, n.title
+        assert "실행 일정 활성화" in n.title, n.title
 
 
 def test_list_rejects_unknown_status_instead_of_silently_returning_zero(client, login_as):
@@ -457,7 +458,7 @@ def test_request_notification_body_uses_the_korean_object_label(
     assert bodies
     for body in bodies:
         assert "schedule" not in body, f"내부 object_type 이 알림 본문에 그대로 있다: {body}"
-        assert "스케줄 변경 승인을 요청했습니다" in body, body
+        assert "실행 일정 변경 승인을 요청했습니다" in body, body
 
 
 def test_on_behalf_of_shows_the_delegators_name(client, login_as, db, make_user, fake_clock):
@@ -687,7 +688,7 @@ def test_decision_lock_timeout_is_a_conflict_in_any_server_locale(message):
     session = _RaisingSession(_pg_error(message, "55P03"))
     with pytest.raises(ConflictError) as caught:
         lock_for_decision(session, Approval(id="appr-locale-1"))
-    assert "다른 관리자가 이 요청을 결재하고 있습니다" in str(caught.value.message)
+    assert "다른 관리자가 이 요청을 처리하고 있습니다" in str(caught.value.message)
 
 
 def test_a_non_conflict_error_whose_text_contains_lock_is_not_swallowed():
@@ -713,7 +714,7 @@ def test_delegator_lock_timeout_is_a_conflict_in_any_server_locale(message):
     session = _RaisingSession(_pg_error(message, "55P03"))
     with pytest.raises(ConflictError) as caught:
         _lock_delegator(session, "user-locale-1")
-    assert "같은 사람의 위임이 동시에 등록되고 있습니다" in str(caught.value.message)
+    assert "같은 사람의 위임이 동시에 추가되고 있습니다" in str(caught.value.message)
 
 
 def test_delegator_lock_does_not_swallow_a_schema_error_that_mentions_lock():

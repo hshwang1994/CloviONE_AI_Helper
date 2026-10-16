@@ -60,7 +60,7 @@ OBJECT_LABELS: dict[str, str] = {
     "document_comment": "문서 댓글",
     # 0027. 새 문서가 시작할 틀. 「문서」와 다른 이름인 이유는 감사 화면의 「관련 항목」
     # 링크가 가리키는 표가 다르기 때문이다 — 한 이름으로 뭉치면 그 링크가 안 열린다.
-    "document_template": "문서 템플릿",
+    "document_template": "문서 틀",
     "document_sync": "문서 동기화",
     # 강제 재동기화/재색인 트리거(C7). 운영자가 지금 당장 다시 동기화/색인하라고 누른 경로다.
     "ticket_sync": "티켓 동기화",
@@ -76,7 +76,7 @@ OBJECT_LABELS: dict[str, str] = {
     # (page id 를 object_id 로 쓴다)이고, 이쪽은 자체 표의 티켓(uuid)이다. 한 이름으로
     # 뭉치면 감사 화면의 「관련 항목」 링크가 어느 축인지 몰라 절반이 안 열린다.
     "ticket": "티켓",
-    "sprint": "스프린트",
+    "sprint": "회차",
     # S7. 공간은 **권한 경계**라 감사 화면에서 프로젝트·부서와 같은 급으로 읽혀야 한다.
     "knowledge_space": "지식 공간",
     # S8. 첨부를 붙이고 떼는 기록은 **문서**에 달린다 — 파일이 아니다. 감사 화면에서
@@ -211,7 +211,7 @@ ACTION_SENTENCES: dict[str, str] = {
     "setup.first_admin_locked": "첫 관리자 추가 경로를 잠갔습니다",
     "profile.avatar.update": "프로필 사진을 바꿨습니다",
     "profile.avatar.delete": "프로필 사진을 삭제했습니다",
-    "profile.preferences.update": "알림, 방해금지 설정을 바꿨습니다",
+    "profile.preferences.update": "알림과 방해금지 설정을 바꿨습니다",
     "profile.sessions.revoke_others": "내 다른 기기의 로그인을 모두 해제했습니다",
     "profile.sessions.revoke": "다른 기기의 로그인을 해제했습니다",
     "profile.notify_email.requested": "알림 받을 메일 주소 확인을 요청했습니다",

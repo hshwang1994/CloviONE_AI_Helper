@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """티켓 목록의 날짜 조건이 틀리면 **422** 다 — 서버 오류(500)가 아니다.
 
 🔴 이 파일이 생긴 이유(2026-09-21): `GET /api/tickets/team?created_from=2026-02-31` 가 500 `internal_error` 였다.
@@ -20,8 +21,8 @@ def admin(db, make_user, settings):
 @pytest.mark.parametrize(
     "query,needle",
     [
-        ("created_from=2026-02-31", "없는 날짜"),
-        ("created_to=2026-13-01", "없는 날짜"),
+        ("created_from=2026-02-31", "날짜가 달력에 없습니다"),
+        ("created_to=2026-13-01", "날짜가 달력에 없습니다"),
         ("created_from=2026/02/01", "YYYY-MM-DD"),
     ],
 )

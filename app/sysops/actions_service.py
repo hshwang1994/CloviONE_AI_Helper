@@ -45,6 +45,8 @@ MANAGED_UNITS = (
 )
 SELF_UNIT = product.WEB_UNIT
 CONTROL_VERBS = ("start", "stop", "restart", "reload")
+# 결과 문장에 쓰는 동작 이름 — systemctl 의 영어 동사를 그대로 넣으면 「restart 했습니다」가 화면에 섰다(r23 문구 대장).
+CONTROL_VERB_KO = {"start": "시작", "stop": "중지", "restart": "다시 시작", "reload": "설정 다시 읽기"}
 
 # SYS-01: 예전엔 이 넷이 `/etc/ssl/clovirone/…` 로 하드코딩돼 있었는데, nginx 는
 # deploy/install.sh 가 만든 `$ETC_DIR/tls/$DNS_NAME.{crt,key}` 만 읽는다
@@ -277,14 +279,14 @@ def _perform_service(runner: Runner, params: dict) -> ActionOutcome:
     unit, verb = params["unit"], params["verb"]
     got = runner.run([SYSTEMCTL, verb, unit], timeout=60)
     if not got.ok:
-        return ActionOutcome(ok=False, detail=f"{unit} {verb} 에 실패했습니다: {got.stderr.strip()}")
+        return ActionOutcome(ok=False, detail=f"{unit} {CONTROL_VERB_KO.get(verb, verb)}에 실패했습니다: {got.stderr.strip()}")
 
     if verb == "stop":
         state = runner.run([SYSTEMCTL, "is-active", unit]).stdout.strip()
         ok = state != "active"
         return ActionOutcome(
             ok=ok,
-            detail=f"{unit} 를 중지했습니다." if ok else f"{unit} 가 여전히 실행 중입니다.",
+            detail=f"{unit}를 중지했습니다." if ok else f"{unit}가 여전히 실행 중입니다.",
             changed=ok, data={"unit": unit, "state": state},
         )
 
@@ -295,11 +297,11 @@ def _perform_service(runner: Runner, params: dict) -> ActionOutcome:
         # "재시작했습니다" 라고 말해 놓고 서비스가 꺼져 있는 상태가 된다.
         return ActionOutcome(
             ok=False,
-            detail=f"{unit} 가 다시 살아나지 않았습니다(현재 {state or '알 수 없음'}).",
+            detail=f"{unit}가 다시 시작되지 않았습니다(현재 {state or '알 수 없음'}).",
             data={"unit": unit, "state": state},
         )
     return ActionOutcome(
-        ok=True, detail=f"{unit} 를 {verb} 했습니다.", changed=True,
+        ok=True, detail=f"{unit}를 {CONTROL_VERB_KO.get(verb, verb)}했습니다.", changed=True,
         data={"unit": unit, "state": state},
     )
 
@@ -321,10 +323,10 @@ def _pem(value: object, *, kind: str) -> str:
         raise v.InvalidSysopsValueError(f"{kind} 내용이 비어 있습니다.")
     text = value.strip() + "\n"
     if len(text) > 64 * 1024:
-        raise v.InvalidSysopsValueError(f"{kind} 가 너무 큽니다.")
+        raise v.InvalidSysopsValueError(f"{kind}가 너무 큽니다.")
     if "-----BEGIN" not in text or "-----END" not in text:
         # 값 자체는 절대 되돌려 주지 않는다 (개인키일 수 있다).
-        raise v.InvalidSysopsValueError(f"{kind} 가 PEM 형식이 아닙니다.")
+        raise v.InvalidSysopsValueError(f"{kind}가 PEM 형식이 아닙니다.")
     return text
 
 
@@ -392,16 +394,16 @@ def _perform_cert(runner: Runner, params: dict) -> ActionOutcome:
     checked = runner.run([NGINX, "-t"], timeout=30)
     if not checked.ok:
         # 엔진이 백업본으로 되돌린다. 되돌린 뒤 다시 검사해야 "되돌렸다" 가 사실이 된다.
-        return ActionOutcome(ok=False, detail=f"nginx 설정 검사에 실패했습니다: {checked.stderr.strip()[:300]}")
+        return ActionOutcome(ok=False, detail=f"웹 서버 설정 검사에 실패했습니다: {checked.stderr.strip()[:300]}")
 
     reloaded = runner.run([SYSTEMCTL, "reload", "nginx.service"], timeout=30)
     if not reloaded.ok:
-        return ActionOutcome(ok=False, detail=f"nginx 를 다시 읽지 못했습니다: {reloaded.stderr.strip()[:300]}")
+        return ActionOutcome(ok=False, detail=f"웹 서버가 설정을 다시 읽지 못했습니다: {reloaded.stderr.strip()[:300]}")
 
     subject = _value(runner, [OPENSSL, "x509", "-noout", "-subject", "-in", cert_path])
     not_after = _value(runner, [OPENSSL, "x509", "-noout", "-enddate", "-in", cert_path])
     return ActionOutcome(
-        ok=True, detail="인증서를 교체하고 nginx 를 다시 읽었습니다.", changed=True,
+        ok=True, detail="인증서를 교체하고 웹 서버가 설정을 다시 읽게 했습니다.", changed=True,
         data={"subject": subject, "not_after": not_after},
     )
 

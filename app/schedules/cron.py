@@ -24,14 +24,14 @@ def validate_timezone(tz_name: str) -> None:
     try:
         ZoneInfo(tz_name)
     except (ZoneInfoNotFoundError, ValueError):
-        raise ValidationAppError(f"알 수 없는 timezone입니다: {tz_name}") from None
+        raise ValidationAppError(f"알 수 없는 시간대입니다: {tz_name}") from None
 
 
 def validate_cron(expression: str) -> None:
     try:
         CronSim(expression, datetime(2026, 1, 1, tzinfo=timezone.utc))
     except CronSimError as exc:
-        raise ValidationAppError(f"Cron 표현식이 올바르지 않습니다: {exc}") from None
+        raise ValidationAppError(f"Cron 식이 올바르지 않습니다: {exc}") from None
 
 
 def next_after(expression: str, tz_name: str, after_utc: datetime) -> datetime:
@@ -42,5 +42,5 @@ def next_after(expression: str, tz_name: str, after_utc: datetime) -> datetime:
         iterator = CronSim(expression, local)
         fire_local = next(iterator)
     except CronSimError as exc:
-        raise ValidationAppError(f"Cron 표현식이 올바르지 않습니다: {exc}") from None
+        raise ValidationAppError(f"Cron 식이 올바르지 않습니다: {exc}") from None
     return fire_local.astimezone(timezone.utc).replace(tzinfo=None)

@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """역할 설명은 **권한 표에서 계산된다** (지시 19).
 
 ## 왜 시험이 필요한가
@@ -73,7 +74,7 @@ def test_backup_and_system_settings_belong_to_the_system_admin_alone():
     관리자에게 이 능력이 있다고 적히면, 서버가 막는 일을 화면이 권한다.
     """
     rows = _by_role()
-    for label in ("백업 생성, 검증, 복구 안내",):
+    for label in ("백업 실행, 검증, 복구 안내",):
         assert label in rows["system_admin"]["can"]
         assert label not in rows["admin"]["can"]
         assert label not in rows["operator"]["can"]

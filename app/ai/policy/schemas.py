@@ -55,7 +55,7 @@ class ApprovalRules(_Rules):
     def _roles(cls, value: list[str]) -> list[str]:
         unknown = [r for r in value if r not in APPROVABLE_ROLES]
         if unknown:
-            raise ValueError("승인 없이 저장할 수 있는 역할에 모르는 값이 있습니다.")
+            raise ValueError("승인 없이 저장할 수 있는 역할에 알 수 없는 값이 있습니다.")
         return sorted(set(value), key=APPROVABLE_ROLES.index)
 
 

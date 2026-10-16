@@ -61,9 +61,9 @@ class TenantSetting:
 TENANT_SETTINGS: tuple[TenantSetting, ...] = (
     TenantSetting(
         key="allowed_email_domains",
-        label="계정 생성 허용 도메인",
+        label="계정 추가 허용 도메인",
         env_var="ALLOWED_EMAIL_DOMAINS",
-        when_unset="새 계정을 만들 때 이메일 도메인을 제한하지 않습니다. 기존 사용자의 로그인은 영향받지 않습니다.",
+        when_unset="새 계정을 추가할 때 이메일 도메인을 제한하지 않습니다. 기존 사용자의 로그인은 영향받지 않습니다.",
     ),
 )
 

@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """나머지 네 가지 조용한 사건 (§E-6 N2).
 
 감사 확인: 아래 네 사건에 화면 알림이 0건이었다.
@@ -399,7 +400,7 @@ def test_disabled_schedule_gets_a_reason(app):
         reason = backups_service.backup_health_alert_reason(
             session, {"enabled": False}, now=app.state.clock.now()
         )
-    assert reason is not None and "꺼져" in reason
+    assert reason is not None and "비활성화" in reason
 
 
 def test_enabled_but_never_run_gets_a_reason(app):

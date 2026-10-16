@@ -28,7 +28,7 @@ from app.core.secret_slots import get_slot, normalize_value
 class SecretHelperRefusedError(AppError):
     status_code = 422
     code = "secret_write_refused"
-    default_message = "비밀 값을 저장하지 못했습니다."
+    default_message = "비밀 값을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
 
 
 class SecretStore:
@@ -86,7 +86,7 @@ class SecretStore:
     def _check(reply) -> bool:
         if not reply.available:
             raise SecretDirNotWritableError(
-                "비밀 값을 저장할 도우미(clovirassist-privhelper)에 연결하지 못했습니다. "
+                "비밀 값을 저장할 도우미(clovirassist-privhelper)에 연결하지 못했습니다. 서버에서 이 서비스가 도는지 확인하세요. "
                 + reply.detail
             )
         if not reply.ok:

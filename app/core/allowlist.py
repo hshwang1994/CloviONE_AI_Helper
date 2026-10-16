@@ -41,7 +41,7 @@ class Allowlist:
     def check(self, url: str) -> None:
         parsed = urlsplit(url)
         if parsed.scheme not in ("http", "https"):
-            raise URLNotAllowedError("URL Scheme은 http 또는 https만 허용됩니다.")
+            raise URLNotAllowedError("URL은 http 또는 https로 시작해야 합니다.")
         if parsed.username is not None or parsed.password is not None:
             raise URLNotAllowedError("URL에 인증 정보를 포함할 수 없습니다.")
         host = (parsed.hostname or "").lower()

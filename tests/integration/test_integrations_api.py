@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -126,7 +127,7 @@ def test_integration_config_approval_rejects_stale_config(client, login_as, admi
         f"/api/admin/approvals/{approval_id}/approve", headers=_headers(admin_csrf)
     )
     assert approve.status_code == 409
-    assert "stale" in approve.json()["error"]["message"]
+    assert "요청 뒤 외부 연동 설정이 수정되어" in approve.json()["error"]["message"]
 
     detail = client.get(
         f"/api/admin/integrations/{created['id']}", headers=_headers(admin_csrf)

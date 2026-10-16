@@ -97,7 +97,7 @@ def _partial_verify_note(reason: str | None) -> str:
 
 def _friendly_backup_failure(exc: Exception) -> str:
     return (
-        "백업 생성 중 오류가 발생했습니다. 디스크 용량/권한을 확인하거나 "
+        "백업 중 오류가 발생했습니다. 디스크 용량과 권한을 확인하거나 "
         "문제가 계속되면 관리자에게 문의하세요."
     )
 
@@ -338,7 +338,7 @@ def _archive_files(db: Session, warnings: list[str]) -> dict | None:
         return {"ok": False, "reason": str(exc)}
     except Exception as exc:
         logger.exception("파일 저장소 아카이브 실패")
-        warnings.append(f"업로드 파일 사본에 실패했습니다: {type(exc).__name__}")
+        warnings.append(f"업로드 파일 사본을 만들지 못했습니다: {type(exc).__name__}")
         return {"ok": False, "reason": type(exc).__name__}
 
 
@@ -352,13 +352,13 @@ def _copy_to_destination(
     except destination_mod.DestinationUnavailable as exc:
         # 「설정 안 함」은 이미 `backup_warnings` 가 말했다. 여기서 또 말하면 같은 문장이
         # 두 번 뜬다 — 준비 안 된 마운트만 새로 알린다.
-        message = f"백업 세트를 백업 저장소로 못 보냈습니다: {exc}"
+        message = f"백업 세트를 백업 저장소로 보내지 못했습니다: {exc}"
         if destination_mod.backup_provider(db) is not None and message not in warnings:
             warnings.append(message)
         return None
     except Exception as exc:
         logger.exception("백업 세트 사본 실패: %s", set_dir)
-        warnings.append(f"백업 세트 사본에 실패했습니다: {type(exc).__name__}")
+        warnings.append(f"백업 세트 사본을 만들지 못했습니다: {type(exc).__name__}")
         return {"ok": False, "reason": type(exc).__name__}
     if not result["ok"]:
         warnings.append(
@@ -707,16 +707,16 @@ def backup_health_alert_reason(db: Session, config: dict, *, now: datetime) -> s
         # 자리에 실제로 그 조작기가 있어야 한다(이제 백업 화면의 «백업 일정 설정» 이 그
         # 항목을 바로 연다 — `registry/platform.js`).
         return (
-            "예약 백업이 꺼져 있어 자동 백업이 되고 있지 않습니다. "
-            "백업 화면의 '백업 일정 설정'에서 예약을 켜거나, 정기적으로 수동 백업을 만드세요."
+            "예약 백업이 비활성화되어 있어 자동 백업이 되고 있지 않습니다. "
+            "백업 화면의 '백업 일정 설정'에서 예약을 활성화하거나, 정기적으로 수동 백업을 실행하세요."
         )
     last = last_successful_backup(db)
     if last is None:
-        return "예약 백업이 켜져 있지만 아직 성공한 백업이 하나도 없습니다."
+        return "예약 백업이 활성화되어 있지만 아직 성공한 백업이 하나도 없습니다."
     seconds_elapsed = (now - last.created_at).total_seconds()
     stale_days = seconds_elapsed / 86400
     if stale_days > BACKUP_STALE_ALERT_DAYS:
-        return f"마지막으로 성공한 백업이 {format_elapsed_korean(seconds_elapsed)} 전입니다. 예약이 켜져 있는데도 이렇게 오래됐다면 워커나 스케줄 설정을 확인하세요."
+        return f"마지막으로 성공한 백업이 {format_elapsed_korean(seconds_elapsed)} 전입니다. 예약이 활성화되어 있는데도 이렇게 오래됐다면 백그라운드 작업 처리와 백업 일정 설정을 확인하세요."
     return None
 
 

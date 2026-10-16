@@ -71,7 +71,7 @@ def generate_quiz(runtime, db, *, topic: str, count: int, num_options: int, acto
         if result.status in (contract.STATUS_UNCONFIGURED, contract.STATUS_DISABLED,
                              contract.STATUS_CREDENTIAL_ERROR):
             raise QuizGenerateError(
-                f"{result.notice or contract.FALLBACK_NOTICE} 관리자에게 문의하세요."
+                f"{result.notice or contract.FALLBACK_NOTICE}"
             )
         raise QuizGenerateError()
 

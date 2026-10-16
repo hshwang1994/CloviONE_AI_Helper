@@ -94,7 +94,7 @@ class OrganizationSuspendedError(AppError):
 
     status_code = 403
     code = "organization_suspended"
-    default_message = "소속 조직이 정지되어 있습니다. 관리자에게 문의하세요."
+    default_message = "소속 조직이 비활성화되어 있습니다. 관리자에게 문의하세요."
 
 
 class AccountArchivedError(AppError):
@@ -678,7 +678,7 @@ def change_password(
     if new_password == current_password:
         problems.append("새 비밀번호는 기존 비밀번호와 달라야 합니다.")
     if problems:
-        raise ValidationAppError("비밀번호 정책 위반", details=problems)
+        raise ValidationAppError("비밀번호가 정책에 맞지 않습니다.", details=problems)
 
     # Argon2id hashing is deliberately CPU-expensive — compute it once outside the
     # retry loop below, not on every attempt.

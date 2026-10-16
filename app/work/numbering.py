@@ -46,7 +46,7 @@ def allocate(db: Session, project_id: str) -> int:
         raise NotFoundError("프로젝트를 찾을 수 없습니다.")
     if not project.code:
         raise ConflictError(
-            "프로젝트 키가 아직 없어서 티켓 번호를 만들 수 없습니다. 프로젝트 키를 먼저 정해 주세요."
+            "프로젝트 코드가 아직 없어서 티켓 번호를 만들 수 없습니다. 프로젝트 코드를 먼저 정해 주세요."
         )
 
     db.execute(sa_text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT_MS}ms'"))

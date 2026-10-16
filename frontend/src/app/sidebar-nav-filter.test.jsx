@@ -9,6 +9,7 @@ import "@testing-library/jest-dom/vitest";
 /* PA-RC-0017 acceptance_criteria 7: "레일 필터에 두 글자를 입력하면 목적지가 좁혀진다."
  * constraints: "사용자 콘솔 내비는 건드리지 않는다(이미 정상이다)" — 그래서 필터 입력 자체가
  * 관리자 셸에만 있어야 한다는 것도 이 파일이 지킨다.
+ * qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(「'…'와 맞는」 → 「'…'에 맞는」). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
  */
 
 const apiMock = vi.fn();
@@ -86,7 +87,7 @@ describe("사이드바 내비 필터 (PA-RC-0017)", () => {
     renderShell({ nav: NAV, isUser: false });
     const input = await screen.findByRole("textbox", { name: "메뉴 찾기" });
     await user.type(input, "존재하지않는메뉴명");
-    expect(await screen.findByText(/와 맞는 메뉴가 없습니다/)).toBeInTheDocument();
+    expect(await screen.findByText(/에 맞는 메뉴가 없습니다/)).toBeInTheDocument();
   });
 
   it("지우면 원래 메뉴 전체로 돌아온다", async () => {

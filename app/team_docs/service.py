@@ -82,14 +82,14 @@ def ensure_can_delete_doc(doc: DocumentCache, user: User, db: Session | None = N
         mine = my_notion_id(db, user)
         if mine and mine in author_ids:
             return
-        raise ForbiddenError("이 문서를 삭제할 권한이 없습니다(작성자 또는 운영자만 가능).")
+        raise ForbiddenError("이 문서는 작성자나 운영자, 관리자, 시스템 관리자만 삭제할 수 있습니다.")
 
     # 폴백 — 아직 동기화가 id 를 채우지 않은 행.
     name = (user.display_name or "").strip()
     authors = {a.strip() for a in split_names(doc.author_names or "")}
     if name and (name in authors or name == (doc.owner or "").strip()):
         return
-    raise ForbiddenError("이 문서를 삭제할 권한이 없습니다(작성자 또는 운영자만 가능).")
+    raise ForbiddenError("이 문서는 작성자나 운영자, 관리자, 시스템 관리자만 삭제할 수 있습니다.")
 
 
 def doc_in_scope(db: Session, doc, viewer, *, ctx: "VisibilityContext | None" = None) -> bool:
@@ -189,7 +189,7 @@ def set_doc_restricted(db: Session, *, user: User, page_id: str, restricted: boo
     if doc is None:
         raise NotFoundError("문서를 찾을 수 없습니다.")
     if user.role not in MODERATOR_ROLES:
-        raise ForbiddenError("문서 열람 제한은 운영자만 변경할 수 있습니다.")
+        raise ForbiddenError("문서 열람 제한은 운영자, 관리자, 시스템 관리자만 바꿀 수 있습니다.")
     doc.restricted = bool(restricted)
     db.flush()
     return doc
@@ -229,7 +229,7 @@ def set_doc_allowed_users(
     if doc is None:
         raise NotFoundError("문서를 찾을 수 없습니다.")
     if user.role not in MODERATOR_ROLES:
-        raise ForbiddenError("문서 열람 제한은 운영자만 변경할 수 있습니다.")
+        raise ForbiddenError("문서 열람 제한은 운영자, 관리자, 시스템 관리자만 바꿀 수 있습니다.")
 
     wanted = {uid for uid in user_ids if uid}
     visible = visible_user_ids(db, management_scope(db, user))

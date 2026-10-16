@@ -55,21 +55,21 @@ PHASE_FAILED = "failed"
 OPEN_PHASES = (PHASE_BROWSER,)
 
 PHASE_MESSAGES = {
-    PHASE_BROWSER: "ChatGPT 에서 승인한 뒤 주소창의 주소를 붙여 넣으세요.",
+    PHASE_BROWSER: "ChatGPT에서 승인한 뒤 주소창의 주소를 붙여 넣으세요.",
     PHASE_DONE: "ChatGPT 계정을 연결했습니다.",
-    PHASE_FAILED: "ChatGPT 계정을 연결하지 못했습니다.",
+    PHASE_FAILED: "ChatGPT 계정을 연결하지 못했습니다. 연결을 다시 시작하세요.",
 }
 
 FAILURE_MESSAGES = {
     "expired": "연결 시간이 지났습니다. 연결을 다시 시작하세요.",
     "too_many_failures": "확인에 여러 번 실패해 이번 연결을 닫았습니다. 연결을 다시 시작하세요.",
-    "access_denied": "ChatGPT 에서 연결을 허락하지 않았습니다.",
+    "access_denied": "ChatGPT에서 연결을 허락하지 않았습니다. 연결을 다시 시작하세요.",
     "plan_scope_missing": "ChatGPT 요금제 사용을 허락하지 않았습니다. 다시 연결하면서 요금제 사용을 허락하세요.",
-    "client_id_missing": "ChatGPT 가 돌려준 주소에 앱 등록 정보가 없습니다. 연결을 다시 시작하세요.",
-    "code_missing": "ChatGPT 가 돌려준 주소에 인가 코드가 없습니다. 연결을 다시 시작하세요.",
-    "exchange_failed": "ChatGPT 에서 토큰을 받지 못했습니다. 연결을 다시 시작하세요.",
-    "id_token_invalid": "ChatGPT 가 준 계정 정보를 확인하지 못했습니다. 연결을 다시 시작하세요.",
-    "secret_store_unavailable": "비밀 저장 도우미에 연결할 수 없어 계정 정보를 저장하지 못했습니다.",
+    "client_id_missing": "ChatGPT가 돌려준 주소에 앱 등록 정보가 없습니다. 연결을 다시 시작하세요.",
+    "code_missing": "ChatGPT가 돌려준 주소에 인가 코드가 없습니다. 연결을 다시 시작하세요.",
+    "exchange_failed": "ChatGPT에서 토큰을 받지 못했습니다. 연결을 다시 시작하세요.",
+    "id_token_invalid": "ChatGPT가 준 계정 정보를 확인하지 못했습니다. 연결을 다시 시작하세요.",
+    "secret_store_unavailable": "비밀 저장 도우미에 연결할 수 없어 계정 정보를 저장하지 못했습니다. 서버 상태를 확인한 뒤 연결을 다시 시작하세요.",
     "superseded": "새 연결을 시작해 이 연결을 닫았습니다.",
 }
 
@@ -209,7 +209,7 @@ def open_attempt(db: Session, *, admin_user_id: str, now: datetime) -> dict | No
 def parse_callback_url(raw, *, port: int | None) -> dict:
     """붙여 넣은 콜백 주소 → 콜백 값. 루프백 주소와 정해진 경로와 이 시도의 포트만 받는다."""
     if not isinstance(raw, str) or len(raw) > 8192:
-        raise OAuthFlowError("붙여 넣은 주소를 읽지 못했습니다.")
+        raise OAuthFlowError("붙여 넣은 주소를 읽지 못했습니다. 브라우저 주소창의 주소를 그대로 다시 붙여 넣으세요.")
     parts = urlsplit(raw.strip())
     try:
         got_port = parts.port
@@ -351,7 +351,7 @@ def logout(db: Session, *, tokens, outbound, now: datetime) -> dict:
     if revoked or not existed:
         message = "ChatGPT 계정 연결을 끊었습니다."
     else:
-        message = ("이 서버의 연결 정보를 지웠지만 ChatGPT 쪽 연결 해제를 확인하지 못했습니다. "
+        message = ("이 서버의 연결 정보를 삭제했지만 ChatGPT 쪽 연결 해제를 확인하지 못했습니다. "
                    "ChatGPT 설정에서 이 앱의 연결을 끊어 주세요.")
     return {"revoked": revoked, "removed": existed, "message": message}
 

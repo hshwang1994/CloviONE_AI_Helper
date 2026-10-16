@@ -71,7 +71,7 @@ def trigger_reindex(
     "운영자" 의 뜻이 화면마다 갈라지지 않게 한다.
     """
     if me.role not in MODERATOR_ROLES:
-        raise ForbiddenError("검색 재색인은 운영자만 실행할 수 있습니다.")
+        raise ForbiddenError("검색 재색인은 운영자, 관리자, 시스템 관리자만 실행할 수 있습니다.")
     # 잠금은 이 `with` 동안만 산다 — 나가면 잠금 세션이 롤백되며 DB 가 푼다. 예외로
     # 빠져나가도 마찬가지라, 해제를 빠뜨려 잠금이 영원히 남는 경로가 없다.
     with try_lock(db, NS_SEARCH_REINDEX) as got_lock:

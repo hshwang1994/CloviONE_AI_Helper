@@ -273,7 +273,7 @@ def save_upload(
     if media_type is None or media_type not in allowed_media_types:
         if allowed_media_types == IMAGE_MEDIA_TYPES:
             raise ValidationAppError(
-                "이미지 파일만 붙여넣을 수 있습니다(PNG, JPEG, GIF, WebP)."
+                "이미지 파일만 붙여 넣을 수 있습니다(PNG, JPEG, GIF, WebP)."
             )
         raise ValidationAppError(
             "허용되지 않은 파일 형식입니다. 이미지(PNG, JPEG, GIF, WebP) 또는 PDF만 올릴 수 있습니다."

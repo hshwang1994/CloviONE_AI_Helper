@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """CLI tests (spec §29) — run the real module in a subprocess against the test DB."""
 
 import os
@@ -72,7 +73,7 @@ def test_cli_set_role_guards_last_system_admin(db_url):
     run_cli(db_url, "add", "--email", "onlyadmin@goodmit.co.kr", "--name", "유일관리자", "--role", "system_admin")
     result = run_cli(db_url, "set-role", "--email", "onlyadmin@goodmit.co.kr", "--role", "user")
     assert result.returncode == 1
-    assert "마지막 system_admin" in result.stderr
+    assert "마지막 시스템 관리자" in result.stderr
 
 
 def test_cli_disable_guards_last_system_admin(db_url):

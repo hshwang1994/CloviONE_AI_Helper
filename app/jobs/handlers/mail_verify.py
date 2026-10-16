@@ -71,7 +71,7 @@ def handle_mail_verify(db: Session, job: Job, ctx: WorkerContext) -> None:
     try:
         result = _transport(ctx).verify(capped, secret_provider, probe_recipient=probe)
     except Exception as exc:  # noqa: BLE001 - 어떤 실패든 상태와 잡에 사람의 말로 남긴다
-        summary = summarize_failure(f"{type(exc).__name__}: {exc}") or "메일 서버 연결을 확인하지 못했습니다."
+        summary = summarize_failure(f"{type(exc).__name__}: {exc}") or "메일 서버 연결을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."
         health.record_result(
             db, config, ok=False, now=ctx.clock.now(), source="verify",
             failure_kind=getattr(exc, "kind", FAILURE_UNKNOWN), stage=getattr(exc, "stage", None),

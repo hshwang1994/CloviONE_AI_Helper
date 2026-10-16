@@ -52,8 +52,8 @@ GROUPS = (GROUP_ACTION, GROUP_USER, GROUP_DEPARTMENT, GROUP_PROVIDER, GROUP_MODE
 STATUS_LABELS = {
     "ok": "성공",
     "error": "실패",
-    "blocked_quota": "한도로 막힘",
-    "blocked_policy": "정책으로 막힘",
+    "blocked_quota": "한도 초과",
+    "blocked_policy": "정책 차단",
 }
 
 

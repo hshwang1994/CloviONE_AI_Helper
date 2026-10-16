@@ -46,7 +46,7 @@ class ClaimInProgressError(AppError):
 
     status_code = 409
     code = "claim_in_progress"
-    default_message = "이 티켓의 배정이 이미 진행 중입니다. 잠시 후 목록을 새로 고쳐 확인해 주세요."
+    default_message = "이 티켓의 배정이 이미 진행 중입니다. 잠시 후 목록을 새로고침해 확인해 주세요."
 
 
 class claim_guard:

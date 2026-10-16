@@ -762,7 +762,7 @@ def ticket_detail(
         # 같아야 「저장했다가 다시 열었을 때 사라진 것」이 안 생긴다.
         body_doc = r.body_doc(db, page_id=page_id)
     except Exception as exc:  # noqa: BLE001 — 본문만 격리 실패, 속성은 계속 보여준다
-        blocks_error = "본문을 불러오지 못했습니다. 원본에서 확인해 주세요."
+        blocks_error = "본문을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
         _ = exc
     return {
         "ticket": ticket,
@@ -988,7 +988,7 @@ def trash_tickets_bulk(
 
 # ── 수동 편집(쓰기) ────────────────────────────────────────────────────────────
 
-_AUDITOR_EDIT_DENIED = "감사자는 티켓을 편집할 수 없습니다."
+_AUDITOR_EDIT_DENIED = "감사자는 티켓을 수정할 수 없습니다."
 _CLAIM_DENIED = (
     "이미 담당자가 있는 티켓은 가져갈 수 없습니다. 담당자 칸에서 바꿀 수 있습니다."
 )
@@ -1153,7 +1153,7 @@ def update_ticket(
     요청 안에서 캐시 행까지 고친다 — 방금 고친 값이 목록에 바로 보인다.
     """
     if not changes:
-        raise ValidationAppError("변경할 내용이 없습니다.")
+        raise ValidationAppError("수정할 내용이 없습니다.")
     r = _repo(settings, outbound, repo)
     ensure_not_trashed(db, page_id)   # H2 — 휴지통 항목은 없는 것으로 본다
     ensure_in_scope(db, page_id, user)   # 쓰기도 범위 밖은 404 (3순위 IDOR)
@@ -1278,12 +1278,12 @@ HISTORY_FIELDS: dict[str, str] = {
 HISTORY_BOOL_FIELDS: frozenset[str] = frozenset({"issue", "blocked"})
 # 이 티켓에 달리는 감사 동작 중 **사람이 한 일**만 이력에 싣는다.
 HISTORY_ACTIONS: dict[str, str] = {
-    "ticket.create": "만들었습니다",
-    "ticket.update": "속성을 고쳤습니다",
+    "ticket.create": "티켓을 추가했습니다",
+    "ticket.update": "속성을 수정했습니다",
     "ticket.claim": "담당자로 자신을 지정했습니다",
-    "ticket.body.update": "본문을 고쳤습니다",
-    "ticket.body_update": "본문을 고쳤습니다",  # 옛 키 — 이미 쌓인 행이 있으면 같은 말로 읽는다
-    "ticket.trash": "휴지통으로 옮겼습니다",
+    "ticket.body.update": "본문을 수정했습니다",
+    "ticket.body_update": "본문을 수정했습니다",  # 옛 키 — 이미 쌓인 행이 있으면 같은 말로 읽는다
+    "ticket.trash": "휴지통으로 보냈습니다",
 }
 HISTORY_LIMIT = 50
 
@@ -1364,7 +1364,7 @@ def ticket_history(db: Session, user: User, *, page_id: str, limit: int = HISTOR
             "action": row.action,
             # 모르는 동작도 **버리지 않는다** — 이력에서 줄이 조용히 사라지면 사람은
             # 그 사이에 아무 일도 없었다고 읽는다.
-            "summary": HISTORY_ACTIONS.get(row.action, "기록이 남았습니다"),
+            "summary": HISTORY_ACTIONS.get(row.action, "기록을 남겼습니다"),
             "changes": changes,
         })
     return {"items": items}
@@ -1604,7 +1604,7 @@ def _resolve_writable_project(db: Session, user: User, project_id: str) -> str:
     if project is None:
         raise NotFoundError("프로젝트를 찾을 수 없습니다.")
     if project.archived_at is not None:
-        raise ValidationAppError("보관된 프로젝트에는 새 티켓을 만들 수 없습니다.")
+        raise ValidationAppError("보관된 프로젝트에는 새 티켓을 추가할 수 없습니다.")
     # 외부 짝(`notion_page_id`)이 있으면 그 값을, 없으면 **우리 id** 를 돌려준다 (S14).
     #
     # 예전에는 짝이 없는 프로젝트에서 티켓 생성을 막았다. 그때는 그것이 옳았다 — 티켓

@@ -67,7 +67,7 @@ def validate_attachments(raw: list[Any] | None) -> list[dict[str, str]]:
         if total > MAX_TOTAL_DECODED_BYTES:
             raise ValidationAppError("첨부 이미지 전체 용량은 최대 6MB입니다.")
         if not _MAGIC[media_type](decoded):
-            raise ValidationAppError("이미지 내용이 형식과 일치하지 않습니다. 실제 이미지 파일인지 확인해주세요.")
+            raise ValidationAppError("이미지 내용이 형식과 일치하지 않습니다. 실제 이미지 파일인지 확인해 주세요.")
         normalized.append({"filename": filename, "media_type": media_type, "data": data})
     return normalized
 

@@ -182,7 +182,7 @@ def check_publishable(db: Session, row) -> None:
     from app.core.errors import ConflictError, ValidationAppError
 
     if row.kind == KIND_LEGACY or row.kind not in KINDS:
-        raise ValidationAppError("옛 형식의 정책은 발행할 수 없습니다. 새 정책을 만들어 규칙을 옮기세요.")
+        raise ValidationAppError("옛 형식의 정책은 발행할 수 없습니다. 새 정책을 추가해 규칙을 옮기세요.")
     normalize_rules(row.kind, _rules(row))
     targets = normalize_applies_to(row.kind, _targets(row))
     clash = overlaps(db, kind=row.kind, applies_to=targets, name=row.name)

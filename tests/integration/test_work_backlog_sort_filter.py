@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """작업 보드 · 백로그의 **여러 값 조건 · 예상 WD 범위 · 백로그 정렬** (D-497).
 
 ## 이 파일이 못박는 계약
@@ -44,7 +45,7 @@ BOSS = "backlog-sort-boss@goodmit.co.kr"
 MATE_ONE = "backlog-sort-one@goodmit.co.kr"
 MATE_TWO = "backlog-sort-two@goodmit.co.kr"
 NOBODY = "00000000-0000-0000-0000-000000000000"
-BAD_CURSOR = "잘못된 커서입니다."
+BAD_CURSOR = "목록 위치 정보가 올바르지 않습니다. 목록을 새로고침해 주세요."
 
 #: 업무 규칙 — 우선순위는 급한 것부터다. 「중간」은 이관 원본의 이름이고 「보통」과 같은 자리다.
 PRIORITY_ORDER = {"긴급": 1, "높음": 2, "보통": 3, "중간": 3, "낮음": 4}

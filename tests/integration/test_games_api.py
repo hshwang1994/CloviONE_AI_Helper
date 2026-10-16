@@ -1024,7 +1024,7 @@ def test_quiz_generate_without_a_model_reports_unconfigured_not_generic_failure(
         r = c.post("/api/games/quiz/generate", json={"topic": "상식", "count": 2},
                    headers={"X-CSRF-Token": csrf})
         assert r.status_code == 422
-        assert "관리자에게 문의하세요" in r.json()["error"]["message"]
+        assert "관리자에게 알려 주세요" in r.json()["error"]["message"]
 
 
 def test_feature_flag_off_hides_games(db_url, tmp_path, fake_clock, fake_http):

@@ -256,7 +256,7 @@ def get_document(
     service.ensure_doc_not_trashed(db, page_id)
     row = _repo(request).get(db, page_id=page_id)
     if row is None:
-        raise NotFoundError("문서를 찾을 수 없습니다. 동기화가 필요할 수 있습니다.")
+        raise NotFoundError("문서를 찾을 수 없습니다.")
     # 목록에서 가린 것이 단건에서 새면 가린 의미가 없다. **403 이 아니라 404** (저장소 규칙).
     if not service.doc_in_scope(db, row, me):
         raise NotFoundError("문서를 찾을 수 없습니다.")
@@ -268,7 +268,7 @@ def get_document(
     except AppError as exc:
         blocks_error = exc.message
     except Exception:
-        blocks_error = "본문을 불러오지 못했습니다."
+        blocks_error = "본문을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."
     return {
         "document": _doc_view(row, can_restrict=me.role in MODERATOR_ROLES),
         "blocks": blocks,

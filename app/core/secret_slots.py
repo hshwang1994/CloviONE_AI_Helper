@@ -51,7 +51,7 @@ SECRET_SLOTS: dict[str, SecretSlot] = {
     for slot in (
         SecretSlot(SLOT_SMTP_PASSWORD, "메일(SMTP) 비밀번호", KIND_TEXT, 1024, True),
         SecretSlot(SLOT_SMTP_RELAY_PASSWORD, "상위 SMTP 비밀번호", KIND_TEXT, 1024, True),
-        SecretSlot(SLOT_SMTP_RELAY_CLIENT, "로컬 릴레이 연결 열쇠", KIND_PEM, 16384, False),
+        SecretSlot(SLOT_SMTP_RELAY_CLIENT, "로컬 릴레이 연결 인증서", KIND_PEM, 16384, False),
         SecretSlot(SLOT_ANTHROPIC_API_KEY, "Anthropic API 키", KIND_TEXT, 1024, True),
         SecretSlot(SLOT_OPENAI_API_KEY, "OpenAI API 키", KIND_TEXT, 1024, True),
         SecretSlot(SLOT_OPENAI_CHATGPT, "ChatGPT 계정 연결 정보", KIND_JSON, 16384, False),

@@ -47,12 +47,12 @@ def _fail(message: str) -> None:
 
 def _require_text(value: object, *, field: str, max_len: int) -> str:
     if not isinstance(value, str):
-        _fail(f"{field} 는 문자열이어야 합니다.")
+        _fail(f"{field} 값은 문자열이어야 합니다.")
     text = value.strip()
     if not text:
-        _fail(f"{field} 가 비어 있습니다.")
+        _fail(f"{field} 값이 비어 있습니다.")
     if len(text) > max_len:
-        _fail(f"{field} 가 너무 깁니다({len(text)}자, 최대 {max_len}자).")
+        _fail(f"{field} 값이 너무 깁니다({len(text)}자, 최대 {max_len}자).")
     return text
 
 
@@ -70,13 +70,13 @@ def fqdn(value: object) -> str:
     if text.endswith("."):
         text = text[:-1]
     if len(text) > MAX_FQDN_LEN:
-        _fail(f"FQDN 이 너무 깁니다({len(text)}자, 최대 {MAX_FQDN_LEN}자).")
+        _fail(f"FQDN이 너무 깁니다({len(text)}자, 최대 {MAX_FQDN_LEN}자).")
     labels = text.split(".")
     if len(labels) < 2:
-        _fail(f"FQDN 은 점을 포함해야 합니다: {text}")
+        _fail(f"FQDN은 점을 포함해야 합니다: {text}")
     for label in labels:
         if not _LABEL.match(label):
-            _fail(f"FQDN 의 이 부분이 올바르지 않습니다: {label}")
+            _fail(f"FQDN의 이 부분이 올바르지 않습니다: {label}")
     return text.lower()
 
 
@@ -106,13 +106,13 @@ def host_or_ip(value: object) -> str:
 
 def _bounded_list(values: object, *, field: str, max_items: int) -> list:
     if not isinstance(values, (list, tuple)):
-        _fail(f"{field} 는 목록이어야 합니다.")
+        _fail(f"{field}는 목록이어야 합니다.")
     items = list(values)
     if not items:
-        _fail(f"{field} 가 비어 있습니다.")
+        _fail(f"{field} 값이 비어 있습니다.")
     if len(items) > max_items:
         # 상한이 없으면 설정 파일 한 줄이 수천 개로 불어나 서비스가 뜨지 않는다.
-        _fail(f"{field} 는 최대 {max_items}개까지입니다(지금 {len(items)}개).")
+        _fail(f"{field}는 최대 {max_items}개까지입니다(지금 {len(items)}개).")
     return items
 
 
@@ -156,9 +156,9 @@ def proxy_url(value: object) -> str:
     text = _require_text(value, field="프록시 주소", max_len=255)
     parts = urlsplit(text)
     if parts.scheme not in ("http", "https"):
-        _fail(f"프록시는 http 또는 https 여야 합니다: {text}")
+        _fail(f"프록시 주소는 http 또는 https로 시작해야 합니다: {text}")
     if parts.username or parts.password:
-        _fail("프록시 주소에 아이디/비밀번호를 넣을 수 없습니다.")
+        _fail("프록시 주소에 아이디나 비밀번호를 넣을 수 없습니다.")
     if parts.path not in ("", "/") or parts.query or parts.fragment:
         _fail(f"프록시 주소에 경로나 질의를 넣을 수 없습니다: {text}")
     if not parts.hostname:

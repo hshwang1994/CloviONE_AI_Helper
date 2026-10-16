@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """프롬프트는 AI 기능마다 한 줄이다 (계획 A4, D-541).
 
 못박는 성질:
@@ -44,15 +45,15 @@ def test_one_row_per_editable_feature(client, login_as):
 def test_feature_state_says_why_a_feature_has_no_calls(app, client, login_as):
     csrf = login_as("system_admin")
     rows = _rows(client)
-    assert {r["feature_state"] for r in rows.values()} == {"off"}, "AI 사용이 꺼져 있으면 모든 기능이 꺼짐이다"
-    assert "AI 사용이 꺼져" in rows["draft"]["feature_note"]
+    assert {r["feature_state"] for r in rows.values()} == {"off"}, "AI 사용이 비활성화되어 있으면 모든 기능이 꺼짐이다"
+    assert "AI 사용이 비활성화되어" in rows["draft"]["feature_note"]
 
     configure_ai(app)
     for key, value in (("chat_enabled", True), ("assistant_narrative_enabled", False), ("game_ai_enabled", True)):
         assert client.put(f"/api/admin/settings/{key}", json={"value": value}, headers=_h(csrf)).status_code == 200
     rows = _rows(client)
     assert rows["assistant"]["feature_state"] == "on" and rows["draft"]["feature_state"] == "on"
-    assert rows["narrative"]["feature_state"] == "off" and rows["narrative"]["feature_state_label"] == "꺼짐"
+    assert rows["narrative"]["feature_state"] == "off" and rows["narrative"]["feature_state_label"] == "비활성화"
     assert rows["quiz"]["feature_state"] == "on"
 
 

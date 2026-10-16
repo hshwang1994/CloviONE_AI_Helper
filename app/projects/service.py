@@ -486,7 +486,7 @@ def _llm_notice(db: Session) -> str | None:
             return None
     except Exception:  # noqa: BLE001 - 안내 한 줄 때문에 리포트가 통째로 실패하면 안 된다
         return "AI 요약 설정을 확인하지 못해 규칙 기반 요약을 보여 줍니다."
-    return "AI 요약이 꺼져 있어 규칙 기반 요약을 보여 줍니다."
+    return "AI 요약이 비활성화되어 있어 규칙 기반 요약을 보여 줍니다."
 
 
 def project_weekly_report(
@@ -1125,7 +1125,7 @@ class HealthSnapshotSweep:
         head = ", ".join(f"{f.project_name}({f.error})" for f in self.failures[:3])
         if len(self.failures) > 3:
             head += f" 외 {len(self.failures) - 3}건"
-        return f"헬스 스냅샷 실패 {self.failed}건: {head}"
+        return f"프로젝트 건강도 기록 실패 {self.failed}건: {head}"
 
 
 def record_health_snapshots(

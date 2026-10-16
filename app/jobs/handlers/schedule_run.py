@@ -82,7 +82,7 @@ def on_failure(db: Session, job: Job, ctx: WorkerContext, error: str) -> None:
             db,
             schedule.owner_user_id,
             type_="schedule_failed",
-            title=f"스케줄 실행 실패: {schedule.name}",
+            title=f"일정 실행 실패: {schedule.name}",
             body=run.error_message,
             # 알림의 '관련 항목 보기'가 해당 스케줄로 바로 이동하도록 schedule을
             # 가리킨다(OBJ_ID_PARAM.schedule로 딥링크가 만들어진다). 예전엔

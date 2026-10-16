@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """AI 연결 API — `/api/admin/ai` (계획 A3, D-515 · D-539). 화면은 `/ai-connection` 이다.
 
 qa-contract-replaced-by: tests/integration/test_llm_console.py
@@ -172,7 +173,7 @@ def test_saving_the_connection_reaches_ok_without_pressing_verify(client, login_
     _drain(app, settings, fake_clock)
     shown = client.get("/api/admin/ai").json()["state"]
     assert shown["verifying"] is False and shown["state"] == "ok"
-    assert shown["display"]["label"] == "꺼짐", "AI 사용이 꺼져 있으면 연결이 정상이어도 꺼짐이다"
+    assert shown["display"]["label"] == "비활성화", "AI 사용이 비활성화되어 있으면 연결이 정상이어도 비활성화다"
 
     assert _put(client, csrf, {"timeout_seconds": 45}).json()["verify_job_id"] is None, "연결의 성질이 아닌 값"
     turned_on = _put(client, csrf, {"generation_enabled": True}).json()
@@ -317,16 +318,16 @@ def test_the_document_search_label_and_hint_for_every_state():
 
     labels = {status: service.embed_label(status) for status in service.EMBED_STATUSES}
     assert labels == {
-        "disabled": "낱말 검색(의미 검색 기능 꺼짐)",
+        "disabled": "낱말 검색(의미 검색 비활성화)",
         "unconfigured": "낱말 검색(의미 검색 모델 미설치)",
-        "runtime_missing": "낱말 검색(의미 검색 런타임 미설치)",
+        "runtime_missing": "낱말 검색(의미 검색 실행 환경 미설치)",
         "model_missing": "낱말 검색(의미 검색 모델 미설치)",
         "failed": "낱말 검색(의미 검색 오류)",
         "ok": "낱말 검색 + 의미 검색",
     }
     assert service.embed_label("ok", pending=40, embedded=2197, chunks=2237) == \
         "낱말 검색 + 의미 검색 준비 중(색인 2197/2237)"
-    assert service.embed_label("disabled", model_installed=True) == "낱말 검색(의미 검색 기능 꺼짐, 모델 설치됨)"
+    assert service.embed_label("disabled", model_installed=True) == "낱말 검색(의미 검색 비활성화, 모델 설치됨)"
     assert service.embed_hint("ok") is None
     hint = service.embed_hint("disabled")
     assert "sudo clovirassist ai --with-ai" in hint and "--download-model" in hint and hint.endswith("니다.")
@@ -360,7 +361,7 @@ def test_the_overview_says_semantic_search_is_off_and_whether_the_model_is_alrea
     app.state.ai_gateway = contract.Gateway(enabled=False)
     index = client.get("/api/admin/ai", headers={"X-CSRF-Token": csrf}).json()["index"]
     assert index["embed_status"] == "disabled"
-    assert index["embed_status_label"] == "낱말 검색(의미 검색 기능 꺼짐)"
+    assert index["embed_status_label"] == "낱말 검색(의미 검색 비활성화)"
     assert index["model_installed"] is False
     assert index["pending_embedding"] == index["chunks"] - index["embedded"]
     assert index["semantic"] is False and "sudo clovirassist ai --with-ai" in index["embed_hint"]
@@ -373,4 +374,4 @@ def test_the_overview_says_semantic_search_is_off_and_whether_the_model_is_alrea
         (folder / name).write_bytes(b"x")
     index = client.get("/api/admin/ai", headers={"X-CSRF-Token": csrf}).json()["index"]
     assert index["model_installed"] is True
-    assert index["embed_status_label"] == "낱말 검색(의미 검색 기능 꺼짐, 모델 설치됨)"
+    assert index["embed_status_label"] == "낱말 검색(의미 검색 비활성화, 모델 설치됨)"

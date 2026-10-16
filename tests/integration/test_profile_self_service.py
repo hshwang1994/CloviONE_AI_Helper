@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """프로필 셀프서비스 — 아바타·알림 설정·방해금지·투어·저장된 뷰 (계획서 Phase 6 사용자).
 
 ## 이 파일이 지키는 가장 중요한 계약
@@ -534,7 +535,7 @@ def test_activity_feed_merges_what_i_did_and_what_happened_to_me(client, db, fak
     titles = [it["title"] for it in body["items"]]
     assert "누가 나를 불렀다" in titles
     # §8 로 가운뎃점을 걷어냈다 — 화면 문구가 "알림, 방해금지" 다.
-    assert "알림, 방해금지 설정을 바꿨습니다" in titles
+    assert "알림과 방해금지 설정을 바꿨습니다" in titles
     # 시간 역순.
     assert titles == [it["title"] for it in sorted(body["items"], key=lambda i: i["at"], reverse=True)]
 

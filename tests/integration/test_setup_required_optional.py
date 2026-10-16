@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """초기 설정의 필수와 선택, 「사용하지 않음」, 저장된 상태로 읽는 메일과 AI (계획 3.5, D-520).
 
 qa-contract-change: AI 항목의 링크가 설정의 AI 탭(`#/settings?tab=ai`)에서 AI 연결 화면(`#/ai-connection`)으로 옮겼고(D-539), 확인
@@ -131,7 +132,7 @@ def test_ai_is_a_question_until_the_connection_is_checked(client, login_as):
     login_as("system_admin")
     configure_ai(client.app)
     llm = _by_key(_checklist(client))["llm"]
-    assert llm["state"] == "unknown" and "지금 확인" in llm["question"]
+    assert llm["state"] == "unknown" and "연결 확인" in llm["question"]
     assert llm["href"] == "#/ai-connection" and llm["link_label"] == "AI 연결 열기"
 
 

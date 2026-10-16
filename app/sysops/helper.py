@@ -207,7 +207,7 @@ def serve(
 
 
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - 데몬 진입점
-    parser = argparse.ArgumentParser(description="ClovirONE 특권 헬퍼")
+    parser = argparse.ArgumentParser(description="ClovirAssist 특권 헬퍼")
     parser.add_argument("--socket", default=os.environ.get("CLOVIRASSIST_PRIVHELPER_SOCKET", DEFAULT_SOCKET_PATH))
     parser.add_argument("--backup-root", default=os.environ.get("CLOVIRASSIST_PRIVHELPER_BACKUPS", DEFAULT_BACKUP_ROOT))
     parser.add_argument("--audit-log", default=os.environ.get("CLOVIRASSIST_PRIVHELPER_AUDIT", DEFAULT_AUDIT_LOG))

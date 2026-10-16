@@ -88,7 +88,7 @@ router = APIRouter(
 # 그래서 이름을 여기 명시한다. 표식은 그대로 두 번째 신호로 살려 둔다(레지스트리에 이미
 # 적힌 것을 무시하지 않는다). 이 목록과 실제 소비자의 어긋남은
 # `tests/integration/test_feature_flag_consumers.py` 가 정적 스캔으로 못박는다.
-_NO_CONSUMER_MARK = "(소비자 없음)"
+_NO_CONSUMER_MARK = "(쓰는 기능 없음)"
 _NO_CONSUMER_FLAGS: frozenset[str] = frozenset(
     {
         "limited_service_actions_enabled",
@@ -142,9 +142,9 @@ def _items(request: Request) -> list[dict]:
             ),
             # 파일 소유는 재시작 없이 즉시 반영된다(mtime 캐시). DB 소유는 설정 화면 소관.
             "edit_hint": (
-                "즉시 반영됩니다(재시작 불필요)."
+                "재시작 없이 바로 반영됩니다."
                 if spec.owner == OWNER_FILE
-                else "이 플래그의 정본은 설정 화면입니다. 여기서는 바꿀 수 없습니다."
+                else "이 플래그는 설정 화면에서 바꿉니다. 여기서는 바꿀 수 없습니다."
             ),
         })
     return items
@@ -182,7 +182,7 @@ def set_flag(
         raise NotFoundError(f"알 수 없는 기능 플래그입니다: {name}")
     if spec.owner != OWNER_FILE:
         raise ConflictError(
-            "이 플래그의 정본은 설정(app_settings)입니다. 관리자 콘솔의 '설정' 화면에서 바꾸세요."
+            "이 플래그는 여기서 바꿀 수 없습니다. 관리자 콘솔의 '설정' 화면에서 바꾸세요."
         )
 
     path = flags_path(request.app.state.settings.config_dir)

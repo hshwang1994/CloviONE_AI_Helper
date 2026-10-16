@@ -320,7 +320,7 @@ def on_failure(db: Session, job: Job, ctx: WorkerContext, error: str) -> None:
         role=ROLE_ASSISTANT_MSG,
         content=(
             "답변을 만드는 중에 문제가 생겨 요청을 끝내지 못했습니다. '다시 시도' 버튼을 "
-            "누르면 같은 내용으로 다시 처리합니다. 계속 실패하면 관리자에게 알려주세요."
+            "누르면 같은 내용으로 다시 처리합니다. 계속 실패하면 관리자에게 알려 주세요."
         ),
         structured_payload_json=json.dumps({"error_notice": True}, ensure_ascii=False),
         processing_status=PROC_DONE,

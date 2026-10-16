@@ -140,16 +140,16 @@ def _validate_shape(*, kind: str, base_path: str, mount_point: str | None) -> No
     """
     spec = adapters.spec_for(kind)
     if spec.requires_mount and not mount_point:
-        raise ValidationAppError(f"{spec.label}에는 마운트포인트가 필요합니다.")
+        raise ValidationAppError(f"{spec.label}에는 마운트 지점이 필요합니다.")
     if not spec.requires_mount and mount_point:
-        raise ValidationAppError("로컬 저장소에는 마운트포인트를 지정하지 않습니다.")
+        raise ValidationAppError("로컬 저장소에는 마운트 지점을 지정하지 않습니다.")
     if mount_point:
         base = Path(base_path).as_posix().rstrip("/") or "/"
         mount = Path(mount_point).as_posix().rstrip("/") or "/"
         if base != mount and not base.startswith(f"{mount}/"):
             # 저장 경로가 마운트 밖이면 가드가 물어보는 자리와 실제로 쓰는 자리가
             # 달라진다. 그 상태에서는 마운트가 붙어 있어도 로컬 디스크에 쌓인다.
-            raise ValidationAppError("저장 경로가 마운트포인트 아래에 있어야 합니다.")
+            raise ValidationAppError("경로가 마운트 지점 아래에 있어야 합니다.")
 
 
 def _assert_role_free(db: Session, *, role: str, exclude_id: str | None = None) -> None:
@@ -163,7 +163,7 @@ def _assert_role_free(db: Session, *, role: str, exclude_id: str | None = None) 
     current = active_provider(db, role=role)
     if current is not None and current.id != exclude_id:
         raise ConflictError(
-            f"이미 켜져 있는 저장소가 있습니다({current.name}). 먼저 그 저장소를 끄십시오."
+            f"이미 활성화된 저장소가 있습니다({current.name}). 먼저 그 저장소를 비활성화하세요."
         )
 
 
@@ -202,7 +202,7 @@ def _flush_or_conflict(db: Session, *, name: str) -> None:
     except IntegrityError as exc:
         if is_unique_violation(exc, constraint="uq_sprov_role_enabled"):
             raise ConflictError(
-                "이미 켜져 있는 저장소가 있습니다. 목록을 새로 고친 뒤 그 저장소를 먼저 끄십시오."
+                "이미 활성화된 저장소가 있습니다. 목록을 새로고침한 뒤 그 저장소를 먼저 비활성화하세요."
             ) from None
         if is_unique_violation(exc, constraint="uq_sprov_name"):
             raise ConflictError(f"이미 있는 저장소 이름입니다: {name}") from None
@@ -260,7 +260,7 @@ def update_provider(
     새 저장소를 만들고 파일을 옮긴다 — 그 과정이 곧 「옮겼다」의 증거가 된다.
     """
     if expected_version is not None and provider.version != expected_version:
-        raise ConflictError("다른 사람이 먼저 저장했습니다. 새로 고친 뒤 다시 시도해 주세요.")
+        raise ConflictError("다른 사람이 먼저 저장했습니다. 새로고침한 뒤 다시 시도해 주세요.")
 
     base_path = changes.get("base_path") or provider.base_path
     mount_point = changes.get("mount_point", provider.mount_point)

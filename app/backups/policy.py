@@ -54,12 +54,12 @@ EXCLUDED_TABLE_DATA: tuple[tuple[str, str, str], ...] = (
     (
         "document_chunks",
         "AI 색인 조각과 임베딩",
-        "색인 레인이 문서 원본에서 다시 만듭니다.",
+        "AI 색인 작업이 문서 원본에서 다시 만듭니다.",
     ),
     (
         "ai_index_state",
         "AI 색인 진행 상태",
-        "상태 행이 없는 문서를 색인 레인이 스스로 찾아 다시 돕니다.",
+        "AI 색인 작업이 상태 기록이 없는 문서를 스스로 찾아 다시 색인합니다.",
     ),
     (
         "search_documents",
@@ -69,7 +69,7 @@ EXCLUDED_TABLE_DATA: tuple[tuple[str, str, str], ...] = (
     (
         "rate_limit_buckets",
         "요청 제한 카운터",
-        "다음 요청이 다시 만듭니다.",
+        "다음 요청 때 다시 만들어집니다.",
     ),
 )
 

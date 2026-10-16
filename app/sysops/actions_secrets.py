@@ -71,7 +71,7 @@ def _perform_write(runner: Runner, params: dict) -> ActionOutcome:
     runner.write_text(path, params["value"], mode=SECRET_FILE_MODE)
     # 되읽어 확인한다. 쓰기가 조용히 실패하면(읽기 전용 마운트 등) 운영자는 저장됐다고 믿는다.
     if runner.read_text(path) != params["value"]:
-        return ActionOutcome(ok=False, detail="비밀 값을 저장하지 못했습니다.")
+        return ActionOutcome(ok=False, detail="비밀 값을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.")
     return ActionOutcome(ok=True, detail="비밀 값을 저장했습니다.", changed=True,
                          data={"name": params["name"]})
 
@@ -81,8 +81,8 @@ def _perform_delete(runner: Runner, params: dict) -> ActionOutcome:
     existed = runner.exists(path)
     runner.remove(path)
     if runner.exists(path):
-        return ActionOutcome(ok=False, detail="비밀 값을 지우지 못했습니다.")
-    return ActionOutcome(ok=True, detail="비밀 값을 지웠습니다." if existed else "지울 값이 없었습니다.",
+        return ActionOutcome(ok=False, detail="비밀 값을 삭제하지 못했습니다.")
+    return ActionOutcome(ok=True, detail="비밀 값을 삭제했습니다." if existed else "삭제할 값이 없었습니다.",
                          changed=existed, data={"name": params["name"]})
 
 

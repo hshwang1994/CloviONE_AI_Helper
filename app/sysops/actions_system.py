@@ -62,7 +62,7 @@ def _perform_timezone(runner: Runner, params: dict) -> ActionOutcome:
     want = params["timezone"]
     before = _show(runner, [TIMEDATECTL, "show", "-p", "Timezone", "--value"])
     if before == want:
-        return ActionOutcome(ok=True, detail=f"이미 {want} 입니다.", data={"timezone": want})
+        return ActionOutcome(ok=True, detail=f"이미 {want}입니다.", data={"timezone": want})
 
     applied = runner.run([TIMEDATECTL, "set-timezone", want])
     if not applied.ok:
@@ -77,7 +77,7 @@ def _perform_timezone(runner: Runner, params: dict) -> ActionOutcome:
             detail=f"타임존이 적용되지 않았습니다(요청 {want}, 실제 {after or '알 수 없음'}).",
         )
     return ActionOutcome(
-        ok=True, detail=f"타임존을 {want} 로 바꿨습니다.", changed=True,
+        ok=True, detail=f"타임존을 {want}로 바꿨습니다.", changed=True,
         data={"timezone": after, "previous": before},
     )
 
@@ -107,7 +107,7 @@ def _restart_unit(runner: Runner, unit: str) -> tuple[bool, str]:
         return False, restarted.stderr.strip() or f"{unit} 재시작에 실패했습니다."
     active = runner.run([SYSTEMCTL, "is-active", unit])
     if active.stdout.strip() != "active":
-        return False, f"{unit} 가 다시 살아나지 않았습니다({active.stdout.strip() or '상태 없음'})."
+        return False, f"{unit}가 다시 시작되지 않았습니다({active.stdout.strip() or '상태 없음'})."
     return True, ""
 
 
@@ -178,7 +178,7 @@ def _normalize_hostname(params: Mapping) -> dict:
     out["fqdn"] = v.fqdn(raw_fqdn) if raw_fqdn else None
     if out["fqdn"] and out["fqdn"].split(".")[0] != out["hostname"]:
         raise v.InvalidSysopsValueError(
-            f"FQDN 의 첫 부분이 호스트 이름과 다릅니다: {out['fqdn']} vs {out['hostname']}"
+            f"FQDN의 첫 부분이 호스트 이름과 다릅니다(FQDN {out['fqdn']}, 호스트 이름 {out['hostname']})."
         )
     return out
 
@@ -217,7 +217,7 @@ def _perform_hostname(runner: Runner, params: dict) -> ActionOutcome:
 
     runner.write_text(HOSTS_FILE, _hosts_with_entry(runner.read_text(HOSTS_FILE), host=host, fqdn=fqdn))
     return ActionOutcome(
-        ok=True, detail=f"호스트 이름을 {want_static} 로 바꿨습니다.", changed=True,
+        ok=True, detail=f"호스트 이름을 {want_static}로 바꿨습니다.", changed=True,
         data={"hostname": host, "fqdn": fqdn},
     )
 
@@ -344,7 +344,7 @@ def _perform_proxy(runner: Runner, params: dict) -> ActionOutcome:
         runner.write_text(_proxy_dropin(unit), text)
     reloaded = runner.run([SYSTEMCTL, "daemon-reload"], timeout=30)
     if not reloaded.ok:
-        return ActionOutcome(ok=False, detail=f"systemd 를 다시 읽지 못했습니다: {reloaded.stderr.strip()}")
+        return ActionOutcome(ok=False, detail=f"systemd가 설정을 다시 읽지 못했습니다: {reloaded.stderr.strip()}")
     for unit in PROXY_DROPIN_UNITS:
         if runner.read_text(_proxy_dropin(unit)) != text:
             return ActionOutcome(ok=False, detail=f"{unit} 프록시 설정이 파일에 남지 않았습니다.")

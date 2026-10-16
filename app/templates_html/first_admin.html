@@ -6,15 +6,15 @@
 <main class="auth-page">
   <section class="auth-card" aria-labelledby="fa-title">
     {% with class = 'auth-logo', sub = '업무 도우미' %}{% include "_wordmark.html" %}{% endwith %}
-    <h1 id="fa-title">첫 관리자 계정 만들기</h1>
+    <h1 id="fa-title">첫 관리자 계정 추가</h1>
 
     {% if done %}
-    <p class="auth-subtitle auth-success" role="status">시스템 관리자 계정을 만들었습니다. 방금 정한 비밀번호로 로그인하세요.</p>
+    <p class="auth-subtitle auth-success" role="status">시스템 관리자 계정을 추가했습니다. 방금 정한 비밀번호로 로그인하세요.</p>
     <p class="auth-foot"><a href="/login">로그인 화면으로 가기</a></p>
     {% elif not code_ready %}
     {# 코드가 없거나 만료된 서버에서 폼을 그리면 사람은 맞을 수 없는 코드를 계속 넣는다. 사실만 말하고 폼을 내지 않는다. #}
-    <p class="auth-subtitle">이 화면은 설치 명령이 보여 준 설정 코드로 첫 시스템 관리자 계정을 만듭니다.</p>
-    <p class="form-error" role="alert">지금 쓸 수 있는 설정 코드가 없습니다. 서버에서 설치 명령을 다시 실행하거나 clovirassist first-admin-code 를 실행하면 새 코드가 나옵니다.</p>
+    <p class="auth-subtitle">이 화면은 설치 명령이 보여 준 설정 코드로 첫 시스템 관리자 계정을 추가합니다.</p>
+    <p class="form-error" role="alert">지금 쓸 수 있는 설정 코드가 없습니다. 서버에서 sudo clovirassist first-admin-code 를 실행하면 새 코드가 나옵니다.</p>
     {% else %}
     <p class="auth-subtitle">설치 명령이 마지막에 보여 준 설정 코드를 넣고, 시스템 관리자로 쓸 계정을 정하세요.</p>
     <p class="auth-subtitle cp-tip">비밀번호는 대문자, 소문자, 숫자, 특수문자 가운데 {{ policy.get('min_classes', 3) }}종류 이상을 섞어 {{ policy.get('min_length', 12) }}자 이상으로 만들어 주세요.</p>
@@ -40,7 +40,7 @@
         <label for="fa-password-confirm">비밀번호 확인</label>
         <input id="fa-password-confirm" name="password_confirm" type="password" autocomplete="new-password" required>
       </div>
-      <button class="btn-primary" type="submit">관리자 계정 만들기</button>
+      <button class="btn-primary" type="submit">관리자 계정 추가</button>
     </form>
     {% endif %}
   </section>

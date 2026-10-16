@@ -29,7 +29,7 @@ def _stored_block(message, rid: str) -> dict:
     for block in (payload.get("results") or []) if isinstance(payload, dict) else []:
         if isinstance(block, dict) and block.get("id") == rid:
             return block
-    raise NotFoundError("그 목록을 찾을 수 없습니다.")
+    raise NotFoundError("이 목록을 찾을 수 없습니다.")
 
 
 def next_page(db, user, message, rid: str, *, offset: int, sort: str | None, env: catalog.ToolEnv,
@@ -51,11 +51,11 @@ def next_page(db, user, message, rid: str, *, offset: int, sort: str | None, env
         raise ValidationAppError("이 목록을 이어서 볼 수 없습니다. 쪽이나 정렬 값을 확인해 주세요.") from exc
     execution = catalog.run(tool, validated, env)
     if not execution.ok:
-        raise NotFoundError("그 목록을 다시 읽지 못했습니다.")
+        raise NotFoundError("이 목록을 다시 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.")
     stored = validated.model_dump(exclude_none=True)
     stored["show"] = True
     [page] = blocks.build([replace(execution, args=stored)], owner_id=getattr(user, "id", None)) or [None]
     if page is None:
-        raise NotFoundError("그 목록을 다시 읽지 못했습니다.")
+        raise NotFoundError("이 목록을 다시 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.")
     page["id"] = rid
     return page

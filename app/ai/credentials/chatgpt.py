@@ -95,7 +95,7 @@ class OAuthError(AppError):
 
     status_code = 502
     code = "chatgpt_token_error"
-    default_message = "ChatGPT 인증 서버와 통신하지 못했습니다."
+    default_message = "ChatGPT 인증 서버와 통신하지 못했습니다. 잠시 후 다시 시도해 주세요."
 
     def __init__(self, kind: str, reason: str) -> None:
         super().__init__()
@@ -215,7 +215,7 @@ class IdTokenError(AppError):
 
     status_code = 502
     code = "chatgpt_id_token_invalid"
-    default_message = "ChatGPT 가 준 계정 정보를 확인하지 못했습니다."
+    default_message = "ChatGPT가 준 계정 정보를 확인하지 못했습니다. 연결을 다시 시작하세요."
 
     def __init__(self, reason: str) -> None:
         super().__init__()

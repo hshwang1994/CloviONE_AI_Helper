@@ -104,7 +104,7 @@ class ScheduleRequest(BaseModel):
     @classmethod
     def _type_known(cls, v: str) -> str:
         if v not in {TYPE_CRON, TYPE_ONCE}:
-            raise ValueError("schedule_type은 cron 또는 once여야 합니다.")
+            raise ValueError("유형은 Cron 반복 또는 1회 실행이어야 합니다.")
         return v
 
     # UX-41: misfire_policy/concurrency_policy는 이미 이 null 코어싱을 받고 있었는데
@@ -131,7 +131,7 @@ class ScheduleRequest(BaseModel):
     @classmethod
     def _misfire_known(cls, v: str) -> str:
         if v not in {"skip", "run_once"}:
-            raise ValueError("misfire_policy는 skip 또는 run_once여야 합니다.")
+            raise ValueError("누락 처리 정책은 건너뛰기 또는 한 번만 실행이어야 합니다.")
         return v
 
     @field_validator("concurrency_policy", mode="before")
@@ -143,7 +143,7 @@ class ScheduleRequest(BaseModel):
     @classmethod
     def _concurrency_known(cls, v: str) -> str:
         if v not in {"skip", "allow"}:
-            raise ValueError("concurrency_policy는 skip 또는 allow여야 합니다.")
+            raise ValueError("동시 실행 정책은 건너뛰기 또는 동시 실행 허용이어야 합니다.")
         return v
 
     @field_validator("target_type")
@@ -152,7 +152,7 @@ class ScheduleRequest(BaseModel):
         if v != TARGET_SYSTEM:
             # S11 이 n8n 을 걷어내면서 workflow 대상이 사라졌다. 남겨 두면 화면이 고를 수
             # 있는 대상으로 계속 보여 주고 실행은 매번 실패한다.
-            raise ValueError("target_type은 system이어야 합니다.")
+            raise ValueError("대상 유형은 시스템이어야 합니다.")
         return v
 
     @field_validator("payload_template", "retry_policy", mode="before")
@@ -198,7 +198,7 @@ def _parse_iso(value: str | None, field: str) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(value)
     except ValueError:
-        raise ValidationAppError(f"{field} 형식이 올바르지 않습니다 (ISO 8601).") from None
+        raise ValidationAppError(f"{field} 값의 날짜 형식이 올바르지 않습니다. 2026-10-16 같은 ISO 8601 형식으로 입력하세요.") from None
     if parsed.tzinfo is not None:
         from datetime import timezone as _tz
 
@@ -297,7 +297,7 @@ def _ensure_not_changed(row: Schedule, base_version: str | None) -> None:
         return
     if base_version != _version_of(row):
         raise ConflictError(
-            "다른 사람이 먼저 저장했습니다. 새로 고쳐 최신 내용을 확인한 뒤 다시 저장해 주세요."
+            "다른 사람이 먼저 저장했습니다. 새로고침해 최신 내용을 확인한 뒤 다시 저장해 주세요."
         )
 
 
@@ -347,7 +347,7 @@ def _require_global_schedule_write(
 def _get_or_404(db: Session, schedule_id: str) -> Schedule:
     row = db.get(Schedule, schedule_id)
     if row is None:
-        raise NotFoundError("Schedule을 찾을 수 없습니다.")
+        raise NotFoundError("실행 일정을 찾을 수 없습니다.")
     return row
 
 
@@ -360,7 +360,7 @@ def _require_execution_gate(row: Schedule) -> None:
     """
     if not row.enabled:
         raise ConflictError(
-            "비활성 스케줄은 실행할 수 없습니다. 먼저 활성화(승인)하세요."
+            "비활성 실행 일정은 실행할 수 없습니다. 먼저 활성화(승인)하세요."
         )
 
 
@@ -396,11 +396,11 @@ def _validate_and_normalize(
         if payload.preset:
             if payload.preset not in cron.PRESETS:
                 raise ValidationAppError(
-                    f"preset은 {sorted(cron.PRESETS)} 중 하나여야 합니다."
+                    f"간편 주기는 {sorted(cron.PRESETS)} 중 하나여야 합니다."
                 )
             cron_expression = cron.PRESETS[payload.preset]
         if not cron_expression:
-            raise ValidationAppError("cron 스케줄에는 cron_expression 또는 preset이 필요합니다.")
+            raise ValidationAppError("Cron 반복 일정에는 Cron 식이나 간편 주기가 필요합니다.")
         cron.validate_cron(cron_expression)
         # 폼은 cron/once 필드를 동시에 보여준다(프런트에 조건부 표시가 없다) — schedule_type을
         # 나중에 once→cron으로 바꾼 편집 요청이 이전 run_at을 그대로 실어 보내면, 그 값이
@@ -409,9 +409,9 @@ def _validate_and_normalize(
         run_at = None
     else:  # once
         if run_at is None:
-            raise ValidationAppError("once 스케줄에는 run_at이 필요합니다.")
+            raise ValidationAppError("1회 실행 일정에는 실행 시각이 필요합니다.")
         if run_at <= now:
-            raise ValidationAppError("run_at은 미래 시각이어야 합니다.")
+            raise ValidationAppError("실행 시각은 지금보다 뒤여야 합니다.")
         # 위와 대칭: cron→once로 바꾼 편집이 이전 cron_expression/preset을 그대로 실어 보내도
         # once 스케줄에는 안 쓰는 값이므로 여기서 비운다.
         cron_expression = None
@@ -445,7 +445,7 @@ def _validate_and_normalize(
     start_at = _parse_iso(payload.start_at, "start_at")
     end_at = _parse_iso(payload.end_at, "end_at")
     if start_at and end_at and end_at <= start_at:
-        raise ValidationAppError("end_at은 start_at 이후여야 합니다.")
+        raise ValidationAppError("종료 시각은 시작 시각보다 뒤여야 합니다.")
     # 유효 기간이 이미 끝난 일정은 만들 수 없다. 예전에는 201 로 저장되고 활성화까지 돼
     # 목록이 영영 오지 않을 '다음 실행'을 약속했다(once 형이 지난 run_at 을 거절하는 것과
     # 같은 규칙이다). 이미 그런 값을 들고 있는 행의 수정은 막지 않는다 — 그 행을 고치는
@@ -461,7 +461,7 @@ def _validate_and_normalize(
     # 있을 때만 — cron은 run_at이 없다).
     if run_at is not None and start_at is not None and run_at < start_at:
         raise ValidationAppError(
-            "run_at은 start_at 이후여야 합니다 (once 스케줄의 실행 시각이 시작 시각보다 빠릅니다)."
+            "1회 실행 일정의 실행 시각이 시작 시각보다 빠릅니다. 실행 시각을 시작 시각 뒤로 정하세요."
         )
 
     return {
@@ -496,7 +496,7 @@ def create_schedule(
     if db.execute(
         select(Schedule).where(Schedule.name == payload.name)
     ).scalar_one_or_none() is not None:
-        raise ConflictError(f"이미 존재하는 Schedule 이름입니다: {payload.name}")
+        raise ConflictError(f"이미 있는 실행 일정 이름입니다: {payload.name}")
 
     row = Schedule(
         name=payload.name,
@@ -530,7 +530,7 @@ def create_schedule(
     except (IntegrityError, OperationalError) as exc:
         if not is_insert_race(exc):
             raise
-        raise ConflictError(f"이미 존재하는 Schedule 이름입니다: {payload.name}") from None
+        raise ConflictError(f"이미 있는 실행 일정 이름입니다: {payload.name}") from None
     record_audit_from_request(
         request, db, action="schedule.create", object_type="schedule",
         object_id=row.id, after=_view(row),
@@ -568,9 +568,9 @@ def calendar(
     start_at = _parse_iso(start, "start")
     end_at = _parse_iso(end, "end")
     if start_at is None or end_at is None:
-        raise ValidationAppError("start 와 end 는 ISO 8601 형식이어야 합니다.")
+        raise ValidationAppError("start와 end는 ISO 8601 형식이어야 합니다.")
     if end_at <= start_at:
-        raise ValidationAppError("end 는 start 보다 뒤여야 합니다.")
+        raise ValidationAppError("end는 start보다 뒤여야 합니다.")
     if (end_at - start_at).days > MAX_RANGE_DAYS:
         raise ValidationAppError(f"조회 구간은 최대 {MAX_RANGE_DAYS}일입니다.")
 
@@ -692,7 +692,7 @@ def update_schedule(
             select(Schedule).where(Schedule.name == payload.name, Schedule.id != row.id)
         ).scalar_one_or_none()
         if clash is not None:
-            raise ConflictError(f"이미 존재하는 Schedule 이름입니다: {payload.name}")
+            raise ConflictError(f"이미 있는 실행 일정 이름입니다: {payload.name}")
     before = _view(row)
     approved_definition = definition_snapshot(row)
 
@@ -735,7 +735,7 @@ def update_schedule(
     except (IntegrityError, OperationalError) as exc:
         if not is_insert_race(exc):
             raise
-        raise ConflictError(f"이미 존재하는 Schedule 이름입니다: {payload.name}") from None
+        raise ConflictError(f"이미 있는 실행 일정 이름입니다: {payload.name}") from None
     record_audit_from_request(
         request, db, action="schedule.update", object_type="schedule",
         object_id=row.id, before=before, after=_view(row),
@@ -1042,7 +1042,7 @@ def cancel_run(request: Request, run_id: str, db: Session = Depends(get_db)):
 
     run.status = RUN_SKIPPED
     run.finished_at = now
-    run.error_message = "운영자가 취소했습니다."
+    run.error_message = "관리 화면에서 취소했습니다."
     db.flush()
     record_audit_from_request(
         request, db, action="schedule.cancel_run", object_type="schedule_run",

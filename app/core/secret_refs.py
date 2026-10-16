@@ -34,13 +34,13 @@ SECRET_FILE_MODE = 0o600
 class SecretMissingError(AppError):
     status_code = 409
     code = "secret_missing"
-    default_message = "필요한 Secret이 설정되어 있지 않습니다."
+    default_message = "필요한 비밀 값이 설정되어 있지 않습니다."
 
 
 class InvalidSecretRefError(AppError):
     status_code = 422
     code = "invalid_secret_ref"
-    default_message = "Secret reference 이름이 올바르지 않습니다."
+    default_message = "비밀 값 이름이 올바르지 않습니다."
 
 
 class SecretDirNotWritableError(AppError):
@@ -57,7 +57,7 @@ class SecretDirNotWritableError(AppError):
 
     status_code = 409
     code = "secret_dir_not_writable"
-    default_message = "서버가 secret 디렉터리에 쓸 수 없습니다."
+    default_message = "서버가 비밀 값 디렉터리에 쓸 수 없습니다."
 
 
 class SecretValue:
@@ -162,7 +162,7 @@ class FileSecretReferenceProvider:
             path.unlink(missing_ok=True)
         except OSError as exc:
             raise SecretDirNotWritableError(
-                f"secret 파일을 지우지 못했습니다: {self._secrets_dir}"
+                f"비밀 값 파일을 삭제하지 못했습니다: {self._secrets_dir}"
             ) from exc
         return existed
 
@@ -199,12 +199,12 @@ class FileSecretReferenceProvider:
         """
         path = self._path_for(name)
         if not value or not value.strip():
-            raise InvalidSecretRefError("빈 값은 secret 으로 저장하지 않습니다.")
+            raise InvalidSecretRefError("빈 값은 비밀 값으로 저장하지 않습니다.")
         try:
             fd, tmp_name = tempfile.mkstemp(dir=self._secrets_dir, prefix=".tmp-")
         except OSError as exc:
             raise SecretDirNotWritableError(
-                f"secret 디렉터리에 쓸 수 없습니다: {self._secrets_dir}"
+                f"비밀 값 디렉터리에 쓸 수 없습니다: {self._secrets_dir}"
             ) from exc
         tmp_path = Path(tmp_name)
         try:
@@ -215,5 +215,5 @@ class FileSecretReferenceProvider:
         except OSError as exc:
             tmp_path.unlink(missing_ok=True)
             raise SecretDirNotWritableError(
-                f"secret 파일을 쓰지 못했습니다: {self._secrets_dir}"
+                f"비밀 값 파일을 쓰지 못했습니다: {self._secrets_dir}"
             ) from exc

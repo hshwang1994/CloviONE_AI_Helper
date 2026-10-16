@@ -456,7 +456,7 @@ def update_tour(
     """
     action = (payload.action or "").strip()
     if action not in {"complete", "skip", "reset"}:
-        raise ValidationAppError("action 은 complete, skip, reset 중 하나여야 합니다.")
+        raise ValidationAppError("action은 complete, skip, reset 중 하나여야 합니다.")
     now = request.app.state.clock.now()
     tz = request.app.state.settings.timezone
     pref = service.ensure_preference(db, user.id, now=now)
@@ -694,7 +694,7 @@ def revoke_one_session(
     이미 그 이름의 경로(`POST /logout`)가 쿠키 정리까지 함께 한다."""
     if session_id == auth.session.id:
         raise ValidationAppError(
-            "지금 쓰고 있는 세션은 여기서 끊을 수 없습니다. 로그아웃을 사용하세요."
+            "지금 쓰고 있는 기기의 로그인은 여기서 해제할 수 없습니다. 로그아웃을 사용하세요."
         )
     row = service.get_own_session(db, auth.user.id, session_id)
     request.app.state.session_service.revoke(db, row)
@@ -776,7 +776,7 @@ def my_activity(
     창이 틀린 구간을 집는다. 없는 축에 조작기를 그리지 않기 위해 여기에도 안 만든다.
     """
     if kind not in (None, "", activity_mod.KIND_DID, activity_mod.KIND_HAPPENED):
-        raise ValidationAppError("kind 는 did 또는 happened 여야 합니다.")
+        raise ValidationAppError("kind는 did 또는 happened여야 합니다.")
     result = activity_mod.build_feed(
         db, user.id, kind=kind, offset=page.offset,
         limit=min(page.page_size, MAX_PAGE_SIZE), order=order,

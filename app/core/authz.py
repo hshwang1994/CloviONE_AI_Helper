@@ -112,11 +112,11 @@ ROLE_LABELS: dict[str, str] = {
 # 범위(admin_scope)는 역할과 직교한다 — `app/core/scope.py` 가 해석한다. 매트릭스가 역할만
 # 보여 주면 '부서 관리자'가 왜 남의 부서를 못 보는지 화면 어디에도 설명이 없다.
 SCOPE_LABELS: dict[str, tuple[str, str]] = {
-    ADMIN_SCOPE_GLOBAL: ("전체", "조직, 부서 제한 없이 모든 대상을 관리한다."),
-    ADMIN_SCOPE_ORG: ("조직", "자기 조직(org_id)에 속한 대상만 보이고 관리할 수 있다."),
+    ADMIN_SCOPE_GLOBAL: ("전체", "조직이나 부서 제한 없이 모든 대상을 관리할 수 있습니다."),
+    ADMIN_SCOPE_ORG: ("조직", "자기 조직에 속한 대상만 보고 관리할 수 있습니다."),
     ADMIN_SCOPE_DEPT: (
         "부서",
-        "자기 부서와 그 하위 부서에 속한 대상만 보인다. 범위 밖 단건은 403 이 아니라 404 다.",
+        "자기 부서와 그 하위 부서에 속한 대상만 보입니다. 범위 밖 항목은 없는 항목처럼 보입니다.",
     ),
 }
 
@@ -139,64 +139,64 @@ class Capability:
 CAPABILITIES: tuple[Capability, ...] = (
     Capability(
         "console.read", "관리 콘솔 목록, 상세 조회", "콘솔", CONSOLE_READ_ROLES,
-        "감사자가 포함된다. 감사는 '무엇이 설정돼 있었는가'를 볼 수 있어야 한다.",
+        "감사자도 포함됩니다. 감사는 무엇이 설정돼 있었는지 볼 수 있어야 합니다.",
     ),
     Capability(
-        "console.write", "설정 변경(생성, 수정, 활성/비활성)", "콘솔", CONSOLE_WRITE_ROLES,
-        "운영자는 운영은 하되 설정은 못 바꾼다. 감사자는 읽기 전용이라 절대 포함되지 않는다.",
+        "console.write", "설정 변경(추가, 수정, 활성화, 비활성화)", "콘솔", CONSOLE_WRITE_ROLES,
+        "운영자는 운영 동작은 할 수 있지만 설정은 바꿀 수 없습니다. 감사자는 읽기 전용이라 포함되지 않습니다.",
     ),
     Capability(
-        "console.ops", "운영 동작(실행, 재시도, 헬스체크, 드라이런)", "운영", CONSOLE_OPS_ROLES,
-        "설정을 바꾸지는 않지만 부수효과가 있는 것들.",
+        "console.ops", "운영 동작(실행, 재시도, 상태 점검, 시험 실행)", "운영", CONSOLE_OPS_ROLES,
+        "설정을 바꾸지는 않지만 실행하면 영향이 남는 동작입니다.",
     ),
     Capability(
         "sensitive.read", "감사 로그, 개발자 월간 리포트 조회", "감사", SENSITIVE_READ_ROLES,
-        "담당자별 생산성처럼 사람에 대한 평가가 담기므로 운영자를 뺀다.",
+        "담당자별 생산성처럼 사람에 대한 평가가 담기므로 운영자는 제외합니다.",
     ),
     Capability(
-        "content.moderate", "사용자 콘텐츠 중재(게시판, 문서, 휴지통, 티켓 편집 우회)", "콘텐츠",
+        "content.moderate", "사용자 콘텐츠 중재(게시판, 문서, 휴지통, 티켓 수정 제한 우회)", "콘텐츠",
         tuple(r for r in ROLE_ORDER if r in MODERATOR_ROLES),
-        "본인 글이 아니어도 지울 수 있는 권한. 티켓 편집은 범위 안이면 담당자가 아니어도 "
-        "되고, 이 능력은 게시판과 문서 중재, 휴지통에 쓴다.",
+        "본인 글이 아니어도 삭제할 수 있는 권한입니다. 티켓은 범위 안이면 담당자가 아니어도 "
+        "수정할 수 있고, 이 권한은 게시판과 문서 중재, 휴지통에 씁니다.",
     ),
     Capability(
-        "users.manage", "사용자 계정 관리(생성, 수정, 비활성화, 보관)", "사용자",
+        "users.manage", "사용자 계정 관리(추가, 수정, 비활성화, 보관)", "사용자",
         CONSOLE_WRITE_ROLES,
-        "system_admin 계정에 대한 조작은 system_admin 만 할 수 있다(권한 경계).",
+        "시스템 관리자 계정은 시스템 관리자만 바꿀 수 있습니다.",
     ),
     Capability(
-        "users.bulk", "사용자 대량 작업, CSV 가져오기/내보내기", "사용자", CONSOLE_WRITE_ROLES,
-        "대상은 언제나 자기 관리 범위 안으로 제한된다.",
+        "users.bulk", "사용자 대량 작업, CSV 가져오기와 내보내기", "사용자", CONSOLE_WRITE_ROLES,
+        "대상은 언제나 자기 관리 범위 안으로 제한됩니다.",
     ),
     Capability(
-        "offboarding.run", "오프보딩 실행(보유 티켓 재배정 + 계정 비활성화, 보관)", "사용자",
+        "offboarding.run", "오프보딩 실행(보유 티켓 재배정, 계정 비활성화, 보관)", "사용자",
         CONSOLE_WRITE_ROLES,
-        "실행 전 미리보기가 강제되고, 실행 결과는 되돌릴 수 있다.",
+        "실행 전에 반드시 미리보기를 거치고, 실행 결과는 되돌릴 수 있습니다.",
     ),
     Capability(
-        "org.manage", "부서, 직책 명부와 조직도 트리 편집", "사용자", CONSOLE_WRITE_ROLES,
+        "org.manage", "부서, 직책 명부와 조직도 수정", "사용자", CONSOLE_WRITE_ROLES,
     ),
     Capability(
         "impersonation.start", "대리 보기 시작(다른 사용자 계정으로 접속)", "사용자",
         CONSOLE_WRITE_ROLES,
-        "운영자는 남의 화면을 볼 수 없다. 감사자는 시작할 수 없고 기록 조회만 할 수 있다"
-        "(sensitive.read 와 같은 선). 종료는 누구나 자기 세션을 끝낼 수 있어야 하므로 "
-        "역할 게이트가 없다. 대상 역할로 보이는 도중에 게이트를 걸면 스스로 빠져나올 수 없다.",
+        "운영자는 다른 사람의 화면을 볼 수 없습니다. 감사자는 시작할 수 없고 기록 조회만 할 수 있습니다"
+        "(민감 정보 조회와 같은 기준). 종료는 누구나 자기 세션을 끝낼 수 있어야 하므로 "
+        "역할 제한이 없습니다. 대리 보기 도중에 제한을 걸면 스스로 빠져나올 수 없습니다.",
     ),
     Capability(
-        "system.admin", "백업 생성, 검증, 복구 안내", "시스템", SYSTEM_ADMIN_ONLY,
-        "스펙 §14.6 이 system_admin 으로 못박은 것들.",
+        "system.admin", "백업 실행, 검증, 복구 안내", "시스템", SYSTEM_ADMIN_ONLY,
+        "시스템 관리자만 할 수 있도록 정한 동작입니다.",
     ),
     Capability(
         "system.settings", "시스템 설정 변경(TLS, 호스트 이름, DNS, 프록시, 인증서, 서비스 제어)",
         "시스템", SYSTEM_ADMIN_ONLY,
-        "바뀌는 대상이 조직 단위가 아니라 서버 한 대 전체라 admin_scope 라는 개념 자체가 없다. "
-        "부서 범위로 좁혀질 수 있는 admin 은 제외한다.",
+        "바뀌는 대상이 조직 단위가 아니라 서버 한 대 전체라 관리 범위를 나누지 않습니다. "
+        "부서 범위로 좁혀질 수 있는 관리자는 제외합니다.",
     ),
     Capability(
-        "setup.read", "최초 실행 셋업 체크리스트 조회", "시스템", SYSTEM_ADMIN_ONLY,
-        "조직, Notion 토큰, 러너, TLS 처럼 설치 한 벌 전체의 상태를 한 화면에 모은다. "
-        "부서 범위로 좁혀질 수 있는 admin 은 제외한다(시스템 설정과 같은 근거).",
+        "setup.read", "초기 설정 점검 목록 조회", "시스템", SYSTEM_ADMIN_ONLY,
+        "조직, Notion 토큰, TLS처럼 설치 전체의 상태를 한 화면에 모읍니다. "
+        "부서 범위로 좁혀질 수 있는 관리자는 제외합니다(시스템 설정과 같은 기준).",
     ),
 )
 
@@ -209,11 +209,11 @@ CAPABILITIES: tuple[Capability, ...] = (
 #: 말만 할 수 있다. 대신 이 문장이 능력 목록과 어긋나지 않는지는 시험이 본다
 #: (`tests/security/test_rbac_role_help.py`).
 ROLE_CHARACTER: dict[str, str] = {
-    ROLE_USER: "자기 일만 한다. 관리 콘솔에 들어갈 수 없다.",
-    ROLE_OPERATOR: "운영은 하되 설정은 못 바꾼다.",
-    ROLE_AUDITOR: "읽기 전용 가지다. 무엇도 바꾸지 않는다.",
-    ROLE_ADMIN: "설정과 사람을 관리한다. 관리 범위로 더 좁혀질 수 있다.",
-    ROLE_SYSTEM_ADMIN: "서버 한 대 전체를 본다. 백업과 시스템 설정은 이 역할뿐이다.",
+    ROLE_USER: "자기 일만 할 수 있습니다. 관리 콘솔에는 들어갈 수 없습니다.",
+    ROLE_OPERATOR: "운영 동작은 할 수 있지만 설정은 바꿀 수 없습니다.",
+    ROLE_AUDITOR: "읽기 전용 역할입니다. 아무것도 바꿀 수 없습니다.",
+    ROLE_ADMIN: "설정과 사람을 관리할 수 있습니다. 관리 범위로 더 좁혀질 수 있습니다.",
+    ROLE_SYSTEM_ADMIN: "서버 한 대 전체를 볼 수 있습니다. 백업과 시스템 설정은 이 역할만 할 수 있습니다.",
 }
 
 

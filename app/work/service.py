@@ -107,9 +107,9 @@ def resolve_board_scope(scope: str | None, sprint_id: str | None) -> str:
     """
     resolved = scope or (SCOPE_SPRINT if sprint_id else SCOPE_EXECUTION)
     if resolved not in BOARD_SCOPES:
-        raise ValidationAppError(f"모르는 scope 입니다: {resolved}")
+        raise ValidationAppError(f"알 수 없는 범위입니다: {resolved}")
     if resolved == SCOPE_SPRINT and not sprint_id:
-        raise ValidationAppError("scope=sprint 에는 sprint_id 가 필요합니다.")
+        raise ValidationAppError("scope=sprint에는 sprint_id가 필요합니다.")
     return resolved
 
 
@@ -218,7 +218,7 @@ def _board_scope_stmt(
     return _apply_shared_filters(stmt, filters)
 
 
-BAD_CURSOR = "잘못된 커서입니다."
+BAD_CURSOR = "목록 위치 정보가 올바르지 않습니다. 목록을 새로고침해 주세요."
 
 
 def _encode_rank_cursor(rank: Decimal | None, row_id: str) -> str:
@@ -377,7 +377,7 @@ def _signal_clause(signal: str | None, *, today: date | None):
     if not signal:
         return None
     if signal not in SIGNALS:
-        raise ValidationAppError("모르는 신호입니다.")
+        raise ValidationAppError("알 수 없는 신호입니다.")
     if signal == SIGNAL_BLOCKED:
         return Ticket.blocked_flag.is_(True)
     if signal == SIGNAL_ISSUE:
@@ -714,7 +714,7 @@ def board_column(
     elif status_key in known_keys:
         col_stmt = base_stmt.where(Ticket.status == status_key)
     else:
-        raise NotFoundError("모르는 열입니다.")
+        raise NotFoundError("알 수 없는 열입니다.")
 
     page, next_cursor = _rank_keyset_page(db, col_stmt, Ticket.board_rank, cursor=cursor, limit=page_size)
     total = db.execute(select(func.count()).select_from(col_stmt.subquery())).scalar_one()
@@ -810,9 +810,9 @@ def backlog(
     스크롤 대부분이 지나간 일이 된다.
     """
     if sort not in BACKLOG_SORTS:
-        raise ValidationAppError("모르는 정렬입니다.")
+        raise ValidationAppError("알 수 없는 정렬입니다.")
     if order not in BACKLOG_ORDERS:
-        raise ValidationAppError("모르는 정렬 방향입니다.")
+        raise ValidationAppError("알 수 없는 정렬 방향입니다.")
     page_size = max(1, min(limit or DEFAULT_COLUMN_PAGE_SIZE, MAX_COLUMN_PAGE_SIZE))
     stmt = _backlog_scope_stmt(db, user, filters=filters)
     if sort == BACKLOG_SORT_RANK and order == "asc":
@@ -859,7 +859,7 @@ def backlog_position_rank(
     드래그 경로도 이제 같은 원칙이다(`_place_by_neighbours` — 이웃을 가시성 범위로 읽는다).
     """
     if position not in ("top", "bottom"):
-        raise ValidationAppError(f"모르는 위치입니다: {position}")
+        raise ValidationAppError(f"알 수 없는 위치입니다: {position}")
     stmt = _backlog_scope_stmt(db, user, filters=filters, exclude_ticket_id=ticket_id)
     sq = stmt.subquery()
     # 전체 순위를 파이썬으로 끌어오지 않는다 — 필요한 것은 양 끝 값 둘뿐이다.
@@ -960,7 +960,7 @@ def load_ticket_in_scope_or_404(db: Session, ticket_id: str, user: User) -> Tick
 #   편성   ensure_sprint_manageable   관리 범위가 그 팀을 덮는가 — 보이는데 못 고치면 403
 #   담기   ensure_eligible           티켓의 팀(프로젝트의 dept_id) == 회차의 팀, 열린 회차만
 
-SPRINT_NOT_FOUND = "스프린트를 찾을 수 없습니다."
+SPRINT_NOT_FOUND = "회차를 찾을 수 없습니다."
 SPRINT_FORBIDDEN = "이 팀의 회차를 편성할 권한이 없습니다."
 
 
@@ -1436,13 +1436,13 @@ def set_sprint_state(
     무엇이 문제인지 아는 사람은 없다. 팀이 다르면 같은 기간에 나란히 연다.
     """
     if state not in SPRINT_STATES:
-        raise ValidationAppError(f"모르는 스프린트 상태입니다: {state}")
+        raise ValidationAppError(f"알 수 없는 회차 상태입니다: {state}")
     sprint = get_scoped_sprint_or_404(db, sprint_id, user)
     ensure_sprint_manageable(db, user, sprint)
     # closed 는 종착이다 — 번다운·이월 기록이 닫힌 시점 기준으로 서 있고, 다시 열면
     # 그 기록이 전부 거짓이 된다. 같은 상태로의 재설정은 재실행 안전으로 남긴다.
     if sprint.state == SPRINT_CLOSED and state != SPRINT_CLOSED:
-        raise ConflictError("이미 닫은 회차는 다시 열 수 없습니다. 새 회차를 만들어 주세요.")
+        raise ConflictError("이미 닫은 회차는 다시 열 수 없습니다. 새 회차를 추가해 주세요.")
     # 닫기는 `/close` 한 곳이다 — 여기로 닫으면 이월 없이 닫혀 안 끝난 티켓이 붕 뜬다.
     if state == SPRINT_CLOSED and sprint.state != SPRINT_CLOSED:
         raise ValidationAppError(
@@ -1487,13 +1487,13 @@ def update_sprint(
     if sprint.state == SPRINT_CLOSED and any(
         k in changes for k in ("starts_on", "ends_on", "goal", "department_id")
     ):
-        raise ValidationAppError("닫은 회차는 이름만 고칠 수 있습니다. 기간과 목표는 기록으로 남습니다.")
+        raise ValidationAppError("닫은 회차는 이름만 수정할 수 있습니다. 기간과 목표는 기록으로 남습니다.")
     team_after = sprint.department_id
     if "department_id" in changes:
         target = changes.get("department_id") or None
         if sprint.department_id is not None:
             if target != sprint.department_id:
-                raise ValidationAppError("회차의 팀은 바꿀 수 없습니다. 팀이 다르면 새 회차를 만들어 주세요.")
+                raise ValidationAppError("회차의 팀은 바꿀 수 없습니다. 팀이 다르면 새 회차를 추가해 주세요.")
         elif target is None:
             raise ValidationAppError("회차의 팀을 골라 주세요.")
         else:
@@ -1563,7 +1563,7 @@ def delete_sprint(
     if sprint.state == SPRINT_ACTIVE:
         raise ValidationAppError("진행 중인 회차는 삭제할 수 없습니다. 먼저 「회차 닫기」로 닫아 주세요.")
     if sprint.state == SPRINT_CLOSED:
-        raise ValidationAppError("닫은 회차는 기록으로 남습니다. 삭제할 수 없습니다.")
+        raise ValidationAppError("닫은 회차는 삭제할 수 없습니다. 기록으로 남습니다.")
     stamp = now or utcnow()
     detached = 0
     for ticket in db.execute(

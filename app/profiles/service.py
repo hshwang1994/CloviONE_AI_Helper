@@ -82,7 +82,7 @@ DELIVERY_STATES: dict[str, str] = {
     "disabled": "off", "unconfigured": "off", "failing": "delayed", "unverified": "ok", "ok": "ok",
 }
 MAIL_DELIVERY_NOTICES: dict[str, str] = {
-    "off": "관리자가 메일 발송을 켜면 메일 알림을 받을 수 있습니다.",
+    "off": "관리자가 메일 발송을 활성화하면 메일 알림을 받을 수 있습니다.",
     "delayed": "현재 메일 알림 발송이 지연되고 있습니다.",
 }
 
@@ -233,7 +233,7 @@ def apply_preference_changes(
         if key and not is_known_avatar_key(key):
             # 모르는 값을 저장하면 그 사람은 어느 그림도 못 받는다 — 화면은 빈 원을 그리고
             # 오류는 안 난다. 어휘 밖은 여기서 막는다.
-            raise ValidationAppError(f"모르는 기본 아바타입니다: {key}")
+            raise ValidationAppError(f"알 수 없는 기본 아바타입니다: {key}")
         pref.avatar_default_key = key or None
         # 그림을 고르는 것은 **사진을 지우는 것이 아니다.** 사진이 있으면 그대로 보이고,
         # 사진을 지운 뒤에 이 선택이 살아난다.
@@ -241,7 +241,7 @@ def apply_preference_changes(
 
     if pref.quiet_hours_enabled and pref.quiet_start == pref.quiet_end:
         # 길이 0 창을 켜 두면 화면은 '조용시간 켜짐'인데 실제로는 한 번도 조용하지 않다.
-        raise ValidationAppError("조용시간의 시작과 종료가 같습니다. 다른 시각을 고르세요.")
+        raise ValidationAppError("방해금지 시간의 시작과 종료가 같습니다. 다른 시각을 고르세요.")
 
     pref.updated_at = now
     db.flush()

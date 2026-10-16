@@ -227,7 +227,7 @@ def validate_transition(from_status: str | None, to_status: str | None) -> str:
     """
     target = (to_status or "").strip()
     if not is_known(target):
-        raise ValidationAppError(f"모르는 티켓 상태입니다: {target or '(빈 값)'}")
+        raise ValidationAppError(f"알 수 없는 티켓 상태입니다: {target or '(빈 값)'}")
     return target
 
 

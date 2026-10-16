@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """알림을 메일로도 보내기 (계획 3.4, D-514).
 
 못박는 것:
@@ -15,7 +16,7 @@ qa-contract-change: 메일 본문이 내용 모델과 틀로 그려지며(D-549)
 「이 메일은 {제품}의 {유형} 알림 설정에 따라 보냈습니다」와 「알림 메일 설정 바꾸기」 링크로 바뀌었다 - 끄는 길이 메일에 있다는 성질을
 그 링크로 잰다. 메일 발송을 꺼 둔 설치의 상태는 「설정 덜 됨」이 아니라 「사용 안 함」이다(D-546).
 내 프로필이 받는 발송 상태는 관리자 쪽 다섯 상태가 아니라 셋(ok · delayed · off)이다(D-550) - 꺼 둔 설치는 `off` 이고
-「메일 발송을 켜면」 문장은 그대로 단언한다.
+「메일 발송을 활성화하면」 문장은 그대로 단언한다.
 """
 
 from __future__ import annotations
@@ -147,7 +148,7 @@ def test_an_opted_in_watcher_gets_exactly_one_mail_per_event(client, app, settin
     body = server.sent[0]["body"]
     assert f"/#/tickets/{PAGE}" in body, "메일이 그 티켓으로 바로 가는 주소를 싣지 않았다"
     assert "알림 설정에 따라 보냈습니다" in body
-    assert "알림 메일 설정 바꾸기: " in body and "/#/profile" in body, "메일 알림을 끄는 길이 메일에 없다"
+    assert "알림 메일 설정 열기: " in body and "/#/profile" in body, "메일 알림을 끄는 길이 메일에 없다"
     assert server.sent[0]["html"] and "/#/profile" in server.sent[0]["html"], "HTML 부분이 없거나 끄는 길이 없다"
     assert _mails(app)[0].status == MAIL_SENT
 
@@ -459,7 +460,7 @@ def test_preferences_carry_the_mail_block_and_accept_changes(client, app, world)
     assert body["types"] == ["ticket_assigned", "ticket_status_changed", "ticket_resolved"]
     assert [c["key"] for c in body["catalog"]] == body["types"]
     assert body["delivery"]["state"] == "off"
-    assert "메일 발송을 켜면" in body["delivery"]["message"]
+    assert "메일 발송을 활성화하면" in body["delivery"]["message"]
 
     r = client.patch("/api/me/preferences", json={"mail_enabled": True}, headers={"X-CSRF-Token": csrf})
     assert r.status_code == 200 and r.json()["mail"]["enabled"] is True
@@ -554,7 +555,7 @@ def test_account_security_mails_go_to_the_person_regardless_of_choices_and_not_t
         notify_user(db, world["bob"], type_="account_locked", title="로그인 실패 누적으로 계정이 잠겼습니다",
                     body="잠금 시간이 지나면 자동 해제됩니다.", now=app.state.clock.now(), context={"security_self": True})
         notify_admins(db, type_="account_locked", title="계정 잠금 발생: mail-bob@goodmit.co.kr", now=app.state.clock.now())
-        notify_user(db, world["rita"], type_="password_change_required", title="비밀번호 변경이 필요합니다",
+        notify_user(db, world["rita"], type_="password_change_required", title="비밀번호 변경이 필요합니다.",
                     body="관리자가 비밀번호를 재발급했습니다.", now=app.state.clock.now(), context={"security_self": True})
         # 같은 유형이라도 본인 표지가 없는 알림(관리자 방송 · 다른 경로)은 메일이 되지 않는다.
         notify_user(db, world["wendy"], type_="account_locked", title="계정 잠금 발생: 남의 계정", now=app.state.clock.now())

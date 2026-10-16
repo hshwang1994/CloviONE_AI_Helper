@@ -17,9 +17,9 @@ from sqlalchemy.orm import Session
 
 NOTICES = {
     "no_permission": "AI 도우미를 쓸 권한이 없습니다.",
-    "feature_off": "AI 도우미가 꺼져 있습니다.",
-    "off": "AI 사용이 꺼져 있어 지금은 답할 수 없습니다.",
-    "unconfigured": "AI 가 아직 연결되지 않았습니다.",
+    "feature_off": "AI 도우미가 비활성화되어 있습니다.",
+    "off": "AI 사용이 비활성화되어 있어 지금은 답할 수 없습니다.",
+    "unconfigured": "AI가 아직 연결되지 않았습니다.",
     "blocked": "AI 연결에 문제가 있어 지금은 답할 수 없습니다.",
 }
 

@@ -87,6 +87,6 @@ describe("권한 매트릭스 — 범위(scope) 축", () => {
   it("도움말에 admin 역할이 범위로 추가 제한될 수 있다는 안내가 있다", async () => {
     renderMatrix();
     await screen.findByRole("columnheader", { name: "관리자" });
-    expect(screen.getByText(/범위로.*좁혀질 수 있습니다|추가로 좁혀질 수 있습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/관리 범위.*좁힐 수 있습니다/)).toBeInTheDocument();
   });
 });

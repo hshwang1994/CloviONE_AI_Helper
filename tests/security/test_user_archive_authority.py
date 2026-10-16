@@ -90,7 +90,7 @@ def test_cli_cannot_archive_last_system_admin(db, make_user, settings, monkeypat
 
     code = main(["archive", "--email", "cli-last-sa@goodmit.co.kr"])
     assert code == 1, "CLI가 마지막 system_admin을 보관해 버렸다"
-    assert "마지막 system_admin" in capsys.readouterr().err
+    assert "마지막 시스템 관리자" in capsys.readouterr().err
 
 
 def test_archive_requires_csrf(client, login_as, make_user):

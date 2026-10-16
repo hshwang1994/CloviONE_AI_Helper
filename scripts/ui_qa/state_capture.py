@@ -88,15 +88,15 @@ def setup_scenarios(real: dict) -> dict:
     s = copy.deepcopy(base)
     put(s, "organization", "todo", detail="아직 조직이 없습니다.", action="조직 화면에서 조직과 부서를 추가하세요.", configured=True)
     put(s, "tls", "todo", detail="인증서 파일을 찾지 못했습니다.", choices=[{"key": "tls", "value": "proxy", "label": "외부 프록시가 맡음"}],
-        action="인증서를 설치하세요. 앞단 프록시가 TLS 를 맡는 구성이면 이 줄의 「외부 프록시가 맡음」을 고르세요.")
-    put(s, "mail", "pending", detail="메일 발송이 꺼져 있습니다.", configured=False,
+        action="인증서를 설치하세요. 앞단 프록시가 TLS를 맡는 구성이면 이 줄의 「외부 프록시가 맡음」을 고르세요.")
+    put(s, "mail", "pending", detail="메일 발송이 비활성화되어 있습니다.", configured=False,
         choices=[{"key": "mail", "value": "unused", "label": "사용하지 않음"}],
-        action="메일을 쓰려면 메일 화면에서 발송을 켜고 설정을 채우세요. 메일을 쓰지 않는다면 이 줄의 「사용하지 않음」을 고르세요.")
+        action="메일을 쓰려면 메일 화면에서 발송을 활성화하고 설정을 채우세요. 메일을 쓰지 않는다면 이 줄의 「사용하지 않음」을 고르세요.")
     out["required-left"] = finalize(s)
     s = copy.deepcopy(base)
     put(s, "organization", "done", detail="조직 1개, 부서 4개가 등록돼 있습니다.")
-    put(s, "tls", "done", detail="외부 프록시가 TLS 를 맡습니다.", choices=[{"key": "tls", "value": "app", "label": "이 서버의 인증서 사용"}],
-        notes=["외부 프록시가 TLS 를 맡는다고 표시했습니다. 프록시 인증서의 만료일은 이 서버가 확인하지 않습니다."])
+    put(s, "tls", "done", detail="외부 프록시가 TLS를 맡습니다.", choices=[{"key": "tls", "value": "app", "label": "이 서버의 인증서 사용"}],
+        notes=["외부 프록시가 TLS를 맡는다고 표시했습니다. 프록시 인증서의 만료일은 이 서버가 확인하지 않습니다."])
     put(s, "mail", "done", detail="수신측 메일 서버까지 전달을 확인했습니다.", checked_at="2026-10-02T02:05:00", choices=[])
     put(s, "llm", "done", detail="AI 연결이 정상입니다.", checked_at="2026-10-02T02:00:00", choices=[], notes=[])
     put(s, "integrations", "done", detail="연동 1개가 모두 정상입니다.")

@@ -118,13 +118,13 @@ def _ensure_may_touch_global(principal: Principal) -> None:
     아니라 권한이다.
     """
     if not principal.management.is_global:
-        raise ForbiddenError("전역 쿼터는 전체 범위 관리자만 바꿀 수 있습니다.")
+        raise ForbiddenError("기본값 AI 사용 한도는 전체 범위 관리자만 바꿀 수 있습니다.")
 
 
 def _get_or_404(db: Session, row_id: str, principal: Principal) -> AiQuota:
     row = db.get(AiQuota, row_id)
     if row is None:
-        raise NotFoundError("쿼터를 찾을 수 없습니다.")
+        raise NotFoundError("AI 사용 한도를 찾을 수 없습니다.")
     if row.scope_type == SCOPE_USER and row.user_id:
         _ensure_target_in_scope(db, row.user_id, principal)
     else:
@@ -246,7 +246,7 @@ def create_quota(
     user_id = (payload.user_id or "").strip()
     if payload.scope_type == SCOPE_USER:
         if not user_id:
-            raise ValidationAppError("사용자 쿼터에는 user_id 가 필요합니다.")
+            raise ValidationAppError("사용자별 AI 사용 한도에는 사용자를 지정해야 합니다.")
         _ensure_target_accepts_a_new_quota(db, user_id, principal)
     else:
         _ensure_may_touch_global(principal)
@@ -259,7 +259,7 @@ def create_quota(
         )
     ).scalar_one_or_none()
     if existing is not None:
-        raise ConflictError("같은 범위, 기간의 쿼터가 이미 있습니다. 기존 항목을 수정하세요.")
+        raise ConflictError("같은 범위와 기간의 AI 사용 한도가 이미 있습니다. 기존 항목을 수정하세요.")
 
     now = request.app.state.clock.now()
     row = AiQuota(
@@ -284,7 +284,7 @@ def create_quota(
     except (IntegrityError, OperationalError) as exc:
         if not is_insert_race(exc):
             raise
-        raise ConflictError("같은 범위, 기간의 쿼터가 이미 있습니다. 기존 항목을 수정하세요.") from None
+        raise ConflictError("같은 범위와 기간의 AI 사용 한도가 이미 있습니다. 기존 항목을 수정하세요.") from None
     record_audit_from_request(
         request, db, action="ai_quota.create", object_type="ai_quota",
         object_id=row.id, after=service.view(row),
@@ -306,7 +306,7 @@ def update_quota(
     # 보낸 사람은 상한이 바뀐 줄 안다. 명시적으로 거부한다(아래 note는 nullable이라 그대로 둠).
     if "max_calls" in data:
         if data["max_calls"] is None:
-            raise ValidationAppError("max_calls는 비울 수 없습니다. 쿼터를 없애려면 삭제하세요.")
+            raise ValidationAppError("한도(횟수)는 비울 수 없습니다. 한도를 없애려면 삭제하세요.")
         service.validate(row.scope_type, row.period, data["max_calls"])
         row.max_calls = data["max_calls"]
     if "note" in data:

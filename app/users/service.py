@@ -110,7 +110,7 @@ def ensure_can_grant_role(actor_role: str, role: str) -> None:
     first-admin setup page) is covered by construction; a new caller cannot forget it.
     """
     if role in CONSOLE_WRITE_ROLES and actor_role != ROLE_SYSTEM_ADMIN:
-        raise ForbiddenError("admin 이상 권한 계정 생성은 system_admin만 가능합니다.")
+        raise ForbiddenError("관리자 이상 역할의 계정은 시스템 관리자만 추가할 수 있습니다.")
 
 
 def ensure_known_membership_kind(membership_kind: str | None) -> None:
@@ -203,7 +203,7 @@ def create_user(
             min_classes=policy.get("min_classes", 3),
         )
         if problems:
-            raise ValidationAppError("비밀번호 정책 위반", details=problems)
+            raise ValidationAppError("비밀번호가 정책에 맞지 않습니다.", details=problems)
     existing = get_user_by_email(db, email)
     if existing is not None:
         if existing.archived_at is not None:
@@ -352,7 +352,7 @@ def ensure_not_last_system_admin(db: Session, user: User) -> None:
         return
     if count_active_system_admins(db, exclude_user_id=user.id) == 0:
         raise ConflictError(
-            "마지막 system_admin 계정은 비활성화, 보관하거나 역할을 변경할 수 없습니다."
+            "마지막 시스템 관리자 계정은 비활성화, 보관, 역할 변경을 할 수 없습니다."
         )
 
 
@@ -364,7 +364,7 @@ def ensure_can_manage_target(actor_role: str, target: User) -> None:
     in). Enforced in the service layer so the HTTP routers, the CLI, and any
     approval executor are all covered."""
     if target.role == ROLE_SYSTEM_ADMIN and actor_role != ROLE_SYSTEM_ADMIN:
-        raise ForbiddenError("system_admin 계정은 system_admin만 관리할 수 있습니다.")
+        raise ForbiddenError("시스템 관리자 계정은 시스템 관리자만 관리할 수 있습니다.")
 
 
 def update_user(
@@ -800,7 +800,7 @@ def admin_reset_password(
             min_classes=policy.get("min_classes", 3),
         )
         if problems:
-            raise ValidationAppError("비밀번호 정책 위반", details=problems)
+            raise ValidationAppError("비밀번호가 정책에 맞지 않습니다.", details=problems)
         password = new_password
     else:
         password = generate_temp_password()

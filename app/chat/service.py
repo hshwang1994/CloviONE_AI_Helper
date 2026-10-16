@@ -209,7 +209,7 @@ def get_owned_conversation(db: Session, user: User, conversation_id: str) -> Con
         raise NotFoundError("대화를 찾을 수 없습니다.")
     # Ownership is enforced server-side — never by UI hiding (spec §25.5).
     if conversation.user_id != user.id:
-        raise ForbiddenError("본인 대화만 접근할 수 있습니다.")
+        raise ForbiddenError("본인 대화에만 접근할 수 있습니다.")
     return conversation
 
 
@@ -679,7 +679,7 @@ def result_page(db: Session, user: User, message_db_id: str, rid: str, *, offset
         raise NotFoundError("메시지를 찾을 수 없습니다.")
     get_owned_conversation(db, user, message.conversation_id)
     if message.role != ROLE_ASSISTANT_MSG:
-        raise NotFoundError("그 목록을 찾을 수 없습니다.")
+        raise NotFoundError("이 목록을 찾을 수 없습니다.")
     allowed = {tool.name: tool for tool in catalog.available_tools(
         can=lambda key: has_permission(db, user, key), flag=env.flag)}
     return paging.next_page(db, user, message, rid, offset=offset, sort=sort, env=env, allowed=allowed)

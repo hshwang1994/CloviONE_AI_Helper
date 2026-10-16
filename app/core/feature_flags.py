@@ -59,33 +59,33 @@ FLAG_REGISTRY: dict[str, FlagSpec] = {
     for spec in (
         # ── DB 소유(관리 콘솔 Settings 화면에서 켜고 끈다) ──────────────────────
         FlagSpec("maintenance_mode", False, OWNER_DB,
-                 "유지보수 모드. 정본은 app_settings 테이블: 파일에 적어도 효과가 없다."),
+                 "유지보수 모드입니다. 설정 화면에서 바꾸며, 플래그 파일에 적어도 효과가 없습니다."),
         FlagSpec("document_automation_enabled", True, OWNER_DB,
-                 "문서 자동화. 정본은 app_settings 테이블."),
+                 "문서 자동화입니다. 설정 화면에서 바꿉니다."),
         # ── 파일 소유(배포 단위 토글) ─────────────────────────────────────────
         FlagSpec("self_approval_allowed", False, OWNER_FILE,
-                 "본인이 올린 승인 요청을 본인이 승인할 수 있는가(§20)."),
-        FlagSpec("board_enabled", True, OWNER_FILE, "자유게시판 모듈(§23)."),
-        FlagSpec("team_docs_enabled", True, OWNER_FILE, "팀 문서 모듈(§17)."),
-        FlagSpec("games_enabled", True, OWNER_FILE, "팀 놀이 모듈(§23)."),
-        FlagSpec("team_chat_enabled", True, OWNER_FILE, "팀 채팅 모듈."),
+                 "본인이 올린 승인 요청을 본인이 승인할 수 있게 합니다."),
+        FlagSpec("board_enabled", True, OWNER_FILE, "자유게시판 기능입니다."),
+        FlagSpec("team_docs_enabled", True, OWNER_FILE, "팀 문서 기능입니다."),
+        FlagSpec("games_enabled", True, OWNER_FILE, "팀 놀이 기능입니다."),
+        FlagSpec("team_chat_enabled", True, OWNER_FILE, "팀 채팅 기능입니다."),
         # AI-45: 다른 선택적 모듈(게시판·팀 채팅·팀 문서·놀이)은 전부 테넌트별로 끌 수 있는데
         # AI 도우미 채팅만 빠져 있었다. 앱 셸(app/chat/router.py "/")은 이 플래그로 막지
         # 않는다 — 그 경로는 채팅 전용이 아니라 React 앱 전체의 진입점이다.
         # AI 기능 셋은 **DB 소유**다(계획 3.13, D-507). 예전에는 파일 소유였는데 그 파일은 운영에서
         # `/etc/clovirassist` 아래라 웹이 쓸 수 없어, 관리 화면에서 켜면 409 로 실패했다. AI 설정 화면이
         # 이 셋을 켜고 끈다. 옛 파일 값은 부팅 때 한 번 DB 로 옮긴다(`import_legacy_file_values`).
-        FlagSpec("chat_enabled", True, OWNER_DB, "AI 도우미 채팅(대화 CRUD, 메시지, 쿼터 조회)."),
+        FlagSpec("chat_enabled", True, OWNER_DB, "AI 도우미 채팅입니다(대화, 메시지, 사용 한도 조회)."),
         FlagSpec("game_ai_enabled", False, OWNER_DB,
-                 "AI 퀴즈 생성(§7-9). 모델 호출이라 기본 OFF(fail-closed)."),
+                 "AI 퀴즈 생성입니다. 모델을 부르므로 기본값은 비활성화입니다."),
         FlagSpec("assistant_narrative_enabled", False, OWNER_DB,
-                 "AI 도우미의 '문장' 생성. 꺼져도 숫자, 목록은 전부 나온다."),
+                 "AI 도우미의 문장 요약 생성입니다. 비활성화해도 숫자와 목록은 모두 나옵니다."),
         # ── 소비자가 아직 없는 플래그 ─────────────────────────────────────────
         # 정직하게 적어 둔다: 읽는 코드가 하나도 없다. 지우지 않는 이유는 운영 파일에
         # 이미 들어가 있어서이고, 남겨 두는 대신 '효과 없음'을 여기에 못박는다 —
         # 관리자가 이 스위치를 켜고 무언가 달라지길 기대하지 않도록.
         FlagSpec("limited_service_actions_enabled", False, OWNER_FILE,
-                 "(소비자 없음) 제한 서비스 모드. 읽는 코드가 아직 없다."),
+                 "(쓰는 기능 없음) 제한 서비스 모드입니다. 아직 이 값을 읽는 기능이 없습니다."),
     )
 }
 

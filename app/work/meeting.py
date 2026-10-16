@@ -750,7 +750,7 @@ def _editable_or_403(db: Session, user: User, decision_id: str) -> SprintDecisio
         return row
     if user.id in (row.author_user_id, row.assignee_user_id):
         return row
-    raise ForbiddenError("이 기록을 고칠 권한이 없습니다.")
+    raise ForbiddenError("이 기록을 수정할 권한이 없습니다.")
 
 
 def _ensure_not_read_only(user: User) -> None:
@@ -759,7 +759,7 @@ def _ensure_not_read_only(user: User) -> None:
     from app.users.models import ROLE_AUDITOR
 
     if user.role == ROLE_AUDITOR:
-        raise ForbiddenError("감사자는 회의록을 적거나 고칠 수 없습니다.")
+        raise ForbiddenError("감사자는 회의 기록을 추가하거나 수정할 수 없습니다.")
 
 
 def update_decision(

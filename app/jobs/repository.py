@@ -282,7 +282,7 @@ def cancel_queued(db: Session, job: Job, *, now: datetime) -> Job:
         {"now": now, "id": job.id},
     )
     if result.rowcount == 0:
-        raise ConflictError("대기 상태의 Job만 취소할 수 있습니다.")
+        raise ConflictError("대기 중인 작업만 취소할 수 있습니다.")
     # 원시 UPDATE는 ORM identity map을 거치지 않는다 — 호출부가 이어서 job.status 등을
     # 읽으므로(응답 직렬화, _terminalize_linked_record) 새로 반영해 둔다.
     db.refresh(job)

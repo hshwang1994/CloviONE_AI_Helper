@@ -113,13 +113,13 @@ def require_decider(db: Session, actor: User, now: datetime) -> str | None:
             if expired.revoked_at is not None:
                 raise ForbiddenError(
                     f"관리자가 {_kst(expired.revoked_at):%m월 %d일 %H시}에 위임을 거두었습니다. "
-                    "계속 결재하려면 위임을 다시 받아야 합니다."
+                    "계속 승인하려면 위임을 다시 받아야 합니다."
                 )
             raise ForbiddenError(
                 f"위임 기간이 {_kst(expired.ends_at):%m월 %d일 %H시}에 끝났습니다. "
-                "계속 결재하려면 위임을 다시 받아야 합니다."
+                "계속 승인하려면 위임을 다시 받아야 합니다."
             )
-        raise ForbiddenError("승인 권한이 없습니다. 위임을 받으면 대리 결재할 수 있습니다.")
+        raise ForbiddenError("승인 권한이 없습니다. 위임을 받으면 대신 승인할 수 있습니다.")
     return on_behalf_of
 
 
@@ -200,7 +200,7 @@ def create(
     # 달라진다 — 위임이 그 경계를 도는 유일한 문이 되면 안 된다.
     if delegate.role == ROLE_AUDITOR:
         raise ValidationAppError(
-            "감사자에게는 결재를 위임할 수 없습니다. 감사자는 읽기 전용 역할입니다."
+            "감사자에게는 승인 권한을 위임할 수 없습니다. 감사자는 읽기 전용 역할입니다."
         )
     _lock_delegator(db, delegator.id)
     overlapping = _overlapping_live_delegation(
@@ -275,7 +275,7 @@ def _lock_delegator(db: Session, delegator_id: str) -> None:
         if not is_serialization_conflict(exc):
             raise
         raise ConflictError(
-            "같은 사람의 위임이 동시에 등록되고 있습니다. 잠시 뒤 다시 시도해 주세요."
+            "같은 사람의 위임이 동시에 추가되고 있습니다. 잠시 뒤 다시 시도해 주세요."
         ) from exc
 
 

@@ -62,21 +62,22 @@ def _password_policy(value: Any) -> None:
         raise ValidationAppError("객체여야 합니다.")
     min_len = value.get("min_length")
     if not isinstance(min_len, int) or min_len < 8 or min_len > 128:
-        raise ValidationAppError("min_length는 8~128 정수여야 합니다.")
+        raise ValidationAppError("최소 글자 수는 8~128 사이의 정수여야 합니다.")
     # Only 4 character classes exist — an impossible min_classes would lock out
     # every password change.
     min_classes = value.get("min_classes", 3)
     if not isinstance(min_classes, int) or min_classes < 1 or min_classes > 4:
-        raise ValidationAppError("min_classes는 1~4 정수여야 합니다.")
+        raise ValidationAppError("문자 종류 수는 1~4 사이의 정수여야 합니다.")
 
 
 def _session_policy(value: Any) -> None:
     if not isinstance(value, dict):
         raise ValidationAppError("객체여야 합니다.")
-    for k in ("idle_timeout_seconds", "absolute_timeout_seconds"):
+    # 화면은 분 단위로 받는다 — 값은 초지만 문장은 화면의 칸 이름과 단위로 말한다(예전에는 `idle_timeout_seconds는 60 이상` 이었다).
+    for k, label in (("idle_timeout_seconds", "유휴 제한"), ("absolute_timeout_seconds", "최대 세션 길이")):
         v = value.get(k)
         if not isinstance(v, int) or v < 60:
-            raise ValidationAppError(f"{k}는 60 이상 정수여야 합니다.")
+            raise ValidationAppError(f"{label}은 1분 이상이어야 합니다.")
 
 
 def _lockout_policy(value: Any) -> None:
@@ -87,10 +88,10 @@ def _lockout_policy(value: Any) -> None:
         raise ValidationAppError("객체여야 합니다.")
     max_failures = value.get("max_failures")
     if not isinstance(max_failures, int) or isinstance(max_failures, bool) or not (1 <= max_failures <= 20):
-        raise ValidationAppError("max_failures는 1~20 정수여야 합니다.")
+        raise ValidationAppError("로그인 실패 임계값은 1~20 사이의 정수여야 합니다.")
     lock_seconds = value.get("lock_seconds")
     if not isinstance(lock_seconds, int) or isinstance(lock_seconds, bool) or not (60 <= lock_seconds <= 86400):
-        raise ValidationAppError("lock_seconds는 60~86400(24시간) 정수여야 합니다.")
+        raise ValidationAppError("잠금 시간은 1분에서 24시간 사이여야 합니다.")
 
 
 def _email_domains(value: Any) -> None:
@@ -110,7 +111,7 @@ def _ui_branding(value: Any) -> None:
         raise ValidationAppError("객체여야 합니다.")
     product_name = value.get("product_name")
     if not isinstance(product_name, str) or not product_name.strip():
-        raise ValidationAppError("product_name은 비어 있지 않은 문자열이어야 합니다.")
+        raise ValidationAppError("제품명을 입력하세요.")
 
 
 def _backup_schedule(value: Any) -> None:
@@ -123,10 +124,10 @@ def _backup_schedule(value: Any) -> None:
     if not isinstance(value, dict):
         raise ValidationAppError("객체여야 합니다.")
     if not isinstance(value.get("enabled"), bool):
-        raise ValidationAppError("enabled는 true/false여야 합니다.")
+        raise ValidationAppError("자동 백업 사용 여부 값이 올바르지 않습니다.")
     keep = value.get("keep", 14)
     if not isinstance(keep, int) or isinstance(keep, bool) or keep < 1 or keep > 365:
-        raise ValidationAppError("keep은 1~365 정수여야 합니다.")
+        raise ValidationAppError("남길 백업 개수는 1~365 사이의 정수여야 합니다.")
     # 나이 바닥(S12). 0 을 허용한다 — 「개수만으로 자른다」를 명시적으로 고르는 값이다.
     # 그 선택이 왜 위험한지는 `app/backups/service.py::apply_retention` 에 적혀 있다.
     keep_days = value.get("keep_days", 7)
@@ -136,15 +137,15 @@ def _backup_schedule(value: Any) -> None:
         or keep_days < 0
         or keep_days > 365
     ):
-        raise ValidationAppError("keep_days는 0~365 정수여야 합니다.")
+        raise ValidationAppError("보관 기간은 0~365일 사이의 정수여야 합니다.")
     from app.schedules import cron as _cron
 
     tz_name = value.get("timezone", "Asia/Seoul")
     if not isinstance(tz_name, str):
-        raise ValidationAppError("timezone은 문자열이어야 합니다 (예: Asia/Seoul).")
+        raise ValidationAppError("기준 시간대는 Asia/Seoul 같은 시간대 이름이어야 합니다.")
     expression = value.get("cron", "")
     if not isinstance(expression, str) or not expression.strip():
-        raise ValidationAppError("cron 표현식이 필요합니다 (예: 0 3 * * *).")
+        raise ValidationAppError("cron 표현식을 입력하세요(예: 0 3 * * *).")
     # 아래 두 함수는 잘못된 값이면 ValidationAppError 를 던진다(불리언을 돌려주지 않는다).
     _cron.validate_timezone(tz_name)
     _cron.validate_cron(expression)
@@ -186,7 +187,7 @@ def _smtp(value: Any) -> None:
             )
     if str(value.get("password_ref") or "").strip():
         raise ValidationAppError(
-            "비밀번호를 읽을 곳은 바꿀 수 없습니다. 비밀번호는 메일 설정의 비밀번호 칸에 저장하세요."
+            "비밀번호 저장 위치는 바꿀 수 없습니다. 비밀번호는 메일 설정의 비밀번호 칸에 저장하세요."
         )
     unknown = sorted(k for k in value if k not in DEFAULT_SMTP and k != "password_ref")
     if unknown:
@@ -203,26 +204,26 @@ def _smtp(value: Any) -> None:
     if not isinstance(timeout, int) or isinstance(timeout, bool) or not (1 <= timeout <= 300):
         raise ValidationAppError("응답 대기 시간은 1~300초 사이의 정수여야 합니다.")
     for key, label in (("host", "메일 서버 주소"), ("from_address", "보내는 사람 주소"), ("from_name", "보내는 사람 이름"),
-                       ("username", "로그인 계정"), ("password_ref", "비밀번호 칸"), ("ca_pem", "CA 인증서")):
+                       ("username", "로그인 계정"), ("password_ref", "비밀번호"), ("ca_pem", "CA 인증서")):
         if key in value and not isinstance(value[key], str):
             raise ValidationAppError(f"{label} 칸에는 글자만 넣을 수 있습니다.")
     _smtp_text_fields(value)
     if "tls_verify" in value and not isinstance(value["tls_verify"], bool):
-        raise ValidationAppError("서버 인증서 확인은 켬 또는 끔이어야 합니다.")
+        raise ValidationAppError("서버 인증서 확인 값이 올바르지 않습니다.")
     _smtp_ca(value, security)
     from app.mail.config import ALL_MODES, MODE_LOCAL_RELAY
 
     mode = value.get("mode", "external")
     if mode not in ALL_MODES:
-        raise ValidationAppError("보내는 방법은 외부 SMTP 사용 또는 ClovirAssist 로컬 릴레이여야 합니다.")
+        raise ValidationAppError("발송 방식은 외부 SMTP 사용 또는 ClovirAssist 로컬 릴레이여야 합니다.")
     if "relay" in value:
         _smtp_relay(value["relay"], enabled=bool(value.get("enabled")) and mode == MODE_LOCAL_RELAY)
     # 켜 놓고 주소가 비어 있으면 큐에 쌓기만 하고 아무것도 못 보낸다 - 저장 시점에 막는다.
     if value.get("enabled"):
         if mode != MODE_LOCAL_RELAY and not str(value.get("host", "")).strip():
-            raise ValidationAppError("메일 발송을 켜려면 메일 서버 주소가 필요합니다.")
+            raise ValidationAppError("메일 발송을 활성화하려면 메일 서버 주소가 필요합니다.")
         if not str(value.get("from_address", "")).strip():
-            raise ValidationAppError("메일 발송을 켜려면 보내는 사람 주소가 필요합니다.")
+            raise ValidationAppError("메일 발송을 활성화하려면 보내는 사람 주소가 필요합니다.")
 
 
 def _smtp_relay(relay: Any, *, enabled: bool) -> None:
@@ -244,7 +245,7 @@ def _smtp_relay(relay: Any, *, enabled: bool) -> None:
         raise ValidationAppError("상위 SMTP 서버 설정이 올바르지 않습니다.")
     host = str(smarthost.get("host") or "").strip().lower()
     if host and not (rf.HOST_RE.match(host) or rf.IPV4_RE.match(host)):
-        raise ValidationAppError("상위 SMTP 서버 주소는 smtp.example.com 처럼 이름이나 IP 만 적습니다.")
+        raise ValidationAppError("상위 SMTP 서버 주소는 smtp.example.com처럼 이름이나 IP만 적습니다.")
     port = smarthost.get("port", 587)
     if not isinstance(port, int) or isinstance(port, bool) or not (0 < port < 65536):
         raise ValidationAppError("상위 SMTP 서버 포트는 1~65535 사이의 정수여야 합니다.")
@@ -255,18 +256,18 @@ def _smtp_relay(relay: Any, *, enabled: bool) -> None:
         raise ValidationAppError("상위 SMTP 계정에는 공백이나 줄바꿈을 넣을 수 없습니다.")
     helo = str(relay.get("helo_name") or "").strip().lower()
     if helo and not rf.DOMAIN_RE.match(helo):
-        raise ValidationAppError("서버 이름(HELO)은 mail.example.com 같은 이름이어야 합니다.")
+        raise ValidationAppError("메일 서버 이름(HELO)은 mail.example.com 같은 이름이어야 합니다.")
     public_ip = str(relay.get("public_ip") or "").strip()
     if public_ip and not rf.IPV4_RE.match(public_ip):
-        raise ValidationAppError("공인 IP 는 203.0.113.10 같은 IPv4 주소여야 합니다.")
-    for key, label in (("ipv4_only", "IPv4 만 쓰기"), ("dkim_enabled", "DKIM 서명")):
+        raise ValidationAppError("공인 IP는 203.0.113.10 같은 IPv4 주소여야 합니다.")
+    for key, label in (("ipv4_only", "IPv4만 쓰기"), ("dkim_enabled", "DKIM 서명")):
         if key in relay and not isinstance(relay[key], bool):
-            raise ValidationAppError(f"{label}는 켬 또는 끔이어야 합니다.")
+            raise ValidationAppError(f"{label} 값이 올바르지 않습니다.")
     selector = str(relay.get("dkim_selector") or "").strip().lower()
     if selector and not rf.SELECTOR_RE.match(selector):
         raise ValidationAppError("DKIM 선택자는 영문 소문자와 숫자, 하이픈으로 씁니다.")
     if relay.get("dkim_enabled") and not selector:
-        raise ValidationAppError("DKIM 서명을 켜려면 선택자가 필요합니다.")
+        raise ValidationAppError("DKIM 서명을 사용하려면 선택자가 필요합니다.")
     public = str(relay.get("dkim_public") or "")
     if public and (len(public) > 1024 or not re.fullmatch(r"[A-Za-z0-9+/=]+", public)):
         raise ValidationAppError("DKIM 공개키 모양이 올바르지 않습니다.")
@@ -294,7 +295,7 @@ def _smtp_text_fields(value: dict) -> None:
     host = str(value.get("host") or "").strip()
     if host:
         if "://" in host or _SMTP_HOST_FORBIDDEN.search(host):
-            raise ValidationAppError("메일 서버 주소에는 smtp.example.com 처럼 이름이나 IP 만 적습니다.")
+            raise ValidationAppError("메일 서버 주소에는 smtp.example.com처럼 이름이나 IP만 적습니다.")
         if len(host) > 253:
             raise ValidationAppError("메일 서버 주소가 너무 깁니다.")
     sender = str(value.get("from_address") or "").strip()
@@ -395,10 +396,10 @@ def _setup_choices(value: Any) -> None:
         raise ValidationAppError("선택 항목마다 값을 적는 객체여야 합니다.")
     unknown = sorted(k for k in value if k not in CHOICE_VALUES)
     if unknown:
-        raise ValidationAppError("모르는 선택 항목입니다: " + ", ".join(unknown))
+        raise ValidationAppError("알 수 없는 선택 항목입니다: " + ", ".join(unknown))
     for key, choice in value.items():
         if choice not in CHOICE_VALUES[key]:
-            raise ValidationAppError(f"{key} 의 값은 " + ", ".join(CHOICE_VALUES[key]) + " 중 하나입니다.")
+            raise ValidationAppError(f"{key}의 값은 " + ", ".join(CHOICE_VALUES[key]) + " 중 하나입니다.")
 
 
 def _ai_concurrency(value: Any) -> None:
@@ -416,11 +417,11 @@ REGISTRY: dict[str, SettingSpec] = {
     s.key: s
     for s in [
         SettingSpec("conversation_retention_days", "int", 90, False,
-                    "대화 보존 기간(일). 초과 시 백그라운드 작업이 자동 삭제", _positive_int(3650)),
+                    "대화 보존 기간(일). 이 기간이 지난 대화는 자동으로 삭제됩니다.", _positive_int(3650)),
         SettingSpec("notification_retention_days", "int", 90, False,
-                    "알림 보존 기간(일). 초과 시 백그라운드 작업이 정리", _positive_int(3650)),
+                    "알림 보존 기간(일). 이 기간이 지난 알림은 자동으로 정리됩니다.", _positive_int(3650)),
         SettingSpec("trash_retention_days", "int", 7, False,
-                    "휴지통 보관 기간(일). 초과 시 원본을 보관처리하고 휴지통에서 삭제", _positive_int(365)),
+                    "휴지통 보관 기간(일). 이 기간이 지나면 원본을 보관 처리하고 휴지통에서 삭제합니다.", _positive_int(365)),
         # 문서 휴지통은 **다른 정책**을 갖는다 (지시 22.7 개정 · D-352).
         #
         # 위 `trash_retention_days` 가 하는 일은 「원본을 보관처리하고 휴지통 행을 지우는」
@@ -429,19 +430,19 @@ REGISTRY: dict[str, SettingSpec] = {
         # 없다. 그래서 기간을 따로 두고, 무엇보다 **끌 수 있게** 둔다: 자동으로 지우는 일을
         # 원하지 않는 설치가 그것을 고르는 방법이 있어야 한다.
         SettingSpec("document_trash_autopurge", "bool", True, False,
-                    "켜 두면 보관 기간이 지난 문서를 자동으로 영구 삭제합니다. 끄면 사람이 누를 때만 지워집니다",
+                    "활성화하면 보관 기간이 지난 문서를 자동으로 영구 삭제합니다. 비활성화하면 자동으로 삭제하지 않습니다.",
                     _bool),
         SettingSpec("document_trash_retention_days", "int", 7, False,
-                    "문서를 휴지통에 두는 기간(일). 버린 시각부터 세고, 그 기간이 지나면 영구 삭제합니다",
+                    "문서를 휴지통에 두는 기간(일)입니다. 휴지통으로 보낸 시각부터 세고, 이 기간이 지나면 영구 삭제합니다.",
                     _positive_int(365)),
         SettingSpec("ui_branding", "object", {"product_name": "ClovirAssist"}, False,
-                    "UI 브랜딩(제품명). 로그인/채팅 화면 제목", _ui_branding),
+                    "로그인 화면과 채팅 화면의 제목에 쓰는 제품명입니다.", _ui_branding),
         SettingSpec("maintenance_mode", "bool", False, False,
                     "유지보수 모드 (일반 사용자 신규 요청 차단)", _bool),
         SettingSpec("maintenance_message", "string", "현재 시스템 점검 중입니다.", False,
                     "유지보수 공지 메시지", _non_empty_str),
         SettingSpec("password_policy", "object", {"min_length": 12, "min_classes": 3}, False,
-                    "비밀번호 정책: 즉시 적용", _password_policy),
+                    "비밀번호 정책: 저장하면 바로 적용됩니다.", _password_policy),
         # "신규 세션부터 적용"은 absolute_timeout_seconds에만 맞는 말이다(app/core/sessions.py
         # ::create가 그 값을 세션 생성 시점에 expires_at으로 굳힌다). idle_timeout_seconds는
         # 굳지 않는다 - validate()가 매 요청마다 그때의 설정값으로 idle_deadline을 다시 계산하므로,
@@ -449,7 +450,7 @@ REGISTRY: dict[str, SettingSpec] = {
         # password_policy 설명("즉시 적용")은 정확한데 이 칸만 두 필드를 뭉뚱그려 틀렸었다.
         SettingSpec("session_policy", "object",
                     {"idle_timeout_seconds": 1800, "absolute_timeout_seconds": 28800}, False,
-                    "세션 정책: 유휴 제한은 저장 즉시(이미 열린 세션 포함), 최대 세션 길이는 신규 세션부터 적용",
+                    "세션 정책: 유휴 제한은 저장하면 이미 열린 세션에도 바로 적용되고, 최대 세션 길이는 새로 여는 세션부터 적용됩니다.",
                     _session_policy),
         # ADM-05: 예전엔 env(app/core/config.py의 login_max_failures/login_lock_seconds)
         # 전용이라 화면에서 볼 수도 바꿀 수도 없었다 - 조정하려면 서버 파일을 고치고
@@ -458,14 +459,14 @@ REGISTRY: dict[str, SettingSpec] = {
         # 지금과 똑같이 동작한다. 다음 로그인 시도부터 즉시 적용(별도 굳는 지점 없음).
         SettingSpec("lockout_policy", "object",
                     {"max_failures": 5, "lock_seconds": 900}, False,
-                    "계정 잠금 정책: 로그인 실패 임계값과 잠금 시간. 다음 로그인 시도부터 즉시 적용",
+                    "계정 잠금 정책: 로그인 실패 임계값과 잠금 시간을 정합니다. 다음 로그인 시도부터 바로 적용됩니다.",
                     _lockout_policy),
         # 기본값이 비어 있다(= 제한 없음). 설치처마다 다른 값이라 여기에 한 회사의 도메인을
         # 박아 두면 다른 고객사 설치에서도 그 회사 도메인으로만 계정을 만들 수 있게 된다.
         # env 기본값(app/core/config.py)만 비우고 여기를 두면 첫 부팅에서 레지스트리
         # 기본값이 DB 로 내려앉아 고객 도메인이 되살아난다 — 두 곳을 같이 비운다.
         SettingSpec("allowed_email_domains", "object", [], False,
-                    "허용 이메일 도메인: 사용자 생성 시 즉시 적용, 비우면 제한 없음", _email_domains),
+                    "계정을 추가할 때 이 도메인의 이메일만 허용합니다. 저장하면 바로 적용되고, 비우면 제한하지 않습니다.", _email_domains),
         # config_dir/feature-flags.json에 있던 값을 관리 콘솔에서 켜고 끌 수 있게 옮긴다 —
         # 예전엔 이 값을 바꾸려면 서버 파일을 직접 편집해야 했다(Settings 화면에 노출 안 됨).
         # ── 주기 설정 (지시 1 · 29) ─────────────────────────────────────────
@@ -481,17 +482,17 @@ REGISTRY: dict[str, SettingSpec] = {
         # `restart_required=False`: 워커 틱이 매번 이 값을 다시 읽는다
         # (app/worker_main.py). 설정 캐시 재적재가 60초 간격이므로 늦어도 그 안에 반영된다.
         SettingSpec("search_index_interval_seconds", "int", 0, False,
-                    "검색 색인 갱신 주기(초). 0이면 서버 기본값을 씁니다. 최소 60초",
+                    "검색 색인 갱신 주기: 초 단위로 정합니다. 0이면 서버 기본값을 쓰고, 그 밖의 값은 60초 이상이어야 합니다.",
                     _interval_seconds),
         SettingSpec("document_automation_enabled", "bool", True, False,
-                    "문서 자동화: 끄면 신규 문서 생성 요청이 거부됩니다", _bool),
+                    "문서 자동화: 비활성화하면 새 문서 생성 요청을 받지 않습니다.", _bool),
         # AI 기능 셋(계획 3.13, D-507). 예전에는 feature-flags.json 소유라 운영에서 관리 화면이 못 켰다.
         SettingSpec("chat_enabled", "bool", True, False,
-                    "AI 도우미 채팅: 끄면 채팅 화면과 대화 API 가 닫힙니다", _bool),
+                    "AI 도우미 채팅: 비활성화하면 채팅 화면과 대화 기능을 쓸 수 없습니다.", _bool),
         SettingSpec("game_ai_enabled", "bool", False, False,
-                    "AI 퀴즈 만들기: 켜면 놀이 화면에서 AI 가 퀴즈 초안을 만듭니다", _bool),
+                    "AI 퀴즈 만들기: 활성화하면 놀이 화면에서 AI가 퀴즈 초안을 만듭니다.", _bool),
         SettingSpec("assistant_narrative_enabled", "bool", False, False,
-                    "AI 도우미 문장 요약: 켜면 홈과 도우미가 숫자 옆에 한두 문장 요약을 붙입니다", _bool),
+                    "AI 도우미 문장 요약: 활성화하면 홈과 도우미가 숫자 옆에 한두 문장 요약을 붙입니다.", _bool),
         # 백업 스케줄(0033, PLAN Phase 6). 워커가 이 값을 읽어 실제로 백업을 만든다
         # (app/worker_main.py::backup_schedule_tick) — '되는 척하는 스위치'가 아니다.
         # 기본은 꺼짐: 켜는 순간 디스크를 쓰기 시작하므로 운영자가 의도해서 켜야 한다.
@@ -502,7 +503,7 @@ REGISTRY: dict[str, SettingSpec] = {
                     # 지시 36: 설명은 화면에 그대로 나간다 — 내부 어휘(cron·keep·워커)로
                     # 쓰면 관리자가 무엇을 정하는 값인지 알 수 없다. 무엇이 언제 일어나고
                     # 무엇이 남는지로 쓴다.
-                    "정해진 시각마다 데이터베이스를 자동으로 백업하고, 정한 개수와 기간만큼 남깁니다",
+                    "정해진 시각마다 데이터베이스를 자동으로 백업하고, 정한 개수와 기간만큼 남깁니다.",
                     _backup_schedule),
         # 메일 발송(9-9 P4). 소비자가 넷 붙어 있다: 비밀번호 재설정, 초대, 백업 실패,
         # 승인 요청. '되는 척하는 스위치'가 아니라는 뜻이다. 기본은 꺼짐이고, 꺼져 있으면

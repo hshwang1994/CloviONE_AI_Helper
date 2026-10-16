@@ -184,7 +184,7 @@ def get(db: Session, document: Document, version_no: int) -> DocumentVersion:
         )
     ).scalars().first()
     if row is None:
-        raise NotFoundError("그 판을 찾지 못했습니다.")
+        raise NotFoundError("요청한 판을 찾지 못했습니다.")
     return row
 
 
@@ -220,12 +220,12 @@ def restore(
     안 잡으면 방금 쓴 문단이 조용히 사라지고 사라진 사람은 그 사실을 모른다.
     """
     if expected_version is not None and document.version != expected_version:
-        raise ConflictError("다른 사람이 먼저 저장했습니다. 새로 고친 뒤 다시 시도해 주세요.")
+        raise ConflictError("다른 사람이 먼저 저장했습니다. 새로고침한 뒤 다시 시도해 주세요.")
 
     source_version = get(db, document, version_no)
     now_showing = current(db, document)
     if now_showing is not None and now_showing.version_no == version_no:
-        raise ConflictError("이미 그 판을 보고 있습니다.")
+        raise ConflictError("이 판이 이미 지금 본문입니다.")
 
     version = snapshot(
         db,
@@ -240,7 +240,7 @@ def restore(
         # `snapshot` 은 정본이 같으면 `None` 을 낸다. 위에서 「지금 그 판」을 이미
         # 걸렀으므로, 여기 오는 것은 **번호가 다른데 본문이 같은** 판이다(예: 3판이
         # 1판을 되돌린 것이고 지금 다시 1판을 고른 경우). 되돌릴 것이 없다.
-        raise ConflictError("그 판은 지금 본문과 내용이 같습니다.")
+        raise ConflictError("이 판은 지금 본문과 내용이 같습니다.")
     document.version += 1
     db.flush()
     return version

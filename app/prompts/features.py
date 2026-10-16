@@ -34,7 +34,7 @@ FEATURE_FLAGS: dict[str, str] = {
     catalog.QUIZ: "game_ai_enabled",
 }
 STATE_ON, STATE_OFF, STATE_AI_UNAVAILABLE = "on", "off", "ai_unavailable"
-STATE_LABELS = {STATE_ON: "켜짐", STATE_OFF: "꺼짐", STATE_AI_UNAVAILABLE: "AI 미연결"}
+STATE_LABELS = {STATE_ON: "켜짐", STATE_OFF: "비활성화", STATE_AI_UNAVAILABLE: "AI 미연결"}
 LIFECYCLE_LABELS = {"draft": "초안", "published": "적용 중", "archived": "보관"}
 
 
@@ -47,12 +47,12 @@ def feature_state(slot_key: str, *, values: dict, runtime_info: dict | None) -> 
     """기능 상태와 까닭 한 문장. AI 사용이 꺼졌거나 연결이 막혔으면 어떤 기능도 답을 만들지 않는다."""
     info = runtime_info or {}
     if not info.get("generation_enabled"):
-        return STATE_OFF, "AI 사용이 꺼져 있어 이 기능이 답을 만들지 않습니다."
+        return STATE_OFF, "AI 사용이 비활성화되어 있어 이 기능이 답을 만들지 않습니다."
     if info.get("blocking"):
         return STATE_AI_UNAVAILABLE, "AI 연결을 쓸 수 없어 이 기능이 답을 만들지 않습니다."
     flag = FEATURE_FLAGS.get(slot_key)
     if flag and values.get(flag) is not True:
-        return STATE_OFF, "이 기능이 꺼져 있어 요청이 없습니다."
+        return STATE_OFF, "이 기능이 비활성화되어 있어 요청이 없습니다."
     return STATE_ON, None
 
 

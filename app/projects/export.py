@@ -111,7 +111,7 @@ def build_project_workbook(project: Project, wbs, milestones, health, *, today: 
             break
         reason_ko = {
             "cycle": "상위 작업 관계가 고리를 이룹니다",
-            "too_deep": "계층이 너무 깊어 트리에 못 넣었습니다",
+            "too_deep": "계층이 너무 깊어 WBS에 넣지 못했습니다",
         }.get(item.reason, item.reason)
         wbs_rows.append((
             None, item.key or "", item.title or "", "", None, None, None, None, reason_ko,

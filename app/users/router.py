@@ -417,7 +417,7 @@ def import_users_csv(
                 # 초대를 안 보내서, 한꺼번에 들어온 새 직원들은 로그인할 길을 모른 채 첫 출근을 했다.
                 user = db.get(User, row["user_id"])
                 invite = _queue_invite_mail(request, db, user, now) if user is not None else {
-                    "queued": False, "reason": "만든 계정을 찾지 못했습니다.",
+                    "queued": False, "reason": "추가한 계정을 찾지 못했습니다.",
                 }
                 row["invite_mail"] = invite
                 if invite["queued"]:
@@ -472,7 +472,7 @@ def create_user_endpoint(
     # 세 곳이 갈라지지 않는다. 여기서 예외가 나면 get_db 가 롤백하므로 계정은 남지 않는다.
     # 목록이 아니라 '생성 시도'라 존재를 숨길 것이 없으므로 404 가 아니라 403 이다.
     if not scope_allows_user(principal.management, user):
-        raise ForbiddenError("관리 범위 밖으로는 계정을 만들 수 없습니다.")
+        raise ForbiddenError("관리 범위 밖으로는 계정을 추가할 수 없습니다.")
 
     record_audit_from_request(
         request,
@@ -488,7 +488,7 @@ def create_user_endpoint(
     if generated:
         # Shown exactly once (spec §11.1) — never logged or audited.
         body["temp_password"] = password
-        body["temp_password_notice"] = "임시 비밀번호는 이번 응답에서만 확인할 수 있습니다."
+        body["temp_password_notice"] = "이 임시 비밀번호는 지금 한 번만 표시됩니다. 사용자에게 안전하게 전달하세요."
     body["invite_mail"] = _queue_invite_mail(request, db, user, now)
     return body
 
@@ -512,7 +512,7 @@ def _queue_invite_mail(request: Request, db: Session, user, now) -> dict:
             kind=KIND_INVITE,
             to_email=user.email,
             recipient_user_id=user.id,
-            subject=mail_subject(db, "계정이 만들어졌습니다"),
+            subject=mail_subject(db, "계정이 준비되었습니다"),
             params={"user_id": user.id},
             now=now,
             secret_provider=getattr(request.app.state, "secret_provider", None),
@@ -521,7 +521,7 @@ def _queue_invite_mail(request: Request, db: Session, user, now) -> dict:
         import logging
 
         logging.getLogger("app.users").exception("초대 메일을 큐에 넣지 못했다")
-        return {"queued": False, "reason": "초대 메일을 큐에 넣지 못했습니다."}
+        return {"queued": False, "reason": "초대 메일을 발송 대기열에 넣지 못했습니다."}
     queued = row.status == MAIL_QUEUED
     return {
         "queued": queued,
@@ -592,7 +592,7 @@ def patch_user(
     # the ungated-demotion gap).
     if role_changing and (new_role == "system_admin" or user.role == "system_admin"):
         if request.state.user.role != "system_admin":
-            raise ForbiddenError("system_admin 권한의 부여/회수는 system_admin만 가능합니다.")
+            raise ForbiddenError("시스템 관리자 역할은 시스템 관리자만 부여하거나 회수할 수 있습니다.")
 
     # Spec §20: 일반 admin으로의 승격은 승인 대상(비-sysadmin은 승인 요청 생성).
     if role_changing and new_role == "admin":
@@ -778,7 +778,7 @@ def reset_password(
     body: dict = {"ok": True, "must_change_password": True}
     if provided is None:
         body["temp_password"] = password
-        body["temp_password_notice"] = "임시 비밀번호는 이번 응답에서만 확인할 수 있습니다."
+        body["temp_password_notice"] = "이 임시 비밀번호는 지금 한 번만 표시됩니다. 사용자에게 안전하게 전달하세요."
     return body
 
 

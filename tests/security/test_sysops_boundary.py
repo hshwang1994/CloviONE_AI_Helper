@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """특권 헬퍼의 **보안 경계**를 검사한다 (§S).
 
 ## 왜 이 파일이 다른 테스트보다 중요한가
@@ -228,7 +229,7 @@ def test_a_restart_that_reports_success_but_leaves_the_unit_dead_is_a_failure():
 
     result = _run(runner, "service.control", {"unit": "nginx.service", "verb": "restart"})
     assert result.ok is False, "죽은 서비스를 재시작 성공이라고 말했다"
-    assert "살아나지" in result.detail, result.detail
+    assert "다시 시작되지 않았습니다" in result.detail, result.detail
 
 
 def test_the_console_cannot_stop_the_service_that_serves_it():

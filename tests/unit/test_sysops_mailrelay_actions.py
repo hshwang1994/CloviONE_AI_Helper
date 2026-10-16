@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """로컬 릴레이 특권 헬퍼 동작 (계획 M7, D-551) — 가짜 시스템(`FakeRunner`)으로 root 없이 잰다.
 
 못박는 것:
@@ -178,7 +179,7 @@ def test_a_failed_postfix_check_starts_nothing_and_rolls_back():
 def test_if_port_25_is_listening_after_start_the_relay_is_stopped():
     runner = _started(_runner(), tcp=L2525 + L25)
     result = _execute(runner, "mailrelay.apply", DIRECT)
-    assert not result.ok and "껐습니다" in result.detail
+    assert not result.ok and "비활성화했습니다" in result.detail
     assert "port 25" in result.data["technical"]
     assert (mr.SYSTEMCTL, "disable", "--now", rf.POSTFIX_UNIT) in runner.calls
     assert result.rolled_back

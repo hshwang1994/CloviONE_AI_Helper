@@ -1,3 +1,4 @@
+# qa-contract-change: 화면 문구를 문구 대장(D-597) 판정대로 바꿨다(동사표 · 마침표 · 조각 문장 · 실제 기능과 맞는 말). 단언하는 동작과 조건은 그대로이고 기대하는 글자만 새 문구다.
 """Schedule hardening: run_at/start_at coherence, run-now dedup, once-misfire
 catch-up + owner notification.
 
@@ -85,7 +86,7 @@ def test_create_once_rejects_run_at_before_start_at(client, admin_csrf, workflow
         headers=_headers(admin_csrf),
     )
     assert r.status_code == 422
-    assert "run_at" in r.json()["error"]["message"]
+    assert "실행 시각" in r.json()["error"]["message"]
 
 
 def test_create_once_allows_run_at_after_start_at(client, admin_csrf, workflow_id):
@@ -120,7 +121,7 @@ def test_enable_once_rejects_run_at_before_start_at(
         f"/api/admin/schedules/{created['id']}/enable", headers=_headers(admin_csrf)
     )
     assert r.status_code == 422
-    assert "run_at" in r.json()["error"]["message"]
+    assert "실행 시각" in r.json()["error"]["message"]
 
     db.expire_all()
     row = db.get(Schedule, created["id"])

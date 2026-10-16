@@ -66,12 +66,12 @@ def ensure_enablable(row: Schedule, now: datetime) -> datetime | None:
     """
     if row.schedule_type == TYPE_ONCE:
         if row.next_run_at is None or row.next_run_at <= now:
-            raise ConflictError("once 스케줄의 실행 시각이 이미 지났습니다.")
+            raise ConflictError("1회 실행 일정의 실행 시각이 이미 지났습니다.")
         # 활성화 시점에도 run_at < start_at을 거부한다 — 정의는 create/update에서 막지만,
         # start_at만 나중에 바뀌는 등으로 어긋난 상태가 게이트를 통과하지 못하게 한다.
         if row.start_at is not None and row.next_run_at < row.start_at:
             raise ValidationAppError(
-                "run_at은 start_at 이후여야 합니다 (once 스케줄의 실행 시각이 시작 시각보다 빠릅니다)."
+                "1회 실행 일정의 실행 시각이 시작 시각보다 빠릅니다. 실행 시각을 시작 시각 뒤로 정하세요."
             )
         next_run_at = row.next_run_at
     else:

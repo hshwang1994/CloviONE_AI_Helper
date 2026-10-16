@@ -62,7 +62,7 @@ DISPLAY: dict[str, tuple[str, str]] = {
     "unconfigured": ("미설정", "muted"),
     DISPLAY_AUTHENTICATING: ("로그인 진행 중", "info"),
     DISPLAY_VERIFYING: ("확인 중", "info"),
-    DISPLAY_OFF: ("꺼짐", "muted"),
+    DISPLAY_OFF: ("비활성화", "muted"),
     "unverified": ("확인 전", "info"),
     "ok": ("정상", "ok"),
     "degraded": ("일시 장애", "warn"),
@@ -73,9 +73,9 @@ DISPLAY_MESSAGES: dict[str, str] = {
     "unconfigured": "AI 제공자, 인증, 모델 중 아직 정하지 않은 것이 있습니다.",
     DISPLAY_AUTHENTICATING: "ChatGPT 창에서 승인한 뒤 주소를 붙여 넣으면 연결됩니다.",
     DISPLAY_VERIFYING: "연결을 확인하고 있습니다.",
-    DISPLAY_OFF: "AI 사용이 꺼져 있어 AI 기능이 답을 만들지 않습니다.",
+    DISPLAY_OFF: "AI 사용이 비활성화되어 있어 AI 기능이 답을 만들지 않습니다.",
     "unverified": "아직 연결을 확인하지 않았습니다.",
-    "ok": "지금 설정으로 실제 답을 받았습니다.",
+    "ok": "응답 확인 완료",
     "degraded": "제공자가 잠시 응답하지 못하고 있습니다. 다음 호출이 다시 시도하고, 성공하면 정상으로 돌아옵니다.",
     "reauth_required": "계정 연결이 끊겼습니다. 다시 로그인해야 합니다.",
     "error": "AI 연결을 쓸 수 없습니다.",
@@ -117,11 +117,11 @@ def state_display(info: dict, *, verifying: bool = False, embed_available: bool 
     if key == "ok":
         setup = {"state": SETUP_DONE, "detail": "AI 연결이 정상입니다.", "note": note}
     elif key == DISPLAY_OFF:
-        setup = {"state": SETUP_TODO, "detail": "AI 사용이 꺼져 있습니다.",
-                 "action": "AI 연결 화면에서 AI 사용을 켜세요.", "note": note}
+        setup = {"state": SETUP_TODO, "detail": "AI 사용이 비활성화되어 있습니다.",
+                 "action": "AI 연결 화면에서 AI 사용을 활성화하세요.", "note": note}
     elif key == "unconfigured":
         setup = {"state": SETUP_TODO, "detail": "AI 제공자를 아직 연결하지 않았습니다.",
-                 "action": "AI 연결 화면에서 제공자와 인증을 정하세요. AI 를 쓰지 않는다면 이 줄의 「사용하지 않음」을 고르세요.",
+                 "action": "AI 연결 화면에서 제공자와 인증을 정하세요. AI를 쓰지 않는다면 이 줄의 「사용하지 않음」을 고르세요.",
                  "note": note}
     elif key == DISPLAY_VERIFYING:
         setup = {"state": SETUP_UNKNOWN, "detail": "연결을 확인하고 있습니다.",
@@ -131,7 +131,7 @@ def state_display(info: dict, *, verifying: bool = False, embed_available: bool 
                  "action": "AI 연결 화면에서 승인 뒤의 주소를 붙여 넣어 연결을 끝내세요.", "note": note}
     elif key in ("unverified", "degraded"):
         setup = {"state": SETUP_UNKNOWN, "detail": message,
-                 "question": "AI 연결 화면에서 지금 확인을 누르세요.", "note": note}
+                 "question": "AI 연결 화면에서 연결 확인을 누르세요.", "note": note}
     else:
         setup = {"state": SETUP_TODO, "detail": f"AI 연결이 막혀 있습니다. {reason or ''}".strip(),
                  "action": "AI 연결 화면에서 다시 로그인하거나 키를 다시 넣으세요.", "note": note}
@@ -259,16 +259,16 @@ EMBED_STATUSES = (EMBED_DISABLED, EMBED_UNCONFIGURED, EMBED_RUNTIME_MISSING, EMB
 #: 「문서 검색」 칸의 값(낱말). 준비 중(벡터를 채우는 중)은 `embed_label` 이 수를 붙인다.
 EMBED_LABELS: dict[str, str] = {
     EMBED_OK: "낱말 검색 + 의미 검색",
-    EMBED_DISABLED: "낱말 검색(의미 검색 기능 꺼짐)",
+    EMBED_DISABLED: "낱말 검색(의미 검색 비활성화)",
     EMBED_UNCONFIGURED: "낱말 검색(의미 검색 모델 미설치)",
-    EMBED_RUNTIME_MISSING: "낱말 검색(의미 검색 런타임 미설치)",
+    EMBED_RUNTIME_MISSING: "낱말 검색(의미 검색 실행 환경 미설치)",
     EMBED_MODEL_MISSING: "낱말 검색(의미 검색 모델 미설치)",
     EMBED_FAILED: "낱말 검색(의미 검색 오류)",
 }
 #: 의미 검색을 켜는 방법 — 서버에서 한 번 실행한다(글만, 화면에 단추가 없다). 설치 명령의 `ai` 부명령이 런타임 · 모델 확인 · 유닛
 #: 재시작까지 한다(`deploy/install.sh`).
 EMBED_HINT = (
-    "의미 검색을 켜려면 서버에서 sudo clovirassist ai --with-ai 를 실행하세요. "
+    "의미 검색을 활성화하려면 서버에서 sudo clovirassist ai --with-ai 를 실행하세요. "
     "모델 파일이 없으면 --download-model 을 함께 줍니다."
 )
 EMBED_HINT_FAILED = "의미 검색이 실패하고 있습니다. 서버에서 sudo clovirassist ai-cli status 로 까닭을 확인하세요."
@@ -281,7 +281,7 @@ def embed_label(status: str, *, pending: int | None = None, embedded: int | None
     if status == EMBED_OK and pending:
         return f"낱말 검색 + 의미 검색 준비 중(색인 {int(embedded or 0)}/{int(chunks or 0)})"
     if status == EMBED_DISABLED and model_installed:
-        return "낱말 검색(의미 검색 기능 꺼짐, 모델 설치됨)"
+        return "낱말 검색(의미 검색 비활성화, 모델 설치됨)"
     return EMBED_LABELS.get(status, EMBED_LABELS[EMBED_FAILED])
 
 
@@ -441,17 +441,17 @@ def next_view(display: dict, config, status: dict, *, credentials: dict, index: 
     if key == DISPLAY_VERIFYING:
         return {"label": "연결을 확인하고 있습니다. 끝나면 상태가 바뀝니다.", "action": NEXT_WAIT}
     if key == DISPLAY_OFF:
-        return {"label": "AI 사용을 켜면 도우미와 요약이 답을 만듭니다.", "action": NEXT_ENABLE}
+        return {"label": "AI 사용을 활성화하면 도우미와 요약이 답을 만듭니다.", "action": NEXT_ENABLE}
     if key == "unverified":
-        return {"label": "지금 확인을 눌러 실제 답을 받는지 확인하세요.", "action": NEXT_VERIFY}
+        return {"label": "연결 확인을 눌러 실제 답을 받는지 확인하세요.", "action": NEXT_VERIFY}
     if key == "degraded":
-        return {"label": "잠시 뒤 지금 확인을 다시 누르세요.", "action": NEXT_VERIFY}
+        return {"label": "잠시 뒤 연결 확인을 다시 누르세요.", "action": NEXT_VERIFY}
     if key == "reauth_required":
         return {"label": "ChatGPT 계정에 다시 로그인하세요.", "action": NEXT_LOGIN}
     if key == "error":
         if account:
-            return {"label": "ChatGPT 계정에 다시 로그인한 뒤 지금 확인을 누르세요.", "action": NEXT_LOGIN}
-        return {"label": "API 키를 확인해 다시 저장한 뒤 지금 확인을 누르세요.", "action": NEXT_API_KEY}
+            return {"label": "ChatGPT 계정에 다시 로그인한 뒤 연결 확인을 누르세요.", "action": NEXT_LOGIN}
+        return {"label": "API 키를 확인해 다시 저장한 뒤 연결 확인을 누르세요.", "action": NEXT_API_KEY}
     hint = (index or {}).get("embed_hint")
     if key == "ok" and hint:
         return {"label": hint, "action": NEXT_SERVER}
@@ -566,7 +566,7 @@ def validate_config(current, changes: dict) -> dict:
     if not isinstance(slots, int) or not (1 <= slots <= concurrency.MAX_CONCURRENCY):
         raise ValidationAppError(f"동시 실행 수는 1에서 {concurrency.MAX_CONCURRENCY} 사이여야 합니다.")
     if merged["generation_enabled"] and not (merged["provider"] and merged["auth_method"] and merged["model"]):
-        raise ValidationAppError("AI 사용을 켜려면 제공자, 인증 방식, 모델을 먼저 정하세요.")
+        raise ValidationAppError("AI 사용을 활성화하려면 제공자, 인증 방식, 모델을 먼저 정하세요.")
     return {CONFIG_KEYS[k]: v for k, v in merged.items()}
 
 

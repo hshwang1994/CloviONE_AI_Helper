@@ -82,7 +82,7 @@ def add(
     if kind not in DREL_KINDS:
         raise ValidationAppError(f"모르는 관계 종류입니다: {kind}")
     if from_document_id == to_document_id:
-        raise ValidationAppError("같은 문서끼리는 이을 수 없습니다.")
+        raise ValidationAppError("같은 문서끼리는 연결할 수 없습니다.")
 
     left, right = _ordered(from_document_id, to_document_id, kind)
     if kind == DREL_SUPERSEDES and would_cycle(db, from_id=left, to_id=right):

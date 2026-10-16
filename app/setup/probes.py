@@ -61,7 +61,7 @@ TLS_RENEW_DAYS = 14
 # TLS 를 누가 맡는가(`setup_optional_choices.tls`, D-534). 인증서 경로가 없는 설치만 「외부 프록시가 맡음」을 고를 수 있다.
 TLS_APP = "app"
 TLS_PROXY = "proxy"
-TLS_PROXY_NOTE = "외부 프록시가 TLS 를 맡는다고 표시했습니다. 프록시 인증서의 만료일은 이 서버가 확인하지 않습니다."
+TLS_PROXY_NOTE = "외부 프록시가 TLS를 맡는다고 표시했습니다. 프록시 인증서의 만료일은 이 서버가 확인하지 않습니다."
 
 
 @dataclass(frozen=True)
@@ -154,7 +154,7 @@ def probe_admin_account(ctx: ProbeContext) -> Outcome:
         # 이 화면은 시스템 관리자만 연다 - 사람이 보는 자리에서는 닿지 않는 판정이지만 API 로는 닿는다.
         return _todo(
             "활성 시스템 관리자 계정이 없습니다.",
-            "시스템 관리자 역할의 활성 계정을 하나 이상 만드세요.",
+            "시스템 관리자 역할의 활성 계정을 하나 이상 추가하세요.",
             link=LINK_USERS,
         )
     if all(row.must_change_password for row in rows):
@@ -198,21 +198,21 @@ def probe_mail(ctx: ProbeContext) -> Outcome:
     notes = _base_url_notes(ctx)
     if state["state"] == mail_health.STATE_DISABLED:
         return _todo(
-            "메일 발송이 꺼져 있습니다.",
-            "메일을 쓰려면 메일 화면에서 발송을 켜고 설정을 채우세요. 메일을 쓰지 않는다면 이 줄의 「사용하지 않음」을 고르세요.",
+            "메일 발송이 비활성화되어 있습니다.",
+            "메일을 쓰려면 메일 화면에서 발송을 활성화하고 설정을 채우세요. 메일을 쓰지 않는다면 이 줄의 「사용하지 않음」을 고르세요.",
             link=LINK_MAIL_SETTING, configured=False, notes=notes,
         )
     if state["state"] == mail_health.STATE_UNCONFIGURED:
         problems = state.get("problems") or [state.get("message") or ""]
         return _todo(
             "메일 설정 일부가 남아 있습니다: " + " ".join(p for p in problems if p),
-            "메일 화면에서 설정을 마저 채우세요. 메일을 쓰지 않는다면 메일 화면에서 발송을 끈 뒤 「사용하지 않음」을 고르세요.",
+            "메일 화면에서 설정을 마저 채우세요. 메일을 쓰지 않는다면 메일 화면에서 발송을 비활성화한 뒤 「사용하지 않음」을 고르세요.",
             link=LINK_MAIL_SETTING, notes=notes,
         )
     if state["state"] == mail_health.STATE_FAILING:
         return _todo(
             f"메일 발송이 실패하고 있습니다. {state['message']}",
-            "메일 화면에서 실패한 단계를 확인하고 설정을 고치세요.",
+            "메일 화면에서 실패한 단계를 확인하고 설정을 수정하세요.",
             link=LINK_MAIL_SCREEN, checked_at=checked_at, notes=notes, problem=True,
         )
     if config.local_relay:
@@ -254,7 +254,7 @@ def _probe_local_relay(ctx: ProbeContext, config, state: dict, notes: tuple[str,
                      "그 구성을 쓰려면 메일 화면에서 외부 SMTP 사용을 고르고 그 서버를 지정하세요.",
                      link=LINK_MAIL_SETTING, notes=notes)
     if component != "running":
-        detail = "메일 발송 구성 요소가 동작하지 않습니다." if component == "stopped" else "로컬 릴레이가 꺼져 있습니다."
+        detail = "메일 발송 구성 요소가 동작하지 않습니다." if component == "stopped" else "로컬 릴레이가 비활성화되어 있습니다."
         return _todo(detail, "메일 화면에서 로컬 릴레이를 활성화하세요.", link=LINK_MAIL_SETTING, notes=notes,
                      problem=component == "stopped")
     if state["state"] == mail_health.STATE_UNVERIFIED:
@@ -265,7 +265,7 @@ def _probe_local_relay(ctx: ProbeContext, config, state: dict, notes: tuple[str,
         failed = [row.get("label") for row in readiness.get("checks") or [] if row.get("state") == "fail"]
         if failed:
             return _todo("준비 점검에서 고칠 것이 있습니다: " + ", ".join(failed) + ".",
-                         "메일 화면의 바깥으로 보내기 준비에서 줄마다 고칠 곳을 보세요.",
+                         "메일 화면의 외부 발송 준비 상태에서 줄마다 고칠 곳을 보세요.",
                          link=LINK_MAIL_SETTING, notes=notes)
     outer = _relay_outer_since(ctx.db)
     if outer is None:
@@ -283,7 +283,7 @@ def _probe_local_relay(ctx: ProbeContext, config, state: dict, notes: tuple[str,
     if outer.remote_status == "deferred":
         return _unknown(f"바깥 전달을 다시 시도하고 있습니다. {sentence}", "잠시 뒤 메일 화면의 발송 기록에서 결과를 확인하세요.",
                         link=LINK_MAIL_SCREEN, checked_at=seen, notes=notes)
-    return _todo(f"바깥 전달이 실패했습니다. {sentence}", "메일 화면의 바깥으로 보내기 준비와 발송 기록에서 원인을 확인하세요.",
+    return _todo(f"바깥 전달이 실패했습니다. {sentence}", "메일 화면의 외부 발송 준비 상태와 발송 기록에서 원인을 확인하세요.",
                  link=LINK_MAIL_SCREEN, checked_at=seen, notes=notes, problem=True)
 
 
@@ -318,7 +318,7 @@ def probe_organization(ctx: ProbeContext) -> Outcome:
         # 마이그레이션 0022 가 기본 조직 한 행을 심는다. 그 행이 없다는 것은 설정을 안
         # 한 것이 아니라 설치가 덜 끝났다는 뜻이라 사람에게 시킬 일을 특정할 수 없다.
         return _unknown(
-            "조직 행을 하나도 찾지 못했습니다.",
+            "등록된 조직을 하나도 찾지 못했습니다.",
             "데이터베이스 마이그레이션이 끝났는지 설치 로그를 확인해 주세요.",
         )
     if not any((org.name or "").strip() for org in orgs):
@@ -332,8 +332,8 @@ def probe_organization(ctx: ProbeContext) -> Outcome:
     ).scalar_one()
     if not departments:
         return _todo(
-            "부서가 하나도 등록되지 않았습니다.",
-            "조직 관리 화면에서 부서를 하나 이상 등록하세요.",
+            "등록된 부서가 없습니다.",
+            "조직 관리 화면에서 부서를 하나 이상 추가하세요.",
             link=LINK_DEPARTMENTS,
         )
     return _done(f"조직 {len(orgs)}개, 부서 {departments}개가 등록돼 있습니다.", link=LINK_DEPARTMENTS)
@@ -376,7 +376,7 @@ def probe_llm(ctx: ProbeContext) -> Outcome:
         return _todo(setup["detail"], setup.get("action") or "AI 연결 화면을 여세요.", link=LINK_AI,
                      configured=configured, checked_at=checked_at, notes=notes,
                      problem=shown["key"] in ("error", "reauth_required"))
-    return _unknown(setup["detail"], setup.get("question") or "AI 연결 화면에서 지금 확인을 누르세요.", link=LINK_AI,
+    return _unknown(setup["detail"], setup.get("question") or "AI 연결 화면에서 연결 확인을 누르세요.", link=LINK_AI,
                     checked_at=checked_at, notes=notes)
 
 
@@ -395,7 +395,7 @@ def probe_integrations(ctx: ProbeContext) -> Outcome:
         #
         # 외부 연동은 **선택**이다. 하나도 없는 것은 장애가 아니라 「이 설치는 바깥으로
         # 나가는 호출이 없다」는 정상 상태다.
-        return _done("추가된 외부 연동이 없습니다. 이 설치는 바깥으로 나가는 호출을 쓰지 않습니다.",
+        return _done("설정된 외부 연동이 없습니다. 외부 연동이 없어도 제품은 정상적으로 동작합니다.",
                      link=LINK_DIAGNOSTICS_INTEGRATIONS)
     enabled = [row for row in rows if row.enabled]
     if not enabled:
@@ -404,7 +404,7 @@ def probe_integrations(ctx: ProbeContext) -> Outcome:
     return _health_outcome(
         [row.last_health_status for row in enabled],
         noun="연동",
-        fix="해당 서비스가 실행 중인지, 주소가 맞는지 확인하세요.",
+        fix="연동한 서비스가 실행 중인지와 주소가 맞는지 확인하세요.",
         ask="진단 화면에서 연동 상태를 확인해 주세요.",
     )
 
@@ -423,7 +423,7 @@ def _health_outcome(statuses: list[str], *, noun: str, fix: str, ask: str) -> Ou
     unchecked = [s for s in statuses if s != HEALTH_UP]
     if unchecked:
         return _unknown(
-            f"{noun} {len(unchecked)}개가 아직 한 번도 헬스체크되지 않았습니다.", ask,
+            f"{noun} {len(unchecked)}개는 아직 한 번도 상태를 점검하지 않았습니다.", ask,
             link=LINK_DIAGNOSTICS_INTEGRATIONS,
         )
     return _done(f"{noun} {len(statuses)}개가 모두 정상입니다.", link=LINK_DIAGNOSTICS_INTEGRATIONS)
@@ -442,11 +442,11 @@ def probe_tls(ctx: ProbeContext) -> Outcome:
     if not cert_path:
         # 앞단 nginx · 로드밸런서가 TLS 를 끊고 앱은 평문 127.0.0.1 로만 받는 설치가 정상적으로 있다.
         if choice == TLS_PROXY:
-            return _done("외부 프록시가 TLS 를 맡습니다.", link=LINK_DIAGNOSTICS_TLS, notes=(TLS_PROXY_NOTE,),
+            return _done("외부 프록시가 TLS를 맡습니다.", link=LINK_DIAGNOSTICS_TLS, notes=(TLS_PROXY_NOTE,),
                          choices=(TLS_APP,))
         return _todo(
             "이 서버에 인증서가 설정돼 있지 않습니다.",
-            "인증서를 설치하세요. 앞단 프록시가 TLS 를 맡는 구성이면 이 줄의 「외부 프록시가 맡음」을 고르세요.",
+            "인증서를 설치하세요. 앞단 프록시가 TLS를 맡는 구성이면 이 줄의 「외부 프록시가 맡음」을 고르세요.",
             link=LINK_DIAGNOSTICS_TLS, choices=(TLS_PROXY,),
         )
     if not Path(cert_path).exists():

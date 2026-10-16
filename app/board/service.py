@@ -154,7 +154,7 @@ def ensure_can_change_status(user: User) -> None:
     그대로 쓴다 — '운영자' 가 화면마다 다른 뜻을 갖기 시작하면 되돌리기 어렵다.
     """
     if not can_moderate(user):
-        raise ForbiddenError("제안 상태는 운영자만 바꿀 수 있습니다.")
+        raise ForbiddenError("제안 상태는 운영자, 관리자, 시스템 관리자만 바꿀 수 있습니다.")
 
 
 def next_statuses(post: Post) -> list[str]:

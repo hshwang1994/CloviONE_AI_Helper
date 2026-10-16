@@ -136,7 +136,7 @@ def get_version(
         )
     ).scalar_one_or_none()
     if row is None:
-        raise NotFoundError(f"버전 {version}을 찾을 수 없습니다.")
+        raise NotFoundError(f"{version}번 버전을 찾을 수 없습니다.")
     return row
 
 

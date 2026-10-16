@@ -48,7 +48,7 @@ APPROVAL_EXECUTORS: dict[str, Callable] = {}
 _REQUEST_TYPE_KO = {
     "user.role_change": "역할 변경",
     "integration.change_config": "연동 설정 변경",
-    "schedule.enable": "스케줄 활성화",
+    "schedule.enable": "실행 일정 활성화",
     # D-519. 쓰기 승인 정책이 걸린 사람의 작업 공간 초안을 문서로 저장한다(`app/ai/action_requests.py`).
     "ai.document_create": "AI 문서 만들기",
 }
@@ -65,7 +65,7 @@ def _request_type_ko(request_type: str) -> str:
 # 제목은 한국어, 본문은 영문 코드였다. 값은 화면의 `OBJTYPE_OPTS`(registry/shared.js)와 같다.
 _OBJECT_TYPE_KO = {
     "user": "사용자",
-    "schedule": "스케줄",
+    "schedule": "실행 일정",
     "integration": "외부 연동",
     "ai_action_request": "AI 초안",
 }
@@ -316,7 +316,7 @@ def create_approval(
     sla_hours: int = DEFAULT_SLA_HOURS,
 ) -> Approval:
     if request_type not in APPROVAL_EXECUTORS:
-        raise ConflictError(f"승인 실행기가 등록되지 않은 요청 유형입니다: {request_type}")
+        raise ConflictError(f"처리할 수 없는 승인 요청 유형입니다: {request_type}")
     # 같은 대상·같은 내용의 대기 중 요청이 이미 있으면 새로 만들지 않고 그 요청을
     # 돌려준다. 예: 비활성 스케줄의 '활성화' 버튼은 승인이 대기 중이어도 계속 눌릴 수
     # 있는 상태로 남는다(화면이 pending 상태를 표시하지 않는다) — 연타마다 중복 pending
@@ -734,7 +734,7 @@ def lock_for_decision(db: Session, row: Approval) -> Approval:
         if not is_serialization_conflict(exc):
             raise
         raise ConflictError(
-            "다른 관리자가 이 요청을 결재하고 있습니다. 잠시 뒤 다시 확인해 주세요."
+            "다른 관리자가 이 요청을 처리하고 있습니다. 잠시 뒤 다시 확인해 주세요."
         ) from exc
     if locked is None:
         # 잠그려는 사이에 행이 사라졌다(정리 작업). 조회 경로와 같은 문구를 쓴다.
@@ -774,7 +774,7 @@ def decide(
     row = lock_for_decision(db, row)
     _ensure_decidable(row, now)
     if row.requested_by == approver.id and not self_approval_allowed:
-        raise ForbiddenError("자기 승인을 허용하지 않습니다.")
+        raise ForbiddenError("본인이 올린 승인 요청은 본인이 승인할 수 없습니다.")
 
     row.approver_id = approver.id
     # 위임으로 결재했다면 누구의 권한을 빌린 것인지 남긴다(0033). 이게 없으면 나중에
@@ -786,7 +786,7 @@ def decide(
     if approve:
         executor = APPROVAL_EXECUTORS.get(row.request_type)
         if executor is None:
-            raise ConflictError(f"승인 실행기가 없습니다: {row.request_type}")
+            raise ConflictError(f"이 승인 요청 유형은 처리할 수 없습니다: {row.request_type}")
         executor(db, row, app_state)  # 예외 시 트랜잭션 롤백 → 상태 변화 없음
         row.status = APPROVAL_APPROVED
     else:
@@ -868,20 +868,20 @@ def _execute_schedule_enable(db: Session, approval: Approval, app_state) -> None
 
     schedule = db.get(Schedule, approval.object_id)
     if schedule is None:
-        raise ConflictError("대상 Schedule이 더 이상 존재하지 않습니다.")
+        raise ConflictError("대상 실행 일정이 더 이상 없습니다.")
     # 승인은 요청 시점의 정의에 대한 것이다. 대기 중 PUT으로 정의가 바뀌었다면
     # 승인자가 본 적 없는 내용을 활성화하게 되므로 이 승인은 STALE — 거절한다.
     # (스냅샷이 없는 예전 승인도 대조가 불가능하므로 같은 취급 — fail-closed.)
     approved = json.loads(approval.request_payload_json).get("definition")
     if approved != definition_snapshot(schedule):
         raise ConflictError(
-            "요청 이후 Schedule 정의가 변경되어 이 승인은 적용할 수 없습니다 (stale). "
-            "변경된 정의로 다시 요청하세요."
+            "요청 뒤 실행 일정이 수정되어 이 승인은 적용할 수 없습니다. "
+            "수정된 실행 일정으로 다시 요청하세요."
         )
     now = app_state.clock.now()
     if schedule.schedule_type == TYPE_ONCE:
         if schedule.next_run_at is None or schedule.next_run_at <= now:
-            raise ConflictError("once 스케줄의 실행 시각이 이미 지났습니다.")
+            raise ConflictError("1회 실행 일정의 실행 시각이 이미 지났습니다.")
     else:
         anchor = max(now, schedule.start_at) if schedule.start_at else now
         schedule.next_run_at = cron.next_after(
@@ -911,7 +911,7 @@ def _execute_user_role_change(db: Session, approval: Approval, app_state) -> Non
     # it rather than silently demoting a system_admin (TOCTOU guard).
     if user.role == ROLE_SYSTEM_ADMIN or payload.get("role") == ROLE_SYSTEM_ADMIN:
         raise ConflictError(
-            "대상 계정 상태가 변경되어 이 승인은 더 이상 적용할 수 없습니다 (stale)."
+            "대상 계정 상태가 바뀌어 이 승인은 더 이상 적용할 수 없습니다."
         )
     # 요청과 결정 사이에 계정이 **닫혔으면** 그 승인도 낡은 것이다. 보관·비활성은 「이 사람의
     # 접근을 끊는다」는 관리 행위인데, 큐에 남아 있던 승격이 그 뒤에 적용되면 관리자가 끊었다고
@@ -919,7 +919,7 @@ def _execute_user_role_change(db: Session, approval: Approval, app_state) -> Non
     # 복구 경로가 승인 절차를 통째로 우회하는 셈이다. 위 system_admin 가드와 같은 자리에서 막는다.
     if user.archived_at is not None or not user.active:
         raise ConflictError(
-            "대상 계정이 보관되었거나 비활성이라 이 승인은 더 이상 적용할 수 없습니다 (stale). "
+            "대상 계정이 보관되었거나 비활성이라 이 승인은 더 이상 적용할 수 없습니다. "
             "계정을 되살린 뒤 다시 요청해야 합니다."
         )
     previous_role = user.role
@@ -966,8 +966,8 @@ def _execute_integration_config(db: Session, approval: Approval, app_state) -> N
     before = payload.get("before")
     if before is None or integration_snapshot(integration) != before:
         raise ConflictError(
-            "요청 이후 Integration 설정이 변경되어 이 승인은 적용할 수 없습니다 (stale). "
-            "변경된 설정으로 다시 요청하세요."
+            "요청 뒤 외부 연동 설정이 수정되어 이 승인은 적용할 수 없습니다. "
+            "수정된 설정으로 다시 요청하세요."
         )
     config = IntegrationConfig.model_validate(payload["config"])
     apply_integration_config(

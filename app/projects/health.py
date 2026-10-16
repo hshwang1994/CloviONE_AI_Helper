@@ -332,7 +332,7 @@ def _rule_stale(data: HealthInput, out: _Ledger) -> None:
     if today is None or last is None:
         out.unknown(
             RULE_STALE,
-            "걸린 작업이 없어 마지막 활동 시각을 알 수 없습니다.",
+            "연결된 작업이 없어 마지막 활동 시각을 알 수 없습니다.",
         )
         return
     days = (today - last).days

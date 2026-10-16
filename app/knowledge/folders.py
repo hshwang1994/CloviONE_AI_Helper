@@ -109,7 +109,7 @@ def create(
         if parent is None or parent.space_id != space_id:
             raise ValidationAppError("상위 폴더를 찾지 못했습니다.")
         if parent.depth + 1 > MAX_FOLDER_DEPTH:
-            raise ValidationAppError(f"폴더는 {MAX_FOLDER_DEPTH}단계까지 만들 수 있습니다.")
+            raise ValidationAppError(f"폴더는 {MAX_FOLDER_DEPTH}단계까지만 둘 수 있습니다.")
 
     folder = Folder(
         space_id=space_id,
@@ -156,7 +156,7 @@ def move(
             raise ValidationAppError("폴더를 자기 하위 폴더 안으로 옮길 수 없습니다.")
         depth_below = _subtree_height(db, folder)
         if parent.depth + 1 + depth_below > MAX_FOLDER_DEPTH:
-            raise ValidationAppError(f"폴더는 {MAX_FOLDER_DEPTH}단계까지 만들 수 있습니다.")
+            raise ValidationAppError(f"폴더는 {MAX_FOLDER_DEPTH}단계까지만 둘 수 있습니다.")
 
     folder.parent_id = parent_id
     folder.sort_order = _rank_between(

@@ -704,7 +704,7 @@ class NativeTicketRepository:
         오지 않고, 여기서 막으면 저장소가 API 스키마를 두 번째로 검사하는 자리가 된다.
         """
         if not changes:
-            raise ValidationAppError("변경할 내용이 없습니다.")
+            raise ValidationAppError("수정할 내용이 없습니다.")
         stamp = now or utcnow()
         row = self._require_row(db, page_id)
         # 프로젝트를 옮기면 **옛 프로젝트**도 다시 세야 한다(분모에서 빠진다). 바꾸기 전 축을 붙잡아 둔다.
@@ -723,7 +723,7 @@ class NativeTicketRepository:
                 row.title = value.strip()
             elif key == "status":
                 if not value:
-                    raise ValidationAppError("진행상태는 비울 수 없습니다.")
+                    raise ValidationAppError("상태는 비울 수 없습니다.")
                 row.status = workflow.validate_transition(row.status, value)
                 _stamp_completion(row, stamp)
             elif key == "priority":
@@ -836,7 +836,7 @@ class NativeTicketRepository:
         uid = self.ensure_local(db, page_id=page_id, now=stamp)
         row = self._row(db, page_id)
         if row is None:  # ensure_local 직후이므로 실제로는 오지 않는다
-            raise ValidationAppError("티켓을 우리 저장소에서 찾지 못했습니다.")
+            raise ValidationAppError("티켓을 찾을 수 없습니다.")
         # 입구는 둘이어도 **저장되는 것은 하나**다. 마크다운만 온 옛 요청도 여기서 doc 으로
         # 옮겨 같은 검증기를 지난다 — 그래야 「어느 입구로 들어왔나」가 나중에 자료의 모양을
         # 가르지 않는다.

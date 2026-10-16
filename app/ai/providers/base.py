@@ -127,7 +127,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
                     "Claude 구독 계정으로는 연결할 수 없습니다. Anthropic 콘솔에서 발급한 API 키를 넣으세요. "
                     "쓴 만큼 그 키의 계정에 과금됩니다.",
                     "API 키를 아직 넣지 않았습니다.", issue_url="https://console.anthropic.com/settings/keys"),),
-        help="Anthropic 은 콘솔에서 발급한 API 키로만 연결할 수 있습니다.",
+        help="Anthropic은 콘솔에서 발급한 API 키로만 연결할 수 있습니다.",
     ),
     PROVIDER_OPENAI: ProviderSpec(
         PROVIDER_OPENAI, "OpenAI",
@@ -141,7 +141,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
                        "ChatGPT Plus 또는 Pro 계정으로 로그인해 그 요금제로 씁니다. 연결한 계정 하나의 사용량을 이 설치의 모든 사용자가 함께 씁니다.",
                        "ChatGPT 계정을 아직 연결하지 않았습니다.", account=True),
         ),
-        help="OpenAI 는 플랫폼의 API 키 또는 ChatGPT 계정 로그인으로 연결합니다.",
+        help="OpenAI는 플랫폼의 API 키 또는 ChatGPT 계정 로그인으로 연결합니다.",
     ),
 }
 

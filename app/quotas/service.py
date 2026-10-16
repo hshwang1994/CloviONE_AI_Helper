@@ -53,11 +53,11 @@ PENDING_JOB_TYPES = frozenset({JOB_TYPE_CHAT_MESSAGE, JOB_TYPE_WEEKLY_SUMMARY})
 
 def validate(scope_type: str, period: str, max_calls: int) -> None:
     if scope_type not in ALL_SCOPES:
-        raise ValidationAppError(f"scope_type 은 {', '.join(ALL_SCOPES)} 중 하나여야 합니다.")
+        raise ValidationAppError(f"scope_type은 {', '.join(ALL_SCOPES)} 중 하나여야 합니다.")
     if period not in ALL_PERIODS:
-        raise ValidationAppError(f"period 는 {', '.join(ALL_PERIODS)} 중 하나여야 합니다.")
+        raise ValidationAppError(f"period는 {', '.join(ALL_PERIODS)} 중 하나여야 합니다.")
     if not isinstance(max_calls, int) or isinstance(max_calls, bool) or max_calls < 0:
-        raise ValidationAppError("max_calls 는 0 이상의 정수여야 합니다.")
+        raise ValidationAppError("한도(횟수)는 0 이상의 정수여야 합니다.")
 
 
 def period_start(period: str, now: datetime) -> datetime:

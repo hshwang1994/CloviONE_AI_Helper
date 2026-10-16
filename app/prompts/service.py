@@ -57,7 +57,7 @@ def get_version_row(
         select(model).where(model.name == name, model.version == version)
     ).scalar_one_or_none()
     if row is None:
-        raise NotFoundError(f"'{name}' 버전 {version}을 찾을 수 없습니다.")
+        raise NotFoundError(f"'{name}'의 {version}번 버전을 찾을 수 없습니다.")
     return row
 
 
@@ -105,7 +105,7 @@ def update_draft(
     고친다. 그래야 이미 발행된 버전의 내용과 용도가 버전 기록 없이 바뀌는 일이 없다.
     """
     if row.status != STATUS_DRAFT:
-        raise ConflictError("draft 상태에서만 내용을 수정할 수 있습니다.")
+        raise ConflictError("초안 상태에서만 내용을 수정할 수 있습니다.")
     if not isinstance(content, _Unset):
         _set_content(row, content)
     if not isinstance(purpose, _Unset):
@@ -138,7 +138,11 @@ def transition(
 ) -> VersionedModel:
     allowed = VALID_TRANSITIONS.get(row.status)
     if allowed is None or new_status not in allowed:
-        raise ConflictError(f"{row.status} → {new_status} 전환은 허용되지 않습니다.")
+        # 상태 이름은 화면 낱말로 말한다 — 원문 코드(draft · published)가 오류 문장에 섰다(r23 문구 대장).
+        from app.prompts.features import LIFECYCLE_LABELS
+        before = LIFECYCLE_LABELS.get(row.status, row.status)
+        after = LIFECYCLE_LABELS.get(new_status, new_status)
+        raise ConflictError(f"‘{before}’ 상태에서 ‘{after}’ 상태로 바꿀 수 없습니다.")
     if new_status == STATUS_PUBLISHED and isinstance(row, Prompt):
         # 발행은 「이 사용처에서 다음 호출부터 쓴다」는 뜻이다. 사용처와 지시문을 여기서 본다(D-518).
         from app.ai.prompts.service import validate_for_publish
@@ -324,6 +328,6 @@ def validate_policy_content(content: str) -> None:
     try:
         parsed = json.loads(content)
     except json.JSONDecodeError as exc:
-        raise ValidationAppError(f"Policy 내용이 올바른 JSON이 아닙니다: {exc}") from None
+        raise ValidationAppError(f"정책 내용이 올바른 JSON이 아닙니다: {exc}") from None
     if not isinstance(parsed, dict):
-        raise ValidationAppError("Policy 내용은 JSON 객체여야 합니다.")
+        raise ValidationAppError("정책 내용은 JSON 객체여야 합니다.")

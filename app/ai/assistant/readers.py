@@ -57,7 +57,7 @@ PROJECT_DOCUMENTS = 6
 TICKET_STATUSES = ("계획", "진행", "검증", "완료", "보류", "취소")
 TERMINAL_STATUSES = frozenset({"완료", "취소"})
 PROJECT_STATUS_KO = {"planned": "계획", "active": "진행", "on_hold": "보류", "done": "완료"}
-PROJECT_ROLE_KO = {"owner": "담당", "member": "구성원", "viewer": "보기"}
+PROJECT_ROLE_KO = {"owner": "담당", "member": "구성원", "viewer": "보기 전용"}
 MILESTONE_STATUS_KO = {"planned": "계획", "done": "완료", "missed": "놓침"}
 DECISION_KIND_KO = {"decision": "결정", "action": "할 일"}
 
@@ -1232,7 +1232,7 @@ def my_notifications(ctx: ToolContext, args) -> results.Execution:
 
 #: 티켓 활동 종류 → 문장 조각(`app/work/models.py::ACT_KINDS`). 담당자 · 회차의 앞뒤 값은 내부 값이라 싣지 않는다.
 ACTIVITY_SENTENCES = {
-    "created": "티켓을 만들었습니다.",
+    "created": "티켓을 추가했습니다.",
     "status": "상태를 바꿨습니다.",
     "assignee": "담당자를 바꿨습니다.",
     "sprint": "스프린트 회차를 바꿨습니다.",
@@ -1247,7 +1247,7 @@ def _ro(word: str) -> str:
     """「~로」와 「~으로」 — 끝 글자에 받침이 없거나 ㄹ 받침이면 「로」다. 한글이 아니면 「(으)로」."""
     last = (word or "").strip()[-1:]
     if not last or not ("가" <= last <= "힣"):
-        return "(으)로"
+        return "로"
     final = (ord(last) - 0xAC00) % 28
     return "로" if final in (0, 8) else "으로"
 
@@ -1324,7 +1324,7 @@ def my_activity(ctx: ToolContext, args) -> results.Execution:
         for version, document in ctx.db.execute(
             stmt.order_by(DocumentVersion.created_at.desc(), DocumentVersion.id.desc()).limit(need)
         ).all():
-            sentence = "문서를 만들었습니다." if version.version_no == 1 else f"문서를 고쳐 {version.version_no}판을 남겼습니다."
+            sentence = "문서를 추가했습니다." if version.version_no == 1 else f"문서를 수정해 {version.version_no}판을 남겼습니다."
             row = {"kind": "document", "at": _iso(version.created_at), "action": sentence,
                    "title": document.title or "(제목 없음)", "route": document_route(document.id)}
             events.append((version.created_at, "d", row,

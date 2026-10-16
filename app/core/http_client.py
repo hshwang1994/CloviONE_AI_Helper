@@ -166,7 +166,7 @@ class OutboundClient:
             if auth_type not in AUTH_TYPES:
                 raise ValidationAppError(f"알 수 없는 인증 방식입니다: {auth_type}")
             if not secret_ref:
-                raise ValidationAppError("인증 방식에 필요한 secret reference가 없습니다.")
+                raise ValidationAppError("인증 방식에 필요한 비밀 값이 설정되어 있지 않습니다.")
             secret = self._secret_text(secret_ref, secret_field)
             if auth_type == AUTH_BEARER:
                 final_headers["Authorization"] = f"Bearer {secret}"
@@ -177,7 +177,7 @@ class OutboundClient:
                 if ":" not in pair:
                     # 값을 오류 메시지에 싣지 않는다. 모양만 말한다.
                     raise ValidationAppError(
-                        "Basic 인증 시크릿은 «사용자:비밀» 한 줄이어야 합니다."
+                        "Basic 인증 비밀 값은 «사용자:비밀번호» 한 줄이어야 합니다."
                     )
                 encoded = base64.b64encode(pair.encode("utf-8")).decode("ascii")
                 final_headers["Authorization"] = f"Basic {encoded}"

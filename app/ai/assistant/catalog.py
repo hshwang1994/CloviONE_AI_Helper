@@ -275,7 +275,7 @@ REGISTRY: tuple[Tool, ...] = (
         permission="DOCUMENT_READ",
     ),
     Tool(
-        "search_workspace", "통합 검색", "티켓과 문서를 함께 찾고 있습니다.",
+        "search_workspace", "통합 검색", "티켓, 문서, 게시글을 함께 찾고 있습니다.",
         "티켓, 문서, 게시글의 제목과 본문을 함께 찾습니다. 무엇이 어디에 있는지 모를 때 씁니다. totals 에 종류별 전체 "
         "수가 있습니다. 문서에 적힌 내용을 물으면 search_documents 를 먼저 씁니다.",
         WorkspaceArgs, {
@@ -365,7 +365,7 @@ REGISTRY: tuple[Tool, ...] = (
         }, readers.project_activity,
     ),
     Tool(
-        "my_approvals", "내 결재함", "결재함을 확인하고 있습니다.",
+        "my_approvals", "내 승인 요청", "승인 요청을 확인하고 있습니다.",
         "묻는 사람의 결재함을 봅니다. todo 는 지금 결재할 것, requested 는 올린 것, done 은 결재한 것입니다.",
         ApprovalsArgs, {
             "box": _choice(("todo", "requested", "done"), "볼 칸."),
