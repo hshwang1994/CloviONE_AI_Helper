@@ -418,9 +418,22 @@ export function gameRoomColumns() {
     [`@container game-room (min-width: ${GAME_ROOM_TRACK_MIN_REM.ultra}rem)`]: { gridTemplateColumns: GAME_ROOM_TRACKS.ultra },
   };
 }
-/* 레일의 높이 예산 — 참여자 목록은 13rem 까지 서고 그 위는 안에서 굴린다(채팅을 밀어내지 않는다). 흐름 모드의 채팅 로그와 판의
-   천장은 창이 아니라 이 값이 정한다. */
-export const GAME_RAIL_BUDGET = { members: "13rem", flowChat: "22rem", flowBoardMax: "60vh", flowBoardMin: "22rem" };
+/* 레일의 높이 예산 (D-594 — G1 의 「참여자 13rem」을 대체한다). 채움 모드의 레일은 위 판(참여자 · 구슬 순위)과 채팅 판의 세로
+   묶음이다.
+     topMax   위 판은 자기 내용만큼 서되 레일 높이의 55% 를 넘지 않는다 — 그 위는 판 안의 목록이 굴린다. 참여자 수가 바뀌어도 판이
+              접히지 않고 늘기만 한다(내용 → 천장).
+     chatMin  채팅 판의 바닥이다. 채팅은 남는 높이를 다 받고(flex-basis 0) 이 값 밑으로는 줄지 않는다 — 머리 · 입력 줄 · 판 여백을
+              빼고 대화 칸이 약 12rem(한 줄 메시지 셋) 남는 높이다. 레일이 낮으면(1366 × 768 의 레일 509px) 이 바닥이 위 판의 천장이
+              되고, 대화가 몇 줄이든 위 판을 누르지 않는다(예전에는 대화가 길수록 참여자 판이 0줄까지 눌렸다).
+     topMin   더 낮은 레일(1280 × 640 같은 작은 노트북 창)에서 채팅 바닥이 양보하는 선 — 위 판의 머리(구슬 방의 「참여자 | 순위」
+              전환 34px 기준)와 한 줄 행 두 줄 · 판 여백. 채팅 바닥은 `min(chatMin, 레일 − topMin − 사이)` 라 위 판이 두 줄 아래로
+              접히기 전에 채팅이 먼저 줄어든다(입력 줄은 그대로 판 바닥).
+     flowChat 흐름 모드(판 아래 참여자 | 채팅 두 칸)의 칸 높이. flowBoardMax · flowBoardMin 은 흐름 모드 판의 천장과 바닥이다.
+   레일의 두 판은 한 줄 행 목록과 대화라 안쪽 여백이 compact(`CARD_PADDING_COMPACT`)다 — 판 틀(`BoardFrame`, 0 · 8px)과 같은 결이다. */
+export const GAME_RAIL_BUDGET = {
+  topMax: "55%", chatMin: "18rem", topMin: "8.25rem", flowChat: "22rem", flowBoardMax: "60vh", flowBoardMin: "22rem",
+};
+export const GAME_RAIL_CARD_PADDING = "compact";
 
 /* 폼 판 안 설정 줄 묶음의 폭(D-590, `SettingRows width="form"`) — 이름 · 설명 · 컨트롤이 **한 묶음으로 보이는** 폭이다. 판이
    1,400px 이어도 체크박스 · 단추가 이름에서 1,500px 떨어지지 않게 줄 자체를 묶는다(페이지 폭은 묶지 않는다 — D-520).

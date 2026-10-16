@@ -15,6 +15,7 @@ import { minimapHit, minimapLayout } from "./render/minimap.js";
 import { createEffects } from "./render/effects.js";
 import { createSpriteCache } from "./render/marbleSprites.js";
 import { spawnPosition } from "./engine/layout.js";
+import { STAGES } from "./engine/stages/index.js";
 
 /* 구슬 레이스 판 (D-564 · D-578) — 캔버스 하나가 판 틀(`BoardFrame`)을 꽉 채운다. 방장도 참가자도 같은 판 · 같은 경주를 본다.
  *
@@ -31,6 +32,10 @@ const VIEW_OPTIONS = [{ value: "follow", label: "따라가기" }, { value: "full
 const raf = typeof requestAnimationFrame === "function" ? (fn) => requestAnimationFrame(fn) : (fn) => setTimeout(() => fn(Date.now()), 16);
 const caf = typeof cancelAnimationFrame === "function" ? (h) => cancelAnimationFrame(h) : (h) => clearTimeout(h);
 const now = () => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
+/* 판 자료에서 맵 열쇠를 찾는 표다. 그리기 함수가 캔버스에 **실제로 그린** 판의 열쇠를 `data-drawn-map` 에 적는다 — 렌더가 아니라
+   그림이 기준이라, 맵이 바뀌었는데 캔버스가 옛 판을 그리고 있으면 그 값이 옛 열쇠로 남는다. 툴바의 맵 이름 · 방 상태의 맵과 그린 판이
+   같은지를 실브라우저 하네스(`games_e2e.py --map`)가 대조한다. 물리 · 지문과는 무관한 표시다. */
+const STAGE_KEY_OF = new Map(Object.entries(STAGES).map(([key, data]) => [data, key]));
 
 /* 선두 셋 — 진행 중엔 실시간 순위, 끝나면 확정 순위의 앞 셋(꼴찌 당첨이면 당첨 구슬). 경주 훅의 tick(≈5Hz)에 맞춰 다시 그린다. */
 function LeadChips({ c, palette, boxRef }) {
@@ -155,6 +160,8 @@ export function MarbleStage({ c }) {
       camera: camState, winnerSet: f.winnerSet, focusIndex: focus, waiting: f.waiting, sprites: f.sprites,
       effects: effectsRef.current, now: t, minimap: { layout: mini, active: f.viewMode === "free" || f.dragging }, reserve,
     });
+    const drawnKey = STAGE_KEY_OF.get(f.stage) || "";
+    if (canvas.getAttribute("data-drawn-map") !== drawnKey) canvas.setAttribute("data-drawn-map", drawnKey);
     /* 카메라가 아직 목표로 가는 중이거나 효과가 살아 있으면 다음 프레임도 그린다(스냅샷이 오지 않는 대기 · 종료 장면에서도). */
     const moving = Math.abs(camState.x - target.x) > 0.01 || Math.abs(camState.y - target.y) > 0.01 || Math.abs(camState.zoom - target.zoom) > 0.05;
     return moving || effectsRef.current.alive(t);

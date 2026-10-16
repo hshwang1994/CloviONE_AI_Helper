@@ -4,6 +4,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { Button, Callout, EmptyState, Card } from "../../ui/kit.jsx";
 import { FONT_SIZE, FONT_WEIGHT, KO_WORD_BREAK } from "../../ui/theme.js";
+import { GAME_RAIL_CARD_PADDING } from "../../ui/density.js";
 import { UserAvatar } from "../../ui/UserAvatar.jsx";
 import { fmtTime } from "./timeUtils.js";
 import { useGameRoomLayout } from "./GameRoomLayout.jsx";
@@ -23,10 +24,12 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, people, draft, setDraft, 
   /* 채움 · 흐름에서는 판(Card)이 받은 높이를 로그가 채운다(흐름은 레일 칸이 22rem 로 선다). 모바일만 로그가 제 높이로 선다. */
   const fill = mode !== "mobile";
   return (
-    <Card data-chat-panel="" sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0, minWidth: 0 }}>
+    <Card data-chat-panel="" padding={GAME_RAIL_CARD_PADDING} sx={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0, minWidth: 0 }}>
       <Typography component="h2" variant="body2" sx={{ fontWeight: FONT_WEIGHT.bold, mb: 1, flexShrink: 0 }}>채팅</Typography>
+      {/* 로그의 위아래 여백 4px · 입력 줄과의 사이 8px(머리 아래 8px 와 같다) — 1366 × 768 레일(509px)의 채팅 바닥(18rem)에 한 줄
+          메시지 셋이 들어가는 몫이다(D-594). */}
       <Box ref={chatLogRef} data-testid="game-chat-log" sx={{
-        display: "flex", flexDirection: "column", gap: 1, overflowY: "auto", overscrollBehavior: "contain", px: 0.5, py: 1, mb: 1.25,
+        display: "flex", flexDirection: "column", gap: 1, overflowY: "auto", overscrollBehavior: "contain", px: 0.5, py: 0.5, mb: 1,
         ...(fill ? { flex: "1 1 auto", minHeight: 0 } : { height: "min(45vh, 22rem)", minHeight: "12rem" }),
       }}>
         {chatMsgs.length === 0 ? (
@@ -52,7 +55,11 @@ export function ChatPanel({ chatLogRef, chatMsgs, you, people, draft, setDraft, 
               {!mine ? <UserAvatar person={sender} name={e.payload.name} size="sm" sx={{ mt: "1.1rem" }} /> : null}
               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0, alignItems: mine ? "flex-end" : "flex-start" }}>
                 {!mine ? (
-                  <Box component="span" sx={{ fontSize: FONT_SIZE.caption, color: "text.secondary", fontWeight: FONT_WEIGHT.semibold, px: 0.5 }}>
+                  /* 보낸 사람 이름은 한 줄이다(D-594) — 24자 이름이 두 줄로 접혀 대화 칸을 먹지 않게 자르고, 전체 이름은 `title` 이 든다. */
+                  <Box component="span" title={e.payload.name} sx={{
+                    fontSize: FONT_SIZE.caption, color: "text.secondary", fontWeight: FONT_WEIGHT.semibold, px: 0.5,
+                    maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>
                     {e.payload.name}
                   </Box>
                 ) : null}

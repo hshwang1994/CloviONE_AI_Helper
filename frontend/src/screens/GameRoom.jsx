@@ -45,8 +45,9 @@ export function GameRoom() {
   /* 전체 화면(표준 API)이면 대화 상자를 방 루트 안에 그린다 — 문서의 포털은 전체 화면에 가려진다. 흉내 모드(iPhone)는 문서 위에
      서므로 기본 포털(1300)이 루트(1250) 위에 그대로 뜬다. */
   const dialogContainer = fs.active && !fs.pseudo ? rootRef.current : undefined;
+  /* 레일이 모드에 맞춰 목록을 판에 채울지(`fill`) 정한다 — 순위도 참여자와 같은 천장 · 같은 굴림이다(D-594). */
   const panes = isMarble
-    ? [{ key: "members", label: "참여자" }, { key: "rank", label: "순위", node: <RankRail c={c} maxHeight={mode === "fill" || fs.active ? undefined : "none"} /> }]
+    ? [{ key: "members", label: "참여자" }, { key: "rank", label: "순위", render: ({ fill }) => <RankRail c={c} fill={fill} /> }]
     : null;
 
   return (

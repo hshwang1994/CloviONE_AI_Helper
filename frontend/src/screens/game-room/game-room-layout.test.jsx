@@ -12,7 +12,9 @@ import "@testing-library/jest-dom/vitest";
  *   2) 판 틀의 모서리는 8px 이다(숫자 `RADIUS.md` 를 `sx` 에 넣어 64px 이 되던 회귀).
  *   3) 참여자 40명이면 목록이 자기 칸(ScrollArea) 안에서 넘친다 — 채팅을 밀어내지 않는다.
  *   4) 전체 화면: 툴바 라벨이 바뀌고, 결과 대화 상자가 방 루트 안에 그려지고, 축포 캔버스는 전체 화면 동안만 루트 안에 선다.
- *   5) 전체 화면을 켜고 꺼도 경주 엔진을 다시 만들지 않는다(`createEngineClient` 한 번). */
+ *   5) 전체 화면을 켜고 꺼도 경주 엔진을 다시 만들지 않는다(`createEngineClient` 한 번).
+ *   6) 레일 높이 배분(D-594): 채움 모드의 위 판은 내용만큼 · 천장 55%, 채팅은 바탕 크기 0 으로 남는 높이를 받고 바닥이 있다. 흐름 ·
+ *      모바일은 그 규칙을 쓰지 않는다. 구슬 방의 순위 목록도 참여자 목록처럼 판을 채운다. 보이는 줄 수는 `games_e2e.py --rail` 이 잰다. */
 
 const apiMock = vi.fn();
 vi.mock("../../lib/api.js", () => ({ api: (...args) => apiMock(...args), setCsrf: () => {} }));
@@ -146,6 +148,84 @@ describe("판 틀 · 레일", () => {
       if (sh) Object.defineProperty(HTMLElement.prototype, "scrollHeight", sh);
       if (ch) Object.defineProperty(HTMLElement.prototype, "clientHeight", ch);
     }
+  });
+});
+
+describe("레일 높이 배분 (D-594)", () => {
+  /* jsdom 은 `min()` 같은 수식 값을 계산값으로 풀지 못한다 — 판 바닥은 감정(emotion)이 넣은 스타일 글로 잰다. */
+  const ruleText = (el) => {
+    const classes = Array.from(el.classList);
+    return Array.from(document.querySelectorAll("style")).map((s) => s.textContent).join("\n")
+      .split("}").filter((rule) => classes.some((cls) => rule.includes(`.${cls}`))).join("}");
+  };
+
+  it("예산: 위 판 천장 55% · 채팅 바닥 · 두 줄 선이 있고, G1 의 참여자 13rem 예산은 없다", async () => {
+    const { GAME_RAIL_BUDGET } = await import("../../ui/density.js");
+    expect(GAME_RAIL_BUDGET.topMax).toBe("55%");
+    expect(GAME_RAIL_BUDGET.chatMin).toBe("18rem");
+    expect(GAME_RAIL_BUDGET.topMin).toBe("8.25rem");
+    expect(GAME_RAIL_BUDGET).not.toHaveProperty("members");
+  });
+
+  it("채움: 위 판은 내용만큼(0 1 auto) · 천장 55%, 채팅은 바탕 크기 0 으로 남는 높이를 받고 바닥은 min(18rem, 레일 − 두 줄 − 사이)다", async () => {
+    renderRoom();
+    await screen.findByRole("button", { name: "추첨 시작" });
+    const top = document.querySelector('[data-room-rail="fill"] [data-rail-top]');
+    const st = getComputedStyle(top);
+    expect(st.maxHeight).toBe("55%");
+    expect(st.flexGrow).toBe("0");
+    expect(st.flexShrink).toBe("1");
+    const chat = document.querySelector('[data-room-rail="fill"] [data-rail-chat]');
+    const cs = getComputedStyle(chat);
+    expect(cs.flexGrow).toBe("1");
+    expect(["0", "0px", "0%"]).toContain(cs.flexBasis);
+    expect(ruleText(chat).replace(/\s+/g, "")).toContain("min-height:min(18rem,calc(100%-8.25rem-1rem))");
+    // 목록(스크롤 칸)이 위 판이 준 높이를 채운다 — 천장은 판(55%)이지 목록의 고정 높이(예전 13rem)가 아니다.
+    const area = top.querySelector(".k-scrollarea");
+    expect(getComputedStyle(area).flexGrow).toBe("1");
+    expect(getComputedStyle(area).maxHeight).not.toBe("13rem");
+  });
+
+  it("흐름: 위 판은 22rem 칸을 채우고(1 1 auto) 55% 천장 · 채팅 바닥을 쓰지 않는다", async () => {
+    media.fill = false;
+    renderRoom();
+    await screen.findByRole("button", { name: "추첨 시작" });
+    const top = document.querySelector('[data-room-rail="flow"] [data-rail-top]');
+    expect(getComputedStyle(top).flexGrow).toBe("1");
+    expect(getComputedStyle(top).maxHeight).not.toBe("55%");
+    expect(document.querySelector("[data-rail-chat]")).toBeNull();
+    expect(getComputedStyle(top.querySelector(".k-scrollarea")).flexGrow).toBe("1");
+  });
+
+  it("모바일: 참여자 탭의 목록은 내용만큼 선다(판을 채우지 않는다)", async () => {
+    media = { fill: false, mobile: true, wide: false };
+    renderRoom();
+    await screen.findByRole("button", { name: "추첨 시작" });
+    const area = document.querySelector('[data-rail-pane="members"] .k-scrollarea');
+    expect(getComputedStyle(area).flexGrow).not.toBe("1");
+  });
+
+  it("구슬 방: 순위 목록도 판을 채우고 줄 기하가 참여자와 같다", async () => {
+    const parts = [{ key: "u:u1", name: "참여자1", user_id: "u1" }, { key: "n:a", name: "자유", user_id: null }];
+    apiMock.mockResolvedValue(waitingDraw({
+      room: { id: "r1", title: "구슬", game_type: "marble_race", status: "playing", player_count: 1, max_players: 8, host_user_id: "u1" },
+      state: {
+        phase: "running", race_id: "0123456789abcdef0123456789abcdef", seed: "00112233aabbccdd", started_at: new Date().toISOString(),
+        speed: 1, map: "wheel", winners_n: 1, pick_last: false, participants: parts, submissions: [], result: null, finalized_at: null,
+        config: { participants: parts, winners: 1, map: "wheel", speed: 1 }, you_submitted: false, announceable: false,
+      },
+    }));
+    renderRoom();
+    const top = await waitFor(() => {
+      const el = document.querySelector('[data-room-rail="fill"] [data-rail-top="rank"]');
+      expect(el).not.toBeNull();
+      return el;
+    });
+    expect(getComputedStyle(top).maxHeight).toBe("55%");
+    expect(getComputedStyle(top.querySelector(".k-scrollarea")).flexGrow).toBe("1");
+    fireEvent.click(within(top).getByRole("tab", { name: "참여자" }));
+    const members = document.querySelector('[data-rail-top="members"]');
+    expect(getComputedStyle(members.querySelector(".k-scrollarea")).flexGrow).toBe("1");
   });
 });
 
