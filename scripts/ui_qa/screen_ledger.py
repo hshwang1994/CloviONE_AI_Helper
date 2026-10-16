@@ -340,6 +340,9 @@ CONTROLS_JS = r"""
     const s = getComputedStyle(el);
     const r = el.getBoundingClientRect();
     if (s.display === 'none' || s.visibility === 'hidden' || !(r.width > 0 && r.height > 0)) continue;
+    // 접근성 트리 밖(aria-hidden 조상 · inert)은 조작 요소가 아니다 — MUI 선택 상자의 숨은 원본 입력(`MuiSelect-nativeInput`, 이름 없음 ·
+    // 덮임)과 닫힌 서랍의 단추를 「이름 없는 입력」으로 셌다(r23 「후」 대장 192건).
+    if (el.closest('[aria-hidden=true], [inert]')) continue;
     const tagRole = { A: 'link', BUTTON: 'button', SELECT: 'combobox', TEXTAREA: 'textbox', SUMMARY: 'button' }[el.tagName];
     const inputRole = el.tagName === 'INPUT' ? ({ checkbox: 'checkbox', radio: 'radio', range: 'slider' }[el.type] || 'textbox') : '';
     const role = el.getAttribute('role') || tagRole || inputRole || el.tagName.toLowerCase();
