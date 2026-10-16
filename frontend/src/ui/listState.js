@@ -16,6 +16,8 @@
  *   ready           보일 행이 있다
  */
 
+import { subjectParticle } from "../lib/format.js";
+
 export const LIST_STATES = Object.freeze([
   "loading", "forbidden", "disabled", "unreachable", "error", "filtered-empty", "empty", "ready",
 ]);
@@ -35,15 +37,6 @@ export const LIST_STATE_COPY = Object.freeze({
   "filtered-empty": { title: "검색 조건에 맞는 항목이 없습니다.", help: "" },
   empty: { title: "등록된 항목이 없습니다.", help: "" },
 });
-
-/* 받침에 따른 주격 조사 — 「티켓이」 · 「게시글이」 · 「승인 요청이」 · 「감사 기록이」(`lib/format.js::hasFinalConsonant` 와 같은 규칙,
-   이 파일은 의존 없이 쓰이도록 셈을 따로 둔다). */
-function subjectParticle(word) {
-  const last = String(word || "").trim().slice(-1);
-  const code = last.charCodeAt(0) - 0xac00;
-  if (code < 0 || code > 11171) return "이(가)";
-  return code % 28 === 0 ? "가" : "이";
-}
 
 /** 조건 0건 문장 — 「검색 조건에 맞는 {대상}이 없습니다.」(D-587). 대상이 없으면 기본 문장이다. */
 export function filteredEmptyTitle(noun) {

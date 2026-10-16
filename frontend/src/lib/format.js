@@ -443,3 +443,8 @@ export function topicParticle(word) {
 export function objectParticle(word) {
   return hasFinalConsonant(word) ? "을" : "를";
 }
+
+/** 주격 조사(이/가). 「티켓이」·「승인 요청이」·「게시글이」·「직책이」. */
+export function subjectParticle(word) {
+  return hasFinalConsonant(word) ? "이" : "가";
+}
