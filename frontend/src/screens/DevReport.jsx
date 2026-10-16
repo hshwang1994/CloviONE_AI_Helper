@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography";
 import { useTheme } from "@mui/material/styles";
 import { api } from "../lib/api.js";
 import { topicParticle } from "../lib/format.js";
+import { priorityKind, priorityKo } from "../lib/priority.js";
 import { useQueryState } from "../lib/useQueryState.js";
 import {
   PageHeader, Card, Badge, Button, Callout, Skeleton, EmptyState, ErrorState, DataTable,
@@ -217,8 +218,10 @@ const DEV_TICKET_COLUMNS = [
   { key: "status", label: "상태", type: "status", help: "티켓의 진행 상태입니다.",
     render: (t) => <Badge value={t.status || "-"} /> },
   { key: "due", label: "마감일", type: "date", help: "티켓 마감일입니다.", render: (t) => t.due || "-" },
-  { key: "priority", label: "우선순위", type: "status", help: "티켓 우선순위입니다(높음, 중간, 낮음).",
-    render: (t) => t.priority || "-" },
+  /* 우선순위는 다른 표와 같은 이름 · 같은 톤의 표지다(`lib/priority.js`) — 원시 값(high · medium)을 그대로 쓰지 않는다(r23). */
+  { key: "priority", label: "우선순위", type: "status", help: "티켓 우선순위입니다(긴급, 높음, 보통, 낮음).",
+    value: (t) => (t.priority ? priorityKo(t.priority) : "-"),
+    render: (t) => (t.priority ? <Badge value={priorityKo(t.priority)} kind={priorityKind(t.priority)} /> : "-") },
   { key: "difficulty", label: "난이도", type: "score", help: "티켓 난이도입니다(1에서 6까지, 추정치).",
     render: (t) => num(t.difficulty) },
   { key: "est_wd", label: "예상 WD", type: "number", help: "이 티켓의 예상 공수입니다(인일, 추정치).",

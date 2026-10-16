@@ -127,6 +127,19 @@ describe("개발자 월간 리포트 — 데이터가 있는 달", () => {
     expect(screen.getByRole("heading", { name: "담당자별 상세 티켓" })).toBeInTheDocument();
   });
 
+  it("담당자별 상세 티켓의 우선순위는 다른 표와 같은 이름이다 — 원시 값(high)을 그대로 쓰지 않는다(r23)", async () => {
+    apiMock.mockResolvedValue({
+      configured: true, ok: true, period: "2026-08",
+      team: { ...EMPTY_TEAM, total: 6, done: 3, in_progress: 1, plan: 2, overdue: 1, est_done_total: 4.5 },
+      developers: [{ ...DEV, tickets: [{ ...DEV.tickets[0], priority: "high" }] }], unassigned: { total: 0 },
+    });
+    renderReport();
+    const title = await screen.findByText("로그인 화면 정리");
+    const row = title.closest("tr");
+    expect(row).toHaveTextContent("높음");
+    expect(row.textContent).not.toMatch(/high/);
+  });
+
   it("도넛 판이 없고, 그 각주는 합계 카드의 정의 목록으로 · 막대의 색 범례는 구획 제목 줄로 옮겼다", async () => {
     apiMock.mockResolvedValue({
       configured: true, ok: true, period: "2026-08",
