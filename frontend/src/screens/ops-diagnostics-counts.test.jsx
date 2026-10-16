@@ -206,6 +206,15 @@ describe("진단 — 판정 요약은 전체 건수이고 두 심각도가 섞�
     expect(hv.msg).toBe("확인할 항목 4건(위험 2건, 주의 2건)");
   });
 
+  it("줄은 위험부터 서고, 같은 심각도 안에서는 점검 순서를 지킨다", () => {
+    // 점검 순서: 서비스(웹 서버 중단 · 위험, 작업 응답 없음 · 주의) → 디스크(주의) → 작업(대기 · 주의, 미해결 실패 · 위험).
+    const hv = healthVerdict({ web: "down", worker: "stale" }, { used_pct: 81 }, {}, null, { queued: 2, failed_open: 1 }, {}, null, null);
+    expect(hv.problems.map((p) => p.tone)).toEqual(["danger", "danger", "warn", "warn", "warn"]);
+    expect(hv.problems[0].msg).toBe("웹 서버 중단");
+    expect(hv.problems[1].msg).toBe("미해결 실패 작업 1건");
+    expect(hv.problems[2].msg).toMatch(/응답 없음$/);
+  });
+
   it("한 심각도뿐이면 괄호를 붙이지 않는다 — 줄마다의 표지가 이미 말한다", () => {
     const hv = healthVerdict({}, { used_pct: 81 }, { used_pct: 82 }, null, { queued: 2 }, {}, null, null);
     expect(hv.tone).toBe("warn");

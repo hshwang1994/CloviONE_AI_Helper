@@ -338,6 +338,9 @@ export function healthVerdict(comps, disk, mem, certDays, jobs, integrations, ba
   // 요약 한 줄만 msg로 두고, 실제 항목은 (아래 렌더에서) 줄마다 나눠 보여준다.
   // 🔴 요약은 심각도 하나를 대표로 세우지 않는다. 예전 「주의 5건」 아래에 「위험」 줄 둘이 섞여 있었다 — 제목이 아래 목록과
   // 다른 말을 했다. 전체는 「확인할 항목 N건」이고, 두 심각도가 섞이면 괄호 안에 갈라 말한다(같은 낱말 위험 · 주의, 줄마다의 표지와 같다).
+  /* 줄은 위험부터 선다 — 요약이 「위험 2건, 주의 3건」 순서로 말하는데 줄이 점검 순서(서비스 · 디스크 · 작업 · 백업)대로 서면
+     주의 셋 뒤에야 위험이 보였다(r23 진단). 같은 심각도 안에서는 점검 순서를 지킨다(안정 정렬). */
+  problems.sort((a, b) => (b.tone === "danger") - (a.tone === "danger"));
   const dangerCount = problems.filter((p) => p.tone === "danger").length;
   const warnCount = problems.length - dangerCount;
   const summary = "확인할 항목 " + problems.length + "건"
