@@ -385,7 +385,8 @@ OVERLAP_JS = r"""
   const vw = innerWidth, vh = innerHeight;
   const shown = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
   const outside = (r) => r.bottom > vh + 1 || r.top < -1 || r.right > vw + 1 || r.left < -1;
-  const dialogs = [...document.querySelectorAll('[role=dialog]')].filter(shown).map((d) => {
+  // 닫힌 서랍(`inert` · `aria-hidden`)은 화면 밖으로 밀려 있어도 조작할 수 없다 — 단추가 화면 밖이라고 세지 않는다(AI 도우미 대화 목록 서랍).
+  const dialogs = [...document.querySelectorAll('[role=dialog]')].filter(shown).filter((d) => !d.closest('[inert], [aria-hidden=true]')).map((d) => {
     const r = d.getBoundingClientRect();
     const btns = [...d.querySelectorAll('button')].filter(shown);
     const out = btns.filter((b) => outside(b.getBoundingClientRect())).map((b) => (b.innerText || b.getAttribute('aria-label') || '').trim());
@@ -431,8 +432,13 @@ COVER_JS = r"""
     // (덮인 요소와 바의 가운데를 견주면 둘이 크게 겹칠 때 위아래가 뒤집힌다 — 발 바가 마지막 줄을 반쯤 덮은 경우가 그랬다.)
     const above = (pr.top + pr.bottom) / 2 < innerHeight / 2;
     const sc = scrollerOf(el);
-    const canUp = sc.scrollTop > 0;
-    const canDown = sc.scrollTop + sc.clientHeight < sc.scrollHeight - 1;
+    // 굴릴 수 있는가는 가장 가까운 굴림 상자만이 아니라 조상 굴림 상자 전부(문서 포함)에서 본다 — 칸 안 굴림 상자(작업 보드의 칸)는
+    // 맨 위인데 문서가 아래로 굴러 있어 첫 카드가 고정 머리 밑에 선 것을 「덮임」으로 셌다(r23 작업 보드 390, 위로 굴리면 드러난다).
+    const scrollers = [];
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) { const st = getComputedStyle(n); if (/(auto|scroll)/.test(st.overflowY) && n.scrollHeight > n.clientHeight + 1) scrollers.push(n); }
+    scrollers.push(document.scrollingElement || document.documentElement);
+    const canUp = scrollers.some((x) => x.scrollTop > 0);
+    const canDown = scrollers.some((x) => x.scrollTop + x.clientHeight < x.scrollHeight - 1);
     if ((above && canUp) || (!above && canDown)) continue;
     const rr = (x) => [Math.round(x.left), Math.round(x.top), Math.round(x.width), Math.round(x.height)];
     out.push({ name: (el.getAttribute('aria-label') || el.innerText || '').trim().slice(0, 60), by: pin.tagName.toLowerCase() + (pin.className && typeof pin.className === 'string' ? '.' + pin.className.split(' ')[0] : ''),

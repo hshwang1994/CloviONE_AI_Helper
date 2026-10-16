@@ -63,7 +63,10 @@ const nextClientId = () => "c" + Date.now() + "-" + (++_cseq);
    예전 상한 45rem 은 1920 에서 로그 아래에 빈 띠를 남기고 입력창이 판 가운데로 떠올랐다. 좌우 여백은 로그가 든다 — 입력 도킹
    영역의 위 실선이 판 가장자리까지 서야 해서 담는 판이 여백을 들지 않는다. */
 const LOG_SX = {
-  full: { flex: "1 1 auto", minHeight: "18.75rem", px: { xs: 2, sm: 2.75 }, pt: 2, pb: 1 },
+  /* 판 높이가 정해진 방(채팅방 판)에서는 로그가 남는 높이만 받는다 — 바닥(18.75rem)을 두면 낮은 창(1024 × 600 · 390 × 500)에서 로그가
+     그 높이를 고집해 아래 입력 도킹 영역을 판 밖으로 밀었고, 판이 넘침을 잘라 입력 칸이 보이지도 닿지도 않았다(r23 실측). 판의 바닥은
+     판(`ChatRooms.jsx::CHAT_FILL_MIN`)이 든다. */
+  full: { flex: "1 1 auto", minHeight: 0, px: { xs: 2, sm: 2.75 }, pt: 2, pb: 1 },
   compact: { height: "18.75rem", minHeight: "12.5rem", maxHeight: "25rem", mb: 1.25, px: 0.5, py: 1 },
 };
 
