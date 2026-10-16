@@ -124,7 +124,7 @@ describe("내 티켓 — 목록", () => {
     expect(screen.queryByText("전체 2건")).toBeNull();
     expect(document.querySelector("[data-filter-surface] [data-condition-line]")).toBeNull();
     expect(document.querySelector("[data-result-line]")).toBeNull();
-    expect(screen.getByText("전체 2건 중 2건 표시")).toBeInTheDocument();
+    expect(screen.getByText("2건 표시")).toBeInTheDocument();
   });
 
   it("SEM-02: h1 하나뿐이던 화면에 필터·목록 구획용 h2가 있다(시각적으로는 안 보임)", async () => {

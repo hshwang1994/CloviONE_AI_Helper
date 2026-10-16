@@ -198,7 +198,7 @@ describe("문서 목록의 묶음 이어 받기", () => {
       const table = document.querySelector("table[data-virtual-total]");
       expect(table.getAttribute("data-virtual-total")).toBe("110");
     });
-    expect(await screen.findByText("전체 110건 중 110건 표시")).toBeTruthy();
+    expect(await screen.findByText("110건 표시")).toBeTruthy();
     /* 다 받았으면 더 받을 단추가 없다. */
     expect(screen.queryByRole("button", { name: "문서 더 보기" })).toBeNull();
     /* 앞 묶음이 그대로 남아 있다 = 갈아 끼운 게 아니라 이어 붙였다. */

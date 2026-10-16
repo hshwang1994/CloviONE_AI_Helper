@@ -366,7 +366,7 @@ describe("프로젝트 목록 — 표", () => {
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     expect(within(table).getByText("사내 포털")).toBeInTheDocument();
     // 목록 발도 요약과 같은 단위 「개」다(r23 #35 — 발만 「건」이었다).
-    expect(screen.getByText("전체 2개 중 2개 표시")).toBeInTheDocument();
+    expect(screen.getByText("2개 표시")).toBeInTheDocument();
   });
 
   it("행을 누르면 상세로 간다", async () => {

@@ -76,7 +76,7 @@ describe("surface — 판이 곧 표 상자다", () => {
 
   it("쪽을 나누지 않는 목록은 받은 행 수로 같은 문장을 쓰고, 두 줄 미만이면 발을 안 그린다", () => {
     const { container, rerender } = ui(<DataTable placement="surface" columns={cols} rows={rows} rowKey={(r) => r.id} />);
-    expect(container.querySelector("[data-list-footer]").textContent).toBe("전체 3건 중 3건 표시");
+    expect(container.querySelector("[data-list-footer]").textContent).toBe("3건 표시");
     rerender(<ThemeModeProvider><DataTable placement="surface" columns={cols} rows={rows.slice(0, 1)} rowKey={(r) => r.id} /></ThemeModeProvider>);
     expect(container.querySelector("[data-list-footer]")).toBeNull();
     // 표 상자 모서리는 판 안쪽 반경으로 잘린다 — 발이 없으면 아래 모서리도 표 상자가 든다.

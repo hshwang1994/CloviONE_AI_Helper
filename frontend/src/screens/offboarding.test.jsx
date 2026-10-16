@@ -383,7 +383,7 @@ describe("오프보딩 화면", () => {
     /* 갈아 끼운 게 아니라 **이어 붙였다** — 감사 이력에서 앞 묶음이 사라지면 두 줄을
        나란히 대조할 수 없다. */
     expect(screen.getByText("퇴사자0")).toBeInTheDocument();
-    expect(await screen.findByText("전체 25건 중 25건 표시")).toBeInTheDocument();
+    expect(await screen.findByText("25건 표시")).toBeInTheDocument();
   });
 
   it("PA-RC-0012: 미리보기 카드 제목(대상 이름)이 h1 다음 h6이 아니라 h2다", async () => {
