@@ -564,10 +564,12 @@ export function Sprint() {
         context={(
           <>
             <TeamSelect team={team} value={teamId} onChange={changeTeam} loading={sprints.isLoading} />
+            {/* 주소의 회차가 이 팀 목록에 없으면(지워졌거나 잘못 적힌 주소) 칸에 원시 id 를 쓰지 않는다 — 「none-r23」 같은 값이
+                회차 이름처럼 보였다(r23 #50). 그 회차를 못 찾았다는 사실은 아래 판(404)이 말한다. */}
             <EntityCombobox
               size="wide"
               label="회차"
-              value={sprintId}
+              value={sprintsReady && sprintId && !sprintRows.some((s) => s.id === sprintId) ? "" : sprintId}
               onChange={(next) => setState({ sprint: next || "", discuss: "" })}
               loading={sprints.isLoading}
               disabled={!teamId}

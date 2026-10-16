@@ -196,6 +196,14 @@ describe("스프린트 회의", () => {
     expect(apiMock.mock.calls.some(([p]) => String(p).includes("/api/work/sprints?department_id=d-a"))).toBe(true);
   });
 
+  it("주소의 회차가 팀 목록에 없으면 회차 칸에 원시 id 를 쓰지 않는다(r23 #50)", async () => {
+    renderSprint("/sprint?team=d-a&sprint=none-r23");
+    const field = await screen.findByRole("combobox", { name: "회차" });
+    await waitFor(() => expect(apiMock.mock.calls.some(([p]) => String(p).includes("/api/work/sprints?department_id=d-a"))).toBe(true));
+    await waitFor(() => expect(field).not.toHaveValue("none-r23"));
+    expect(screen.queryByDisplayValue("none-r23")).toBeNull();
+  });
+
   it("🔴 회차 개요가 어느 팀의 회차인지, 기간·오늘·단계를 말한다", async () => {
     renderSprint();
     await waitFor(() => expect(screen.getByText(/8\/24.*~.*8\/30/)).toBeTruthy(), { timeout: 15000 });
