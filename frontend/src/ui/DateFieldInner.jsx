@@ -2,6 +2,7 @@ import React from "react";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { koKR } from "@mui/x-date-pickers/locales";
 import dayjs from "dayjs";
 import { withLabelAbove } from "./filters.jsx";
 import "dayjs/locale/ko";
@@ -29,6 +30,19 @@ dayjs.locale("ko");
 
 const ISO_FMT = "YYYY-MM-DD";
 
+/* 달력 조작의 이름(화면 낭독 · 툴팁)도 한국어다. 로캘을 안 주면 「Choose date」 · 「Year」 · 「Month」 · 「Day」가 접근 이름으로
+ * 섰다(r23 조작 요소 대장). MUI 한국어 로캘을 바탕으로 쓰되 단추 이름은 명사구로 쓰고(D-587), 뜻이 다른 낱말(요일을 「평일」)과
+ * 서류 말투(「공란」)는 고친다. 자리표시(YYYY · MM · DD)는 로캘과 상관없이 같다. */
+export const PICKER_TEXT = {
+  ...koKR.components.MuiLocalizationProvider.defaultProps.localeText,
+  openDatePickerDialogue: (formatted) => (formatted ? `날짜 선택(지금 ${formatted})` : "날짜 선택"),
+  datePickerToolbarTitle: "날짜 선택",
+  fieldClearLabel: "날짜 지우기",
+  year: "연도",
+  weekDay: "요일",
+  empty: "비어 있음",
+};
+
 export default function DateFieldInner({
   id, value, onChange, label, minDate, maxDate, disabled, error, helperText, required, size = "small", sx,
   disablePortal = false,
@@ -38,7 +52,7 @@ export default function DateFieldInner({
   const dateValue = parsed && parsed.isValid() ? parsed : null;
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="ko">
+    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="ko" localeText={PICKER_TEXT}>
       <DatePicker
         label={label}
         value={dateValue}

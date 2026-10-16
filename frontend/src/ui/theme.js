@@ -1086,7 +1086,13 @@ export function createClovirTheme(mode = "light", accent = DEFAULT_ACCENT) {
          둘이 되는 것을 막자고 만든 W5 가 자기 부품으로 그 위반을 새로 만든 셈이다
          (`/team-docs`·`/my-tickets` 1920 실측: 38.6 / 36 / 36). 높이의 정본은 `CONTROL.input`
          하나다. `endAdornment`(지우기·화살표)는 절대 배치라 이 높이에 영향받지 않는다. */
+      /* 화살표 · 지우기 단추의 이름도 한국어다. MUI 기본값(「Open」 · 「Close」 · 「Clear」)이 그대로 접근 이름이 되어 화면 낭독이
+         영어로 읽었다(r23 조작 요소 대장, 37곳). 없음 · 불러오는 중 문장은 호출부가 대상 낱말로 주고, 여기 값은 안 준 자리의 기본이다. */
       MuiAutocomplete: {
+        defaultProps: {
+          openText: "목록 열기", closeText: "목록 닫기", clearText: "선택 지우기",
+          noOptionsText: "일치하는 항목이 없습니다.", loadingText: "불러오는 중…",
+        },
         styleOverrides: {
           inputRoot: {
             paddingTop: 0,

@@ -187,6 +187,15 @@ describe("EntityCombobox", () => {
     expect(input.value.includes("프로젝트 전체")).toBe(false);
   });
 
+  it("목록 화살표 단추의 이름이 한국어다 — 화면 낭독이 「Open」 · 「Close」로 읽지 않는다", async () => {
+    const user = userEvent.setup();
+    renderBox();
+    const open = screen.getByRole("button", { name: "목록 열기" });
+    await user.click(open);
+    expect(await screen.findByRole("button", { name: "목록 닫기" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^(Open|Close|Clear)$/ })).toBeNull();
+  });
+
   it("후보가 없을 때 «없다» 고 말한다 — 빈 목록은 고장으로 읽힌다", async () => {
     const user = userEvent.setup();
     renderBox({ options: [], noOptionsText: "일치하는 프로젝트가 없습니다." });
