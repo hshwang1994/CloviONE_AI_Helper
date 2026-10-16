@@ -12,6 +12,10 @@ import { Button, Callout, Card, FieldLabel, ListEmptyState, PageHeader, Skeleton
 import { SearchBox } from "../ui/filters.jsx";
 import { FONT_SIZE, FONT_WEIGHT, NUMERIC, RADIUS } from "../ui/theme.js";
 import { GRID_GAP, PAGE_FILL_HEIGHT } from "../ui/density.js";
+
+/* 좁은 화면의 열린 방 판 높이 — 화면 높이에서 판 위(상단바 · 빵 부스러기 · 제목 · 「1:1 · 새 그룹」 줄, 390 실측 약 205px)와 화면 아래 여백을
+   뺀 값이다. `dvh` 라 모바일 주소창이 접히고 펴져도 판 바닥이 화면 바닥을 따라간다. */
+const CHAT_MOBILE_FILL_HEIGHT = "calc(100dvh - 14.5rem)";
 import { CHAT } from "../ui/chat.js";
 import { fmtDateTime, fmtListStamp } from "../lib/format.js";
 import { PeopleFilter, PersonPickRow, filterPeople } from "./chat/peoplePicker.jsx";
@@ -382,8 +386,11 @@ export function ChatRooms() {
         sx={{
           display: "grid", gap: GRID_GAP,
           gridTemplateColumns: { xs: "minmax(0, 1fr)", md: `${CHAT.listWidth} minmax(0, 1fr)` },
-          height: { xs: "auto", md: PAGE_FILL_HEIGHT },
-          minHeight: { xs: 0, md: "28rem" },
+          /* 좁은 화면에서 방을 열었으면 판도 화면 아래까지다(r23 390 실측) — 판이 내용 높이면 대화가 길수록 입력 칸이 페이지 맨 아래
+             (1,669px)로 밀려, 방을 열고 글을 쓰려면 끝까지 굴려야 했다. 높이가 있으면 대화는 판 안에서 굴러가고(맨 아래부터) 입력 칸은 판
+             바닥에 선다. 목록만 보일 때는 예전처럼 내용 높이다. 바닥(16rem)은 가상 키보드가 열린 낮은 화면에서도 입력 칸이 화면 안에 남는 값이다. */
+          height: { xs: activeId ? CHAT_MOBILE_FILL_HEIGHT : "auto", md: PAGE_FILL_HEIGHT },
+          minHeight: { xs: activeId ? "16rem" : 0, md: "28rem" },
         }}
       >
         <Card padding="none" sx={{ overflow: "hidden", display: { xs: activeId ? "none" : "grid", md: "grid" }, minHeight: 0, minWidth: 0 }}>

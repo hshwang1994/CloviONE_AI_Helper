@@ -200,7 +200,7 @@ C69 += [
     Case("59", "실행 일정 · 목록", "/schedules", console="admin", check=LIST_E),
     Case("60", "실행 일정 · 달력 0건", "/schedules?tab=scheduler-calendar", console="admin",
          # 달력의 빈 상태는 「일정이 하나도 없을 때」다(그 달에 실행이 없는 것만으로는 빈 격자다) — 일정 목록을 비운다.
-         routes=((re.compile(r"/api/admin/schedules(\?|$)"), "empty"), ("**/api/admin/schedules/calendar*", "empty")), check=E),
+         routes=((re.compile(r"/api/admin/schedules(\?|$)"), "empty"), ("**/api/admin/schedules/calendar*", "empty_calendar")), check=E),
     Case("60-data", "실행 일정 · 달력", "/schedules?tab=scheduler-calendar", console="admin", check="main"),
     Case("61", "AI 연결", "/ai-connection", console="admin", check="[data-testid=ai-connection-form], main"),
     Case("62", "AI 프롬프트", "/prompts", console="admin", check="main"),
@@ -532,6 +532,9 @@ def _handler(kind: str):
         return _rewrite(_empty_lists)
     if kind == "empty_buckets":
         return _rewrite(_empty_buckets)
+    if kind == "empty_calendar":
+        # 달력 응답은 `items`(실행) 말고 `schedules`(일정 목록)가 빈 상태를 정한다 — 둘 다 비워야 「일정이 하나도 없다」가 선다.
+        return _rewrite(lambda d: {**_empty_lists(d), "schedules": []} if isinstance(d, dict) else d)
     if kind == "empty_trash_docs":
         return _rewrite(_empty_trash_docs)
     status = {"error500": 500, "error403": 403, "error404": 404}.get(kind)

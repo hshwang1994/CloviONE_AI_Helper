@@ -683,7 +683,9 @@ export function Sprint() {
                     </Typography>
                   ) : null}
                 </Box>
-                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ flexShrink: 0 }}>
+                {/* 단추 묶음은 줄 폭을 넘지 않는다(r23 390 가로 넘침) — `flexShrink: 0` 이면 둘째 줄로 내려가서도 내용 폭(단추 다섯, 약 420px)을
+                    고집해 390 화면이 가로로 38px 넘쳤다. 넓은 화면에서는 한 줄에 다 들어가 줄지 않는다. */}
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ minWidth: 0, maxWidth: "100%" }}>
                   {/* 앞뒤 회차는 서버가 준다(같은 팀 안에서). 화면이 목록에서 스스로 찾으면 두 곳의 정렬이 갈린다. */}
                   <Button
                     variant="ghost"

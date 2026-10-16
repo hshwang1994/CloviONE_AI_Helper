@@ -116,6 +116,8 @@ describe("목록 판 머리 · 페이지 머리 동작 · 목록 시각 (조합 
     // 판 높이는 화면 아래까지 서는 정본 값이다(높이 고정 판).
     expect(layout.getAttribute("data-page-fill")).toBe("");
     expect(emittedCss()).toContain("height:calc(100vh - 12rem)");
+    // 좁은 화면에서 방을 열면 판도 화면 아래까지다 — 입력 칸이 페이지 맨 아래로 밀리지 않는다(r23 390 실측).
+    expect(emittedCss()).toContain("height:calc(100dvh - 14.5rem)");
   });
 
   it("이레가 넘은 마지막 대화 시각은 「M월 D일」 짧은 형식이고 전체 시각은 이름표가 든다", async () => {

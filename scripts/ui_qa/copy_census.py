@@ -13,6 +13,7 @@
     python -m scripts.ui_qa.copy_census extract
     python -m scripts.ui_qa.copy_census map --ledger dist/ui-qa/r23-before-text/ledger.json
     python -m scripts.ui_qa.copy_census sheet --domain user      # 판정할 줄을 영역별로 내보낸다
+    python -m scripts.ui_qa.copy_census after --ledger dist/ui-qa/r23-after-text/ledger.json   # 「변경」 줄의 새 · 옛 문구
     python -m scripts.ui_qa.copy_census report --out docs/platform/EVIDENCE/ui/2026-10-16-copy-census.csv
     python -m scripts.ui_qa.copy_census --self-test
 """
@@ -438,6 +439,56 @@ def expand() -> int:
     return 0 if not bad else 1
 
 
+def _shown_blobs(ledgers: list[Path]) -> dict[str, list[str]]:
+    by_case: dict[str, set] = {}
+    for ledger in ledgers:
+        data = json.loads(Path(ledger).read_text(encoding="utf-8"))
+        for row in data.get("rows", []):
+            for t in row.get("text", []) or []:
+                by_case.setdefault(row["id"], set()).add(t["text"])
+    return {cid: sorted(v) for cid, v in by_case.items()}
+
+
+def after_check(ledgers: list[Path]) -> Path:
+    """「변경」 줄마다 「후」 캡처에서 새 문구가 보였는가 · 옛 문구가 아직 보이는가 (W6 · W7).
+
+    새 문구는 원본 줄이 그 글을 보였던 화면(「전」 지도)에서 먼저 찾고, 없으면 「후」 캡처 전체에서 찾는다 — 화면이 바뀐 줄(게임방 낱말이
+    다른 상태로 옮긴 것 등)도 놓치지 않는다. 옛 문구가 새 문구 안에 들어 있으면(「삭제」 → 「삭제할까요」) 옛 문구 검사는 하지 않는다
+    — 새 글이 보이는 것만으로 옛 글이 「남았다」고 세면 거짓 경보다. 결과는 `after.json` 이고 `report` 가 칸 둘로 붙인다."""
+    entries = {e["key"]: e for e in json.loads(INVENTORY.read_text(encoding="utf-8"))}
+    dec = _decisions()
+    before_hits = _load_map().get("hits", {})
+    blobs = _shown_blobs(ledgers)
+    out: dict[str, dict] = {}
+    for key, d in dec.items():
+        if d.get("decision") != "변경" or key not in entries:
+            continue
+        old = entries[key]["text"]
+        new = (d.get("after") or "").strip()
+        new_fn = _matcher(new) if new else None
+        old_fn = _matcher(old) if old and (not new or old not in new) else None
+        prefer = [c for c in before_hits.get(key, []) if c in blobs]
+        rest = [c for c in blobs if c not in prefer]
+        new_seen: list[str] = []
+        if new_fn is not None:
+            for cid in prefer + rest:
+                if any(new_fn(t) for t in blobs[cid]):
+                    new_seen.append(cid)
+        old_seen: list[str] = []
+        if old_fn is not None:
+            for cid, texts in blobs.items():
+                if any(old_fn(t) for t in texts):
+                    old_seen.append(cid)
+        out[key] = {"new_seen": sorted(new_seen), "old_seen": sorted(old_seen),
+                    "new_checkable": new_fn is not None, "old_checkable": old_fn is not None}
+    path = WORK / "after.json"
+    path.write_text(json.dumps({"ledgers": [str(x) for x in ledgers], "rows": out}, ensure_ascii=False), encoding="utf-8")
+    n_new = sum(1 for v in out.values() if v["new_seen"])
+    n_old = sum(1 for v in out.values() if v["old_seen"])
+    print(f"COPY_CENSUS_AFTER 변경 {len(out)}줄 · 새 문구 봄 {n_new} · 옛 문구 남음 {n_old} → {path}")
+    return path
+
+
 def _decisions() -> dict[str, dict]:
     out: dict[str, dict] = {}
     for path in sorted((WORK / "decisions").glob("*.csv")):
@@ -453,8 +504,12 @@ def report(out_csv: Path | None) -> int:
     mp = _load_map()
     hits, names = mp.get("hits", {}), mp.get("names", {})
     dec = _decisions()
+    after_path = WORK / "after.json"
+    after = json.loads(after_path.read_text(encoding="utf-8")).get("rows", {}) if after_path.exists() else {}
     counts = {d: 0 for d in DECISIONS}
     counts.update({"미검토": 0, "변경·브라우저 확인": 0, "변경·브라우저 미검증": 0, "유지·브라우저 확인": 0, "유지·브라우저 미검증": 0})
+    if after:
+        counts.update({"변경·후 새 문구 봄": 0, "변경·후 새 문구 못 봄": 0, "변경·후 옛 문구 남음": 0})
     rows = []
     for e in entries:
         d = dec.get(e["key"], {})
@@ -465,6 +520,11 @@ def report(out_csv: Path | None) -> int:
         seen = hits.get(e["key"], [])
         if decision in ("변경", "유지"):
             counts[f"{decision}·브라우저 {'확인' if seen else '미검증'}"] += 1
+        a = after.get(e["key"]) if decision == "변경" else None
+        if a is not None:
+            counts["변경·후 새 문구 " + ("봄" if a["new_seen"] else "못 봄")] += 1
+            if a["old_seen"]:
+                counts["변경·후 옛 문구 남음"] += 1
         rows.append({
             "화면": " ".join(seen), "화면 이름": " · ".join(names.get(s, "") for s in seen[:6]),
             "종류": e["kind"], "소스 위치": f"{e['file']}:{e['line']}", "기존 문구": e["text"],
@@ -472,6 +532,8 @@ def report(out_csv: Path | None) -> int:
             "이유": (d.get("reason") or e.get("offscreen") or "").strip(),
             "기능 · 조회 조건": (d.get("condition") or "").strip(),
             "브라우저 확인": "화면에서 봄" if seen else "화면에서 못 봄",
+            "후 화면 새 문구": ("" if a is None else (" ".join(a["new_seen"][:8]) or "못 봄")),
+            "후 화면 옛 문구": ("" if a is None else (" ".join(a["old_seen"][:8]) or "없음")),
         })
     if out_csv:
         out_csv.parent.mkdir(parents=True, exist_ok=True)
@@ -511,7 +573,7 @@ def main() -> int:
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description="문구 대장(r23)")
-    ap.add_argument("command", nargs="?", choices=("extract", "map", "sheet", "unique", "expand", "report"))
+    ap.add_argument("command", nargs="?", choices=("extract", "map", "sheet", "unique", "expand", "after", "report"))
     ap.add_argument("--ledger", nargs="*", default=[])
     ap.add_argument("--domain", default="")
     ap.add_argument("--out", default="")
@@ -540,6 +602,9 @@ def main() -> int:
         return 0
     if args.command == "expand":
         return expand()
+    if args.command == "after":
+        after_check([Path(x) for x in args.ledger])
+        return 0
     if args.command == "report":
         return report(Path(args.out) if args.out else None)
     ap.print_help()
