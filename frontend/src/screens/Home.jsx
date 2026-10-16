@@ -549,10 +549,11 @@ function HomeBody({ data, focus, onFocus, onEdit, onOpen }) {
             {footAny || overflow ? (
               <Box sx={{ mt: 1.5, minHeight: footAny ? { lg: "1.5rem" } : 0 }}>
                 {overflow ? (
-                  <Typography variant="body2" color="text.secondary">
-                    전체 {total}건 중 {shownRows.length}건 표시{" "}
-                    <Link href="#/my-tickets" underline="hover">내 티켓에서 모두 보기</Link>
-                  </Typography>
+                  /* 개수(명사구)와 링크는 따로 선다 — 한 줄 글로 붙이면 「12건 표시 내 티켓에서」가 한 문장처럼 읽혔다(r23). */
+                  <Stack direction="row" gap={1.5} alignItems="baseline" flexWrap="wrap">
+                    <Typography variant="body2" color="text.secondary">전체 {total}건 중 {shownRows.length}건 표시</Typography>
+                    <Link href="#/my-tickets" underline="hover" variant="body2">내 티켓에서 모두 보기</Link>
+                  </Stack>
                 ) : null}
               </Box>
             ) : null}

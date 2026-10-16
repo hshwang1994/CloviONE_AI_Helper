@@ -2850,6 +2850,12 @@ export function TitleCell({ title, fallback = "제목 없음", onOpen, href, tar
   );
 }
 
+/* 좁은 폭 카드의 제목은 두 줄까지 쓴다(r23 #9). 표 행에서는 한 줄 말줄임이 열 폭을 지키지만, 카드에서는 제목이 가장 중요한 줄이고
+ * 터치 화면에는 `title` 툴팁이 없다. 표 카드 뷰가 자기 판 안에서만 이 규칙을 건다 — 표 행과 다른 자리의 `TitleCell` 은 그대로 한 줄이다. */
+const CARD_TITLE_CLAMP = {
+  "& [data-title-cell]": { whiteSpace: "normal", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", ...KO_WORD_BREAK },
+};
+
 /* ── 행 동작 — 표 행 안의 단추 묶음 (핸드오프 RULES §5 「행 안 동작은 30px, 둘을 넘으면 더 보기 하나」 · 조합 계약 C-4) ──
  *
  * `actions`: `[{ key, label, onClick, variant: "default" | "danger", disabled, loading, ariaLabel, icon }]`
@@ -3278,7 +3284,7 @@ export function DataTable({ columns, rows, rowKey, onRow, rowHref, rowSelected, 
               onKeyDown={onRow ? (e) => { if (e.target.closest("a,button")) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRow(row); } } : undefined}
               tabIndex={onRow ? 0 : undefined}
               aria-label={onRow ? rowOpenLabel(baseCols, row) : undefined}
-              sx={{ p: 2, display: "grid", gap: 0.75, cursor: onRow ? "pointer" : "default" }}
+              sx={{ p: 2, display: "grid", gap: 0.75, cursor: onRow ? "pointer" : "default", ...CARD_TITLE_CLAMP }}
             >
               {cols.map((c) => {
                 /* `overflowWrap:anywhere` 만 걸면 한글이 음절 단위로 끊긴다 - 영문에서는
