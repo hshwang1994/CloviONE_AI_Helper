@@ -496,6 +496,8 @@ export function Projects() {
             list={{
               total: q.total, loaded: q.loaded,
               hasNext: q.hasNext, isFetchingNext: q.isFetchingNext, onMore: q.fetchNext,
+              /* 요약 카드와 같은 단위(「전체 5개」)다 — 빠져 있어 발만 「전체 5건 중 5건 표시」였다(r23 #35). */
+              unit: "개",
               moreLabel: "프로젝트 더 보기",
             }}
           />

@@ -313,10 +313,13 @@ export function StatusSummaryCard({
      셋째 줄로 그 정의를 들었다 — 정의가 사라지면 숫자를 믿을 수 없다(개발자 리포트). 칩 줄 아래 한
      묶음의 정의 목록(dl)으로 선다. */
   const noteList = (notes || []).filter((n) => n && n.text);
+  /* 정의마다 자기 칸이다(이름이 위, 설명이 아래) — 예전에는 한 줄로 흘러서(flex-wrap) 세 정의가 한 줄에 붙고 줄 끝에서 엉뚱한 자리로
+     접혀, 어느 설명이 어느 이름의 것인지 읽기 어려웠다(r23 프로젝트 목록 #36). 칸은 폭이 되는 만큼 나란히 서고(16rem 이상) 좁으면 쌓인다. */
   const noteBlock = noteList.length ? (
-    <Box component="dl" data-summary-notes="" sx={{ m: 0, display: "flex", flexWrap: "wrap", columnGap: 2, rowGap: 0.25 }}>
+    <Box component="dl" data-summary-notes=""
+      sx={{ m: 0, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 16rem), 1fr))", columnGap: 3, rowGap: 1 }}>
       {noteList.map((n) => (
-        <Box key={n.key || n.label} sx={{ display: "flex", alignItems: "baseline", gap: 0.5, minWidth: 0 }}>
+        <Box key={n.key || n.label} sx={{ display: "grid", alignContent: "start", gap: 0.25, minWidth: 0 }}>
           <Typography component="dt" variant="caption" sx={{ fontWeight: FONT_WEIGHT.semibold, ...KO_KEEP }}>{n.label}</Typography>
           <Typography component="dd" variant="caption" color="text.secondary" sx={{ m: 0, ...KO_KEEP }}>{n.text}</Typography>
         </Box>
