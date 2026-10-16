@@ -106,7 +106,7 @@ describe("내 티켓 — 목록을 못 읽었을 때", () => {
   it("연결을 요청하라는 옛 안내가 되살아나지 않는다", async () => {
     mockMine({ configured: true, mapped: false, tickets: [], total: 0 });
     renderMyTickets();
-    expect(await screen.findByText("담당한 티켓이 없습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("미완료 담당 티켓이 없습니다.")).toBeInTheDocument();
     expect(screen.queryByText(/Notion/)).toBeNull();
   });
 });

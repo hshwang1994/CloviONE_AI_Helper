@@ -349,9 +349,19 @@ describe("빈 목록의 두 가지 뜻", () => {
   it("필터가 없으면 '정말 없다'고 말한다 (필터를 지우라고 하지 않는다)", async () => {
     listPayload = { configured: true, ok: true, mapped: true, items: [], total: 0, page: 1, page_size: 20 };
     renderScreen(MyTickets, "/my-tickets");
-    expect(await screen.findByText("담당한 티켓이 없습니다.")).toBeInTheDocument();
+    // 기본 조건(종료된 티켓 제외)의 0건은 「끝나지 않은 담당 티켓이 없다」이다(r23 #18) — 종료된 것은 「전체 상태 보기」가 넓힌다.
+    expect(await screen.findByText("미완료 담당 티켓이 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("종료된 티켓은 ‘전체 상태 보기’에서 볼 수 있습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("담당한 티켓이 없습니다.")).toBeNull();
     expect(screen.queryByText("검색 조건에 맞는 티켓이 없습니다.")).toBeNull();
     expect(screen.queryByRole("button", { name: "필터 초기화" })).toBeNull();
+  });
+
+  it("모든 상태로 넓혀서도 0건이면 「담당한 티켓이 없습니다」다 — 그때만 「아직 없다」를 말한다(r23 #18)", async () => {
+    listPayload = { configured: true, ok: true, mapped: true, items: [], total: 0, page: 1, page_size: 20 };
+    renderScreen(MyTickets, "/my-tickets?all_status=1");
+    expect(await screen.findByText("담당한 티켓이 없습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("미완료 담당 티켓이 없습니다.")).toBeNull();
   });
 
   it("연동이 없으면 필터 줄 자체를 그리지 않는다", async () => {

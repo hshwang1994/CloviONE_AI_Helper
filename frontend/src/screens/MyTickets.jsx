@@ -907,8 +907,12 @@ export function MyTickets() {
                   <TicketEmptyState
                     filtered={hasTicketFilter(filters, SELF_FILTER_FIELDS)}
                     onClear={clearFilters}
-                    title="담당한 티켓이 없습니다."
-                    help="나에게 배정된 티켓이 아직 없습니다. ‘미할당 티켓’에서 맡을 일을 고를 수 있습니다."
+                    /* 기본 조건(종료된 티켓 제외)으로 0건이면 「없다」가 아니라 「끝나지 않은 것이 없다」다 — 종료된 담당 티켓은 있을 수
+                       있다(r23 #18). 모든 상태로 넓혀서도 0건일 때만 「담당한 티켓이 없습니다」다. 넓히는 단추는 조건 줄의 「전체 상태 보기」다. */
+                    title={filters.all_status ? "담당한 티켓이 없습니다." : "미완료 담당 티켓이 없습니다."}
+                    help={filters.all_status
+                      ? "나에게 배정된 티켓이 아직 없습니다. ‘미할당 티켓’에서 맡을 일을 고를 수 있습니다."
+                      : "종료된 티켓은 ‘전체 상태 보기’에서 볼 수 있습니다."}
                   />
                 }
                 list={{
