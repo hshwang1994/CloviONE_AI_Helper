@@ -155,6 +155,23 @@ export function DragItemActions({ children, sx }) {
  * 될 것 같다」고 한 자리다. 바깥 겹은 화면이 지웠고, 칸은 **상시 테두리를 버린다** —
  * 배경 하나로도 「여기가 한 칸이다」는 충분히 읽히고, 테두리는 카드에만 남아 무엇이
  * 집을 수 있는 것인지 말한다. 끌어 놓는 동안에만 테두리가 살아나 목표를 가리킨다. */
+/* 빈 칸의 안내 한 줄 — 놓을 수 있다는 사실만 말한다. */
+function EmptyDropHint() {
+  return (
+    <Typography
+      variant="caption"
+      color="text.secondary"
+      component="p"
+      sx={{
+        m: 0, display: "block", border: "1px dashed", borderColor: "divider", borderRadius: `${RADIUS.sm}px`,
+        px: 1, py: 0.75, textAlign: "center",
+      }}
+    >
+      여기로 카드를 옮길 수 있습니다.
+    </Typography>
+  );
+}
+
 export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight, action, footer, virtualized, droppable, highlight }) {
   // 받지 않는 칸은 드롭 대상 등록 자체를 끈다 — 하이라이트가 「놓을 수 있다」고
   // 거짓말하지 않는다(분류되지 않음 칸이 그랬다). 칸 안의 카드는 여전히 끌어낼 수 있다.
@@ -218,31 +235,34 @@ export function DropColumn({ id, title, count, hint, children, sx, bodyMaxHeight
           하나를 통째로 쓴다. 그때 사용자가 하는 일은 페이지를 굴려 다른 열의 카드를
           찾는 것이고, 그 순간 칸반은 목록 넷과 다르지 않다.
           `bodyMaxHeight` 를 안 주면 예전처럼 자란다(회귀 0). */}
-      {virtualized ? children : (
-        <Box
-          role="list"
-          sx={{
-            display: "flex", flexDirection: "column", gap: 1, minHeight: "2.5rem",
-            ...(bodyMaxHeight ? { maxHeight: bodyMaxHeight, overflowY: "auto", pr: 0.5 } : null),
-          }}
-        >
-          {children}
-        </Box>
-      )}
       {/* 빈 칸은 **큰 빈 상자가 아니라 한 줄**이다. 놓을 수 있다는 사실만 말한다 —
           받지 않는 칸에는 그 말을 하지 않는다. */}
-      {count === 0 && droppable !== false ? (
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{
-            border: "1px dashed", borderColor: "divider", borderRadius: `${RADIUS.sm}px`,
-            px: 1, py: 0.75, textAlign: "center",
-          }}
-        >
-          여기로 카드를 옮길 수 있습니다.
-        </Typography>
-      ) : null}
+      {virtualized ? (
+        /* 가상 목록은 카드가 없어도 고정 높이로 선다(옆 칸과 같은 높이). 그 아래에 안내를 하나 더 붙이면 빈 칸만 안내 높이만큼
+           길어져 칸 끝과 「이 칸에 추가」 줄이 옆 칸과 어긋났다(r23 #49 · 작업 보드 「완료」 칸). 안내는 목록 자리의 맨 위에
+           겹쳐 서서 높이를 더하지 않는다. */
+        <Box sx={{ position: "relative", minWidth: 0 }}>
+          {children}
+          {count === 0 && droppable !== false ? (
+            <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, pointerEvents: "none" }}>
+              <EmptyDropHint />
+            </Box>
+          ) : null}
+        </Box>
+      ) : (
+        <>
+          <Box
+            role="list"
+            sx={{
+              display: "flex", flexDirection: "column", gap: 1, minHeight: "2.5rem",
+              ...(bodyMaxHeight ? { maxHeight: bodyMaxHeight, overflowY: "auto", pr: 0.5 } : null),
+            }}
+          >
+            {children}
+          </Box>
+          {count === 0 && droppable !== false ? <EmptyDropHint /> : null}
+        </>
+      )}
       {footer ? <Box sx={{ mt: "auto" }}>{footer}</Box> : null}
     </Box>
   );
