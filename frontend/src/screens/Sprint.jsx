@@ -734,7 +734,9 @@ export function Sprint() {
                 { label: "진행 중", value: String(summary.in_progress), kind: "info" },
               ]}
             />
-            <Box sx={PAIR_GRID}>
+            {/* 둘 다 그릴 것이 없는 회차(담긴 티켓이 없다)는 짝 판 높이를 맞추지 않는다 — 예전에는 230px 빈 흰 면 둘에 문장 하나씩만
+                남았다(r23 #51). */}
+            <Box sx={!burndown && !body.health ? PAIR_GRID_NATURAL : PAIR_GRID}>
               <Section flush title="번다운" rule sx={{ flex: 1 }} titleAs="h4">
                 <Box sx={{ ...PANEL_SURFACE, flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   {burndown ? (
@@ -757,7 +759,8 @@ export function Sprint() {
                 <Box sx={{ ...PANEL_SURFACE, flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 0 }}>
                   <Stack spacing={1.5} alignItems="center" sx={{ width: "100%" }}>
                     {/* 게이지가 이 판의 주인이다 — 크게, 한가운데. 점수와 밴드가 링 안에 서고
-                        깎인 이유는 그 아래 한 줄이다. */}
+                        깎인 이유는 그 아래 한 줄이다. 점수가 없으면(담긴 티켓이 없다) 점선 원 대신 문장 하나다(r23 #51). */}
+                    {body.health ? (
                     <Gauge
                       value={body.health ? body.health.score : null}
                       size="11rem"
@@ -769,6 +772,11 @@ export function Sprint() {
                       emptyLabel="담긴 티켓이 없어 아직 재지 않았습니다."
                       revealKey={body.sprint.id}
                     />
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" sx={{ alignSelf: "flex-start", ...KO_WORD_BREAK }}>
+                        담긴 티켓이 없어 아직 재지 않았습니다.
+                      </Typography>
+                    )}
                     {body.health ? (
                       <Stack spacing={1} sx={{ width: "100%" }}>
                         {/* 막대가 값을 스스로 적는다 — 라벨은 이름만. 위 요약 줄과 **같은
